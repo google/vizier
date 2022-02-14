@@ -4,17 +4,16 @@ import attr
 
 from vizier._src.pyvizier.shared import base_study_config
 
-StudyConfig = base_study_config.ProblemStatement
-
 
 @attr.define(frozen=True, init=True)
 class StudyDescriptor:
   """Light-weight summary for Study."""
 
-  config: StudyConfig = attr.ib(
+  config: base_study_config.ProblemStatement = attr.ib(
       init=True,
       validator=[
-          attr.validators.optional(attr.validators.instance_of(StudyConfig))
+          attr.validators.optional(
+              attr.validators.instance_of(base_study_config.ProblemStatement))
       ])
 
   guid: str = attr.ib(

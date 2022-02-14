@@ -337,6 +337,8 @@ message StudySpec {
     GRID_SEARCH = 2;
     // Simple random search within the feasible space.
     RANDOM_SEARCH = 3;
+    // NSGA2 (https://ieeexplore.ieee.org/document/996017)
+    NSGA2 = 4;
   }
 
   // The search algorithm specified for the Study.

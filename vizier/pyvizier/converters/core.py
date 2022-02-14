@@ -681,8 +681,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
   """
 
   def __init__(self,
-               parameter_converters: Sequence[ModelInputConverter],
-               metric_converters: Sequence[ModelOutputConverter] = tuple()):
+               parameter_converters: Collection[ModelInputConverter],
+               metric_converters: Collection[ModelOutputConverter] = tuple()):
     self.parameter_converters = list(parameter_converters)
     self._parameter_converters_dict = {
         pc.parameter_config.name: pc for pc in self.parameter_converters

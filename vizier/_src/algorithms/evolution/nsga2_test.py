@@ -4,10 +4,13 @@ import datetime
 from typing import Optional
 
 from absl import logging
+
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
+
 from vizier._src.algorithms.evolution import nsga2
+from vizier._src.algorithms.evolution import templates
 from vizier.testing import test_studies
 
 from absl.testing import absltest
@@ -15,11 +18,13 @@ from absl.testing import absltest
 np.set_printoptions(precision=3)
 
 
-def nsga2_on_all_types(population_size: int = 50,
-                       eviction_limit: Optional[int] = None) -> nsga2.NSGA2:
-  study_config = vz.StudyConfig(
+def nsga2_on_all_types(
+    population_size: int = 50,
+    eviction_limit: Optional[int] = None
+) -> templates.CanonicalEvolutionDesigner[nsga2.Population, nsga2.Offspring]:
+  problem = vz.ProblemStatement(
       search_space=test_studies.flat_space_with_all_types())
-  study_config.metric_information.extend([
+  problem.metric_information.extend([
       vz.MetricInformation(name='m1', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
       vz.MetricInformation(name='m2', goal=vz.ObjectiveMetricGoal.MINIMIZE),
       vz.MetricInformation(
@@ -29,9 +34,8 @@ def nsga2_on_all_types(population_size: int = 50,
           name='s2', goal=vz.ObjectiveMetricGoal.MINIMIZE, safety_threshold=1.0)
   ])
 
-  algorithm = nsga2.NSGA2(
-      study_config.search_space,
-      study_config.metric_information,
+  algorithm = nsga2.create_nsga2(
+      problem,
       population_size,
       first_survival_after=population_size,
       eviction_limit=eviction_limit)
@@ -59,7 +63,7 @@ class Nsga2Test(absltest.TestCase):
 
     trials = vza.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
     algorithm.update(trials)
-    self.assertSetEqual({t.id for t in algorithm._pool.trials}, {0, 1, 2})
+    self.assertSetEqual(set(algorithm.population.trial_ids), {0, 1, 2})
 
   def test_survival_by_crowding_distance(self):
     algorithm = nsga2_on_all_types(4)
@@ -86,7 +90,7 @@ class Nsga2Test(absltest.TestCase):
 
     trials = vza.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
     algorithm.update(trials)
-    self.assertSetEqual({t.id for t in algorithm._pool.trials}, {0, 1, 3, 4})
+    self.assertSetEqual(set(algorithm.population.trial_ids), {0, 1, 3, 4})
 
   def test_survival_by_safety(self):
     algorithm = nsga2_on_all_types(3)
@@ -105,13 +109,15 @@ class Nsga2Test(absltest.TestCase):
 
     trials = vza.CompletedTrials([trial1, trial2, trial3, trial4])
     algorithm.update(trials)
-    self.assertSetEqual({t.id for t in algorithm._pool.trials}, {1, 2, 4})
+    self.assertSetEqual(set(algorithm.population.trial_ids), {1, 2, 4})
 
   def test_comprehensive_sanity_check(self):
     algorithm = nsga2_on_all_types(5, eviction_limit=3)
 
     tid = 1
     for i in range(10):
+      if i == 8:
+        dumped = algorithm.dump()
       tick = datetime.datetime.now()
       suggestions = algorithm.suggest()
       tock = datetime.datetime.now()
@@ -135,19 +141,22 @@ class Nsga2Test(absltest.TestCase):
         tid += 1
       tick = datetime.datetime.now()
       logging.info('Suggesitons evaluated: %s',
-                   algorithm._trials_to_population(trials).xs.asarray())
+                   '\n'.join(repr(t) for t in trials))
       algorithm.update(vza.CompletedTrials(trials))
       tock = datetime.datetime.now()
       logging.info(
           'Iteration %s: Update took %s.\nPopulation(in array format):%s\nAges:%s',
-          i, tock - tick, algorithm._pool.xs.asarray(), algorithm._pool.ages)
+          i, tock - tick, algorithm.population.xs, algorithm.population.ages)
       tick = tock
 
-    self.assertTrue(np.all(algorithm._pool.ages <= 3))
+    self.assertTrue(np.all(algorithm.population.ages <= 3))
 
-    ys = algorithm._pool.ys
-    pareto = algorithm._pool[nsga2._pareto_rank(ys) == 0]
-    logging.info('Pareto frontier %s %s', pareto.xs.asarray(), pareto.ys)
+    ys = algorithm.population.ys
+    pareto = algorithm.population[nsga2._pareto_rank(ys) == 0]
+    logging.info('Pareto frontier %s %s', pareto.xs, pareto.ys)
+
+    # Smoke test dump-load.
+    algorithm.load(dumped)
 
 
 if __name__ == '__main__':
