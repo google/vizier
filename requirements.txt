@@ -1,0 +1,15 @@
+absl-py>=0.7,<1.0
+numpy>=1.15,<2.0
+coverage>=4.5,<5.0
+protobuf>=3.6,<4.0
+mock>=3.0,<4.0
+pytype==2019.10.17
+typing==3.7.4.1
+keras-tuner>=1.0,<2.0
+grpcio==1.35.0
+portpicker==1.3.1
+grpcio-tools==1.35.0
+# googleapis-common-protos==1.52.0 has a broken google.longrunning.operations_pb2
+# TODO(oss-vizier): Update this version when it's fixed.
+googleapis-common-protos==1.52.0
+google-api-python-client==1.12.8

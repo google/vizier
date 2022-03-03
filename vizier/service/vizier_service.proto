@@ -1,0 +1,395 @@
+syntax = "proto3";
+
+package vizier;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/longrunning/operations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "study.proto";
+
+// An Open-Source port of the Vizier API, based on Cloud AI Platform Vizier API.
+service VizierService {
+  // Creates a Study. A resource name will be generated after creation of the
+  // Study.
+  rpc CreateStudy(CreateStudyRequest) returns (Study) {
+    option (google.api.http) = {
+      post: "{parent=owners/*}/studies"
+      body: "study"
+    };
+    option (google.api.method_signature) = "parent,study";
+  }
+
+  // Gets a Study by name.
+  rpc GetStudy(GetStudyRequest) returns (Study) {
+    option (google.api.http) = {
+      get: "{name=owners/*/studies/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Lists all the studies in a region for an associated project.
+  rpc ListStudies(ListStudiesRequest) returns (ListStudiesResponse) {
+    option (google.api.http) = {
+      get: "{parent=owners/*}/studies"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Deletes a Study.
+  rpc DeleteStudy(DeleteStudyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "{name=owners/*/studies/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Adds one or more Trials to a Study, with parameter values
+  // suggested by a Pythia policy. Returns a long-running
+  // operation associated with the generation of Trial suggestions.
+  // When this long-running operation succeeds, it will contain
+  // a [SuggestTrialsResponse].
+  rpc SuggestTrials(SuggestTrialsRequest)
+      returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "{parent=owners/*/studies/*}/trials:suggest"
+      body: "*"
+    };
+    option (google.longrunning.operation_info) = {
+      response_type: "SuggestTrialsResponse"
+    };
+  }
+  // Gets the latest state of a long-running operation.  Clients can use this
+  // method to poll the operation result at intervals as recommended by the API
+  // service. Copied from google.longrunning.operations.proto.
+  rpc GetOperation(google.longrunning.GetOperationRequest)
+      returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      get: "{parent=owners/*}/operations"
+    };
+    option (google.api.method_signature) = "name";
+  }
+  // Adds a user provided Trial to a Study.
+  rpc CreateTrial(CreateTrialRequest) returns (Trial) {
+    option (google.api.http) = {
+      post: "{parent=owners/*/studies/*}/trials"
+      body: "trial"
+    };
+    option (google.api.method_signature) = "parent,trial";
+  }
+
+  // Gets a Trial.
+  rpc GetTrial(GetTrialRequest) returns (Trial) {
+    option (google.api.http) = {
+      get: "{name=owners/*/studies/*/trials/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Lists the Trials associated with a Study.
+  rpc ListTrials(ListTrialsRequest) returns (ListTrialsResponse) {
+    option (google.api.http) = {
+      get: "{parent=owners/*/studies/*}/trials"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Adds a measurement of the objective metrics to a Trial. This measurement
+  // is assumed to have been taken before the Trial is complete.
+  rpc AddTrialMeasurement(AddTrialMeasurementRequest) returns (Trial) {
+    option (google.api.http) = {
+      post: "{trial_name=owners/*/studies/*/trials/*}:addTrialMeasurement"
+      body: "*"
+    };
+  }
+
+  // Marks a Trial as complete.
+  rpc CompleteTrial(CompleteTrialRequest) returns (Trial) {
+    option (google.api.http) = {
+      post: "{name=owners/*/studies/*/trials/*}:complete"
+      body: "*"
+    };
+  }
+
+  // Deletes a Trial.
+  rpc DeleteTrial(DeleteTrialRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "{name=owners/*/studies/*/trials/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Checks  whether a Trial should stop or not. Returns a
+  // long-running operation. When the operation is successful,
+  // it will contain a
+  // [CheckTrialEarlyStoppingStateResponse].
+  rpc CheckTrialEarlyStoppingState(CheckTrialEarlyStoppingStateRequest)
+      returns (google.longrunning.Operation) {
+    option (google.api.http) = {
+      post: "{trial_name=owners/*/studies/*/trials/*}:checkTrialEarlyStoppingState"
+      body: "*"
+    };
+    option (google.longrunning.operation_info) = {
+      response_type: "CheckTrialEarlyStoppingStateResponse"
+    };
+  }
+
+  // Stops a Trial.
+  rpc StopTrial(StopTrialRequest) returns (Trial) {
+    option (google.api.http) = {
+      post: "{name=owners/*/studies/*/trials/*}:stop"
+      body: "*"
+    };
+  }
+
+  // Lists the pareto-optimal Trials for multi-objective Study or the
+  // optimal Trials for single-objective Study. The definition of
+  // pareto-optimal can be checked in wiki page.
+  // https://en.wikipedia.org/wiki/Pareto_efficiency
+  // (-- api-linter: core::0136::http-uri-suffix=disabled
+  //     aip.dev/not-precedent: disabling the lint for custom api. --)
+  rpc ListOptimalTrials(ListOptimalTrialsRequest)
+      returns (ListOptimalTrialsResponse) {
+    option (google.api.http) = {
+      post: "{parent=owners/*/studies/*}/trials:listOptimalTrials"
+      body: "*"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+}
+
+// Request message for [VizierService.GetStudy][].
+message GetStudyRequest {
+  // The name of the Study resource.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.CreateStudy][].
+message CreateStudyRequest {
+  // The resource name of the Location to create the CustomJob in.
+  // Format: `owners/{owner_id}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+
+  // The Study configuration used to create the Study.
+  Study study = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.ListStudies][].
+message ListStudiesRequest {
+  // The resource name of the Location to list the Study from.
+  // Format: `owners/{owner_id}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+
+  // A page token to request the next page of results.
+  // If unspecified, there are no subsequent pages.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // The maximum number of studies to return per "page" of results.
+  // If unspecified, service will pick an appropriate default.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for [VizierService.ListStudies][].
+message ListStudiesResponse {
+  // The studies associated with the project.
+  repeated Study studies = 1;
+
+  // Passes this token as the `page_token` field of the request for a
+  // subsequent call.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for [VizierService.DeleteStudy][].
+message DeleteStudyRequest {
+  // The name of the Study resource to be deleted.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.SuggestTrials][].
+message SuggestTrialsRequest {
+  // The name of the Study resource.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string parent = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The number of suggestions requested.
+  int32 suggestion_count = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The identifier of the client that is requesting the suggestion.
+  //
+  // If multiple SuggestTrialsRequests have the same `client_id`,
+  // the service will return the identical suggested Trial if the Trial is
+  // pending, and provide a new Trial if the last suggested Trial was completed.
+  string client_id = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for [VizierService.SuggestTrials][].
+message SuggestTrialsResponse {
+  // A list of Trials.
+  repeated Trial trials = 1;
+
+  // The state of the Study.
+  Study.State study_state = 2;
+
+  // The time at which the operation was started.
+  google.protobuf.Timestamp start_time = 3;
+
+  // The time at which operation processing completed.
+  google.protobuf.Timestamp end_time = 4;
+}
+
+// Request message for [VizierService.CreateTrial][].
+message CreateTrialRequest {
+  // The resource name of the Study to create the Trial in.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+
+  // The Trial to create.
+  Trial trial = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.GetTrial][].
+message GetTrialRequest {
+  // The name of the Trial resource.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.ListTrials][].
+message ListTrialsRequest {
+  // The resource name of the Study to list the Trial from.
+  // Format: `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+
+  // A page token to request the next page of results.
+  // If unspecified, there are no subsequent pages.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+  // The number of Trials to retrieve per "page" of results.
+  // If unspecified, the service will pick an appropriate default.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for [VizierService.ListTrials][].
+message ListTrialsResponse {
+  // The Trials associated with the Study.
+  repeated Trial trials = 1;
+
+  // Pass this token as the `page_token` field of the request for a
+  // subsequent call.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for [VizierService.AddTrialMeasurement][].
+message AddTrialMeasurementRequest {
+  // The name of the trial to add measurement.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string trial_name = 1 [(google.api.field_behavior) = REQUIRED];
+  // The measurement to be added to a Trial.
+  Measurement measurement = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.CompleteTrial][].
+message CompleteTrialRequest {
+  // The Trial's name.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // If provided, it will be used as the completed Trial's
+  // final_measurement; Otherwise, the service will auto-select a
+  // previously reported measurement as the final-measurement
+  Measurement final_measurement = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // True if the Trial cannot be run with the given Parameter, and
+  // final_measurement will be ignored.
+  bool trial_infeasible = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // A human readable reason why the trial was infeasible. This should
+  // only be provided if `trial_infeasible` is true.
+  string infeasible_reason = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Request message for [VizierService.DeleteTrial][].
+message DeleteTrialRequest {
+  // The Trial's name.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.CheckTrialEarlyStoppingState][].
+message CheckTrialEarlyStoppingStateRequest {
+  // The Trial's name.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string trial_name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for [VizierService.CheckTrialEarlyStoppingState][].
+message CheckTrialEarlyStoppingStateResponse {
+  // True if the Trial should stop.
+  bool should_stop = 1;
+}
+
+// Request message for [VizierService.StopTrial][].
+message StopTrialRequest {
+  // The Trial's name.
+  // Format:
+  // `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.ListOptimalTrials][].
+message ListOptimalTrialsRequest {
+  // The name of the Study that the optimal Trial belongs to.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+
+  // A page token to request the next page of results.
+  // If unspecified, there are no subsequent pages.
+  string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+  // The number of Trials to retrieve per "page" of results.
+  // If unspecified, service will pick an appropriate default.
+  int32 page_size = 3 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for [VizierService.ListOptimalTrials][].
+message ListOptimalTrialsResponse {
+  // The pareto-optimal Trials for multiple objective Study or the
+  // optimal trial for single objective Study. The definition of
+  // pareto-optimal can be checked in wiki page.
+  // https://en.wikipedia.org/wiki/Pareto_efficiency
+  repeated Trial optimal_trials = 1;
+
+  // Pass this token as the `page_token` field of the request for a
+  // subsequent call.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}

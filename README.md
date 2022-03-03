@@ -20,7 +20,7 @@ An example of the entire server + client loop running locally can be found in `v
 We also present the core components of the example below:
 
 ## Running the Server
-To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
+An example is provided at `vizier/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```
 import grpc
@@ -45,13 +45,16 @@ server.start()
 Using the `address` created above, we may now create the client (e.g. on a different machine):
 
 ```
-client = vizier_client.VizierClient(
+client = vizier_client.create_or_load_study(
     service_endpoint=address,
     owner_id='my_name',
-    study_id='my_study_id')
+    client_id='my_client_id',
+    study_display_name='cifar10',
+    study_config=my_study_config)
 ```
+Note that the above can be called multiple times, one on each machine, to obtain `client_2`, `client_3`,...., all working on the same study, for tuning jobs which require multiple machines to compute the blackbox objective.
 
-The client may now send requests to the server and receive responses, for example:
+Each client may now send requests to the server and receive responses, for example:
 
 ```
 client.list_trials()  # List out trials for `my_study_id`.
@@ -89,3 +92,35 @@ For writing policies involving Bayesian Optimization, we have also provided Tens
 
 # Citing Vizier
 If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
+
+```
+@inproceedings{oss_vizier,
+  author    = {Xingyou Song and
+               Sagi Perel and
+               Chansoo Lee and
+               Greg Kochanski and
+               Daniel Golovin},
+  title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Blackbox Optimization},
+  year      = {2022},
+}
+@inproceedings{original_vizier,
+  author    = {Daniel Golovin and
+               Benjamin Solnik and
+               Subhodeep Moitra and
+               Greg Kochanski and
+               John Karro and
+               D. Sculley},
+  title     = {Google Vizier: {A} Service for Black-Box Optimization},
+  booktitle = {Proceedings of the 23rd {ACM} {SIGKDD} International Conference on
+               Knowledge Discovery and Data Mining, Halifax, NS, Canada, August 13
+               - 17, 2017},
+  pages     = {1487--1495},
+  publisher = {{ACM}},
+  year      = {2017},
+  url       = {https://doi.org/10.1145/3097983.3098043},
+  doi       = {10.1145/3097983.3098043},
+}
+```
+
+
+> NOTE: All source codes will be placed in `_src` to discourage direct dependencies from external packages. We will copy the directory structure wherever necessary to place `__init__.py` files.

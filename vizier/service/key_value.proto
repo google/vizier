@@ -1,0 +1,25 @@
+// These messages are specific to the Open Source API, outside of the Public
+// Cloud Vizier API.
+
+syntax = "proto3";
+
+package vizier;
+
+import "google/protobuf/any.proto";
+
+// A message for storing a (key, namespace, value) pair, where the "value" can
+// either be a unicode string ($value) or a generic protobuf ($proto).
+message KeyValue {
+  // A string key.
+  string key = 1;
+  // Namespace containing the $key.
+  // The (ns, key) pair maps to the value.  The empty namespace is
+  // user-writeable; all other namespaces are reserved for Vizier algorithms.
+  // NOTE: Vizier users should not set this field.
+  string ns = 4;
+  // The payload can be either a string or a proto, but not both.
+  oneof a_value {
+    string value = 2;
+    google.protobuf.Any proto = 3;
+  }
+}
