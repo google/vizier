@@ -54,8 +54,7 @@ class VizierClientTest(parameterized.TestCase):
     self.address = f'localhost:{self.port}'
 
     # Setup server.
-    self.server = grpc.server(
-        futures.ThreadPoolExecutor(max_workers=100), ports=(self.port,))
+    self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
 
     vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
         self.servicer, self.server)

@@ -33,8 +33,7 @@ def main(argv: Sequence[str]) -> None:
   logging.info('Running Vizier server on: %s', address)
 
   # Setup server.
-  server = grpc.server(
-      futures.ThreadPoolExecutor(max_workers=100), ports=(port,))  # pytype:disable=wrong-keyword-args
+  server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
 
   # Setup Vizier Service.
   servicer = vizier_server.VizierService()

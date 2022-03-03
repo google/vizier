@@ -5,8 +5,6 @@ syntax = "proto3";
 
 package vizier;
 
-import "google/protobuf/any.proto";
-
 // The EarlyStoppingOperation will be used internally by the Vizier service to
 // to represent the state of a computation which determines if a Trial should
 // stop early.
