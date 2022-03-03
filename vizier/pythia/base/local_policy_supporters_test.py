@@ -1,4 +1,4 @@
-"""Tests for local_policy_supporters."""
+"""Tests for vizier.pythia.bsae.local_policy_supporters."""
 
 from vizier.pythia.base import local_policy_supporters
 from vizier.pythia.base import policy_supporter

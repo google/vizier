@@ -1,4 +1,4 @@
-"""Tests for vizier.vizier_client."""
+"""Tests for vizier.service.vizier_client."""
 
 from concurrent import futures
 from typing import List

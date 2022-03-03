@@ -1,6 +1,6 @@
 """Contains all datastore classes for saving study + trial data.
 
-See resource_util.py for naming conventions.
+See resources.py for naming conventions.
 """
 import abc
 import dataclasses

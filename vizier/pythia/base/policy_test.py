@@ -1,4 +1,4 @@
-"""Tests for policy."""
+"""Tests for vizier.pythia.base.policy."""
 
 from vizier.pythia.base import policy
 from vizier.pyvizier import pythia as vz
