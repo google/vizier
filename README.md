@@ -1,4 +1,4 @@
-# Open Source Python version of the Vizier API service.
+# Open Source Python implementation of the Vizier API service.
 OSS Vizier is an infrastructural API for blackbox optimization and hyperparameter tuning, based on Google's original internal [Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043) service.
 
 It allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to multiple clients simultaneously in a fault-tolerant manner.
