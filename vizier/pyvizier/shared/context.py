@@ -1,11 +1,4 @@
-"""Wrapper classes for vizier_pb2.Trial and other messages in it.
-
-Example usage:
-  trial = Trial.from_proto(trial_proto)
-  print('This trial's auc is: ', trial.final_measurement.metrics['auc'].value)
-  print('This trial had parameter "n_hidden_layers": ',
-        trial.parameters['n_hidden_layers'].value)
-"""
+"""Wrapper classes for Context protos and other messages in them."""
 from typing import Dict, Optional
 
 import attr
@@ -18,7 +11,7 @@ ParameterValue = trial.ParameterValue
 
 @attr.s(auto_attribs=True, frozen=False, init=True, slots=True)
 class Context:
-  """Wrapper for learning_vizier.service.Context proto."""
+  """Wrapper for Context proto."""
   description: Optional[str] = attr.ib(
       init=True,
       kw_only=True,

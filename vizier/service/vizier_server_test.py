@@ -15,7 +15,7 @@ class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
     self.vs = vizier_server.VizierService()
-    self.owner_id = 'xingyousong'
+    self.owner_id = 'my_username'
     self.study_id = '0123123'
     self.client_id = 'client_0'
     super().setUp()

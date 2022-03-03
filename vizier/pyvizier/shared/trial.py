@@ -1,4 +1,4 @@
-"""Wrapper classes for vizier_pb2.Trial and other messages in it.
+"""Wrapper classes for Trial protos and other messages in them.
 
 Example usage:
   trial = Trial.from_proto(trial_proto)

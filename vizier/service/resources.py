@@ -3,7 +3,7 @@
 Convention for variable naming for string identifiers:
   1. {}_id means single component (e.g. study_id = '1312931').
   2. {}_name means directory (e.g. study_name =
-  'owners/xingyousong/studies/1312931').
+  'owners/my_username/studies/1312931').
 
 Everything related to naming should be self-contained in this file; i.e.
 dependents should only call official API functions from this file and never

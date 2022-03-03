@@ -49,9 +49,9 @@ class UtilTest(parameterized.TestCase):
     self.assertEqual(same_suggestion_op_resource, same_suggestion_op_resource)
 
   @parameterized.named_parameters(
-      ('owner', 'owner/xingyousong', resources.OwnerResource),
-      ('study', 'owners/xingyousong/study/cifar10', resources.StudyResource),
-      ('trial', 'owners/xingyousong/studies/cifar10/trials/not_an_int',
+      ('owner', 'owner/my_username', resources.OwnerResource),
+      ('study', 'owners/my_username/study/cifar10', resources.StudyResource),
+      ('trial', 'owners/my_username/studies/cifar10/trials/not_an_int',
        resources.TrialResource))
   def test_parsing_wrong(self, bad_name, resource_class):
     """Tests for incorrect resource strings, for input validation."""

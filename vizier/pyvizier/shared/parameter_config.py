@@ -1,4 +1,4 @@
-"""ParameterConfig wraps learning_vizier.service.ParameterConfig proto."""
+"""ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
 
 import collections
 import copy

@@ -1,4 +1,8 @@
-# Open Source Python implementation of the Vizier API service.
+<figure>
+<img src="assets/vizier_logo.png" width=15% align="right" />
+</figure>
+
+# Open Source Python implementation of the Vizier API and service.
 OSS Vizier is an infrastructural API for blackbox optimization and hyperparameter tuning, based on Google's original internal [Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043) service.
 
 It allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to multiple clients simultaneously in a fault-tolerant manner.
@@ -100,7 +104,7 @@ class MyPolicy(Policy):
     return [base.EarlyStopDecision(id) for id in trials_to_stop]
 ```
 
-An example is given in `random_policy.py`.
+An example is given in `vizier/pythia/policies/random_policy.py`.
 
 # Citing Vizier
 If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
