@@ -9,7 +9,6 @@ It allows a user to setup a main Vizier Server, which can host blackbox optimiza
   * [Running the Server](#running-the-server)
   * [Running a Client](#running-a-client)
 * [Writing Pythia Policies](#writing-pythia-policies)
-* [Tensorflow-Probability and Keras Modules](#tensorflow-probability-and-keras-modules)
 * [Citing Vizier](#citing-vizier)
 
 # Installation
@@ -87,9 +86,6 @@ class MyPolicy(Policy):
 
 An example is given in `random_policy.py`.
 
-## Tensorflow-Probability and Keras Modules
-For writing policies involving Bayesian Optimization, we have also provided Tensorflow-Probability (TFP) and Keras utility functions in `vizier/tfp/...` and `vizier/keras/...` respectively.
-
 # Citing Vizier
 If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
 
@@ -121,6 +117,3 @@ If you found this code useful, please consider citing the [technical report (TBA
   doi       = {10.1145/3097983.3098043},
 }
 ```
-
-
-> NOTE: All source codes will be placed in `_src` to discourage direct dependencies from external packages. We will copy the directory structure wherever necessary to place `__init__.py` files.
