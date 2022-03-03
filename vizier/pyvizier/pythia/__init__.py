@@ -15,6 +15,7 @@ from vizier.pyvizier.shared.parameter_config import ParameterConfig
 from vizier.pyvizier.shared.parameter_config import ParameterType
 from vizier.pyvizier.shared.parameter_config import ScaleType
 from vizier.pyvizier.shared.trial import Measurement
+from vizier.pyvizier.shared.trial import Metric
 from vizier.pyvizier.shared.trial import ParameterDict
 from vizier.pyvizier.shared.trial import ParameterValue
 from vizier.pyvizier.shared.trial import Trial

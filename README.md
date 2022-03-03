@@ -37,7 +37,7 @@ port = portpicker.pick_unused_port()
 address = f'localhost:{port}'
 
 # Setup server.
-server = grpc.server(futures.ThreadPoolExecutor(max_workers=100), ports=(port,))
+server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
 
 vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(self.servicer, self.server)
 server.add_secure_port(address, grpc.local_server_credentials())
@@ -45,7 +45,7 @@ server.start()
 ```
 
 ## Running a client
-The user may interact with the service via the client interface. The user first needs to setup the search space (i.e. `StudyConfig`):
+The user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```
 from vizier.pyvizier import oss
