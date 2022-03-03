@@ -41,16 +41,32 @@ server.start()
 ```
 
 ## Running a client
-Using the `address` created above, we may now create the client (e.g. on a different machine):
+The user may interact with the service via the client interface. The user first needs to setup the search space (i.e. `StudyConfig`):
 
 ```
+from vizier.pyvizier import oss
+
+study_config = oss.StudyConfig() # Search space, metrics, and algorithm.
+root = study_config.search_space.select_root() # "Root" params must exist in every trial.
+root.add_float('learning_rate', min=1e-4, max=1e-2, scale=oss.ScaleType.LOG)
+root.add_int('num_layers', min=1, max=5)
+study_config.metrics.add('accuracy', goal=oss.ObjectiveMetricGoal.MAXIMIZE, min=0.0, max=1.0)
+study_config.algorithm = oss.Algorithm.RANDOM_SEARCH
+```
+
+Using the `address` created above in the server section, we may now create the client (e.g. on a worker machine different from the server):
+
+```
+from vizier.service import vizier_client
+
 client = vizier_client.create_or_load_study(
     service_endpoint=address,
     owner_id='my_name',
     client_id='my_client_id',
     study_display_name='cifar10',
-    study_config=my_study_config)
+    study_config=study_config)
 ```
+
 Note that the above can be called multiple times, one on each machine, to obtain `client_2`, `client_3`,...., all working on the same study, for tuning jobs which require multiple machines to compute the blackbox objective.
 
 Each client may now send requests to the server and receive responses, for example:
