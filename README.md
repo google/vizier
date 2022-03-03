@@ -25,7 +25,7 @@ We also present the core components of the example below:
 ## Running the Server
 An example is provided at `vizier/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
-```
+```python
 import grpc
 import portpicker
 
@@ -47,7 +47,7 @@ server.start()
 ## Running a client
 The user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
-```
+```python
 from vizier.pyvizier import oss
 
 study_config = oss.StudyConfig() # Search space, metrics, and algorithm.
@@ -60,7 +60,7 @@ study_config.algorithm = oss.Algorithm.RANDOM_SEARCH
 
 Using the `address` created above in the server section, we may now create the client (e.g. on a worker machine different from the server):
 
-```
+```python
 from vizier.service import vizier_client
 
 client = vizier_client.create_or_load_study(
@@ -75,7 +75,7 @@ Note that the above can be called multiple times, one on each machine, to obtain
 
 Each client may now send requests to the server and receive responses, for example:
 
-```
+```python
 client.list_trials()  # List out trials for `my_study_id`.
 client.get_trial(trial_id='1')  # Get the first trial.
 ```
@@ -83,7 +83,7 @@ client.get_trial(trial_id='1')  # Get the first trial.
 # Writing Pythia Policies
 Writing blackbox optimization algorithms requires implementing the `Policy` interface, with pseudocode shown below:
 
-```
+```python
 class MyPolicy(Policy):
   def __init__(self, ...):
     self.policy_supporter = PolicySupporter(...)  # Used to obtain old trials.
