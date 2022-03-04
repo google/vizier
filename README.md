@@ -5,7 +5,10 @@
 # Open Source Vizier: Reliable and Flexible Blackbox Optimization.
 Open Source (OSS) Vizier is a Python-based interface for blackbox optimization and research, based on Google's original internal [Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to scale.
 
-It allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner.
+It consists of two main APIs:
+
+* **User API:** Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
+* **Developer API:** Defines abstractions and utilities for implementing new optimization algorithms for research and benchmarking.
 
 # Table of Contents
 * [Installation](#installation)
@@ -76,7 +79,7 @@ Note that the above can be called multiple times, one on each machine, to obtain
 Each client may now send requests to the server and receive responses, for example:
 
 ```python
-client.list_trials()  # List out trials for `my_study_id`.
+client.list_trials()  # List out trials for `corresponding study`.
 client.get_trial(trial_id='1')  # Get the first trial.
 ```
 
