@@ -1,24 +1,24 @@
 <figure>
-<img src="assets/vizier_logo.png" width=15% align="right" />
+<img src="assets/vizier_logo.png" width=20% align="right" />
 </figure>
 
-# Open Source Python implementation of the Vizier API and service.
-OSS Vizier is an infrastructural API for blackbox optimization and hyperparameter tuning, based on Google's original internal [Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043) service.
+# Open Source Vizier: Reliable and Flexible Blackbox Optimization.
+Open Source (OSS) Vizier is a Python-based interface for blackbox optimization and research, based on Google's original internal [Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to scale.
 
-It allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to multiple clients simultaneously in a fault-tolerant manner.
+It allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner.
 
 # Table of Contents
 * [Installation](#installation)
-* [Running Vizier](#running-vizier)
+* [User API: Running Vizier](#running-vizier)
   * [Running the Server](#running-the-server)
   * [Running a Client](#running-a-client)
-* [Writing Pythia Policies](#writing-pythia-policies)
+* [Developer API: Writing Algorithms](#developer-api-writing-algorithms)
 * [Citing Vizier](#citing-vizier)
 
 # Installation
 The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service.
 
-# Running Vizier
+# User API: Running Vizier
 An example of the entire server + client loop running locally can be found in `vizier/service/vizier_client_test.py`.
 We also present the core components of the example below:
 
@@ -80,8 +80,8 @@ client.list_trials()  # List out trials for `my_study_id`.
 client.get_trial(trial_id='1')  # Get the first trial.
 ```
 
-# Writing Pythia Policies
-Writing blackbox optimization algorithms requires implementing the `Policy` interface, with pseudocode shown below:
+# Developer API: Writing Algorithms
+Writing blackbox optimization algorithms requires implementing the `Policy` interface as part of Vizier's Pythia service, with pseudocode shown below:
 
 ```python
 class MyPolicy(Policy):
