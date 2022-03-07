@@ -74,14 +74,26 @@ client = vizier_client.create_or_load_study(
     study_config=study_config)
 ```
 
-Note that the above can be called multiple times, one on each machine, to obtain `client_2`, `client_3`,...., all working on the same study, for tuning jobs which require multiple machines to compute the blackbox objective.
+Note that the above can be called multiple times, one on each machine, to obtain `client_2`, `client_3`,..., all working on the same study, especially for tuning jobs which require multiple machines to parallelize the workload.
 
 Each client may now send requests to the server and receive responses, for example:
 
 ```python
-client.list_trials()  # List out trials for `corresponding study`.
+client.list_trials()  # List out trials for the corresponding study.
 client.get_trial(trial_id='1')  # Get the first trial.
 ```
+
+The default usage is to tune a user defined blackbox objective `_evalaute_trial()`, with an example shown below:
+
+```python
+while suggestions := client.get_suggestions(count=1)
+  # Evaluate the suggestion(s) and report the results to Vizier.
+  for trial in suggestions:
+    metrics = _evaluate_trial(trial.parameters)
+    client.complete_trial(metrics, trial_id=trial.id)
+```
+
+The Vizier service is designed to handle multiple concurrent clients all requesting suggestions and returning metrics.
 
 # Developer API: Writing Algorithms
 Writing blackbox optimization algorithms requires implementing the `Policy` interface as part of Vizier's Pythia service, with pseudocode shown below:

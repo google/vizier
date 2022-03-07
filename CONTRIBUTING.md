@@ -1,7 +1,8 @@
 # How to contribute
 
-The project currently does not accept pull requests, but we'd be more than happy
-to get your feedback via issues!
+The project currently does not accept pull requests as it is still early-stage,
+but we plan to allow contributed algorithms and benchmarks in the future. We
+are also always very happy to get your feedback via issues!
 
 ## Contributor License Agreement
 
