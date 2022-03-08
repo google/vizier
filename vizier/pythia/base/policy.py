@@ -112,6 +112,10 @@ class SuggestDecision:
       factory=vz.Metadata,
       validator=[attr.validators.instance_of(vz.Metadata)])
 
+  def to_trial(self, trial_id: int) -> vz.Trial:
+    return vz.Trial(
+        id=trial_id, parameters=self.parameters, metadata=self.metadata)
+
 
 class SuggestDecisions(cabc.Sequence):
   """Sequence of suggestions."""

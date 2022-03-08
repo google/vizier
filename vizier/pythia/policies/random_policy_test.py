@@ -24,7 +24,10 @@ class RandomPolicyTest(absltest.TestCase):
 
     self.study_descriptor = pythia.StudyDescriptor(
         config=self.study_config.to_pythia())
-    self.policy = random_policy.RandomPolicy()
+    self.policy_supporter = base.LocalPolicyRunner(
+        self.study_config.to_pythia())
+    self.policy = random_policy.RandomPolicy(
+        policy_supporter=self.policy_supporter)
     super().setUp()
 
   def test_make_random_parameters(self):
@@ -33,7 +36,7 @@ class RandomPolicyTest(absltest.TestCase):
     self.assertLen(parameter_dict, 4)
 
   def test_make_suggestions(self):
-    """Generates random parameters for trials."""
+    """Tests random parameter generation wrapped around Policy."""
     num_suggestions = 5
     suggest_request = base.SuggestRequest(
         study_descriptor=self.study_descriptor, count=num_suggestions)
@@ -44,11 +47,24 @@ class RandomPolicyTest(absltest.TestCase):
       self.assertLen(suggestion.parameters, 4)
 
   def test_make_early_stopping_decisions(self):
-    """Selects a random ACTIVE trial to stop."""
-    request = base.EarlyStopRequest(
-        study_descriptor=self.study_descriptor, trial_ids=[1, 2])
-    early_stop_decisions = self.policy.early_stop(request)
-    self.assertLen(early_stop_decisions, 1)
+    """Checks if all ACTIVE/PENDING trials become completed in random order."""
+    count = 10
+    trials = self.policy_supporter.SuggestTrials(self.policy, count=10)
+    for t in trials:
+      t.status = pyvizier.TrialStatus.PENDING
+    self.policy_supporter.AddTrials(trials)
+
+    trial_ids_stopped = set()
+    for _ in range(count):
+      request = base.EarlyStopRequest(
+          study_descriptor=self.study_descriptor, trial_ids=[1, 2])
+      early_stop_decisions = self.policy.early_stop(request)
+      self.assertLen(early_stop_decisions, 1)
+      trial_to_stop_id = early_stop_decisions[0].id
+      self.policy_supporter.trials[trial_to_stop_id -
+                                   1].status = pyvizier.TrialStatus.COMPLETED
+      trial_ids_stopped.add(trial_to_stop_id)
+    self.assertEqual(trial_ids_stopped, set(range(1, count + 1)))
 
 
 if __name__ == '__main__':

@@ -4,9 +4,8 @@ import abc
 import collections
 import dataclasses
 import datetime
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, List, Optional
 
-from vizier.pythia.base import policy
 from vizier.pyvizier import pythia as vz
 
 
@@ -36,9 +35,8 @@ class PolicySupporter(abc.ABC):
     so you can even overlap calls.
 
     Args:
-      study_guid: The GUID of the study whose StudyConfig you want.
-        Note that access control applies. By default, use the
-        current study's GUID.
+      study_guid: The GUID of the study whose StudyConfig you want. Note that
+        access control applies. By default, use the current study's GUID.
 
     Returns:
       The requested StudyConfig proto.
@@ -57,8 +55,7 @@ class PolicySupporter(abc.ABC):
       min_trial_id: Optional[int] = None,
       max_trial_id: Optional[int] = None,
       status_matches: Optional[vz.TrialStatus] = None,
-      include_intermediate_measurements: bool = True
-  ) -> policy.SuggestDecisions:
+      include_intermediate_measurements: bool = True) -> List[vz.Trial]:
     """Requests Trials from Vizier.
 
     Args:

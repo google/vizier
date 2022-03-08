@@ -44,35 +44,30 @@ class PythiaSupporterTest(absltest.TestCase):
     super().setUp()
 
   def test_trial_names_filter(self):
-    suggest_decisions = self.policy_supporter.GetTrials(
+    trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, trial_ids=[3, 4])
 
     self.assertEqual(
-        suggest_decisions[0].parameters,
-        oss.TrialConverter.from_proto(self.basic_example_trials[2]).parameters)
+        trials[0], oss.TrialConverter.from_proto(self.basic_example_trials[2]))
     self.assertEqual(
-        suggest_decisions[1].parameters,
-        oss.TrialConverter.from_proto(self.basic_example_trials[3]).parameters)
+        trials[1], oss.TrialConverter.from_proto(self.basic_example_trials[3]))
 
   def test_min_max_filter(self):
-    suggest_decisions = self.policy_supporter.GetTrials(
+    trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, min_trial_id=3, max_trial_id=4)
 
     self.assertEqual(
-        suggest_decisions[0].parameters,
-        oss.TrialConverter.from_proto(self.basic_example_trials[2]).parameters)
+        trials[0], oss.TrialConverter.from_proto(self.basic_example_trials[2]))
     self.assertEqual(
-        suggest_decisions[1].parameters,
-        oss.TrialConverter.from_proto(self.basic_example_trials[3]).parameters)
+        trials[1], oss.TrialConverter.from_proto(self.basic_example_trials[3]))
 
   def test_status_match_filter(self):
-    suggest_decisions = self.policy_supporter.GetTrials(
+    trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, status_matches=study_pb2.Trial.State.ACTIVE)
 
-    self.assertLen(suggest_decisions, 1)
-    self.assertEqual(
-        suggest_decisions[0].parameters,
-        oss.TrialConverter.from_proto(self.active_trial).parameters)
+    self.assertLen(trials, 1)
+    self.assertEqual(trials[0],
+                     oss.TrialConverter.from_proto(self.active_trial))
 
   def test_raise_value_error(self):
 

@@ -1,7 +1,8 @@
 """Random Pythia Policy which produces uniform sampling of Trial parameter values.
 
 Since this is a RandomPolicy (i.e. stateless), we don't use the PolicySupporter
-when suggesting trials.
+API when suggesting trials, but we do for the early stopping in order to
+showcase how the policy supporter should be used.
 """
 import random
 from typing import List
@@ -49,8 +50,8 @@ def make_random_parameters(
 class RandomPolicy(base.Policy):
   """A policy that picks random hyper-parameter values."""
 
-  def __init__(self):
-    pass
+  def __init__(self, policy_supporter: base.PolicySupporter):
+    self._policy_supporter = policy_supporter
 
   def suggest(self, request: base.SuggestRequest) -> base.SuggestDecisions:
     """Gets number of Trials to propose, and produces random Trials."""
@@ -62,8 +63,14 @@ class RandomPolicy(base.Policy):
 
   def early_stop(
       self, request: base.EarlyStopRequest) -> List[base.EarlyStopDecision]:
-    """Selects a random ACTIVE trial to stop."""
-    trial_to_stop_id = random.choice(list(request.trial_ids))
-    early_stop_decision = base.EarlyStopDecision(
-        id=trial_to_stop_id, reason='Random early stopping.')
-    return [early_stop_decision]
+    """Selects a random ACTIVE/PENDING trial to stop from datastore."""
+    all_active_trials = self._policy_supporter.GetTrials(
+        study_guid=request.study_guid,
+        status_matches=pyvizier.TrialStatus.PENDING)
+    if all_active_trials:
+      trial_to_stop_id = random.choice(all_active_trials).id
+      early_stop_decision = base.EarlyStopDecision(
+          id=trial_to_stop_id, reason='Random early stopping.')
+      return [early_stop_decision]
+    else:
+      return []

@@ -31,8 +31,7 @@ def policy_creator(
     policy_supporter: service_policy_supporter.ServicePolicySupporter
 ) -> base.Policy:
   if algorithm == study_pb2.StudySpec.Algorithm.RANDOM_SEARCH:
-    del policy_supporter  # Random Policy is stateless.
-    return random_policy.RandomPolicy()
+    return random_policy.RandomPolicy(policy_supporter)
   else:
     raise ValueError(f'{algorithm} is not registered.')
 
@@ -415,7 +414,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       will contain a [CheckTrialEarlyStoppingStateResponse].
     """
     trial_resource = resources.TrialResource.from_name(request.trial_name)
-    lock = self._study_name_to_lock[trial_resource.study_resource.name]
+    study_name = trial_resource.study_resource.name
+    lock = self._study_name_to_lock[study_name]
     lock.acquire()
 
     operation_name = resources.EarlyStoppingOperationResource(
@@ -431,12 +431,13 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           name=operation_name,
           status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE)
 
-      study = self.datastore.load_study(trial_resource.study_resource.name)
+      study = self.datastore.load_study(study_name)
       policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
       pythia_policy = policy_creator(study.study_spec.algorithm,
                                      policy_supporter)
       pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
-      study_descriptor = pythia.StudyDescriptor(config=pythia_sc)
+      study_descriptor = pythia.StudyDescriptor(
+          config=pythia_sc, guid=study_name)
       early_stop_request = base.EarlyStopRequest(
           study_descriptor=study_descriptor,
           trial_ids=[trial_resource.trial_id])

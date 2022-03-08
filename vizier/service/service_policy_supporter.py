@@ -1,7 +1,7 @@
 """Policy Supporter used for the OSS Vizier service."""
 
 import datetime
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 
 from vizier.pythia import base
 from vizier.pyvizier import oss
@@ -44,7 +44,7 @@ class ServicePolicySupporter(base.PolicySupporter):
       min_trial_id: Optional[int] = None,
       max_trial_id: Optional[int] = None,
       status_matches: Optional[vz.TrialStatus] = None,
-      include_intermediate_measurements: bool = True) -> base.SuggestDecisions:
+      include_intermediate_measurements: bool = True) -> List[vz.Trial]:
 
     request = vizier_service_pb2.ListTrialsRequest(parent=study_guid)
     # Implicitly creates a copy of the data.
@@ -80,8 +80,7 @@ class ServicePolicySupporter(base.PolicySupporter):
       for filtered_pytrial in filtered_pytrials:
         filtered_pytrial.measurements = []
 
-    return base.SuggestDecisions(
-        [base.SuggestDecision(t.parameters) for t in filtered_pytrials])
+    return filtered_pytrials
 
   def CheckCancelled(self, note: Optional[str] = None) -> None:
     pass  # Do nothing since it's one single process.

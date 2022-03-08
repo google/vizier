@@ -164,6 +164,8 @@ class VizierServerTest(parameterized.TestCase):
     self.assertEqual(optimal_trial_list[0], hl_trial)
 
   def test_suggest_trials(self):
+    suggestion_count = 10
+
     example_study_spec = test_util.generate_all_four_parameter_specs(
         algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH)
     example_study = test_util.generate_study(
@@ -172,7 +174,7 @@ class VizierServerTest(parameterized.TestCase):
 
     request = vizier_service_pb2.SuggestTrialsRequest(
         parent=resources.StudyResource(self.owner_id, self.study_id).name,
-        suggestion_count=2,
+        suggestion_count=suggestion_count,
         client_id=self.client_id)
     operation = self.vs.SuggestTrials(request)
 
@@ -186,6 +188,7 @@ class VizierServerTest(parameterized.TestCase):
     # Check operation contents.
     suggest_trials_response = vizier_service_pb2.SuggestTrialsResponse.FromString(
         operation.response.value)
+    self.assertLen(suggest_trials_response.trials, suggestion_count)
     for trial in suggest_trials_response.trials:
       self.assertLen(trial.parameters, 4)
 
@@ -230,18 +233,20 @@ class VizierServerTest(parameterized.TestCase):
         self.owner_id, self.study_id, study_spec=example_study_spec)
     self.vs.datastore.create_study(example_study)
 
-    trial = test_util.generate_trials(
-        trial_id_list=[1],
+    active_trials = test_util.generate_trials(
+        trial_id_list=[1, 2, 3, 4],
         owner_id=self.owner_id,
         study_id=self.study_id,
-        state=study_pb2.Trial.State.ACTIVE)[0]
-    self.vs.datastore.create_trial(trial)
+        state=study_pb2.Trial.State.ACTIVE)
+    for t in active_trials:
+      self.vs.datastore.create_trial(t)
 
-    request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
-        trial_name=trial.name)
+    for t in active_trials:
+      request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
+          trial_name=t.name)
 
-    # TODO: Write more comprehensive test.
-    self.vs.CheckTrialEarlyStoppingState(request)
+      # TODO: Write more comprehensive test.
+      self.vs.CheckTrialEarlyStoppingState(request)
 
 
 if __name__ == '__main__':
