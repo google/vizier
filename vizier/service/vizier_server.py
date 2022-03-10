@@ -1,5 +1,6 @@
 """RPC functions implemented from vizier_service.proto."""
 import collections
+import datetime
 import random
 import threading
 from typing import Optional
@@ -48,13 +49,27 @@ MAX_STUDY_ID = 2147483647  # Max int32 value.
 class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   """Implements the GRPC functions outlined in vizier_service.proto."""
 
-  def __init__(self):
+  def __init__(
+      self,
+      early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
+          seconds=60)):
+    """Initializes the service.
+
+    Creates the datastore and relevant locks for multhreading.
+
+    Args:
+      early_stop_recycle_period: Amount of time needed to pass before recycling
+        an early stopping operation. See `CheckEarlyStoppingState` for more
+        details.
+    """
     self.datastore = datastore.NestedDictRAMDataStore()
 
     # For database edits using owner names.
     self._owner_name_to_lock = collections.defaultdict(threading.Lock)
     # For database edits using study names.
     self._study_name_to_lock = collections.defaultdict(threading.Lock)
+
+    self._early_stop_recycle_period = early_stop_recycle_period
 
   def CreateStudy(
       self,
@@ -83,35 +98,32 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       raise ValueError('Study display_name must be specified.')
 
     lock = self._owner_name_to_lock[request.parent]
-    lock.acquire()
-    # Database creates a new active study or loads existing study using the
-    # display name.
-    possible_candidate_studies = self.datastore.list_studies(request.parent)
+    with lock:
+      # Database creates a new active study or loads existing study using the
+      # display name.
+      possible_candidate_studies = self.datastore.list_studies(request.parent)
 
-    # Check if all possible study_id's have been taken.
-    if len(possible_candidate_studies) >= MAX_STUDY_ID:
-      raise ValueError(
-          'Maximum number of studies reached for owner {}.'.format(owner_id))
+      # Check if all possible study_id's have been taken.
+      if len(possible_candidate_studies) >= MAX_STUDY_ID:
+        raise ValueError(
+            'Maximum number of studies reached for owner {}.'.format(owner_id))
 
-    for candidate_study in possible_candidate_studies:
-      if candidate_study.display_name == request.study.display_name:
-        lock.release()
-        return candidate_study
-    # No study in the database matches the resource name. Making a new one.
-    # study_id must be unique among existing studies.
-    previous_study_ids = [
-        resources.StudyResource.from_name(candidate_study.name).study_id
-        for candidate_study in possible_candidate_studies
-    ]
-    study_id = str(random.randint(1, MAX_STUDY_ID))
-    while study_id in previous_study_ids:
+      for candidate_study in possible_candidate_studies:
+        if candidate_study.display_name == request.study.display_name:
+          return candidate_study
+      # No study in the database matches the resource name. Making a new one.
+      # study_id must be unique among existing studies.
+      previous_study_ids = [
+          resources.StudyResource.from_name(candidate_study.name).study_id
+          for candidate_study in possible_candidate_studies
+      ]
       study_id = str(random.randint(1, MAX_STUDY_ID))
+      while study_id in previous_study_ids:
+        study_id = str(random.randint(1, MAX_STUDY_ID))
 
-    # Finally create study in database and return it.
-    study.name = resources.StudyResource(owner_id, study_id).name
-    self.datastore.create_study(study)
-
-    lock.release()
+      # Finally create study in database and return it.
+      study.name = resources.StudyResource(owner_id, study_id).name
+      self.datastore.create_study(study)
     return study
 
   def GetStudy(
@@ -137,9 +149,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     """Deletes a Study."""
     lock = self._owner_name_to_lock[resources.StudyResource.from_name(
         request.name).owner_resource.name]
-    lock.acquire()
-    self.datastore.delete_study(request.name)
-    lock.release()
+    with lock:
+      self.datastore.delete_study(request.name)
     return empty_pb2.Empty()
 
   def SuggestTrials(
@@ -186,122 +197,118 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
     # Lock the database for this study and load it.
     lock = self._study_name_to_lock[request.parent]
-    lock.acquire()
-    study = self.datastore.load_study(request.parent)
+    with lock:
+      study = self.datastore.load_study(request.parent)
 
-    # Checks for a non-done operation in the database with this name.
-    active_op_filter_fn = lambda op: not op.done
-    active_op_list = self.datastore.list_suggestion_operations(
-        owner_name, request.client_id, active_op_filter_fn)
-    if active_op_list:
-      lock.release()
-      return active_op_list[0]  # We've found the active one!
+      # Checks for a non-done operation in the database with this name.
+      active_op_filter_fn = lambda op: not op.done
+      active_op_list = self.datastore.list_suggestion_operations(
+          owner_name, request.client_id, active_op_filter_fn)
+      if active_op_list:
+        return active_op_list[0]  # We've found the active one!
 
-    start_time = _get_current_time()
-    # Create a new Op if there aren't any active (not done) ops.
-    new_op_number = self.datastore.max_suggestion_operation_number(
-        owner_name, request.client_id) + 1
-    new_op_name = resources.SuggestionOperationResource(owner_id,
-                                                        request.client_id,
-                                                        new_op_number).name
-    output_op = operations_pb2.Operation(name=new_op_name, done=False)
-    self.datastore.create_suggestion_operation(output_op)
+      start_time = _get_current_time()
+      # Create a new Op if there aren't any active (not done) ops.
+      new_op_number = self.datastore.max_suggestion_operation_number(
+          owner_name, request.client_id) + 1
+      new_op_name = resources.SuggestionOperationResource(
+          owner_id, request.client_id, new_op_number).name
+      output_op = operations_pb2.Operation(name=new_op_name, done=False)
+      self.datastore.create_suggestion_operation(output_op)
 
-    # Check how many ACTIVE trials already exist for this client only.
-    all_trials = self.datastore.list_trials(study_name)
-    active_trials = [
-        t for t in all_trials if t.state == study_pb2.Trial.State.ACTIVE and
-        t.client_id == request.client_id
-    ]
-    if len(active_trials) >= request.suggestion_count:
-      output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-          trials=active_trials[:request.suggestion_count],
-          start_time=start_time).SerializeToString()
-      output_op.done = True
-      lock.release()
-      return output_op
-    else:
-      output_trials = active_trials
-
-      # Get suggestions from the pool of requested trials.
-      requested_trials = [
-          t for t in all_trials if t.state == study_pb2.Trial.State.REQUESTED
+      # Check how many ACTIVE trials already exist for this client only.
+      all_trials = self.datastore.list_trials(study_name)
+      active_trials = [
+          t for t in all_trials if t.state == study_pb2.Trial.State.ACTIVE and
+          t.client_id == request.client_id
       ]
-      while request.suggestion_count - len(
-          output_trials) > 0 and requested_trials:
-        assigned_trial = requested_trials.pop()
-        # TODO: Currently edits trials via pass-by-ref. Eventually
-        # if datastore passes by copy/value, will need edit_trial() function.
-        assigned_trial.state = study_pb2.Trial.State.ACTIVE
-        assigned_trial.client_id = request.client_id
-        assigned_trial.start_time.CopyFrom(start_time)
-        output_trials.append(assigned_trial)
+      if len(active_trials) >= request.suggestion_count:
+        output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
+            trials=active_trials[:request.suggestion_count],
+            start_time=start_time).SerializeToString()
+        output_op.done = True
+        return output_op
+      else:
+        output_trials = active_trials
 
-      if len(output_trials) == request.suggestion_count:
-        # We've finished collecting enough trials from the REQUESTED pool.
+        # Get suggestions from the pool of requested trials.
+        requested_trials = [
+            t for t in all_trials if t.state == study_pb2.Trial.State.REQUESTED
+        ]
+        while request.suggestion_count - len(
+            output_trials) > 0 and requested_trials:
+          assigned_trial = requested_trials.pop()
+          # TODO: Currently edits trials via pass-by-ref.
+          # Eventually if datastore passes by copy/value, will need edit_trial()
+          # function.
+          assigned_trial.state = study_pb2.Trial.State.ACTIVE
+          assigned_trial.client_id = request.client_id
+          assigned_trial.start_time.CopyFrom(start_time)
+          output_trials.append(assigned_trial)
+
+        if len(output_trials) == request.suggestion_count:
+          # We've finished collecting enough trials from the REQUESTED pool.
+          output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
+              trials=output_trials, start_time=start_time).SerializeToString()
+          output_op.done = True
+          return output_op
+
+        # Still need more suggestions. Pythia begins computing missing amount.
+        policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
+        pythia_policy = policy_creator(study.study_spec.algorithm,
+                                       policy_supporter)
+
+        pythia_sc = pyvizier.StudyConfig.from_proto(
+            study.study_spec).to_pythia()
+        study_descriptor = pythia.StudyDescriptor(config=pythia_sc)
+        suggest_request = base.SuggestRequest(
+            study_descriptor=study_descriptor,
+            count=request.suggestion_count - len(output_trials))
+        try:
+          suggest_decisions = pythia_policy.suggest(suggest_request)
+          assert len(suggest_decisions
+                    ) >= request.suggestion_count - len(output_trials)
+        # Leaving a broad catch for now since Pythia can raise any exception.
+        except Exception as e:  # pylint: disable=broad-except
+          output_op.error.CopyFrom(
+              status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
+          logging.exception(
+              'Failed to request trials from Pythia for request: %s', request)
+          output_op.done = True
+          return output_op
+
+        new_py_trials = [
+            pyvizier.Trial(parameters=decision.parameters)
+            for decision in suggest_decisions
+        ]
+        new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
+
+        while request.suggestion_count - len(output_trials) > 0:
+          new_trial = new_trials.pop()
+          trial_id = self.datastore.max_trial_id(request.parent) + 1
+          new_trial.id = str(trial_id)
+          new_trial.name = resources.TrialResource(owner_id, study_id,
+                                                   trial_id).name
+          new_trial.state = study_pb2.Trial.State.ACTIVE
+          new_trial.start_time.CopyFrom(start_time)
+          new_trial.client_id = request.client_id
+          self.datastore.create_trial(new_trial)
+          output_trials.append(new_trial)
+
         output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
             trials=output_trials, start_time=start_time).SerializeToString()
+
+        # Store remaining trials as REQUESTED if Pythia over-delivered.
+        for remaining_trial in new_trials:
+          trial_id = self.datastore.max_trial_id(request.parent) + 1
+          remaining_trial.id = str(trial_id)
+          remaining_trial.name = resources.TrialResource(
+              owner_id, study_id, trial_id).name
+          remaining_trial.state = study_pb2.Trial.State.REQUESTED
+          self.datastore.create_trial(new_trial)
+
         output_op.done = True
-        lock.release()
         return output_op
-
-      # Still need more suggestions. Pythia begins computing the missing amount.
-      policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
-      pythia_policy = policy_creator(study.study_spec.algorithm,
-                                     policy_supporter)
-
-      pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
-      study_descriptor = pythia.StudyDescriptor(config=pythia_sc)
-      suggest_request = base.SuggestRequest(
-          study_descriptor=study_descriptor,
-          count=request.suggestion_count - len(output_trials))
-      try:
-        suggest_decisions = pythia_policy.suggest(suggest_request)
-        assert len(
-            suggest_decisions) >= request.suggestion_count - len(output_trials)
-      # Leaving a broad catch for now since Pythia can raise any exception.
-      except Exception as e:  # pylint: disable=broad-except
-        output_op.error.CopyFrom(
-            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
-        logging.exception(
-            'Failed to request trials from Pythia for request: %s', request)
-        output_op.done = True
-        lock.release()
-        return output_op
-
-      new_py_trials = [
-          pyvizier.Trial(parameters=decision.parameters)
-          for decision in suggest_decisions
-      ]
-      new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
-
-      while request.suggestion_count - len(output_trials) > 0:
-        new_trial = new_trials.pop()
-        trial_id = self.datastore.max_trial_id(request.parent) + 1
-        new_trial.id = str(trial_id)
-        new_trial.name = resources.TrialResource(owner_id, study_id,
-                                                 trial_id).name
-        new_trial.state = study_pb2.Trial.State.ACTIVE
-        new_trial.start_time.CopyFrom(start_time)
-        new_trial.client_id = request.client_id
-        self.datastore.create_trial(new_trial)
-        output_trials.append(new_trial)
-
-      output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-          trials=output_trials, start_time=start_time).SerializeToString()
-
-      # Store remaining trials as REQUESTED if Pythia over-delivered.
-      for remaining_trial in new_trials:
-        trial_id = self.datastore.max_trial_id(request.parent) + 1
-        remaining_trial.id = str(trial_id)
-        remaining_trial.name = resources.TrialResource(owner_id, study_id,
-                                                       trial_id).name
-        remaining_trial.state = study_pb2.Trial.State.REQUESTED
-        self.datastore.create_trial(new_trial)
-
-      output_op.done = True
-      lock.release()
-      return output_op
 
   def GetOperation(
       self,
@@ -359,7 +366,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
     Returns:
       Trial whose measurement was appended.
-
     """
     trial = self.datastore.get_trial(request.trial_name)
     trial.measurements.extend([request.measurement])
@@ -402,34 +408,80 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self,
       request: vizier_service_pb2.CheckTrialEarlyStoppingStateRequest,
       context: Optional[grpc.ServicerContext] = None
-  ) -> vizier_oss_pb2.EarlyStoppingOperation:
+  ) -> vizier_service_pb2.CheckTrialEarlyStoppingStateResponse:
     """Checks whether a Trial should stop or not.
+
+    The logic is as follows:
+
+    1. We check if there already exists an operation. If not, create it. But if
+    it already exists:
+      a. If it's still ACTIVE (i.e. early stopping is still being computed by
+      Pythia), just return it.
+      b. If it's done and the call is very recent, just return it.
+      c. If it's been a long time, we can recycle the operation, and remark it
+      as ACTIVE to be used again.
+
+    2. Send the operation to Pythia, which will return a set of early stopping
+    decisions. The Pythia policy is guaranteed to return a decision for the
+    requested trial. However, Pythia policy may also signal whether other trials
+    should stop or not (e.g. in algorithms in which proposed trials are batched
+    and correlated).
+
+    3. Transfer these decisions' `should_stop` into the relevant operations
+    (some of which will also be created in this call, for future use), including
+    the original operation which needs to be returned. Mark them all as done.
+
+    4. Return the original trial's `should_stop` decision.
 
     Args:
       request:
       context:
 
     Returns:
-      A long-running operation. When the operation is successful, it
-      will contain a [CheckTrialEarlyStoppingStateResponse].
+      A CheckTrialEarlyStoppingStateResponse, containing a bool to denote
+      whether the requested trial should stop.
     """
     trial_resource = resources.TrialResource.from_name(request.trial_name)
     study_name = trial_resource.study_resource.name
-    lock = self._study_name_to_lock[study_name]
-    lock.acquire()
-
-    operation_name = resources.EarlyStoppingOperationResource(
+    outer_op_name = resources.EarlyStoppingOperationResource(
         trial_resource.owner_id, trial_resource.study_id,
         trial_resource.trial_id).name
 
-    try:
-      output_operation = self.datastore.get_early_stopping_operation(
-          operation_name)
+    lock = self._study_name_to_lock[study_name]
+    with lock:
+      try:
+        # Reuse any existing early stopping op, since the Pythia policy may have
+        # already signaled this trial to stop.
+        output_operation = self.datastore.get_early_stopping_operation(
+            outer_op_name)
+      except KeyError:
+        output_operation = None
 
-    except KeyError:
-      output_operation = vizier_oss_pb2.EarlyStoppingOperation(
-          name=operation_name,
-          status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE)
+      if output_operation is None:
+        # Create fresh new operation.
+        output_operation = vizier_oss_pb2.EarlyStoppingOperation(
+            name=outer_op_name,
+            status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE,
+            should_stop=False)
+        output_operation.creation_time.CopyFrom(_get_current_time())
+        self.datastore.create_early_stopping_operation(output_operation)
+
+      else:
+        if output_operation.status == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE:
+          # Operation is already active. Just return it.
+          return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
+              should_stop=output_operation.should_stop)
+        elif datetime.datetime.utcnow(
+        ) - output_operation.completion_time.ToDatetime(
+        ) < self._early_stop_recycle_period:
+          # Operation is very recent. Just return it.
+          return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
+              should_stop=output_operation.should_stop)
+        else:
+          # Recycle the operation to ACTIVE again and start Pythia for
+          # recomputation.
+          output_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
+          output_operation.should_stop = False  # Defaulted back to False.
 
       study = self.datastore.load_study(study_name)
       policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
@@ -443,22 +495,34 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           trial_ids=[trial_resource.trial_id])
       early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
 
-      for early_stopping_decision in early_stopping_decisions:
-        if early_stopping_decision.should_stop:
-          op_name = resources.EarlyStoppingOperationResource(
-              trial_resource.owner_id, trial_resource.study_id,
-              early_stopping_decision.id).name
-          try:
-            inner_operation = self.datastore.get_early_stopping_operation(
-                op_name)
-            inner_operation.should_stop = True
-            inner_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.DONE
-          except KeyError:
-            # inner_operation not found.
-            pass
+      # Pythia guarantees output_operation's id will be in the decisions.
+      assert trial_resource.trial_id in [
+          decision.id for decision in early_stopping_decisions
+      ]
 
-    lock.release()
-    return output_operation
+      for early_stopping_decision in early_stopping_decisions:
+        inner_op_name = resources.EarlyStoppingOperationResource(
+            trial_resource.owner_id, trial_resource.study_id,
+            early_stopping_decision.id).name
+        try:
+          inner_operation = self.datastore.get_early_stopping_operation(
+              inner_op_name)
+        except KeyError:
+          # Create the operation to store early stopping data for future use.
+          inner_operation = vizier_oss_pb2.EarlyStoppingOperation(
+              name=inner_op_name,
+              status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE,
+              should_stop=False)
+          inner_operation.creation_time.CopyFrom(_get_current_time())
+
+        # TODO: This works currently due to in-RAM datastore.
+        # Fix when datastore becomes pass-by-value.
+        inner_operation.should_stop = early_stopping_decision.should_stop
+        inner_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.DONE
+        inner_operation.completion_time.CopyFrom(_get_current_time())
+
+      return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
+          should_stop=output_operation.should_stop)
 
   def StopTrial(
       self,

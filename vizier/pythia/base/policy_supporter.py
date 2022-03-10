@@ -26,6 +26,7 @@ class MetadataDelta:
 class PolicySupporter(abc.ABC):
   """Used by Policy instances to communicate with Vizier."""
 
+  # TODO: Change to GetStudyDescriptor.
   @abc.abstractmethod
   def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
     """Requests a StudyConfig from Vizier.

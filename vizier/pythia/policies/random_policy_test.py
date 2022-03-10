@@ -49,21 +49,23 @@ class RandomPolicyTest(absltest.TestCase):
   def test_make_early_stopping_decisions(self):
     """Checks if all ACTIVE/PENDING trials become completed in random order."""
     count = 10
-    trials = self.policy_supporter.SuggestTrials(self.policy, count=10)
-    for t in trials:
-      t.status = pyvizier.TrialStatus.PENDING
-    self.policy_supporter.AddTrials(trials)
+    _ = self.policy_supporter.SuggestTrials(self.policy, count=10)
 
+    request_trial_ids = [1, 2]
     trial_ids_stopped = set()
     for _ in range(count):
       request = base.EarlyStopRequest(
-          study_descriptor=self.study_descriptor, trial_ids=[1, 2])
+          study_descriptor=self.study_descriptor, trial_ids=request_trial_ids)
       early_stop_decisions = self.policy.early_stop(request)
-      self.assertLen(early_stop_decisions, 1)
-      trial_to_stop_id = early_stop_decisions[0].id
-      self.policy_supporter.trials[trial_to_stop_id -
-                                   1].status = pyvizier.TrialStatus.COMPLETED
-      trial_ids_stopped.add(trial_to_stop_id)
+      self.assertContainsSubset(
+          request_trial_ids, [decision.id for decision in early_stop_decisions])
+
+      for decision in early_stop_decisions:
+        if decision.should_stop:
+          # Stop trials that need to be stopped.
+          self.policy_supporter.trials[decision.id - 1].complete(
+              pyvizier.Measurement())
+          trial_ids_stopped.add(decision.id)
     self.assertEqual(trial_ids_stopped, set(range(1, count + 1)))
 
 

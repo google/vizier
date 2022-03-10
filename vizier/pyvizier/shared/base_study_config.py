@@ -1310,9 +1310,13 @@ class SearchSpace:
     if self.is_conditional:
       raise NotImplementedError('Not implemented for conditional space.')
     if len(parameters) != len(self._parameter_configs):
+      set1 = set(pc.name for pc in self._parameter_configs)
+      set2 = set(parameters)
       raise InvalidParameterError(
           f'Search space has {len(self._parameter_configs)} parameters '
-          f'but only {len(parameters)} were given.')
+          f'but only {len(parameters)} were given. '
+          f'Missing in search space: {set2 - set1}. '
+          f'Missing in parameters: {set1 - set2}.')
     for pc in self._parameter_configs:
       if pc.name not in parameters:
         raise InvalidParameterError(f'{pc.name} is missing in {parameters}.')

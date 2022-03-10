@@ -127,7 +127,7 @@ service VizierService {
   // it will contain a
   // [CheckTrialEarlyStoppingStateResponse].
   rpc CheckTrialEarlyStoppingState(CheckTrialEarlyStoppingStateRequest)
-      returns (google.longrunning.Operation) {
+      returns (CheckTrialEarlyStoppingStateResponse) {
     option (google.api.http) = {
       post: "{trial_name=owners/*/studies/*/trials/*}:checkTrialEarlyStoppingState"
       body: "*"

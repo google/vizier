@@ -477,7 +477,7 @@ class TrialSuggestion:
   metadata: Metadata = attr.field(
       init=True,
       kw_only=True,
-      default=Metadata(),
+      factory=Metadata,
       validator=attr.validators.instance_of(Metadata))
 
   def to_trial(self, uid: int) -> Trial:

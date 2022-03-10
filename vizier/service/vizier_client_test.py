@@ -1,6 +1,7 @@
 """Tests for vizier.service.vizier_client."""
-
 from concurrent import futures
+import datetime
+import time
 from typing import List
 from absl import logging
 import grpc
@@ -24,7 +25,9 @@ class VizierClientTest(parameterized.TestCase):
     super().setUp()
 
     # Setup Vizier Service and some pre-stored data.
-    self.servicer = vizier_server.VizierService()
+    self.early_stop_recycle_period = datetime.timedelta(seconds=1)
+    self.servicer = vizier_server.VizierService(
+        early_stop_recycle_period=self.early_stop_recycle_period)
     self.owner_id = 'my_username'
     self.study_id = '1231232'
     self.study_name = resources.StudyResource(self.owner_id, self.study_id).name
@@ -123,9 +126,17 @@ class VizierClientTest(parameterized.TestCase):
       self.assertEqual(trial.state, study_pb2.Trial.State.INFEASIBLE)
 
   def test_should_trial_stop(self):
-    done_bool = self.client.should_trial_stop(trial_id='1')
-    self.assertFalse(done_bool)
-    # TODO: Add test for early trial stopping true case.
+    # Only trial 1 was ACTIVE, so RandomPolicy will signal to stop it.
+    should_stop = self.client.should_trial_stop(trial_id='1')
+    self.assertTrue(should_stop)
+    self.active_trial.state = study_pb2.Trial.State.STOPPING
+
+    # The op will become recycled after the time period and early stopping will
+    # be recomputed again. But RandomPolicy will consider the trial non-ACTIVE
+    # and simply return False.
+    time.sleep(self.early_stop_recycle_period.total_seconds())
+    should_stop_again = self.client.should_trial_stop(trial_id='1')
+    self.assertFalse(should_stop_again)
 
   def test_intermediate_measurement(self):
     self.client.report_intermediate_objective_value(

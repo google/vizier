@@ -24,7 +24,7 @@ class MetadataGetClsTest(absltest.TestCase):
     self.assertEqual(metadata.get('any', cls=duration_pb2.Duration), duration)
 
   def test_get_int(self):
-    metadata = common.Metadata({'string': 30, 'int': 60})
+    metadata = common.Metadata({'string': '30', 'int': '60'})
     self.assertEqual(metadata.get('string', cls=int), 30)
     self.assertEqual(metadata.get('int', cls=int), 60)
     self.assertEqual(metadata.get('badkey', 1, cls=int), 1)
@@ -154,8 +154,8 @@ class MetadataTest(absltest.TestCase):
   def test_iterators(self):
     mm = self.create_test_metadata()
     self.assertSequenceEqual(list(mm.keys()), ['bar', 'foo'])
-    self.assertSequenceEqual(list(mm.ns('Name').values()),
-                             ['Name_foo_v', 'Name_baz_v'])
+    self.assertSequenceEqual(
+        list(mm.ns('Name').values()), ['Name_foo_v', 'Name_baz_v'])
     self.assertLen(list(mm.items()), 2)
 
   def test_repr_str(self):
@@ -205,6 +205,30 @@ class MetadataTest(absltest.TestCase):
     mx = common.Metadata()
     copy.copy(mx).ns('A')['a'] = 'Aa'
     self.assertEqual(mx.ns('A')['a'], 'Aa')
+
+  def test_subnamespace(self):
+    mm = common.Metadata()
+    mm.ns('ns1')['foo'] = 'bar'
+    mm.ns('ns2')['foo'] = 'bar'
+    mm.ns('ns1').ns('ns11')['foo'] = 'bar'
+
+    self.assertSequenceEqual(mm.subnamespaces(), [
+        common.Namespace('ns1'),
+        common.Namespace('ns2'),
+        common.Namespace(['ns1', 'ns11'])
+    ])
+    self.assertSequenceEqual(
+        mm.ns('ns1').subnamespaces(),
+        [common.Namespace(), common.Namespace('ns11')])
+
+  def test_attach(self):
+    mm = common.Metadata()
+    mm.ns('ns1').ns('ns11').update(foo='bar')
+    mm.ns('ns1').ns('ns12').update(foo='bar')
+    m1 = common.Metadata()
+    m1.ns('ns0').ns('ns00').attach(mm)
+    self.assertEmpty(m1.abs_ns())
+    self.assertEqual(m1.ns('ns0').ns('ns00'), mm)
 
 
 if __name__ == '__main__':

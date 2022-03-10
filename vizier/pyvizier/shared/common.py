@@ -2,7 +2,7 @@
 
 import collections
 from collections import abc
-from typing import DefaultDict, Dict
+from typing import DefaultDict, Dict, overload
 from typing import Iterable, List, Optional, Tuple, TypeVar, Union, Type
 import attr
 
@@ -16,12 +16,12 @@ MetadataValue = Union[str, any_pb2.Any, Message]
 
 def _parse(arg: str) -> Tuple[str, ...]:
   """Parses an encoded namespace string into a namespace tuple."""
-  return tuple([s.replace('|c', ':').replace('||', '|')
-                for s in arg.split(':')])
+  return tuple(
+      [s.replace('|c', ':').replace('||', '|') for s in arg.split(':')])
 
 
 @attr.frozen(eq=True, order=True, hash=True, auto_attribs=True, init=False)
-class Namespace:
+class Namespace(abc.Sequence):
   """A namespace for the Metadata class.
 
   Namespaces form a tree; a particular namespace is a string or a tuple of
@@ -67,8 +67,19 @@ class Namespace:
     """Appends components onto the namespace."""
     return Namespace(self._as_tuple + tuple(other))
 
-  def __iter__(self):
-    return iter(self._as_tuple)
+  @overload
+  def __getitem__(self, key: int) -> str:
+    ...
+
+  @overload
+  def __getitem__(self, key: slice) -> 'Namespace':
+    ...
+
+  def __getitem__(self, key):
+    """Retrieves item by the specified key."""
+    if isinstance(key, int):
+      return self._as_tuple[key]
+    return Namespace(self._as_tuple[key])
 
   def __str__(self) -> str:
     return ':'.join(self._as_tuple)
@@ -77,13 +88,15 @@ class Namespace:
     """Given a Namespace x, Namespace(repr(x))==x."""
     return ':'.join([c.translate(self._ns_repr_table) for c in self._as_tuple])
 
+  def startswith(self, prefix: Iterable[str]) -> bool:
+    """Returns True if this namespace starts with prefix."""
+    prefix = Namespace(prefix)
+    return self[:len(prefix)] == prefix
+
 
 class _MetadataSingleNameSpace(Dict[str, MetadataValue]):
   """Stores metadata associated with one namespace."""
   pass
-
-
-_StoresType = DefaultDict[Namespace, _MetadataSingleNameSpace]
 
 
 class Metadata(abc.MutableMapping):
@@ -156,11 +169,9 @@ class Metadata(abc.MutableMapping):
         ...
   """
 
-  def __init__(
-      self,
-      *args: Union[Dict[str, MetadataValue],
-                   Iterable[Tuple[str, MetadataValue]]],
-      **kwargs: MetadataValue):
+  def __init__(self, *args: Union[Dict[str, MetadataValue],
+                                  Iterable[Tuple[str, MetadataValue]]],
+               **kwargs: MetadataValue):
     """Construct; this follows dict(), and puts data in the root namespace.
 
     You can pass it a dict, or an object that yields (key, value)
@@ -170,8 +181,9 @@ class Metadata(abc.MutableMapping):
       *args: A dict or an iterable the yields key-value pairs.
       **kwargs: key=value pairs to be added to the specified namespace.
     """
-    self._stores: _StoresType = collections.defaultdict(
-        _MetadataSingleNameSpace)
+    self._stores: DefaultDict[
+        Namespace, _MetadataSingleNameSpace] = collections.defaultdict(
+            _MetadataSingleNameSpace)
     self._namespace = Namespace()
     self._store = self._stores[self._namespace]
     self._store.update(*args, **kwargs)
@@ -183,8 +195,8 @@ class Metadata(abc.MutableMapping):
     object, but they have a different default namespaces.
 
     Args:
-      namespace: a string is parsed into a Namespace object.  Note that
-                 abs_ns() with no argument goes to the root namespace.
+      namespace: a string is parsed into a Namespace object.  Note that abs_ns()
+        with no argument goes to the root namespace.
 
     Returns:
       A new Metadata object in the specified namespace; the new object shares
@@ -196,30 +208,29 @@ class Metadata(abc.MutableMapping):
       ns = Namespace(namespace)
     return self._copy_core(ns)
 
-  def ns(self, namespace: str) -> 'Metadata':
+  def ns(self, namespace: Union[Namespace, str]) -> 'Metadata':
     """Switches to a deeper namespace by appending $namespace.
 
-    This adds a single component to the namespace; len() increases by one;
-    $namespace is not parsed.  All the metadata is shared between $self and the
-    returned value, but they have a different current namespace.
+    All the metadata is shared between $self and the returned value, but they
+    have a different current namespace.
 
     Args:
-      namespace: A namespace component.
+      namespace:
 
     Returns:
       A new Metadata object in the specified namespace; the new object shares
       data (except the namespace) with $self.
     """
     # pylint: disable='protected-access'
-    new_ns: Namespace = self._namespace + (namespace,)
+    new_ns: Namespace = self._namespace + Namespace(namespace)
     # pylint: enable='protected-access'
     return self._copy_core(new_ns)
 
   def __repr__(self) -> str:
     itemlist: List[str] = []
     for namespace, store in self._stores.items():
-      item_string = '(namespace: {}, items: {}'.format(repr(namespace),
-                                                       repr(store))
+      item_string = '(namespace: {}, items: {}'.format(
+          repr(namespace), repr(store))
       itemlist.append(item_string)
     items = ', '.join(itemlist)
     items += f', current_namespace = {repr(self._namespace)}'
@@ -313,9 +324,27 @@ class Metadata(abc.MutableMapping):
       return message if success else None
     return cls(value)
 
+  # TODO: Rename to `abs_namespaces`
   def namespaces(self) -> Tuple[Namespace, ...]:
-    """Returns all namespaces for which there is at least one key."""
+    """Get all namespaces for which there is at least one key.
+
+    Returns:
+      For all `ns` in `md.namespaces()`, `md.abs_ns(ns)` is not empty.
+    """
     return tuple([ns for ns, store in self._stores.items() if store])
+
+  # TODO: Rename to `namespaces`
+  def subnamespaces(self) -> Tuple[Namespace, ...]:
+    """Get all namespaces whose prefix match the current namespace.
+
+    Returns:
+      For all `ns` in `md.subnamespaces()`, `md.ns(ns)` is not empty.
+    """
+    return tuple([
+        Namespace(ns[len(self._namespace):])
+        for ns, store in self._stores.items()
+        if store and ns.startswith(self._namespace)
+    ])
 
   # START OF abstract methods inherited from `MutableMapping` base class.
   def __getitem__(self, key: str) -> MetadataValue:
@@ -362,9 +391,12 @@ class Metadata(abc.MutableMapping):
     md._store = md._stores[md._namespace]  # pylint: disable='protected-access'
     return md
 
-  def update(
-      self,
-      *args: Union[Dict[str, MetadataValue],
-                   Iterable[Tuple[str, MetadataValue]]],
-      **kwargs: MetadataValue) -> None:
+  def update(self, *args: Union[Dict[str, MetadataValue],
+                                Iterable[Tuple[str, MetadataValue]]],
+             **kwargs: MetadataValue) -> None:
     self._store.update(*args, **kwargs)
+
+  def attach(self, other: 'Metadata') -> None:
+    """Attach the other metadata as a descendent of this metadata."""
+    for ns in other.subnamespaces():
+      self._stores[self._namespace + ns].update(other.ns(str(ns)))

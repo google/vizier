@@ -39,7 +39,7 @@ class StudyConfig:
     return ''
 
 
-@attr.s(frozen=True, init=True)
+@attr.define(frozen=True, init=True)
 class StudyDescriptor:
   """Light-weight summary for Study."""
 

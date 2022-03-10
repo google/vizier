@@ -139,7 +139,7 @@ class SearchSpace(base_study_config.SearchSpace):
 #
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
 class StudyConfig:
-  """A builder and wrapper for vizier_pb2.StudyConfig proto."""
+  """A builder and wrapper for study_pb2.StudySpec proto."""
 
   search_space: SearchSpace = attr.field(
       init=True,
@@ -192,10 +192,9 @@ class StudyConfig:
   # If this object was created from a StudyConfig proto, a copy of the original
   # proto is kept, to make sure that unknown proto fields are preserved in
   # round trip serialization.
+  # TODO: Fix the broken proto validation.
   _study_config: study_pb2.StudySpec = attr.field(
       init=True,
-      validator=attr.validators.instance_of(study_pb2.StudySpec),
-      on_setattr=attr.setters.validate,
       factory=study_pb2.StudySpec,
       kw_only=True)
 

@@ -64,13 +64,23 @@ class RandomPolicy(base.Policy):
   def early_stop(
       self, request: base.EarlyStopRequest) -> List[base.EarlyStopDecision]:
     """Selects a random ACTIVE/PENDING trial to stop from datastore."""
+    early_stop_decisions = []
+
     all_active_trials = self._policy_supporter.GetTrials(
         study_guid=request.study_guid,
         status_matches=pyvizier.TrialStatus.PENDING)
+    trial_to_stop_id = None
     if all_active_trials:
       trial_to_stop_id = random.choice(all_active_trials).id
-      early_stop_decision = base.EarlyStopDecision(
-          id=trial_to_stop_id, reason='Random early stopping.')
-      return [early_stop_decision]
-    else:
-      return []
+      early_stop_decisions.append(
+          base.EarlyStopDecision(
+              id=trial_to_stop_id, reason='Random early stopping.'))
+
+    for trial_id in list(request.trial_ids):
+      if trial_id != trial_to_stop_id:
+        early_stop_decisions.append(
+            base.EarlyStopDecision(
+                id=trial_id, reason='Trial should not stop.',
+                should_stop=False))
+
+    return early_stop_decisions

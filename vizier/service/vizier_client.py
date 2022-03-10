@@ -156,8 +156,8 @@ class VizierClient:
         trial_name=resources.TrialResource(self._owner_id, self._study_id,
                                            int(trial_id)).name)
     future = self._server_stub.CheckTrialEarlyStoppingState.future(request)
-    longrunning_operation = future.result()
-    return longrunning_operation.done
+    early_stopping_response = future.result()
+    return early_stopping_response.should_stop
 
   def complete_trial(
       self,

@@ -129,6 +129,7 @@ class SuggestDecisions(cabc.Sequence):
   def __getitem__(self, index: int) -> SuggestDecision:
     return self._container[index]
 
+  # TODO: rename to create_new_trials.
   @classmethod
   def from_trials(cls: Type[_T], trials: Iterable[vz.TrialSuggestion]) -> _T:
     return [SuggestDecision(t.parameters, t.metadata) for t in trials]
@@ -139,15 +140,16 @@ class SuggestRequest:
   """Suggestion Request.
 
   Attributes:
-    _study_descriptor: information about the Study.
+    study_descriptor: information about the Study.
     study_guid: Study id
     count: A recommendation for how many suggestions should be generated.
     study_config:
     checkpoint_dir: (If set) A system-provided directory where the policy can
       store a checkpoint.
   """
-  _study_descriptor: vz.StudyDescriptor = attr.field(
-      validator=attr.validators.instance_of(vz.StudyDescriptor))
+  study_descriptor: vz.StudyDescriptor = attr.field(
+      validator=attr.validators.instance_of(vz.StudyDescriptor),
+      on_setattr=attr.setters.frozen)
 
   count: int = attr.field(
       validator=[attr.validators.instance_of(int), _is_positive],
@@ -160,10 +162,10 @@ class SuggestRequest:
 
   @property
   def study_config(self) -> vz.StudyConfig:
-    return self._study_descriptor.config
+    return self.study_descriptor.config
 
   def study_guid(self) -> str:
-    return f'{self._study_descriptor.guid}'
+    return f'{self.study_descriptor.guid}'
 
 
 class Policy(abc.ABC):

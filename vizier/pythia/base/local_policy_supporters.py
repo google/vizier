@@ -32,7 +32,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
     study_guid: Unique identifier for the study.
   """
 
-  _study_config: vz.StudyConfig = attr.ib(
+  study_config: vz.StudyConfig = attr.ib(
       init=True, validator=attr.validators.instance_of(vz.StudyConfig))
   study_guid: str = attr.ib(init=True, kw_only=True, default='')
   _trials: List[vz.Trial] = attr.ib(init=False, factory=list)
@@ -43,7 +43,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
 
   def study_descriptor(self) -> vz.StudyDescriptor:
     return vz.StudyDescriptor(
-        self._study_config, self.study_guid, max_trial_id=len(self._trials))
+        self.study_config, self.study_guid, max_trial_id=len(self._trials))
 
   def _check_study_guid(self, study_guid: Optional[str]) -> None:
     if study_guid is not None and self.study_guid != study_guid:
@@ -53,7 +53,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
 
   def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
     self._check_study_guid(study_guid)
-    return self._study_config
+    return self.study_config
 
   def GetTrials(
       self,
@@ -85,7 +85,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
 
   def UpdateMetadata(self, delta: policy_supporter.MetadataDelta) -> None:
     for ns in delta.on_study.namespaces():
-      self._study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
+      self.study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
 
     for tid, deltum in delta.on_trials.items():
       for ns in deltum.namespaces():
@@ -101,8 +101,9 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
                     count: int) -> Sequence[vz.Trial]:
     """Suggest and add new trials."""
     trials = []
-    for i, suggestion in enumerate(
-        algorithm.suggest(
-            policy.SuggestRequest(self.study_descriptor(), count))):
-      trials.append(suggestion.to_trial(len(self.trials) + i + 1))
+    for suggestion in algorithm.suggest(
+        policy.SuggestRequest(self.study_descriptor(), count)):
+      # Assign temporary ids, which will be overwritten by AddTrials() method.
+      trials.append(suggestion.to_trial(-1))
+    self.AddTrials(trials)
     return trials

@@ -1,4 +1,6 @@
 """Tests for vizier.service.vizier_server."""
+import datetime
+import time
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import test_util
@@ -14,7 +16,9 @@ from absl.testing import parameterized
 class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
-    self.vs = vizier_server.VizierService()
+    self.early_stop_recycle_period = datetime.timedelta(seconds=60)
+    self.vs = vizier_server.VizierService(
+        early_stop_recycle_period=self.early_stop_recycle_period)
     self.owner_id = 'my_username'
     self.study_id = '0123123'
     self.client_id = 'client_0'
@@ -240,13 +244,30 @@ class VizierServerTest(parameterized.TestCase):
         state=study_pb2.Trial.State.ACTIVE)
     for t in active_trials:
       self.vs.datastore.create_trial(t)
-
-    for t in active_trials:
       request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
           trial_name=t.name)
+      response = self.vs.CheckTrialEarlyStoppingState(request)
+      # Since RandomPolicy picks a random ACTIVE trial to stop and current trial
+      # t is the only ACTIVE trial, it should always stop.
+      self.assertTrue(response.should_stop)
+      t.state = study_pb2.Trial.State.STOPPING
 
-      # TODO: Write more comprehensive test.
-      self.vs.CheckTrialEarlyStoppingState(request)
+    for t in active_trials:
+      trial_resource = resources.TrialResource.from_name(t.name)
+      operation_name = resources.EarlyStoppingOperationResource(
+          trial_resource.owner_id, trial_resource.study_id,
+          trial_resource.trial_id).name
+      op = self.vs.datastore.get_early_stopping_operation(operation_name)
+      self.assertTrue(op.should_stop)
+
+    # After a while, the opeartion will be recycled, and `should_stop` is
+    # defaulted to False. Since the trial is no longer active, RandomPolicy will
+    # not consider it.
+    time.sleep(self.early_stop_recycle_period.total_seconds())
+    request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
+        trial_name=active_trials[0].name)
+    response = self.vs.CheckTrialEarlyStoppingState(request)
+    self.assertFalse(response.should_stop)
 
 
 if __name__ == '__main__':
