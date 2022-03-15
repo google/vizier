@@ -57,6 +57,10 @@ class ServicePolicySupporter(base.PolicySupporter):
       raise ValueError(
           "Can only select trial_names OR (min_trial_id, max_trial_id, status_matches), not both."
       )
+    elif trial_ids is not None:
+      # We're going to do repeated comparisons in _trial_filter(), so this
+      # needs to be more real than an Iterator.
+      trial_ids = frozenset(trial_ids)
 
     def _trial_filter(trial) -> bool:
       if trial_ids is not None and trial.id not in trial_ids:

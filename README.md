@@ -83,7 +83,7 @@ client.list_trials()  # List out trials for the corresponding study.
 client.get_trial(trial_id='1')  # Get the first trial.
 ```
 
-The default usage is to tune a user defined blackbox objective `_evalaute_trial()`, with an example shown below:
+The default usage is to tune a user defined blackbox objective `_evaluate_trial()`, with an example shown below:
 
 ```python
 while suggestions := client.get_suggestions(count=1)
