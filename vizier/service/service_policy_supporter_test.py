@@ -39,7 +39,7 @@ class PythiaSupporterTest(absltest.TestCase):
       self.vs.datastore.create_trial(trial)
 
     self.policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        self.vs)
+        self.study_name, self.vs)
 
     super().setUp()
 

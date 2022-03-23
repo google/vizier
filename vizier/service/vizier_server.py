@@ -254,7 +254,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           return output_op
 
         # Still need more suggestions. Pythia begins computing missing amount.
-        policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
+        policy_supporter = service_policy_supporter.ServicePolicySupporter(
+            study_name, self)
         pythia_policy = policy_creator(study.study_spec.algorithm,
                                        policy_supporter)
 
@@ -484,7 +485,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           output_operation.should_stop = False  # Defaulted back to False.
 
       study = self.datastore.load_study(study_name)
-      policy_supporter = service_policy_supporter.ServicePolicySupporter(self)
+      policy_supporter = service_policy_supporter.ServicePolicySupporter(
+          study_name, self)
       pythia_policy = policy_creator(study.study_spec.algorithm,
                                      policy_supporter)
       pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()

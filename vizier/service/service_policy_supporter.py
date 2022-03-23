@@ -17,7 +17,7 @@ class ServicePolicySupporter(base.PolicySupporter):
 
   # TODO: Replace vizier_service_instance with a vizier_client.
   def __init__(
-      self,
+      self, study_guid: str,
       vizier_service_instance: vizier_service_pb2_grpc.VizierServiceServicer):
     """Initalization stores a Vizier Service Instance to list Trials.
 
@@ -26,12 +26,16 @@ class ServicePolicySupporter(base.PolicySupporter):
     trivially modified.
 
     Args:
+      study_guid: A default study_name; the name of this study.
       vizier_service_instance: vizier_service.VizierService() to be used for
         retriving from datastore.
     """
+    self._study_guid = study_guid
     self._vizier_service = vizier_service_instance
 
   def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
+    if study_guid is None:
+      study_guid = self._study_guid
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
     study = self._vizier_service.GetStudy(request, None)
     return oss.StudyConfig.from_proto(study.study_spec).to_pythia()
@@ -46,6 +50,8 @@ class ServicePolicySupporter(base.PolicySupporter):
       status_matches: Optional[vz.TrialStatus] = None,
       include_intermediate_measurements: bool = True) -> List[vz.Trial]:
 
+    if study_guid is None:
+      study_guid = self._study_guid
     request = vizier_service_pb2.ListTrialsRequest(parent=study_guid)
     # Implicitly creates a copy of the data.
     all_pytrials = oss.TrialConverter.from_protos(

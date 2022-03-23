@@ -13,7 +13,8 @@ class TemporaryPythiaError(PythiaError):
 
   Use case: Catch-all errors where there's some hope that a re-run will succeed
     (e.g. OOM, timeouts, snapshot/version problems, or failure of
-    nondeterministic algorithms).
+    nondeterministic algorithms).  If a Policy raises this error, Vizier will
+    re-try the computation a modest number of times.
   """
 
 
@@ -37,7 +38,12 @@ class InactivateStudyError(PythiaError):
 
 
 class LoadTooLargeError(PythiaError):
-  """Raised when the Pythia server is overly busy."""
+  """Raised when the Pythia server is overly busy.
+
+  If a Policy raises this error, it will be retried a (nearly) infinite number
+  of times by the Vizier server, on the assumption that there will eventually
+  be a server that's not overly busy.
+  """
 
 
 class CancelledByVizierError(PythiaError):
@@ -64,3 +70,13 @@ class PythiaProtocolError(Exception):
   Policy code; please report any occurrences to vizier-team@google.com.
   Maps to an INTERNAL gRPC error code.
   """
+
+
+class VizierDatabaseError(Exception):
+  """Vizier had an error on a database operation.
+
+  This can mean an attempt to access unavailable data, access control, etc.
+  """
+
+
+VizierRefusesError = VizierDatabaseError  # obsolete

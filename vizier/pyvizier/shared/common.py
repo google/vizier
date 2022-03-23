@@ -16,27 +16,60 @@ MetadataValue = Union[str, any_pb2.Any, Message]
 
 def _parse(arg: str) -> Tuple[str, ...]:
   """Parses an encoded namespace string into a namespace tuple."""
-  return tuple(
-      [s.replace('|c', ':').replace('||', '|') for s in arg.split(':')])
+  # The algorithm is that we split on all colons, both escaped and unescaped.
+  fragments = arg.split(':')
+  # Then, we walk through the list of fragments and join back together the
+  # colons that were preceeded by an escape character, dropping the escape
+  # character as we go.
+  output = []
+  join = False
+  for frag in fragments:
+    if join and frag and frag[-1] == '\\':
+      output[-1] += ':' + frag[:-1]
+      join = True
+    elif join:  # Doesn't end in an escape character.
+      output[-1] += ':' + frag
+      join = False
+    elif frag and frag[-1] == '\\':  # Don't join to previous.
+      output.append(frag[:-1])
+      join = True
+    else:  # Don't join to previous and doesn't end in an escape.
+      output.append(frag)
+      join = False
+  return tuple(output)
 
 
 @attr.frozen(eq=True, order=True, hash=True, auto_attribs=True, init=False)
 class Namespace(abc.Sequence):
-  """A namespace for the Metadata class.
+  r"""A namespace for the Metadata class.
 
-  Namespaces form a tree; a particular namespace is a string or a tuple of
-  strings.
+  Namespaces form a tree; a particular namespace can be thought of as a tuple of
+  namespace components (i.e. strings).
 
-  Namespaces can be represented as a tuple of strings or a single encoded
-  string; to convert, you can use string_form = repr(Namespace(tuple_form)), or
-  tuple_form = tuple(Namespace(string_form)).
-  E.g.  Namespace(('a', 'b')) == Namespace('a:b');
-  Namespace((':',)) == Namespace('|c'); and
-  Namespace(('|',)) == Namespace('||').  I.e. in the string form, colons are
-  escaped, and components are separated by colons.
+  You can create a Namespace from a string, i.e. Namespace('a:b'), where
+  the string is parsed into components, splitting at colons; this gives
+  you a tree with two components, where 'b' is the child of 'a'.
+  Or, you can create that same Namespace from a tuple of strings/components
+  i.e.  Namespace(('a', 'b')).  In the tuple case, the strings are not
+  parsed and colons are ordinary characters.
 
-  Note that Namespace(':a') == Namespace('a'); initial colons don't matter in
-  the string form.
+  TLDR: If you build a namespace from a single string, then ":" is a
+    reserved character.  If you use the tuple form, there are no reserved
+    characters.
+
+  Parsing the string form:
+  * Initial colons don't matter: Namespace(':a') == Namespace('a');
+    this is a single-component namespace.
+  * Colons separate components: Namespace('a:b') == Namespace(['a', 'b']).
+    (This is a two-component namespace.)
+  * Colons are encoded as '\\:':  Namespace('a\\:b') == Namespace(['a:b']),
+    and both of these have single component.
+
+  Conversions: For a Namespace x,
+  * Namespace(repr(x)) == x; here, repr(x) will be a string with colons
+    seperating the components.
+  * Namespaces act as an Iterable[str], so Namespace(tuple(x)) == x and
+    Namespace(x) == x.
   """
 
   _as_tuple: Tuple[str, ...] = attr.field(hash=True, eq=True, order=True)
@@ -57,14 +90,27 @@ class Namespace(abc.Sequence):
       parsed: Tuple[str, ...] = tuple(arg)
     self.__attrs_init__(parsed)
 
-  _ns_repr_table = str.maketrans({':': '|c', '|': '||'})
+  _ns_repr_table = str.maketrans({':': r'\:'})
 
   def __len__(self) -> int:
     """Number of components (elements of the tuple form) in the namespace."""
     return len(self._as_tuple)
 
-  def __add__(self, other: Iterable[str]) -> 'Namespace':
-    """Appends components onto the namespace."""
+  def __add__(self, other: Union[str, Iterable[str]]) -> 'Namespace':
+    """Appends components onto the namespace.
+
+    NOTE: Namespace(x) + 'foo' == Namespace(x) + ('foo',), for convenience.
+
+    Args:
+      other:  If a string is given, that's treated as a single component; if an
+        Iterable is given, all the components will be added onto the existing
+        Namespace.
+
+    Returns:
+      A namespace with greater or equal length.
+    """
+    if isinstance(other, str):
+      return Namespace(self._as_tuple + (other,))
     return Namespace(self._as_tuple + tuple(other))
 
   @overload
@@ -82,16 +128,17 @@ class Namespace(abc.Sequence):
     return Namespace(self._as_tuple[key])
 
   def __str__(self) -> str:
+    """For display only."""
     return ':'.join(self._as_tuple)
 
   def __repr__(self) -> str:
-    """Given a Namespace x, Namespace(repr(x))==x."""
+    """Given a Namespace x, Namespace(repr(x)) == x."""
     return ':'.join([c.translate(self._ns_repr_table) for c in self._as_tuple])
 
   def startswith(self, prefix: Iterable[str]) -> bool:
     """Returns True if this namespace starts with prefix."""
-    prefix = Namespace(prefix)
-    return self[:len(prefix)] == prefix
+    ns_prefix = Namespace(prefix)
+    return self[:len(ns_prefix)] == ns_prefix
 
 
 class _MetadataSingleNameSpace(Dict[str, MetadataValue]):
@@ -167,6 +214,8 @@ class Metadata(abc.MutableMapping):
     for ns in mm.namespaces():
       for k, v in mm.abs_ns(ns).items():
         ...
+    WARNING: Because of this behavior, Metadata(mm) will quietly drop metadata
+      from all but mm's current namespace.
   """
 
   def __init__(self, *args: Union[Dict[str, MetadataValue],
@@ -194,9 +243,16 @@ class Metadata(abc.MutableMapping):
     All the Metadata object's data is shared between $self and the returned
     object, but they have a different default namespaces.
 
+    NOTE: Unlike ns(), abs_ns() treats a single string as an encoded namespace,
+      and parses it, splitting at colons.  So, m.abs_ns('ab:cd') has
+      the same effect as m.abs_ns(Namespace('ab:cd')) or
+      m.abs_ns(Namespace(['ab', 'cd'])).  All of the above put you into
+      a length-2 namespace.
+
     Args:
-      namespace: a string is parsed into a Namespace object.  Note that abs_ns()
-        with no argument goes to the root namespace.
+      namespace: a string or a Namespace.  If given a string, it will be parsed
+        into a Namespace object, with splitting on colons, et cetera.  Note that
+        abs_ns() with no argument goes to the root namespace.
 
     Returns:
       A new Metadata object in the specified namespace; the new object shares
@@ -208,29 +264,36 @@ class Metadata(abc.MutableMapping):
       ns = Namespace(namespace)
     return self._copy_core(ns)
 
-  def ns(self, namespace: Union[Namespace, str]) -> 'Metadata':
-    """Switches to a deeper namespace by appending $namespace.
+  def ns(self, components: Union[str, Namespace]) -> 'Metadata':
+    r"""Switches to a deeper namespace by appending components.
+
+    If given a string, it adds a single component onto the current namespace;
+    if given a Namespace, it adds all the Namespace's components onto the
+    current namespace.
 
     All the metadata is shared between $self and the returned value, but they
     have a different current namespace.
 
+    NOTE: Unlike abs_ns(), ns() treats a single string as a single component,
+      and will not split it on colons.   So, m.ns('ab:cd') has the same effect
+      as m.ns(Namespace(['ab:cd']), or m.ns(Namespace('ab\\:cd')).  All of the
+      above increase the length of your namespace by 1.
+
     Args:
-      namespace:
+      components: one component (if a string) or multiple components (if a
+        Namespace) that should be added to the current namespace.
 
     Returns:
       A new Metadata object in the specified namespace; the new object shares
       data (except the namespace) with $self.
     """
-    # pylint: disable='protected-access'
-    new_ns: Namespace = self._namespace + Namespace(namespace)
-    # pylint: enable='protected-access'
+    new_ns: Namespace = self._namespace + components
     return self._copy_core(new_ns)
 
   def __repr__(self) -> str:
     itemlist: List[str] = []
     for namespace, store in self._stores.items():
-      item_string = '(namespace: {}, items: {}'.format(
-          repr(namespace), repr(store))
+      item_string = '(namespace: {}, items: {}'.format(namespace, store)
       itemlist.append(item_string)
     items = ', '.join(itemlist)
     items += f', current_namespace = {repr(self._namespace)}'
@@ -335,10 +398,16 @@ class Metadata(abc.MutableMapping):
 
   # TODO: Rename to `namespaces`
   def subnamespaces(self) -> Tuple[Namespace, ...]:
-    """Get all namespaces whose prefix match the current namespace.
+    """Returns relative namespaces that are at or below the current namespace.
+
+    For all `ns` in `md.subnamespaces()`, `md.ns(ns)` is not empty.
+    E.g. if namespace 'foo:bar' is non-empty, and you're in namespace 'foo',
+    then the result will contain namespace 'bar'.
 
     Returns:
-      For all `ns` in `md.subnamespaces()`, `md.ns(ns)` is not empty.
+      For namespaces that begin with the current namespace and are
+      non-empty, this returns a namespace object that contains the relative
+      path from the current namespace.
     """
     return tuple([
         Namespace(ns[len(self._namespace):])
@@ -365,14 +434,10 @@ class Metadata(abc.MutableMapping):
   def __copy__(self) -> 'Metadata':
     """Shallow copy -- metadata continues to be shared.
 
-    (Functionally, this is equivalent to a deep copy.)
-
     Returns:
       A copy of the object.
     """
-    # pyline: disable='protected-access'
     return self._copy_core(self._namespace)
-    # pyline: enable='protected-access'
 
   # END OF Abstract methods inherited from `MutableMapping` base class.
 
@@ -397,6 +462,25 @@ class Metadata(abc.MutableMapping):
     self._store.update(*args, **kwargs)
 
   def attach(self, other: 'Metadata') -> None:
-    """Attach the other metadata as a descendent of this metadata."""
+    """Attach the other metadata as a descendent of this metadata.
+
+    More precisely, it takes the part of `other`'s namespace that is at or
+    below `other`'s current namespace, and attaches it to `self`'s current
+    namespace.
+    * Tree structure is preserved and nothing is flattened.
+    * Attached data overwrites existing data, item-by-item, not
+      namepace-by-namespace.
+
+    So, if we have
+    other = Metadata()
+    other.abs_ns('x:y:z')['foo'] = 'bar'
+    m = Metadata()
+    m.ns('w').attach(other.ns('x'))
+    then
+    m.abs_ns('w:y:z')['foo'] will contain 'bar'.
+
+    Args:
+      other: a Metadata object to copy from.
+    """
     for ns in other.subnamespaces():
-      self._stores[self._namespace + ns].update(other.ns(str(ns)))
+      self._stores[self._namespace + ns].update(other.ns(ns))

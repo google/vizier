@@ -19,3 +19,5 @@ from vizier.pythia.base.pythia_errors import LoadTooLargeError
 from vizier.pythia.base.pythia_errors import PythiaError
 from vizier.pythia.base.pythia_errors import PythiaProtocolError
 from vizier.pythia.base.pythia_errors import TemporaryPythiaError
+from vizier.pythia.base.pythia_errors import VizierDatabaseError
+from vizier.pythia.base.pythia_errors import VizierRefusesError  # obsolete

@@ -276,7 +276,7 @@ message GetTrialRequest {
 // Request message for [VizierService.ListTrials][].
 message ListTrialsRequest {
   // The resource name of the Study to list the Trial from.
-  // Format: `owners/{owner_id}/studies/{study_id}/trials/{trial_id}`
+  // Format: `owners/{owner_id}/studies/{study_id}`
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).child_type =
