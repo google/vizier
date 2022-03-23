@@ -43,8 +43,10 @@ class PolicySupporter(abc.ABC):
       The requested StudyConfig proto.
 
     Raises:
-      CancelComputeError: via CheckCancelled.
-      # TODO: What is raised it the study_guid is invalid?
+      CancelComputeError: (Do not catch.)
+      PythiaProtocolError: (Do not catch.)
+      VizierDatabaseError: If the database operation raises an error, e.g. if
+        $study_guid refers to a nonexistent or inaccessible study.
     """
 
   @abc.abstractmethod
@@ -79,7 +81,10 @@ class PolicySupporter(abc.ABC):
       Trials obtained from Vizier.
 
     Raises:
-      CancelComputeError: via CheckCancelled.
+      CancelComputeError: (Do not catch.)
+      PythiaProtocolError: (Do not catch.)
+      VizierDatabaseError: If the database operation raises an error, e.g. if
+        $study_guid refers to a nonexistent or inaccessible study.
 
     NOTE: if $trial_ids is set, $min_trial_id, $max_trial_id, and
       $status_matches will be ignored.
@@ -97,7 +102,7 @@ class PolicySupporter(abc.ABC):
       note: for debugging.
 
     Raises:
-      CancelComputeError: per protocol request.
+      CancelComputeError: (Do not catch.)
     """
 
   @abc.abstractmethod
@@ -114,12 +119,18 @@ class PolicySupporter(abc.ABC):
     InactivateStudyError (if not).
     """
 
-  def UpdateMetadata(self, delta: MetadataDelta):
-    """Updates the metadata."""
-    raise NotImplementedError(
-        'Not implemented. This is intentionally not declared as an abstract '
-        'class so InRamPolicySupporter can be written without breaking any '
-        'existing code.')
+  @abc.abstractmethod
+  def UpdateMetadata(self, delta: MetadataDelta) -> None:
+    """Updates the Study's metadata in Vizier's database.
+
+    Args:
+      delta: Metadata to be uploaded to the Vizier database.
+
+    Raises:
+      CancelComputeError: (Do not catch.)
+      PythiaProtocolError: (Do not catch.)
+      VizierDatabaseError: If the database operation raises an error.
+    """
 
 
 class MetadataUpdate:

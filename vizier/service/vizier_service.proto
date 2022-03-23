@@ -9,6 +9,7 @@ import "google/api/resource.proto";
 import "google/longrunning/operations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "key_value.proto";
 import "study.proto";
 
 // An Open-Source port of the Vizier API, based on Cloud AI Platform Vizier API.
@@ -158,6 +159,14 @@ service VizierService {
       body: "*"
     };
     option (google.api.method_signature) = "parent";
+  }
+
+  // An atomic, bulk update of Study and Trial metadata.
+  rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse) {
+    option (google.api.http) = {
+      post: "{name=owners/*/studies/*}:update_metadata"
+      body: "*"
+    };
   }
 }
 
@@ -392,4 +401,36 @@ message ListOptimalTrialsResponse {
   // subsequent call.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
+}
+
+// This is bulk transport of metadata from Pythia to Vizier.
+message UpdateMetadataRequest {
+  // The resource name of the Study to send the metadata to.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string name = 4 [
+    (google.api.field_behavior) = REQUIRED
+  ];
+  // Does $name need more OnePlatform annotations?  E.g. something like
+  // (google.api.resource_reference).child_type =
+  //     "aiplatform.googleapis.com/Study"
+
+  message KeyValuePlus {
+    // Which Trial should this metadata be attached to?
+    // Note that this should not be an arbitrary string; it should be derived
+    // from the TrialResource class.
+    // When $trial_id is unset, KeyValuePluscarries StudyConfig.metadata.
+    optional string trial_id = 3;
+    // The metadata itself.
+    KeyValue k_v = 2;
+  }
+
+  // A list of metadata items.
+  repeated KeyValuePlus metadata = 2;
+}
+
+// This is a response to a UpdateMetadataRequest message.
+// Travels Vizier -> Pythia.
+message UpdateMetadataResponse {
+  // If $error_details is empty, there is no error.
+  string error_details = 2;
 }

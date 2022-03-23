@@ -71,6 +71,13 @@ class StudyResource:
   def name(self) -> str:
     return f'owners/{self.owner_id}/studies/{self.study_id}'
 
+  def trial_resource(self, trial_id: str) -> 'TrialResource':
+    """Creates a TrialResource when given a trial_id."""
+    int_id = int(trial_id)
+    if int_id <= 0:
+      raise ValueError('Invalid trial_id: "{trial_id}"')
+    return TrialResource(self.owner_id, self.study_id, int_id)
+
 
 @attr.define(init=True, frozen=True)
 class TrialResource:
@@ -80,7 +87,7 @@ class TrialResource:
   trial_id: int = attr.ib(init=True, validator=_assert_not_empty)
 
   @classmethod
-  def from_name(cls, resource_name: str):
+  def from_name(cls, resource_name: str) -> 'TrialResource':
     """Creates TrialResource from a name."""
     trial_match = re.match(
         r'^owners/(?P<owner_id>[\w\s]+)/studies/(?P<study_id>[\w\s]+)/trials/(?P<trial_id>[\w\s]+)$',

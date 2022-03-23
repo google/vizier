@@ -136,7 +136,8 @@ message Trial {
   string infeasible_reason = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Arbitrary metadata associated with the Trial.  This is not processed by
-  // the Vizier server, but is readable/writeable by Pythia policies.
+  // the Vizier server, but is readable/writeable by Pythia policies and user
+  // code.
   // FYI, the "" namespace may be read and written by the user.
   // NOTE: Each KeyValue item is limited to 10 megabytes.
   // NOTE: Keys should be unique within their namespaces.
@@ -395,7 +396,8 @@ message StudySpec {
   ObservationNoise observation_noise = 6;
 
   // Arbitrary metadata associated with the Study.  This is not processed by
-  // the Vizier server, but is readable/writeable by Pythia policies.
+  // the Vizier server, but is readable/writeable by Pythia policies and user
+  // code.
   // FYI, the "" namespace may be read and written by the user.
   // NOTE: Each KeyValue item is limited to 10 megabytes.
   // NOTE: Keys should be unique within their namespaces.

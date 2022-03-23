@@ -1,6 +1,7 @@
 """Tests for vizier.service.vizier_server."""
 import datetime
 import time
+from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import test_util
@@ -11,6 +12,9 @@ from google.longrunning import operations_pb2
 
 from absl.testing import absltest
 from absl.testing import parameterized
+
+
+_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
 class VizierServerTest(parameterized.TestCase):
@@ -269,6 +273,33 @@ class VizierServerTest(parameterized.TestCase):
     response = self.vs.CheckTrialEarlyStoppingState(request)
     self.assertFalse(response.should_stop)
 
+  def test_update_metadata(self):
+    # Construct a study.
+    example_study_spec = test_util.generate_all_four_parameter_specs(
+        algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH)
+    example_study = test_util.generate_study(
+        self.owner_id, self.study_id, study_spec=example_study_spec)
+    self.vs.datastore.create_study(example_study)
+    active_trials = test_util.generate_trials(
+        trial_id_list=[1, 2],
+        owner_id=self.owner_id,
+        study_id=self.study_id,
+        state=study_pb2.Trial.State.ACTIVE)
+    for t in active_trials:
+      self.vs.datastore.create_trial(t)
+
+    # Construct the request.
+    study_metadata = _KeyValuePlus(
+        k_v=key_value_pb2.KeyValue(key='a', ns='b', value='C'))
+    trial_metadata = _KeyValuePlus(
+        trial_id='1', k_v=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+    request = vizier_service_pb2.UpdateMetadataRequest(
+        name=resources.StudyResource(self.owner_id, self.study_id).name,
+        metadata=[study_metadata, trial_metadata])
+    # Send it to the server.
+    response = self.vs.UpdateMetadata(request)
+    # Check that there was no error.
+    self.assertEmpty(response.error_details)
 
 if __name__ == '__main__':
   absltest.main()

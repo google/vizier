@@ -78,5 +78,3 @@ class VizierDatabaseError(Exception):
   This can mean an attempt to access unavailable data, access control, etc.
   """
 
-
-VizierRefusesError = VizierDatabaseError  # obsolete

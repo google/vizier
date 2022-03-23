@@ -1,5 +1,8 @@
 """Tests for vizier.service.service_policy_supporter."""
+
+from vizier.pythia.base import policy_supporter
 from vizier.pyvizier import oss
+from vizier.pyvizier.shared import common
 from vizier.service import resources
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2
@@ -85,6 +88,24 @@ class PythiaSupporterTest(absltest.TestCase):
     correct_pythia_sc = oss.StudyConfig.from_proto(
         self.example_study.study_spec).to_pythia()
     self.assertEqual(pythia_sc, correct_pythia_sc)
+
+  def test_update_metadata(self):
+    on_study_metadata = common.Metadata()
+    on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
+    on_trial1_metadata = common.Metadata()
+    on_trial1_metadata.ns('bar')['nerf'] = '1.bar.nerf.2'
+    delta = policy_supporter.MetadataDelta(
+        on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
+    self.policy_supporter.UpdateMetadata(delta)
+    # Read to see that the results are correct.
+    pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
+    self.assertLen(pythia_sc.metadata.namespaces(), 1)
+    self.assertEqual(pythia_sc.metadata.ns('bar'), on_study_metadata.ns('bar'))
+    trials = self.policy_supporter.GetTrials(
+        study_guid=self.study_name, min_trial_id=1, max_trial_id=1)
+    self.assertLen(trials, 1)
+    self.assertLen(trials[0].metadata.namespaces(), 1)
+    self.assertEqual(trials[0].metadata.ns('bar'), on_trial1_metadata.ns('bar'))
 
 
 if __name__ == '__main__':

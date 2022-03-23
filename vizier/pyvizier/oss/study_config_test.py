@@ -9,7 +9,7 @@ from vizier.pyvizier.shared import trial
 from vizier.service import study_pb2
 
 from google.protobuf import struct_pb2
-from vizier.pyvizier.oss import compare
+from vizier._src.pyvizier.oss import compare
 from absl.testing import absltest
 from absl.testing import parameterized
 

@@ -4,12 +4,18 @@ See resources.py for naming conventions.
 """
 import abc
 import dataclasses
-from typing import Callable, Dict, List, Optional
+import logging
+from typing import Callable, Dict, Iterable, List, Optional
 
+from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_oss_pb2
+from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
+
+
+_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
 class DataStore(abc.ABC):
@@ -18,73 +24,60 @@ class DataStore(abc.ABC):
   @abc.abstractmethod
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
     """Creates study in the database. If already exists, raises ValueError."""
-    pass
 
   @abc.abstractmethod
   def load_study(self, study_name: str) -> study_pb2.Study:
     """Loads a study from the database."""
-    pass
 
   @abc.abstractmethod
   def delete_study(self, study_name: str) -> None:
     """Deletes study from database. If Study doesn't exist, raises KeyError."""
-    pass
 
   @abc.abstractmethod
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     """Lists all studies under a given owner."""
-    pass
 
   @abc.abstractmethod
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     """Stores trial in database."""
-    pass
 
   @abc.abstractmethod
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     """Retrieves trial from database."""
-    pass
 
   @abc.abstractmethod
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     """List all trials given a study."""
-    pass
 
   @abc.abstractmethod
   def delete_trial(self, trial_name: str) -> None:
     """Deletes trial from database."""
-    pass
 
   @abc.abstractmethod
   def max_trial_id(self, study_name: str) -> int:
     """Maximal trial ID in study. Returns 0 if no trials exist."""
-    pass
 
   @abc.abstractmethod
   def create_suggestion_operation(
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
     """Stores suggestion operation."""
-    pass
 
   @abc.abstractmethod
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     """Stores early stopping operation."""
-    pass
 
   @abc.abstractmethod
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     """Retrieves suggestion operation."""
-    pass
 
   @abc.abstractmethod
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
     """Retrieves early stopping operation."""
-    pass
 
   @abc.abstractmethod
   def list_suggestion_operations(
@@ -94,13 +87,30 @@ class DataStore(abc.ABC):
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
     """Retrieve all suggestion operations from a client."""
-    pass
 
   @abc.abstractmethod
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
     """Maximal suggestion number for a given client."""
-    pass
+
+  @abc.abstractmethod
+  def update_metadata(
+      self,
+      study_name: str,
+      study_metadata: Iterable[key_value_pb2.KeyValue],
+      trial_metadata: Iterable[_KeyValuePlus],
+  ) -> None:
+    """Store the supplied metadata in the database.
+
+    Args:
+        study_name: (Typically derived from a StudyResource.)
+        study_metadata: Metadata to attach to the Study as a whole.
+        trial_metadata: Metadata to attach to Trials.
+
+    Raises:
+      KeyError: if the update fails because of an attempt to attach metadata to
+        a nonexistant Trial.
+    """
 
 
 # Specific dataclasses used for NestedDictRAMDataStore.
@@ -131,9 +141,10 @@ class ClientNode:
 @dataclasses.dataclass(frozen=True)
 class OwnerNode:
   """First level of the entire RAM Datastore."""
-  # Keys are `owner_id`.
+  # Key is a `study_id` that pick's out one of the owner's Studies.
   studies: Dict[str, StudyNode] = dataclasses.field(default_factory=dict)
-  # Keys are `client_id`.
+  # Key is `client_id`, which distinguishes clients, so you can have several
+  # clients interacting with the same Vizier server.
   clients: Dict[str, ClientNode] = dataclasses.field(default_factory=dict)
 
 
@@ -142,6 +153,8 @@ class NestedDictRAMDataStore(DataStore):
 
   def __init__(self):
     """Organization as follows."""
+    # Key is `owner_id`, which corresponds to the (perhaps human) owner
+    # of the Study.
     self._owners: Dict[str, OwnerNode] = {}
 
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
@@ -155,7 +168,7 @@ class NestedDictRAMDataStore(DataStore):
       if resource.study_id not in study_dict:
         study_dict.update(temp_dict)
       else:
-        raise ValueError('Study with that name already exists.')
+        raise ValueError('Study with that name already exists.', study.name)
     return resource
 
   def load_study(self, study_name: str) -> study_pb2.Study:
@@ -188,6 +201,46 @@ class NestedDictRAMDataStore(DataStore):
     return list(self._owners[resource.owner_id].studies[
         resource.study_id].trial_protos.values())
 
+  def update_metadata(self, study_name: str,
+                      study_metadata: Iterable[key_value_pb2.KeyValue],
+                      trial_metadata: Iterable[_KeyValuePlus]) -> None:
+    """Writes the supplied metadata to the database.
+
+    Args:
+      study_name:
+      study_metadata: Metadata that's associated with the Study as a whole.
+      trial_metadata: Metadata that's associated with trials.  (Note that its an
+        error to attach metadata to a Trial that doesn't exist.)
+    """
+    s_resource = resources.StudyResource.from_name(study_name)
+    logging.debug('database.update_metadata s_resource= %s', s_resource)
+    try:
+      study = self._owners[s_resource.owner_id].studies[s_resource.study_id]
+    except KeyError as e:
+      raise KeyError('No such study:', s_resource.name) from e
+    # Store Study-related metadata into the database.
+    study.study_proto.study_spec.ClearField('metadata')
+    for metadata in study_metadata:
+      study.study_proto.study_spec.metadata.append(metadata)
+    # Store trial-related metadata in the database.  We first create a table of
+    # the relevant `trial_resources` that will be touched.   We clear them, then
+    # loop through the metadata, converting to protos.
+    trial_resources: Dict[str, resources.TrialResource] = {}
+    for metadata in trial_metadata:
+      try:
+        t_resource = trial_resources[metadata.trial_id]
+      except KeyError:
+        # If we don't have a t_resource entry already, create one and clear the
+        # relevant Trial's metadata.
+        t_resource = s_resource.trial_resource(metadata.trial_id)
+        trial_resources[metadata.trial_id] = t_resource
+        try:
+          study.trial_protos[t_resource.trial_id].ClearField('metadata')
+        except KeyError as e:
+          raise KeyError(f'No such trial ({metadata.trial_id}):',
+                         t_resource.name) from e
+      study.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)
+
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
     del self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
@@ -212,7 +265,7 @@ class NestedDictRAMDataStore(DataStore):
     suggestion_operations = self._owners[resource.owner_id].clients[
         resource.client_id].suggestion_operations
     if resource.operation_id in suggestion_operations:
-      raise ValueError(f'Operation {resource.operation_id} already exists.')
+      raise ValueError('Operation already exists:', resource.operation_id)
 
     suggestion_operations[resource.operation_id] = operation
     return resource
@@ -235,9 +288,8 @@ class NestedDictRAMDataStore(DataStore):
           resource.client_id].suggestion_operations[resource.operation_id]
 
     except KeyError as err:
-      raise KeyError(
-          f'Could not find SuggestionOperation using resource with full name {resource.name}.'
-      ) from err
+      raise KeyError('Could not find SuggestionOperation with name:',
+                     resource.name) from err
 
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
@@ -247,9 +299,8 @@ class NestedDictRAMDataStore(DataStore):
       return self._owners[resource.owner_id].studies[
           resource.study_id].early_stopping_operations[resource.operation_id]
     except KeyError as err:
-      raise KeyError(
-          f'Could not find EarlyStoppingOperation using resource with full name {resource.name}.'
-      ) from err
+      raise KeyError('Could not find EarlyStoppingOperation with name:',
+                     resource.name) from err
 
   def list_suggestion_operations(
       self,

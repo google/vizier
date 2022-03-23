@@ -31,7 +31,6 @@ class StudyConfig:
       init=True,
       kw_only=True,
       factory=common.Metadata,
-      converter=common.Metadata,
       validator=attr.validators.instance_of(common.Metadata))
 
   @property

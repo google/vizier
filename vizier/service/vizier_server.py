@@ -594,3 +594,20 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         optimal_trials.append(considered_trials[i])
     return vizier_service_pb2.ListOptimalTrialsResponse(
         optimal_trials=optimal_trials)
+
+  def UpdateMetadata(
+      self,
+      request: vizier_service_pb2.UpdateMetadataRequest,
+      context: Optional[grpc.ServicerContext] = None
+  ) -> vizier_service_pb2.UpdateMetadataResponse:
+    """Stores the supplied metadata in the database."""
+    del context
+    try:
+      self.datastore.update_metadata(
+          request.name,
+          [x.k_v for x in request.metadata if not x.HasField('trial_id')],
+          [x for x in request.metadata if x.HasField('trial_id')])
+    except KeyError as e:
+      return vizier_service_pb2.UpdateMetadataResponse(
+          error_details=';'.join(e.args))
+    return vizier_service_pb2.UpdateMetadataResponse()

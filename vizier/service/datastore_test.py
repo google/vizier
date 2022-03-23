@@ -1,10 +1,15 @@
 """Tests for vizier.service.datastore."""
 
 from vizier.service import datastore
+from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import test_util
+from vizier.service import vizier_service_pb2
 
 from absl.testing import absltest
+
+
+_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
 class DatastoreTest(absltest.TestCase):
@@ -93,6 +98,25 @@ class DatastoreTest(absltest.TestCase):
                                                  1).name)
     self.assertEqual(output_operation,
                      self.example_early_stopping_operations[0])
+
+  def test_update_metadata(self):
+    self.datastore.create_study(self.example_study)
+    for trial in self.example_trials:
+      self.datastore.create_trial(trial)
+    study_metadata = [key_value_pb2.KeyValue(key='a', ns='b', value='C')]
+    trial_metadata = [
+        _KeyValuePlus(
+            trial_id='1',
+            k_v=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+    ]
+    s_resource = resources.StudyResource(self.owner_id, self.study_id)
+    self.datastore.update_metadata(s_resource.name, study_metadata,
+                                   trial_metadata)
+    mutated_study_config = self.datastore.load_study(s_resource.name).study_spec
+    self.assertEqual(list(mutated_study_config.metadata), study_metadata)
+    mutated_trial = self.datastore.get_trial(self.example_trials[0].name)
+    self.assertEqual(mutated_trial.id, str(trial_metadata[0].trial_id))
+    self.assertEqual(list(mutated_trial.metadata), [trial_metadata[0].k_v])
 
 
 if __name__ == '__main__':
