@@ -5,8 +5,8 @@ from typing import Optional
 
 from absl import logging
 import numpy as np
+from vizier._src.algorithms.core import deltas
 from vizier._src.algorithms.evolution import nsga2
-from vizier.algorithms import core
 from vizier.pyvizier import pythia as vz
 from vizier.testing import test_studies
 
@@ -56,7 +56,7 @@ class Nsga2Test(absltest.TestCase):
     trial4 = vz.Trial(id=4)
     trial4.complete(vz.Measurement({'m1': .3, 'm2': -.3, 's1': 2., 's2': .0}))
 
-    trials = core.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
+    trials = deltas.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
     algorithm.update(trials)
     self.assertSetEqual({t.id for t in algorithm._pool.trials}, {0, 1, 2})
 
@@ -83,7 +83,7 @@ class Nsga2Test(absltest.TestCase):
     trial4 = vz.Trial(id=4)
     trial4.complete(vz.Measurement({'m1': .0, 'm2': -1., 's1': 2., 's2': .9}))
 
-    trials = core.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
+    trials = deltas.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
     algorithm.update(trials)
     self.assertSetEqual({t.id for t in algorithm._pool.trials}, {0, 1, 3, 4})
 
@@ -102,7 +102,7 @@ class Nsga2Test(absltest.TestCase):
     trial4 = vz.Trial(id=4)
     trial4.complete(vz.Measurement({'m1': .0, 'm2': .0, 's1': .0, 's2': 2.}))
 
-    trials = core.CompletedTrials([trial1, trial2, trial3, trial4])
+    trials = deltas.CompletedTrials([trial1, trial2, trial3, trial4])
     algorithm.update(trials)
     self.assertSetEqual({t.id for t in algorithm._pool.trials}, {1, 2, 4})
 
@@ -135,7 +135,7 @@ class Nsga2Test(absltest.TestCase):
       tick = datetime.datetime.now()
       logging.info('Suggesitons evaluated: %s',
                    algorithm._trials_to_population(trials).xs.asarray())
-      algorithm.update(core.CompletedTrials(trials))
+      algorithm.update(deltas.CompletedTrials(trials))
       tock = datetime.datetime.now()
       logging.info(
           'Iteration %s: Update took %s.\nPopulation(in array format):%s\nAges:%s',

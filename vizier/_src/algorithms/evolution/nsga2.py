@@ -6,7 +6,7 @@ import pickle
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
-from vizier.algorithms import core
+from vizier import algorithms
 from vizier.pyvizier import converters
 from vizier.pyvizier import pythia as vz
 
@@ -180,7 +180,7 @@ def _linf_mutation(population: Population,
   return population.xs.dict_like(arr)
 
 
-class NSGA2(core.Designer):
+class NSGA2(algorithms.Designer):
   """NSGA2."""
   _metadata_key: str = 'xs'
 
@@ -324,7 +324,7 @@ class NSGA2(core.Designer):
     selected.ages += 1
     return selected
 
-  def update(self, delta: core.CompletedTrials) -> None:
+  def update(self, delta: algorithms.CompletedTrials) -> None:
     completed_trials = delta.completed
     if not completed_trials:
       return

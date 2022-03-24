@@ -1,10 +1,10 @@
 """Test runners for algorithms."""
-from typing import Optional, Sequence, Any
+from typing import Any, Optional, Sequence
 
 from absl import logging
 import numpy as np
 
-from vizier.algorithms import core as vza
+from vizier import algorithms as vza
 
 from vizier.pyvizier import pythia as vz
 

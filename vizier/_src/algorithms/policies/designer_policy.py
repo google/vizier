@@ -1,10 +1,10 @@
 """Wraps Designer into Policy."""
 import abc
 import json
-from typing import Callable, Sequence, TypeVar, Type, Generic
+from typing import Callable, Generic, Sequence, Type, TypeVar
 
 from absl import logging
-from vizier.algorithms import core as vza
+from vizier import algorithms as vza
 from vizier.interfaces import serializable
 from vizier.pythia import base as pythia
 from vizier.pyvizier import pythia as vz

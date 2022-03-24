@@ -1,9 +1,9 @@
 """Random designer."""
 
-from typing import Optional, Sequence, Any
+from typing import Any, Optional, Sequence
 
 import numpy as np
-from vizier.algorithms import core as vza
+from vizier import algorithms as vza
 from vizier.pyvizier import converters
 from vizier.pyvizier import pythia as vz
 

@@ -10,7 +10,7 @@ from emukit.core import initial_designs
 from emukit.core import loop
 from GPy import models
 import numpy as np
-from vizier.algorithms import core as vza
+from vizier import algorithms as vza
 from vizier.pyvizier import converters
 from vizier.pyvizier import pythia as vz
 
