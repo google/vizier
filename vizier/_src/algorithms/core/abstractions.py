@@ -3,7 +3,7 @@
 import abc
 from typing import Generic, Optional, Sequence, TypeVar
 
-from vizier.algorithms.core import deltas
+from vizier._src.algorithms.core import deltas
 from vizier.interfaces import serializable
 
 from vizier.pyvizier import pythia as vz

@@ -5,8 +5,8 @@ from typing import Optional
 
 from absl import logging
 import numpy as np
+from vizier._src.algorithms.evolution import nsga2
 from vizier.algorithms import core
-from vizier.algorithms.evolution import nsga2
 from vizier.pyvizier import pythia as vz
 from vizier.testing import test_studies
 

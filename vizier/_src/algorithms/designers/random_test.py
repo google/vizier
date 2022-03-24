@@ -1,7 +1,7 @@
 """Tests for random."""
 
-from vizier.algorithms.designers import random
-from vizier.algorithms.testing import test_runners
+from vizier._src.algorithms.designers import random
+from vizier._src.algorithms.testing import test_runners
 from vizier.pyvizier import pythia as vz
 from vizier.testing import test_studies
 
