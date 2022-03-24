@@ -1,6 +1,6 @@
 """Tests for vizier.pythia.base.policy."""
 
-from vizier.pythia.base import policy
+from vizier._src.pythia import policy
 from vizier.pyvizier import pythia as vz
 
 from absl.testing import absltest

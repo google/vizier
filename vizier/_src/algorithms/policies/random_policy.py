@@ -8,8 +8,7 @@ import random
 from typing import List
 
 from vizier.pythia import base
-from vizier.pyvizier import oss as pyvizier
-from vizier.pyvizier import pythia
+from vizier.pyvizier import pythia as pyvizier
 
 
 def sample_from_parameter_config(
@@ -37,10 +36,10 @@ def sample_from_parameter_config(
 
 
 def make_random_parameters(
-    study_config: pythia.StudyConfig) -> pythia.ParameterDict:
+    study_config: pyvizier.StudyConfig) -> pyvizier.ParameterDict:
   """Makes random parameters from study_spec."""
   # TODO: Add conditional sampling case.
-  parameter_dict = pythia.ParameterDict()
+  parameter_dict = pyvizier.ParameterDict()
   for parameter_config in study_config.search_space.parameters:
     p_value = sample_from_parameter_config(parameter_config)
     parameter_dict[parameter_config.name] = p_value

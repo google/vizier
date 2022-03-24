@@ -1,7 +1,7 @@
 """Tests for vizier.pythia.bsae.local_policy_supporters."""
 
-from vizier.pythia.base import local_policy_supporters
-from vizier.pythia.base import policy_supporter
+from vizier._src.pythia import local_policy_supporters
+from vizier._src.pythia import policy_supporter
 from vizier.pyvizier import pythia as vz
 
 from absl.testing import absltest
@@ -50,6 +50,7 @@ class LocalPolicySupportersTest(absltest.TestCase):
     # Update is reflected.
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
     self.assertSequenceEqual(trial1.metadata.ns('ns'), {'key': 'value'})
+
 
 if __name__ == '__main__':
   absltest.main()

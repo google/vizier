@@ -3,8 +3,8 @@ import datetime
 from typing import Iterable, List, Optional, Sequence
 
 import attr
-from vizier.pythia.base import policy
-from vizier.pythia.base import policy_supporter
+from vizier._src.pythia import policy
+from vizier._src.pythia import policy_supporter
 from vizier.pyvizier import pythia as vz
 
 

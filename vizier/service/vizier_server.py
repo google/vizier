@@ -7,9 +7,8 @@ from typing import Optional
 from absl import logging
 import grpc
 import numpy as np
-
+from vizier._src.algorithms.policies import random_policy
 from vizier.pythia import base
-from vizier.pythia.policies import random_policy
 from vizier.pyvizier import oss as pyvizier
 from vizier.pyvizier import pythia
 from vizier.service import datastore

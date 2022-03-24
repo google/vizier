@@ -1,6 +1,6 @@
 """Tests for vizier.service.service_policy_supporter."""
 
-from vizier.pythia.base import policy_supporter
+from vizier._src.pythia import policy_supporter
 from vizier.pyvizier import oss
 from vizier.pyvizier.shared import common
 from vizier.service import resources
