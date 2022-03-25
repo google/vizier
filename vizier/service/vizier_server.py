@@ -9,9 +9,9 @@ import grpc
 import numpy as np
 from vizier._src.algorithms.policies import random_policy
 from vizier.pythia import base
-from vizier.pyvizier import oss as pyvizier
 from vizier.pyvizier import pythia
 from vizier.service import datastore
+from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2

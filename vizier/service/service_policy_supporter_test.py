@@ -1,8 +1,8 @@
 """Tests for vizier.service.service_policy_supporter."""
 
 from vizier._src.pythia import policy_supporter
-from vizier.pyvizier import oss
 from vizier.pyvizier.shared import common
+from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2
@@ -51,18 +51,22 @@ class PythiaSupporterTest(absltest.TestCase):
         study_guid=self.study_name, trial_ids=[3, 4])
 
     self.assertEqual(
-        trials[0], oss.TrialConverter.from_proto(self.basic_example_trials[2]))
+        trials[0],
+        pyvizier.TrialConverter.from_proto(self.basic_example_trials[2]))
     self.assertEqual(
-        trials[1], oss.TrialConverter.from_proto(self.basic_example_trials[3]))
+        trials[1],
+        pyvizier.TrialConverter.from_proto(self.basic_example_trials[3]))
 
   def test_min_max_filter(self):
     trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, min_trial_id=3, max_trial_id=4)
 
     self.assertEqual(
-        trials[0], oss.TrialConverter.from_proto(self.basic_example_trials[2]))
+        trials[0],
+        pyvizier.TrialConverter.from_proto(self.basic_example_trials[2]))
     self.assertEqual(
-        trials[1], oss.TrialConverter.from_proto(self.basic_example_trials[3]))
+        trials[1],
+        pyvizier.TrialConverter.from_proto(self.basic_example_trials[3]))
 
   def test_status_match_filter(self):
     trials = self.policy_supporter.GetTrials(
@@ -70,7 +74,7 @@ class PythiaSupporterTest(absltest.TestCase):
 
     self.assertLen(trials, 1)
     self.assertEqual(trials[0],
-                     oss.TrialConverter.from_proto(self.active_trial))
+                     pyvizier.TrialConverter.from_proto(self.active_trial))
 
   def test_raise_value_error(self):
 
@@ -85,7 +89,7 @@ class PythiaSupporterTest(absltest.TestCase):
 
   def test_get_study_config(self):
     pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
-    correct_pythia_sc = oss.StudyConfig.from_proto(
+    correct_pythia_sc = pyvizier.StudyConfig.from_proto(
         self.example_study.study_spec).to_pythia()
     self.assertEqual(pythia_sc, correct_pythia_sc)
 

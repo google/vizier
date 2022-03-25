@@ -9,21 +9,19 @@ from google.protobuf.message import Message
 T = TypeVar('T')
 
 
-def assign(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
-           key: str, ns: str,
-           value: Union[str, any_pb2.Any, Message]
-          ) -> Tuple[key_value_pb2.KeyValue, bool]:
+def assign(
+    container: Union[study_pb2.StudySpec, study_pb2.Trial], *, key: str,
+    ns: str, value: Union[str, any_pb2.Any,
+                          Message]) -> Tuple[key_value_pb2.KeyValue, bool]:
   """Insert or assign (key, value) to container.metadata.
 
   Args:
     container: container.metadata must be repeated KeyValue (protobuf) field.
     key:
     ns: A namespace for the key (defaults to '', which is the user's namespace).
-    value: Behavior depends on the type.
-      `str` is copied to KeyValue.value
-      `any_pb2.Any` is copied to KeyValue.proto
-      Other types are packed to any_pb2.Any proto, which is then copied to
-        KeyValue.proto.
+    value: Behavior depends on the type. `str` is copied to KeyValue.value
+      `any_pb2.Any` is copied to KeyValue.proto Other types are packed to
+      any_pb2.Any proto, which is then copied to KeyValue.proto.
 
   Returns:
     (proto, inserted) where
@@ -55,8 +53,8 @@ def assign(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
   return metadata, True
 
 
-def get(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
-        key: str, ns: str) -> Optional[str]:
+def get(container: Union[study_pb2.StudySpec, study_pb2.Trial], *, key: str,
+        ns: str) -> Optional[str]:
   """Returns the metadata value associated with key, or None.
 
   Args:

@@ -4,7 +4,7 @@ from absl import logging
 
 import attr
 
-from vizier.pyvizier.oss import proto_converters
+from vizier._src.pyvizier.oss import proto_converters
 from vizier.pyvizier.shared import parameter_config as pc
 from vizier.pyvizier.shared import trial
 from vizier.service import study_pb2

@@ -2,8 +2,8 @@
 
 import datetime
 
-from vizier.pyvizier.oss import automated_stopping
-from vizier.pyvizier.oss import study_config
+from vizier._src.pyvizier.oss import automated_stopping
+from vizier._src.pyvizier.oss import study_config
 from vizier.pyvizier.shared import parameter_config as pc
 from vizier.pyvizier.shared import trial
 from vizier.service import study_pb2

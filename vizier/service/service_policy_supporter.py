@@ -7,8 +7,8 @@ import datetime
 from typing import Iterable, List, Optional
 
 from vizier.pythia import base
-from vizier.pyvizier import oss
 from vizier.pyvizier import pythia as vz
+from vizier.service import pyvizier
 from vizier.service import utils
 
 from vizier.service import vizier_service_pb2
@@ -42,7 +42,7 @@ class ServicePolicySupporter(base.PolicySupporter):
       study_guid = self._study_guid
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
     study = self._vizier_service.GetStudy(request, None)
-    return oss.StudyConfig.from_proto(study.study_spec).to_pythia()
+    return pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
 
   def GetTrials(
       self,
@@ -60,7 +60,7 @@ class ServicePolicySupporter(base.PolicySupporter):
     request = vizier_service_pb2.ListTrialsRequest(parent=study_guid)
     # Implicitly creates a copy of the data.
     trials = self._vizier_service.ListTrials(request, None).trials
-    all_pytrials = oss.TrialConverter.from_protos(trials)
+    all_pytrials = pyvizier.TrialConverter.from_protos(trials)
 
     if (trial_ids
         is not None) and ((min_trial_id is not None) or

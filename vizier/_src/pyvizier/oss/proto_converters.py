@@ -3,7 +3,7 @@ import datetime
 from typing import List, Optional, Sequence, Tuple, Union
 from absl import logging
 
-from vizier.pyvizier.oss import metadata_util
+from vizier._src.pyvizier.oss import metadata_util
 from vizier.pyvizier.shared import parameter_config
 from vizier.pyvizier.shared import trial
 from vizier.service import study_pb2

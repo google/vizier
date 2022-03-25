@@ -11,7 +11,7 @@ from absl import flags
 from absl import logging
 import grpc
 
-from vizier.pyvizier import oss as pyvizier
+from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_service_pb2

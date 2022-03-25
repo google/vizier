@@ -1,9 +1,7 @@
 """Tests for vizier.pythia.policies.random_policy."""
 from vizier._src.algorithms.policies import random_policy
 from vizier.pythia import base
-from vizier.pyvizier import oss as pyvizier
-from vizier.pyvizier import pythia
-
+from vizier.pyvizier import pythia as pyvizier
 from absl.testing import absltest
 
 
@@ -22,10 +20,8 @@ class RandomPolicyTest(absltest.TestCase):
     self.study_config.search_space.select_root().add_int_param(
         name='int', min_value=1, max_value=5)
 
-    self.study_descriptor = pythia.StudyDescriptor(
-        config=self.study_config.to_pythia())
-    self.policy_supporter = base.LocalPolicyRunner(
-        self.study_config.to_pythia())
+    self.study_descriptor = pyvizier.StudyDescriptor(config=self.study_config)
+    self.policy_supporter = base.LocalPolicyRunner(self.study_config)
     self.policy = random_policy.RandomPolicy(
         policy_supporter=self.policy_supporter)
     super().setUp()
