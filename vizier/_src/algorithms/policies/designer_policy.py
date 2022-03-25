@@ -190,7 +190,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
     with pythia.MetadataUpdate(self._supporter) as mu:
       # pylint: disable=protected-access
-      # TODO: Improve the MetadataUpdater API.
+      # TODO: Improve the MetadataUpdate API.
       mu._delta.on_study.ns(self._ns_root).attach(self.dump())
 
     return pythia.SuggestDecisions.from_trials(
