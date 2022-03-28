@@ -1,9 +1,9 @@
 """Tests for vizier.pyvizier.shared.base_study_config."""
 
 import numpy as np
-from vizier.pyvizier.shared import base_study_config
-from vizier.pyvizier.shared import parameter_config as pc
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import base_study_config
+from vizier._src.pyvizier.shared import parameter_config as pc
+from vizier._src.pyvizier.shared import trial
 from absl.testing import absltest
 from absl.testing import parameterized
 

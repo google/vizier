@@ -21,11 +21,11 @@ import attr
 from vizier._src.pyvizier.oss import automated_stopping
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.oss import proto_converters
+from vizier._src.pyvizier.shared import base_study_config
+from vizier._src.pyvizier.shared import common
+from vizier._src.pyvizier.shared import parameter_config
+from vizier._src.pyvizier.shared import trial
 from vizier.pyvizier import pythia
-from vizier.pyvizier.shared import base_study_config
-from vizier.pyvizier.shared import common
-from vizier.pyvizier.shared import parameter_config
-from vizier.pyvizier.shared import trial
 from vizier.service import study_pb2
 
 ################### PyTypes ###################

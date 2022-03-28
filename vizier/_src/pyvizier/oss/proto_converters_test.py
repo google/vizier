@@ -5,8 +5,8 @@ from absl import logging
 import attr
 
 from vizier._src.pyvizier.oss import proto_converters
-from vizier.pyvizier.shared import parameter_config as pc
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import parameter_config as pc
+from vizier._src.pyvizier.shared import trial
 from vizier.service import study_pb2
 
 from google.protobuf import struct_pb2

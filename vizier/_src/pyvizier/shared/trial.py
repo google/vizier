@@ -18,7 +18,7 @@ from absl import logging
 import attr
 import numpy as np
 
-from vizier.pyvizier.shared import common
+from vizier._src.pyvizier.shared import common
 
 ParameterValueTypes = Union[str, int, float, bool]
 OrderedDict = collections.OrderedDict

@@ -7,8 +7,8 @@ from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Type, Ty
 from absl import logging
 import attr
 import numpy as np
-from vizier.pyvizier.shared import parameter_config
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import parameter_config
+from vizier._src.pyvizier.shared import trial
 
 ################### PyTypes ###################
 ScaleType = parameter_config.ScaleType

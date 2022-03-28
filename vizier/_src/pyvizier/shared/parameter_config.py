@@ -9,7 +9,7 @@ from typing import Generator, List, Optional, Sequence, Tuple, Union
 from absl import logging
 import attr
 
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import trial
 
 
 class ParameterType(enum.IntEnum):

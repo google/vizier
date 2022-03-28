@@ -1,7 +1,6 @@
 """Tests for vizier.service.service_policy_supporter."""
 
-from vizier._src.pythia import policy_supporter
-from vizier.pyvizier.shared import common
+from vizier.pythia import base as pythia
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
@@ -94,11 +93,11 @@ class PythiaSupporterTest(absltest.TestCase):
     self.assertEqual(pythia_sc, correct_pythia_sc)
 
   def test_update_metadata(self):
-    on_study_metadata = common.Metadata()
+    on_study_metadata = pyvizier.Metadata()
     on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
-    on_trial1_metadata = common.Metadata()
+    on_trial1_metadata = pyvizier.Metadata()
     on_trial1_metadata.ns('bar')['nerf'] = '1.bar.nerf.2'
-    delta = policy_supporter.MetadataDelta(
+    delta = pythia.MetadataDelta(
         on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
     self.policy_supporter.UpdateMetadata(delta)
     # Read to see that the results are correct.

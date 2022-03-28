@@ -1,6 +1,6 @@
 """Tests for vizier.pyvizier.shared.context."""
 
-from vizier.pyvizier.shared import context
+from vizier._src.pyvizier.shared import context
 from absl.testing import absltest
 
 

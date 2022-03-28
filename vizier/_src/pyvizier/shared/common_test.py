@@ -1,7 +1,7 @@
 """Tests for vizier.pyvizier.shared.common."""
 
 import copy
-from vizier.pyvizier.shared import common
+from vizier._src.pyvizier.shared import common
 from google.protobuf import any_pb2
 from google.protobuf import duration_pb2
 from absl.testing import absltest

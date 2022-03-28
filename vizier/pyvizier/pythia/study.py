@@ -4,8 +4,8 @@ from typing import List
 
 import attr
 
-from vizier.pyvizier.shared import base_study_config
-from vizier.pyvizier.shared import common
+from vizier._src.pyvizier.shared import base_study_config
+from vizier._src.pyvizier.shared import common
 
 
 @attr.define(frozen=False, init=True, slots=True)

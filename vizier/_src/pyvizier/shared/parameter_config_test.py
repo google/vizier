@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from vizier.pyvizier.shared import parameter_config as pc
+from vizier._src.pyvizier.shared import parameter_config as pc
 from absl.testing import absltest
 from absl.testing import parameterized
 

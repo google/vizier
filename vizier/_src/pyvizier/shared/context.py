@@ -2,8 +2,8 @@
 from typing import Dict, Optional
 
 import attr
-from vizier.pyvizier.shared import common
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import common
+from vizier._src.pyvizier.shared import trial
 
 Metadata = common.Metadata
 ParameterValue = trial.ParameterValue

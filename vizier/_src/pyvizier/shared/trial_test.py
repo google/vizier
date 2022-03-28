@@ -4,7 +4,7 @@ import datetime
 
 import numpy as np
 
-from vizier.pyvizier.shared import trial
+from vizier._src.pyvizier.shared import trial
 from absl.testing import absltest
 from absl.testing import parameterized
 
