@@ -5,8 +5,8 @@ The Policy can use these methods to communicate with Vizier.
 
 import datetime
 from typing import Iterable, List, Optional
+from vizier import pythia
 from vizier import pyvizier as vz
-from vizier.pythia import base
 from vizier.service import pyvizier
 from vizier.service import utils
 
@@ -15,7 +15,7 @@ from vizier.service import vizier_service_pb2_grpc
 
 
 # TODO: Implement UpdateMetadata after metadata additions
-class ServicePolicySupporter(base.PolicySupporter):
+class ServicePolicySupporter(pythia.PolicySupporter):
   """Service version of the PolicySupporter."""
 
   # TODO: Replace vizier_service_instance with a vizier_client.
@@ -106,7 +106,7 @@ class ServicePolicySupporter(base.PolicySupporter):
 
   # TODO: This should become _UpdateMetadata() when we change the API to
   #   reveal MetadataUpdate().
-  def UpdateMetadata(self, delta: base.MetadataDelta) -> None:
+  def UpdateMetadata(self, delta: pythia.MetadataDelta) -> None:
     """Updates the metadata."""
     self.CheckCancelled('UpdateMetadata entry')
     request = vizier_service_pb2.UpdateMetadataRequest(name=self._study_guid)

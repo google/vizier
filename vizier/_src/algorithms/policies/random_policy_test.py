@@ -1,7 +1,7 @@
 """Tests for vizier.pythia.policies.random_policy."""
+from vizier import pythia
 from vizier import pyvizier
 from vizier._src.algorithms.policies import random_policy
-from vizier.pythia import base
 from absl.testing import absltest
 
 
@@ -21,7 +21,7 @@ class RandomPolicyTest(absltest.TestCase):
         name='int', min_value=1, max_value=5)
 
     self.study_descriptor = pyvizier.StudyDescriptor(config=self.study_config)
-    self.policy_supporter = base.LocalPolicyRunner(self.study_config)
+    self.policy_supporter = pythia.LocalPolicyRunner(self.study_config)
     self.policy = random_policy.RandomPolicy(
         policy_supporter=self.policy_supporter)
     super().setUp()
@@ -34,7 +34,7 @@ class RandomPolicyTest(absltest.TestCase):
   def test_make_suggestions(self):
     """Tests random parameter generation wrapped around Policy."""
     num_suggestions = 5
-    suggest_request = base.SuggestRequest(
+    suggest_request = pythia.SuggestRequest(
         study_descriptor=self.study_descriptor, count=num_suggestions)
 
     suggestions = self.policy.suggest(suggest_request)
@@ -50,7 +50,7 @@ class RandomPolicyTest(absltest.TestCase):
     request_trial_ids = [1, 2]
     trial_ids_stopped = set()
     for _ in range(count):
-      request = base.EarlyStopRequest(
+      request = pythia.EarlyStopRequest(
           study_descriptor=self.study_descriptor, trial_ids=request_trial_ids)
       early_stop_decisions = self.policy.early_stop(request)
       self.assertContainsSubset(

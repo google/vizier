@@ -6,8 +6,8 @@ showcase how the policy supporter should be used.
 """
 import random
 from typing import List
+from vizier import pythia
 from vizier import pyvizier
-from vizier.pythia import base
 
 
 def sample_from_parameter_config(
@@ -45,22 +45,23 @@ def make_random_parameters(
   return parameter_dict
 
 
-class RandomPolicy(base.Policy):
+class RandomPolicy(pythia.Policy):
   """A policy that picks random hyper-parameter values."""
 
-  def __init__(self, policy_supporter: base.PolicySupporter):
+  def __init__(self, policy_supporter: pythia.PolicySupporter):
     self._policy_supporter = policy_supporter
 
-  def suggest(self, request: base.SuggestRequest) -> base.SuggestDecisions:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisions:
     """Gets number of Trials to propose, and produces random Trials."""
     suggest_decision_list = []
     for _ in range(request.count):
       parameters = make_random_parameters(request.study_config)
-      suggest_decision_list.append(base.SuggestDecision(parameters=parameters))
-    return base.SuggestDecisions(suggest_decision_list)
+      suggest_decision_list.append(
+          pythia.SuggestDecision(parameters=parameters))
+    return pythia.SuggestDecisions(suggest_decision_list)
 
   def early_stop(
-      self, request: base.EarlyStopRequest) -> List[base.EarlyStopDecision]:
+      self, request: pythia.EarlyStopRequest) -> List[pythia.EarlyStopDecision]:
     """Selects a random ACTIVE/PENDING trial to stop from datastore."""
     early_stop_decisions = []
 
@@ -71,13 +72,13 @@ class RandomPolicy(base.Policy):
     if all_active_trials:
       trial_to_stop_id = random.choice(all_active_trials).id
       early_stop_decisions.append(
-          base.EarlyStopDecision(
+          pythia.EarlyStopDecision(
               id=trial_to_stop_id, reason='Random early stopping.'))
 
     for trial_id in list(request.trial_ids):
       if trial_id != trial_to_stop_id:
         early_stop_decisions.append(
-            base.EarlyStopDecision(
+            pythia.EarlyStopDecision(
                 id=trial_id, reason='Trial should not stop.',
                 should_stop=False))
 

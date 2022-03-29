@@ -10,22 +10,17 @@ It consists of two main APIs:
 * **User API:** Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
 * **Developer API:** Defines abstractions and utilities for implementing new optimization algorithms for research and benchmarking.
 
-# Table of Contents
-* [Installation](#installation)
-* [User API: Running Vizier](#running-vizier)
-  * [Running the Server](#running-the-server)
-  * [Running a Client](#running-a-client)
-* [Developer API: Writing Algorithms](#developer-api-writing-algorithms)
-* [Citing Vizier](#citing-vizier)
+[TOC]
 
-# Installation
+
+## Installation
 The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service.
 
-# User API: Running Vizier
+## User API: Running Vizier
 An example of the entire server + client loop running locally can be found in `vizier/service/vizier_client_test.py`.
 We also present the core components of the example below:
 
-## Running the Server
+### Running the Server
 An example is provided at `vizier/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```python
@@ -47,18 +42,18 @@ server.add_secure_port(address, grpc.local_server_credentials())
 server.start()
 ```
 
-## Running a client
+### Running a client
 The user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
-from vizier.pyvizier import oss
+from vizier.service import pyvizier as vz
 
-study_config = oss.StudyConfig() # Search space, metrics, and algorithm.
+study_config = vz.StudyConfig() # Search space, metrics, and algorithm.
 root = study_config.search_space.select_root() # "Root" params must exist in every trial.
-root.add_float('learning_rate', min=1e-4, max=1e-2, scale=oss.ScaleType.LOG)
+root.add_float('learning_rate', min=1e-4, max=1e-2, scale=vz.ScaleType.LOG)
 root.add_int('num_layers', min=1, max=5)
-study_config.metrics.add('accuracy', goal=oss.ObjectiveMetricGoal.MAXIMIZE, min=0.0, max=1.0)
-study_config.algorithm = oss.Algorithm.RANDOM_SEARCH
+study_config.metrics.add('accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE, min=0.0, max=1.0)
+study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
 ```
 
 Using the `address` created above in the server section, we may now create the client (e.g. on a worker machine different from the server):
@@ -95,7 +90,7 @@ while suggestions := client.get_suggestions(count=1)
 
 The Vizier service is designed to handle multiple concurrent clients all requesting suggestions and returning metrics.
 
-# Developer API: Writing Algorithms
+## Developer API: Writing Algorithms
 Writing blackbox optimization algorithms requires implementing the `Policy` interface as part of Vizier's Pythia service, with pseudocode shown below:
 
 ```python
@@ -121,7 +116,8 @@ class MyPolicy(Policy):
 
 An example is given in `vizier/pythia/policies/random_policy.py`.
 
-# Citing Vizier
+
+## Citing Vizier
 If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
 
 ```
@@ -152,3 +148,49 @@ If you found this code useful, please consider citing the [technical report (TBA
   doi       = {10.1145/3097983.3098043},
 }
 ```
+
+
+## Code structure
+
+### Frequently used import targets
+
+Includes a brief summary of important symbols and modules.
+
+#### Service users
+* `from vizier.service import pyvizier as vz`: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
+<!-- TODO(b/226560768): Update this entry after the clean up -->
+* `from vizier.service import ...`: Include binaries and internal utilities.
+
+#### Developer essentials
+* **`from vizier import pyvizier as vz`**: Pure python building blocks of Vizier. Cross-platform code including pythia policies must use this pyvizier instance.
+  * `Trial` and `StudyConfig` are most important classes.
+* **`from vizier.pyvizier import converters`**: Convert between pyvizier objects and numpy arrays.
+  * `TrialToNumpyDict`: Converts parameters (and metrics) into a dict of numpy arrays. Preferred conversion method if you intended to train an embedding of categorical/discrete parameters, or data includes missing parameters or metrics.
+  * `TrialToArrayConverter`: Converts parameters (and metrics) into an array.
+* `from vizier.interfaces import serializable`
+  * `PartiallySerializable`, `Serializable`
+
+#### Algorithm abstractions
+* **`from vizier import pythia`**
+  * `Policy`, `PolicySupporter`: Key abstractions
+  * `LocalPolicyRunner`: Use it for running a `Policy` in RAM.
+* **`from vizier import algorithms`**
+  * `Designer`:
+  * `DesignerPolicy`: Wraps `Designer` into a pythia Policy.
+  * `GradientFreeMaximizer`: For optimizing acquisition functions.
+  * `(Partially)SerializableDesigner`: Designers who wish to optimize performance by saving states.
+
+#### Tensorflow modules
+* **`from vizier import tfp`**: Tensorflow-probability utilities.
+  * `acquisitions`: Acquisition functions module.
+     * `AcquisitionFunction`: abstraction
+     * `UpperConfidenceBound`, `ExpectedImprovement`, etc.
+  * `bijectors`: Bijectors module.
+    * `YeoJohnson`: Implements both Yeo-Johnson and Box-Cox transformations.
+    * `optimal_power_transformation`: Returns the optimal power transformation.
+    * `flip_sign`: returns a sign-flip bijector.
+* **`from vizier import keras as vzk`**
+  * `vzk.layers`: Layers usually wrapping tfp classes
+      * `variable_from_prior`: Utility layer for handling regularized variables.
+  * `vzk.optim`: Wrappers around optimizers in tfp or keras
+  * `vzk.models`: Most of the useful models don't easily fit into keras' Model abstraction, but we may add some for display.

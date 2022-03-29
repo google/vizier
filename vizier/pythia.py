@@ -1,4 +1,5 @@
 """These are the externally-useful symbols for Pythia."""
+# pylint: disable=unused-import
 
 # The API for a Pythia Policy -- i.e. the algorithm that Pythia serves.
 from vizier._src.pythia.local_policy_supporters import LocalPolicyRunner

@@ -3,8 +3,8 @@
 import logging
 import threading
 from typing import Any, Generic, Optional, TypeVar
+from vizier import pythia
 from vizier import pyvizier
-from vizier.pythia import base
 from google.protobuf import any_pb2
 
 _TT = TypeVar('_TT')
@@ -37,7 +37,7 @@ class ResponseWaiter(Generic[_TT]):
     logging.info('About to take _lock in ResponseWaiter.Report()')
     with self._lock:
       if self._wait.is_set():
-        raise base.PythiaProtocolError(
+        raise pythia.PythiaProtocolError(
             'ResponseWaiter.Report() called after wait is set')
       self._response = update
       self._wait.set()
@@ -54,9 +54,9 @@ class ResponseWaiter(Generic[_TT]):
     with self._lock:
       if not self._response:
         logging.info('Raise')
-        raise base.PythiaProtocolError('No response.')
+        raise pythia.PythiaProtocolError('No response.')
       if self._response.error_details:
-        raise base.VizierDatabaseError(self._response.error_details)
+        raise pythia.VizierDatabaseError(self._response.error_details)
       logging.info('No raise -- WaitForResponse done')
       return self._response
 

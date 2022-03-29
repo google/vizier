@@ -5,9 +5,9 @@ from typing import Callable, Generic, Sequence, Type, TypeVar
 
 from absl import logging
 from vizier import algorithms as vza
+from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.interfaces import serializable
-from vizier.pythia import base as pythia
 
 _T = TypeVar('_T')
 Factory = Callable[[vz.StudyConfig], _T]
