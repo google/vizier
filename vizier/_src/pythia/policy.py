@@ -5,7 +5,7 @@ from collections import abc as cabc
 from typing import Any, Collection, FrozenSet, Iterable, List, Optional, Type, TypeVar
 
 import attr
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 _T = TypeVar('_T')
 

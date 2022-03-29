@@ -3,9 +3,9 @@ import datetime
 from typing import Iterable, List, Optional, Sequence
 
 import attr
+from vizier import pyvizier as vz
 from vizier._src.pythia import policy
 from vizier._src.pythia import policy_supporter
-from vizier.pyvizier import pythia as vz
 
 
 # TODO: Keep the Pareto frontier trials.

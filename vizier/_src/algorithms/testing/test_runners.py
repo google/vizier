@@ -6,7 +6,7 @@ import numpy as np
 
 from vizier import algorithms as vza
 
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 
 def run_with_random_metrics(

@@ -4,11 +4,10 @@ import copy
 
 from typing import Optional, Sequence
 from vizier import algorithms as vza
+from vizier import pyvizier as vz
 from vizier._src.algorithms.policies import designer_policy as dp
 from vizier.interfaces import serializable
 from vizier.pythia import base as pythia
-from vizier.pyvizier import pythia as vz
-
 from absl.testing import absltest
 
 

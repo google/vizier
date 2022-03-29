@@ -11,8 +11,8 @@ from emukit.core import loop
 from GPy import models
 import numpy as np
 from vizier import algorithms as vza
+from vizier import pyvizier as vz
 from vizier.pyvizier import converters
-from vizier.pyvizier import pythia as vz
 
 RandomDesign = initial_designs.RandomDesign
 

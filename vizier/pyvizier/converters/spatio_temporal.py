@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from absl import logging
 import numpy as np
-from vizier.pyvizier import pythia as pyvizier
+from vizier import pyvizier
 from vizier.pyvizier.converters import core
 
 

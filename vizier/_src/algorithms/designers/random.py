@@ -4,8 +4,8 @@ from typing import Any, Optional, Sequence
 
 import numpy as np
 from vizier import algorithms as vza
+from vizier import pyvizier as vz
 from vizier.pyvizier import converters
-from vizier.pyvizier import pythia as vz
 
 
 class RandomDesigner(vza.Designer):

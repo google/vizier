@@ -2,7 +2,7 @@
 import dataclasses
 from typing import Sequence
 
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 
 @dataclasses.dataclass(frozen=True)

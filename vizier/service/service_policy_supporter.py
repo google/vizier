@@ -5,9 +5,8 @@ The Policy can use these methods to communicate with Vizier.
 
 import datetime
 from typing import Iterable, List, Optional
-
+from vizier import pyvizier as vz
 from vizier.pythia import base
-from vizier.pyvizier import pythia as vz
 from vizier.service import pyvizier
 from vizier.service import utils
 

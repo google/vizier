@@ -5,9 +5,8 @@ import dataclasses
 from typing import Any, Callable, List, Optional
 
 import attr
+from vizier import pyvizier as vz
 from vizier.pyvizier import converters
-
-from vizier.pyvizier import pythia as vz
 
 Array = Any
 

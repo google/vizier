@@ -7,9 +7,9 @@ from typing import Optional
 from absl import logging
 import grpc
 import numpy as np
+from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.policies import random_policy
 from vizier.pythia import base
-from vizier.pyvizier import pythia
 from vizier.service import datastore
 from vizier.service import pyvizier
 from vizier.service import resources
@@ -260,7 +260,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
         pythia_sc = pyvizier.StudyConfig.from_proto(
             study.study_spec).to_pythia()
-        study_descriptor = pythia.StudyDescriptor(config=pythia_sc)
+        study_descriptor = base_pyvizier.StudyDescriptor(config=pythia_sc)
         suggest_request = base.SuggestRequest(
             study_descriptor=study_descriptor,
             count=request.suggestion_count - len(output_trials))
@@ -489,7 +489,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       pythia_policy = policy_creator(study.study_spec.algorithm,
                                      policy_supporter)
       pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
-      study_descriptor = pythia.StudyDescriptor(
+      study_descriptor = base_pyvizier.StudyDescriptor(
           config=pythia_sc, guid=study_name)
       early_stop_request = base.EarlyStopRequest(
           study_descriptor=study_descriptor,

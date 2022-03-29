@@ -6,7 +6,7 @@ import dataclasses
 import datetime
 from typing import Dict, Iterable, List, Optional
 
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 
 @dataclasses.dataclass(frozen=True)

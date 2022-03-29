@@ -1,7 +1,7 @@
 """Test study generator."""
 
 from typing import Collection
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 
 def flat_space_with_all_types() -> vz.SearchSpace:

@@ -1,9 +1,8 @@
 """Tests for vizier.pythia.bsae.local_policy_supporters."""
 
+from vizier import pyvizier as vz
 from vizier._src.pythia import local_policy_supporters
 from vizier._src.pythia import policy_supporter
-from vizier.pyvizier import pythia as vz
-
 from absl.testing import absltest
 
 LocalPolicyRunner = local_policy_supporters.LocalPolicyRunner

@@ -6,9 +6,8 @@ showcase how the policy supporter should be used.
 """
 import random
 from typing import List
-
+from vizier import pyvizier
 from vizier.pythia import base
-from vizier.pyvizier import pythia as pyvizier
 
 
 def sample_from_parameter_config(

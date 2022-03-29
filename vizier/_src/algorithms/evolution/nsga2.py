@@ -7,8 +7,8 @@ from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from vizier import algorithms
+from vizier import pyvizier as vz
 from vizier.pyvizier import converters
-from vizier.pyvizier import pythia as vz
 
 
 def _pareto_rank(ys: np.ndarray) -> np.ndarray:

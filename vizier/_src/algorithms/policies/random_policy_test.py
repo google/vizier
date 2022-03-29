@@ -1,7 +1,7 @@
 """Tests for vizier.pythia.policies.random_policy."""
+from vizier import pyvizier
 from vizier._src.algorithms.policies import random_policy
 from vizier.pythia import base
-from vizier.pyvizier import pythia as pyvizier
 from absl.testing import absltest
 
 

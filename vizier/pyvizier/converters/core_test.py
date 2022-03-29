@@ -1,9 +1,9 @@
 """Tests for core."""
 
 import numpy as np
+from vizier import pyvizier
 from vizier._src.algorithms.designers import random
 from vizier._src.algorithms.testing import test_runners
-from vizier.pyvizier import pythia as pyvizier
 from vizier.pyvizier.converters import core
 from vizier.testing import test_studies
 

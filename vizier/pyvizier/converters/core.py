@@ -11,7 +11,7 @@ from absl import logging
 import attr
 import numpy as np
 
-from vizier.pyvizier import pythia as pyvizier
+from vizier import pyvizier
 
 # The study identifier for cross-study learning must be stored in
 # Trial.Metadata and StudyConfig.Metadata with this key.

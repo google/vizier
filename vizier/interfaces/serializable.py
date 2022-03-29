@@ -1,9 +1,9 @@
 """Serializable interface."""
 
 import abc
-from typing import TypeVar, Type
+from typing import Type, TypeVar
 
-from vizier.pyvizier import pythia as vz
+from vizier import pyvizier as vz
 
 _S = TypeVar('_S', bound='Serializable')
 

@@ -3,10 +3,8 @@
 import logging
 import threading
 from typing import Any, Generic, Optional, TypeVar
-
+from vizier import pyvizier
 from vizier.pythia import base
-from vizier.pyvizier import pythia as pyvizier
-
 from google.protobuf import any_pb2
 
 _TT = TypeVar('_TT')

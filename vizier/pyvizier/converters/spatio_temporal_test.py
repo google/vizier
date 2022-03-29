@@ -1,7 +1,7 @@
 """Tests for spatio_temporal."""
 
 import numpy as np
-from vizier.pyvizier import pythia as pyvizier
+from vizier import pyvizier
 from vizier.pyvizier.converters import core
 from vizier.pyvizier.converters import spatio_temporal as st
 

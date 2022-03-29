@@ -2,11 +2,9 @@
 
 import abc
 from typing import Generic, Optional, Sequence, TypeVar
-
+from vizier import pyvizier as vz
 from vizier._src.algorithms.core import deltas
 from vizier.interfaces import serializable
-
-from vizier.pyvizier import pythia as vz
 
 _T = TypeVar('_T')
 
