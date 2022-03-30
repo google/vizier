@@ -14,7 +14,6 @@ from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
-
 _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
@@ -64,20 +63,9 @@ class DataStore(abc.ABC):
     """Stores suggestion operation."""
 
   @abc.abstractmethod
-  def create_early_stopping_operation(
-      self, operation: vizier_oss_pb2.EarlyStoppingOperation
-  ) -> resources.EarlyStoppingOperationResource:
-    """Stores early stopping operation."""
-
-  @abc.abstractmethod
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     """Retrieves suggestion operation."""
-
-  @abc.abstractmethod
-  def get_early_stopping_operation(
-      self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
-    """Retrieves early stopping operation."""
 
   @abc.abstractmethod
   def list_suggestion_operations(
@@ -92,6 +80,17 @@ class DataStore(abc.ABC):
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
     """Maximal suggestion number for a given client."""
+
+  @abc.abstractmethod
+  def create_early_stopping_operation(
+      self, operation: vizier_oss_pb2.EarlyStoppingOperation
+  ) -> resources.EarlyStoppingOperationResource:
+    """Stores early stopping operation."""
+
+  @abc.abstractmethod
+  def get_early_stopping_operation(
+      self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
+    """Retrieves early stopping operation."""
 
   @abc.abstractmethod
   def update_metadata(
@@ -270,16 +269,6 @@ class NestedDictRAMDataStore(DataStore):
     suggestion_operations[resource.operation_id] = operation
     return resource
 
-  def create_early_stopping_operation(
-      self, operation: vizier_oss_pb2.EarlyStoppingOperation
-  ) -> resources.EarlyStoppingOperationResource:
-    resource = resources.EarlyStoppingOperationResource.from_name(
-        operation.name)
-    self._owners[resource.owner_id].studies[
-        resource.study_id].early_stopping_operations[
-            resource.operation_id] = operation
-    return resource
-
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     resource = resources.SuggestionOperationResource.from_name(operation_name)
@@ -289,17 +278,6 @@ class NestedDictRAMDataStore(DataStore):
 
     except KeyError as err:
       raise KeyError('Could not find SuggestionOperation with name:',
-                     resource.name) from err
-
-  def get_early_stopping_operation(
-      self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
-    resource = resources.EarlyStoppingOperationResource.from_name(
-        operation_name)
-    try:
-      return self._owners[resource.owner_id].studies[
-          resource.study_id].early_stopping_operations[resource.operation_id]
-    except KeyError as err:
-      raise KeyError('Could not find EarlyStoppingOperation with name:',
                      resource.name) from err
 
   def list_suggestion_operations(
@@ -331,3 +309,24 @@ class NestedDictRAMDataStore(DataStore):
     else:
       return len(self._owners[
           resource.owner_id].clients[client_id].suggestion_operations)
+
+  def create_early_stopping_operation(
+      self, operation: vizier_oss_pb2.EarlyStoppingOperation
+  ) -> resources.EarlyStoppingOperationResource:
+    resource = resources.EarlyStoppingOperationResource.from_name(
+        operation.name)
+    self._owners[resource.owner_id].studies[
+        resource.study_id].early_stopping_operations[
+            resource.operation_id] = operation
+    return resource
+
+  def get_early_stopping_operation(
+      self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
+    resource = resources.EarlyStoppingOperationResource.from_name(
+        operation_name)
+    try:
+      return self._owners[resource.owner_id].studies[
+          resource.study_id].early_stopping_operations[resource.operation_id]
+    except KeyError as err:
+      raise KeyError('Could not find EarlyStoppingOperation with name:',
+                     resource.name) from err

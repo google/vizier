@@ -1,6 +1,6 @@
 """Tests for vizier.service.datastore."""
-
 from vizier.service import datastore
+from vizier.service import datastore_test_lib
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import test_util
@@ -8,11 +8,10 @@ from vizier.service import vizier_service_pb2
 
 from absl.testing import absltest
 
-
 _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
-class DatastoreTest(absltest.TestCase):
+class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):
 
   def setUp(self):
     self.owner_id = 'my_username'
@@ -29,41 +28,11 @@ class DatastoreTest(absltest.TestCase):
         [1, 2], self.owner_id, self.study_id)
     super().setUp()
 
-  def test_study(self):
-    self.datastore.create_study(self.example_study)
-    output_study = self.datastore.load_study(self.example_study.name)
-    self.assertEqual(output_study, self.example_study)
-
-    owner_name = resources.StudyResource.from_name(
-        self.example_study.name).owner_resource.name
-    list_of_one_study = self.datastore.list_studies(owner_name)
-    self.assertLen(list_of_one_study, 1)
-    self.assertEqual(list_of_one_study[0], self.example_study)
-
-    self.datastore.delete_study(self.example_study.name)
-    empty_list = self.datastore.list_studies(owner_name)
-    self.assertEmpty(empty_list)
+  def test_study_api(self):
+    self.assertStudyAPI(self.datastore, self.example_study)
 
   def test_trial(self):
-    self.datastore.create_study(self.example_study)
-    for trial in self.example_trials:
-      self.datastore.create_trial(trial)
-
-    self.assertLen(
-        self.example_trials,
-        self.datastore.max_trial_id(
-            resources.StudyResource(self.owner_id, self.study_id).name))
-
-    list_of_trials = self.datastore.list_trials(self.example_study.name)
-    self.assertLen(list_of_trials, len(self.example_trials))
-    self.assertEqual(list_of_trials, self.example_trials)
-
-    output_trial = self.datastore.get_trial(self.example_trials[0].name)
-    self.assertEqual(output_trial, self.example_trials[0])
-
-    self.datastore.delete_trial(self.example_trials[0].name)
-    leftover_trials = self.datastore.list_trials(self.example_study.name)
-    self.assertEqual(leftover_trials, self.example_trials[1:])
+    self.assertTrialAPI(self.datastore, self.example_study, self.example_trials)
 
   def test_suggestion_operation(self):
     self.datastore.create_study(self.example_study)
