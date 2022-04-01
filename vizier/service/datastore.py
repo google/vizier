@@ -200,46 +200,6 @@ class NestedDictRAMDataStore(DataStore):
     return list(self._owners[resource.owner_id].studies[
         resource.study_id].trial_protos.values())
 
-  def update_metadata(self, study_name: str,
-                      study_metadata: Iterable[key_value_pb2.KeyValue],
-                      trial_metadata: Iterable[_KeyValuePlus]) -> None:
-    """Writes the supplied metadata to the database.
-
-    Args:
-      study_name:
-      study_metadata: Metadata that's associated with the Study as a whole.
-      trial_metadata: Metadata that's associated with trials.  (Note that its an
-        error to attach metadata to a Trial that doesn't exist.)
-    """
-    s_resource = resources.StudyResource.from_name(study_name)
-    logging.debug('database.update_metadata s_resource= %s', s_resource)
-    try:
-      study = self._owners[s_resource.owner_id].studies[s_resource.study_id]
-    except KeyError as e:
-      raise KeyError('No such study:', s_resource.name) from e
-    # Store Study-related metadata into the database.
-    study.study_proto.study_spec.ClearField('metadata')
-    for metadata in study_metadata:
-      study.study_proto.study_spec.metadata.append(metadata)
-    # Store trial-related metadata in the database.  We first create a table of
-    # the relevant `trial_resources` that will be touched.   We clear them, then
-    # loop through the metadata, converting to protos.
-    trial_resources: Dict[str, resources.TrialResource] = {}
-    for metadata in trial_metadata:
-      try:
-        t_resource = trial_resources[metadata.trial_id]
-      except KeyError:
-        # If we don't have a t_resource entry already, create one and clear the
-        # relevant Trial's metadata.
-        t_resource = s_resource.trial_resource(metadata.trial_id)
-        trial_resources[metadata.trial_id] = t_resource
-        try:
-          study.trial_protos[t_resource.trial_id].ClearField('metadata')
-        except KeyError as e:
-          raise KeyError(f'No such trial ({metadata.trial_id}):',
-                         t_resource.name) from e
-      study.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)
-
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
     del self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
@@ -330,3 +290,43 @@ class NestedDictRAMDataStore(DataStore):
     except KeyError as err:
       raise KeyError('Could not find EarlyStoppingOperation with name:',
                      resource.name) from err
+
+  def update_metadata(self, study_name: str,
+                      study_metadata: Iterable[key_value_pb2.KeyValue],
+                      trial_metadata: Iterable[_KeyValuePlus]) -> None:
+    """Writes the supplied metadata to the database.
+
+    Args:
+      study_name:
+      study_metadata: Metadata that's associated with the Study as a whole.
+      trial_metadata: Metadata that's associated with trials.  (Note that its an
+        error to attach metadata to a Trial that doesn't exist.)
+    """
+    s_resource = resources.StudyResource.from_name(study_name)
+    logging.debug('database.update_metadata s_resource= %s', s_resource)
+    try:
+      study = self._owners[s_resource.owner_id].studies[s_resource.study_id]
+    except KeyError as e:
+      raise KeyError('No such study:', s_resource.name) from e
+    # Store Study-related metadata into the database.
+    study.study_proto.study_spec.ClearField('metadata')
+    for metadata in study_metadata:
+      study.study_proto.study_spec.metadata.append(metadata)
+    # Store trial-related metadata in the database.  We first create a table of
+    # the relevant `trial_resources` that will be touched.   We clear them, then
+    # loop through the metadata, converting to protos.
+    trial_resources: Dict[str, resources.TrialResource] = {}
+    for metadata in trial_metadata:
+      try:
+        t_resource = trial_resources[metadata.trial_id]
+      except KeyError:
+        # If we don't have a t_resource entry already, create one and clear the
+        # relevant Trial's metadata.
+        t_resource = s_resource.trial_resource(metadata.trial_id)
+        trial_resources[metadata.trial_id] = t_resource
+        try:
+          study.trial_protos[t_resource.trial_id].ClearField('metadata')
+        except KeyError as e:
+          raise KeyError(f'No such trial ({metadata.trial_id}):',
+                         t_resource.name) from e
+      study.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)

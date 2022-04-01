@@ -39,11 +39,19 @@ class SQLDataStore(datastore.DataStore):
         'suggestion_operations',
         self._root_metadata,
         sqla.Column('operation_name', sqla.String, primary_key=True),
+        sqla.Column('owner_id', sqla.String),
+        sqla.Column('client_id', sqla.String),
+        sqla.Column('operation_number', sqla.INTEGER),
+        sqla.Column('serialized_op', sqla.String),
     )
     self._early_stopping_operations_table = sqla.Table(
         'early_stopping_operations',
         self._root_metadata,
         sqla.Column('operation_name', sqla.String, primary_key=True),
+        sqla.Column('owner_id', sqla.String),
+        sqla.Column('study_id', sqla.String),
+        sqla.Column('trial_id', sqla.INTEGER),
+        sqla.Column('serialized_op', sqla.String),
     )
     self._root_metadata.create_all(self._engine)
 
@@ -140,12 +148,24 @@ class SQLDataStore(datastore.DataStore):
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
     """Stores suggestion operation."""
-    raise NotImplementedError()
+    resource = resources.SuggestionOperationResource.from_name(operation.name)
+    query = self._suggestion_operations_table.insert().values(
+        operation_name=operation.name,
+        owner_id=resource.owner_id,
+        client_id=resource.client_id,
+        operation_number=resource.operation_number,
+        serialized_op=operation.SerializeToString())
+    self._connection.execute(query)
+    return resource
 
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     """Retrieves suggestion operation."""
-    raise NotImplementedError()
+    query = sqla.select([self._suggestion_operations_table]).where(
+        self._suggestion_operations_table.c.operation_name == operation_name)
+    result = self._connection.execute(query)
+    row = result.fetchone()
+    return operations_pb2.Operation.FromString(row['serialized_op'])
 
   def list_suggestion_operations(
       self,
@@ -154,23 +174,64 @@ class SQLDataStore(datastore.DataStore):
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
     """Retrieve all suggestion operations from a client."""
-    raise NotImplementedError()
+    owner_resource = resources.OwnerResource.from_name(owner_name)
+    query = sqla.select([
+        self._suggestion_operations_table
+    ]).where(self._suggestion_operations_table.c.owner_id ==
+             owner_resource.owner_id).where(
+                 self._suggestion_operations_table.c.client_id == client_id)
+    result = self._connection.execute(query)
+    all_ops = [
+        operations_pb2.Operation.FromString(row['serialized_op'])
+        for row in result
+    ]
+    if filter_fn is not None:
+      output_list = []
+      for op in all_ops:
+        if filter_fn(op):
+          output_list.append(op)
+      return output_list
+    else:
+      return all_ops
 
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
     """Maximal suggestion number for a given client."""
-    raise NotImplementedError()
+    resource = resources.OwnerResource.from_name(owner_name)
+    query = sqla.select([
+        sqla.func.max(
+            self._suggestion_operations_table.c.operation_number,
+            type_=sqla.INT)
+    ]).where(self._suggestion_operations_table.c.owner_id == resource.owner_id
+            ).where(self._suggestion_operations_table.c.client_id == client_id)
+    return self._connection.execute(query).fetchone()[0]
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     """Stores early stopping operation."""
-    raise NotImplementedError()
+    resource = resources.EarlyStoppingOperationResource.from_name(
+        operation.name)
+    query = self._early_stopping_operations_table.insert().values(
+        operation_name=operation.name,
+        owner_id=resource.owner_id,
+        study_id=resource.study_id,
+        trial_id=resource.trial_id,
+        serialized_op=operation.SerializeToString())
+    self._connection.execute(query)
+    return resource
 
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
     """Retrieves early stopping operation."""
-    raise NotImplementedError()
+    query = sqla.select([
+        self._early_stopping_operations_table
+    ]).where(self._early_stopping_operations_table.c.operation_name ==
+             operation_name)
+    result = self._connection.execute(query)
+    row = result.fetchone()
+    return vizier_oss_pb2.EarlyStoppingOperation.FromString(
+        row['serialized_op'])
 
   def update_metadata(
       self,

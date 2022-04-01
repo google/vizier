@@ -32,6 +32,15 @@ class SQLDataStoreTest(datastore_test_lib.DataStoreTestCase):
   def test_trial(self):
     self.assertTrialAPI(self.datastore, self.example_study, self.example_trials)
 
+  def test_suggestion_operation(self):
+    self.assertSuggestOpAPI(self.datastore, self.example_study, self.client_id,
+                            self.example_suggestion_operations)
+
+  def test_early_stopping_operation(self):
+    self.assertEarlyStoppingAPI(self.datastore, self.example_study,
+                                self.example_trials,
+                                self.example_early_stopping_operations)
+
 
 if __name__ == '__main__':
   absltest.main()

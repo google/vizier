@@ -35,38 +35,13 @@ class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):
     self.assertTrialAPI(self.datastore, self.example_study, self.example_trials)
 
   def test_suggestion_operation(self):
-    self.datastore.create_study(self.example_study)
-    for operation in self.example_suggestion_operations:
-      self.datastore.create_suggestion_operation(operation)
-
-    self.assertLen(
-        self.example_suggestion_operations,
-        self.datastore.max_suggestion_operation_number(
-            resources.OwnerResource(self.owner_id).name, self.client_id))
-
-    list_of_operations = self.datastore.list_suggestion_operations(
-        resources.OwnerResource(self.owner_id).name, self.client_id)
-    self.assertEqual(list_of_operations, self.example_suggestion_operations)
-
-    output_operation = self.datastore.get_suggestion_operation(
-        resources.SuggestionOperationResource(
-            self.owner_id, self.client_id, operation_number=1).name)
-    self.assertEqual(output_operation, self.example_suggestion_operations[0])
+    self.assertSuggestOpAPI(self.datastore, self.example_study, self.client_id,
+                            self.example_suggestion_operations)
 
   def test_early_stopping_operation(self):
-    self.datastore.create_study(self.example_study)
-
-    for trial in self.example_trials:
-      self.datastore.create_trial(trial)
-
-    for operation in self.example_early_stopping_operations:
-      self.datastore.create_early_stopping_operation(operation)
-
-    output_operation = self.datastore.get_early_stopping_operation(
-        resources.EarlyStoppingOperationResource(self.owner_id, self.study_id,
-                                                 1).name)
-    self.assertEqual(output_operation,
-                     self.example_early_stopping_operations[0])
+    self.assertEarlyStoppingAPI(self.datastore, self.example_study,
+                                self.example_trials,
+                                self.example_early_stopping_operations)
 
   def test_update_metadata(self):
     self.datastore.create_study(self.example_study)
