@@ -17,7 +17,8 @@ np.set_printoptions(precision=3)
 
 def nsga2_on_all_types(population_size: int = 50,
                        eviction_limit: Optional[int] = None) -> nsga2.NSGA2:
-  study_config = vz.StudyConfig(test_studies.flat_space_with_all_types())
+  study_config = vz.StudyConfig(
+      search_space=test_studies.flat_space_with_all_types())
   study_config.metric_information.extend([
       vz.MetricInformation(name='m1', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
       vz.MetricInformation(name='m2', goal=vz.ObjectiveMetricGoal.MINIMIZE),

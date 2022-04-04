@@ -41,7 +41,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
       study_guid = self._study_guid
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
     study = self._vizier_service.GetStudy(request, None)
-    return pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
+    return pyvizier.StudyConfig.from_proto(study.study_spec)
 
   def GetTrials(
       self,

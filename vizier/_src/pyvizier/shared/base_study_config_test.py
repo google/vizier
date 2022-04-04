@@ -58,43 +58,40 @@ class MetricInformationTest(absltest.TestCase):
       info.max_value = -2.
 
 
-class BaseStudyConfigTest(absltest.TestCase):
+class MetricsConfigTest(parameterized.TestCase):
 
-  def testCreation(self):
-    sc = base_study_config.BaseStudyConfig()
-    root = sc.search_space.select_root()
-    root.add_float_param(
-        'learning-rate',
-        0.00001,
-        1.0,
-        scale_type=base_study_config.ScaleType.LINEAR)
-    root.add_categorical_param('optimizer', ['adagrad', 'adam', 'experimental'])
-    self.assertLen(sc.search_space.parameters, 2)
+  def testBasics(self):
+    config = base_study_config.MetricsConfig()
+    config.append(
+        base_study_config.MetricInformation(
+            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
+    config.extend([
+        base_study_config.MetricInformation(
+            name='max_safe1',
+            goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,
+            safety_threshold=0.0),
+        base_study_config.MetricInformation(
+            name='max2', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE),
+        base_study_config.MetricInformation(
+            name='min1', goal=base_study_config.ObjectiveMetricGoal.MINIMIZE),
+        base_study_config.MetricInformation(
+            name='min_safe2',
+            goal=base_study_config.ObjectiveMetricGoal.MINIMIZE,
+            safety_threshold=0.0)
+    ])
+    self.assertLen(config, 5)
+    self.assertLen(config.of_type(base_study_config.MetricType.OBJECTIVE), 3)
+    self.assertLen(config.of_type(base_study_config.MetricType.SAFETY), 2)
 
-  def testSearchSpacesNotShared(self):
-    sc1 = base_study_config.BaseStudyConfig()
-    sc1.search_space.select_root().add_float_param('x', 1, 2)
-    sc2 = base_study_config.BaseStudyConfig()
-    sc2.search_space.select_root().add_float_param('x', 1, 2)
-    self.assertLen(sc1.search_space.parameters, 1)
-    self.assertLen(sc2.search_space.parameters, 1)
-
-  def testHasConditionalParametersFlatSpace(self):
-    sc = base_study_config.BaseStudyConfig()
-    sc.search_space.select_root().add_float_param('x', 1, 2)
-    self.assertFalse(sc.search_space.is_conditional)
-
-  def testHasConditionalParameters(self):
-    sc = base_study_config.BaseStudyConfig()
-    root = sc.search_space.select_root()
-    model_type = root.add_categorical_param('model_type', ['linear', 'dnn'])
-    _ = model_type.select_values(['dnn']).add_float_param(
-        'learning_rate',
-        0.1,
-        1.0,
-        default_value=0.001,
-        scale_type=base_study_config.ScaleType.LOG)
-    self.assertTrue(sc.search_space.is_conditional)
+  def testDuplicateNames(self):
+    config = base_study_config.MetricsConfig()
+    config.append(
+        base_study_config.MetricInformation(
+            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
+    with self.assertRaises(ValueError):
+      config.append(
+          base_study_config.MetricInformation(
+              name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
 
 
 class SearchSpaceTest(parameterized.TestCase):

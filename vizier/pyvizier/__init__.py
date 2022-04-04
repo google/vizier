@@ -3,6 +3,7 @@
 from vizier._src.pyvizier.pythia.study import StudyConfig
 from vizier._src.pyvizier.pythia.study import StudyDescriptor
 from vizier._src.pyvizier.shared.base_study_config import MetricInformation
+from vizier._src.pyvizier.shared.base_study_config import MetricsConfig
 from vizier._src.pyvizier.shared.base_study_config import MetricType
 from vizier._src.pyvizier.shared.base_study_config import ObjectiveMetricGoal
 from vizier._src.pyvizier.shared.base_study_config import SearchSpace

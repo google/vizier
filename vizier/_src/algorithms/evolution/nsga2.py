@@ -1,9 +1,8 @@
 """NSGA-II algorithm: https://ieeexplore.ieee.org/document/996017."""
 
-import collections
 import dataclasses
 import pickle
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Tuple
 
 import numpy as np
 from vizier import algorithms
@@ -110,25 +109,6 @@ class Population:
                       concat(self.ages, other.ages))
 
 
-def _filter_and_split(
-    metrics: Sequence[vz.MetricInformation]
-) -> Tuple[List[vz.MetricInformation], List[vz.MetricInformation]]:
-  """Choose objective and safety metrics and split.
-
-  Args:
-    metrics:
-
-  Returns:
-    Tuple of objective and safety metrics.
-  """
-  metrics_by_type = collections.defaultdict(list)
-  for metric in metrics:
-    metrics_by_type[metric.type].append(metric)
-
-  return (metrics_by_type[vz.MetricType.OBJECTIVE],
-          metrics_by_type[vz.MetricType.SAFETY])
-
-
 def _select_by(ys: np.ndarray, target: int) -> Tuple[np.ndarray, np.ndarray]:
   """Returns a boolean index array for the top `target` elements of ys.
 
@@ -190,7 +170,7 @@ class NSGA2(algorithms.Designer):
   def __init__(
       self,
       search_space: vz.SearchSpace,
-      metrics: Sequence[vz.MetricInformation],
+      metrics: Iterable[vz.MetricInformation],
       population_size: int = 50,
       *,
       mutation_fn: Callable[[Population],
@@ -226,9 +206,9 @@ class NSGA2(algorithms.Designer):
     self._population_size = population_size
     self._total_seen = 0
 
-    self.objective_metrics, self.safe_metrics = _filter_and_split(metrics)
-    self.num_objective_metrics = len(self.objective_metrics)
-    self.num_safe_metrics = len(self.safe_metrics)
+    metrics = vz.MetricsConfig(metrics)
+    self.objective_metrics = metrics.of_type(vz.MetricType.OBJECTIVE)
+    self.safe_metrics = metrics.of_type(vz.MetricType.SAFETY)
     self.metrics = self.objective_metrics + self.safe_metrics
 
     self._mutation_fn = mutation_fn
@@ -275,9 +255,9 @@ class NSGA2(algorithms.Designer):
     if loaded_arrays:
       xs += xs.dict_like(np.asarray(loaded_arrays))
 
-    return Population(trials, xs, ys[:, :self.num_objective_metrics],
+    return Population(trials, xs, ys[:, :len(self.objective_metrics)],
                       ys[:,
-                         self.num_objective_metrics:], np.zeros(ys.shape[:1]))
+                         len(self.objective_metrics):], np.zeros(ys.shape[:1]))
 
   def _survival(self, population: Population) -> Population:
     """Applies survival process.
@@ -299,7 +279,7 @@ class NSGA2(algorithms.Designer):
 
     selected = self._trials_to_population([])
     # Sort by the safety constraint.
-    if self.num_safe_metrics:
+    if self.safe_metrics:
       top, border = _select_by(
           _constraint_violation(population.cs), target=self._population_size)
       selected += population[top]

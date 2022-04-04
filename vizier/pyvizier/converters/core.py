@@ -5,7 +5,7 @@ import copy
 import dataclasses
 import enum
 import itertools
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
 
 from absl import logging
 import attr
@@ -782,7 +782,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
   def from_study_configs(
       cls,
       study_configs: Sequence[pyvizier.StudyConfig],
-      metric_information: Sequence[pyvizier.MetricInformation],
+      metric_information: Collection[pyvizier.MetricInformation],
       *,
       use_study_id_feature: bool = True) -> 'DefaultTrialConverter':
     """Creates a converter from a list of study configs.

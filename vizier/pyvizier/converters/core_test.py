@@ -19,7 +19,7 @@ class TrialToArrayConverterTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     self._study_config = pyvizier.StudyConfig(
-        test_studies.flat_space_with_all_types(),
+        search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
             pyvizier.MetricInformation(
                 'x1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)

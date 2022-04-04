@@ -258,8 +258,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         pythia_policy = policy_creator(study.study_spec.algorithm,
                                        policy_supporter)
 
-        pythia_sc = pyvizier.StudyConfig.from_proto(
-            study.study_spec).to_pythia()
+        pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
         study_descriptor = base_pyvizier.StudyDescriptor(config=pythia_sc)
         suggest_request = pythia.SuggestRequest(
             study_descriptor=study_descriptor,
@@ -488,7 +487,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           study_name, self)
       pythia_policy = policy_creator(study.study_spec.algorithm,
                                      policy_supporter)
-      pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec).to_pythia()
+      pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
       study_descriptor = base_pyvizier.StudyDescriptor(
           config=pythia_sc, guid=study_name)
       early_stop_request = pythia.EarlyStopRequest(

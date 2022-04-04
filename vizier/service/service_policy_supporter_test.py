@@ -89,7 +89,7 @@ class PythiaSupporterTest(absltest.TestCase):
   def test_get_study_config(self):
     pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
     correct_pythia_sc = pyvizier.StudyConfig.from_proto(
-        self.example_study.study_spec).to_pythia()
+        self.example_study.study_spec)
     self.assertEqual(pythia_sc, correct_pythia_sc)
 
   def test_update_metadata(self):

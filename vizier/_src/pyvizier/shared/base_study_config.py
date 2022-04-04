@@ -1,12 +1,15 @@
+import collections
+from collections import abc as collections_abc
 import copy
 import enum
 import math
 import re
-from typing import Callable, Iterable, List, Optional, Sequence, Tuple, Type, TypeVar, Union, overload
+from typing import Callable, Iterable, Iterator, List, Optional, Sequence, Tuple, Type, TypeVar, Union, overload
 
 from absl import logging
 import attr
 import numpy as np
+from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import parameter_config
 from vizier._src.pyvizier.shared import trial
 
@@ -175,6 +178,64 @@ class MetricInformation:
     else:
       self.goal = ObjectiveMetricGoal.MAXIMIZE
     return self
+
+
+@attr.define(frozen=False, init=True, slots=True)
+class MetricsConfig(collections_abc.Collection):
+  """Container for metrics.
+
+  Metric names should be unique.
+  """
+  _metrics: List[MetricInformation] = attr.ib(
+      init=True,
+      factory=list,
+      converter=list,
+      validator=attr.validators.deep_iterable(
+          member_validator=attr.validators.instance_of(MetricInformation),
+          iterable_validator=attr.validators.instance_of(Iterable)))
+
+  def item(self) -> MetricInformation:
+    if len(self._metrics) != 1:
+      raise ValueError('Can be called only when there is exactly one metric!')
+    return self._metrics[0]
+
+  def _assert_names_are_unique(self) -> None:
+    counts = collections.Counter(metric.name for metric in self._metrics)
+    if len(counts) != len(self._metrics):
+      for name, count in counts.items():
+        if count > 1:
+          raise ValueError(f'Duplicate metric name: {name} in {self._metrics}')
+
+  def __attrs_post_init__(self):
+    self._assert_names_are_unique()
+
+  def __iter__(self) -> Iterator[MetricInformation]:
+    return iter(self._metrics)
+
+  def __contains__(self, x: object) -> bool:
+    return x in self._metrics
+
+  def __len__(self) -> int:
+    return len(self._metrics)
+
+  def __add__(self, metrics: Iterable[MetricInformation]) -> 'MetricsConfig':
+    return MetricsConfig(self._metrics + list(metrics))
+
+  def of_type(
+      self, include: Union[MetricType,
+                           Iterable[MetricType]]) -> 'MetricsConfig':
+    """Filters the Metrics by type."""
+    if isinstance(include, MetricType):
+      include = (include,)
+    return MetricsConfig(m for m in self._metrics if m.type in include)
+
+  def append(self, metric: MetricInformation):
+    self._metrics.append(metric)
+    self._assert_names_are_unique()
+
+  def extend(self, metrics: Iterable[MetricInformation]):
+    for metric in metrics:
+      self.append(metric)
 
 
 @attr.s(frozen=True, init=True, slots=True, kw_only=True)
@@ -1327,13 +1388,28 @@ class SearchSpace:
 
 
 ################### Main Class ###################
-@attr.s(frozen=False, init=True, slots=True, kw_only=True)
-class BaseStudyConfig:
+@attr.define(frozen=False, init=True, slots=True)
+class ProblemStatement:
   """A builder and wrapper for core StudyConfig functionality."""
 
   search_space: SearchSpace = attr.ib(
       init=True,
       factory=SearchSpace,
-      validator=attr.validators.instance_of(SearchSpace),
-      on_setattr=attr.setters.validate,
+      validator=attr.validators.instance_of(SearchSpace))
+
+  metric_information: MetricsConfig = attr.ib(
+      init=True,
+      factory=MetricsConfig,
+      converter=MetricsConfig,
+      validator=attr.validators.instance_of(MetricsConfig),
       kw_only=True)
+
+  metadata: common.Metadata = attr.field(
+      init=True,
+      kw_only=True,
+      factory=common.Metadata,
+      validator=attr.validators.instance_of(common.Metadata))
+
+  @property
+  def debug_info(self) -> str:
+    return ''

@@ -15,10 +15,9 @@ protos:
 import collections
 import copy
 import enum
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import attr
-from vizier import pyvizier
 from vizier._src.pyvizier.oss import automated_stopping
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.oss import proto_converters
@@ -60,17 +59,18 @@ class ObservationNoise(enum.Enum):
 
 ################### Classes For Various Config Protos ###################
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
-class MetricInformation(base_study_config.MetricInformation):
+class MetricInformationConverter:
   """A wrapper for vizier_pb2.MetricInformation."""
 
   @classmethod
-  def from_proto(cls,
-                 proto: study_pb2.StudySpec.MetricSpec) -> 'MetricInformation':
+  def from_proto(
+      cls, proto: study_pb2.StudySpec.MetricSpec
+  ) -> base_study_config.MetricInformation:
     """Converts a MetricInformation proto to a MetricInformation object."""
     if proto.goal not in list(ObjectiveMetricGoal):
       raise ValueError('Unknown MetricInformation.goal: {}'.format(proto.goal))
 
-    return cls(
+    return base_study_config.MetricInformation(
         name=proto.metric_id,
         goal=proto.goal,
         safety_threshold=None,
@@ -78,10 +78,25 @@ class MetricInformation(base_study_config.MetricInformation):
         min_value=None,
         max_value=None)
 
-  def to_proto(self) -> study_pb2.StudySpec.MetricSpec:
+  @classmethod
+  def to_proto(
+      cls, obj: base_study_config.MetricInformation
+  ) -> study_pb2.StudySpec.MetricSpec:
     """Returns this object as a proto."""
     return study_pb2.StudySpec.MetricSpec(
-        metric_id=self.name, goal=self.goal.value)
+        metric_id=obj.name, goal=obj.goal.value)
+
+
+class MetricsConfig(base_study_config.MetricsConfig):
+  """Metrics config."""
+
+  @classmethod
+  def from_proto(
+      cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]) -> 'MetricsConfig':
+    return cls(MetricInformationConverter.from_proto(m) for m in protos)
+
+  def to_proto(self) -> List[study_pb2.StudySpec.MetricSpec]:
+    return [MetricInformationConverter.to_proto(metric) for metric in self]
 
 
 SearchSpaceSelector = base_study_config.SearchSpaceSelector
@@ -138,15 +153,14 @@ class SearchSpace(base_study_config.SearchSpace):
 #       scale_type=pyvizier.ScaleType.LOG)
 #
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
-class StudyConfig:
+class StudyConfig(base_study_config.ProblemStatement):
   """A builder and wrapper for study_pb2.StudySpec proto."""
 
   search_space: SearchSpace = attr.field(
       init=True,
       factory=SearchSpace,
       validator=attr.validators.instance_of(SearchSpace),
-      on_setattr=attr.setters.validate,
-      kw_only=True)
+      on_setattr=attr.setters.validate)
 
   algorithm: Algorithm = attr.field(
       init=True,
@@ -155,13 +169,11 @@ class StudyConfig:
       default=Algorithm.GAUSSIAN_PROCESS_BANDIT,
       kw_only=True)
 
-  metric_information: List[MetricInformation] = attr.field(
+  metric_information: MetricsConfig = attr.field(
       init=True,
-      factory=list,
-      validator=attr.validators.deep_iterable(
-          member_validator=attr.validators.instance_of(MetricInformation),
-          iterable_validator=attr.validators.instance_of(list)),
-      on_setattr=attr.setters.validate,
+      factory=MetricsConfig,
+      converter=MetricsConfig,
+      validator=attr.validators.instance_of(MetricsConfig),
       kw_only=True)
 
   observation_noise: ObservationNoise = attr.field(
@@ -209,11 +221,10 @@ class StudyConfig:
     Returns:
       A StudyConfig object.
     """
-    metric_information = []
-    if proto.metrics:
-      for metric in proto.metrics:
-        metric_information.append(MetricInformation.from_proto(metric))
-    metric_information = sorted(metric_information, key=lambda x: x.name)
+    metric_information = MetricsConfig(
+        sorted(
+            [MetricInformationConverter.from_proto(m) for m in proto.metrics],
+            key=lambda x: x.name))
 
     oneof_name = proto.WhichOneof('automated_stopping_spec')
     if not oneof_name:
@@ -243,7 +254,7 @@ class StudyConfig:
     proto.observation_noise = self.observation_noise.value
 
     del proto.metrics[:]
-    proto.metrics.extend([info.to_proto() for info in self.metric_information])
+    proto.metrics.extend(self.metric_information.to_proto())
 
     del proto.parameters[:]
     proto.parameters.extend(self.search_space.parameter_protos)
@@ -278,7 +289,7 @@ class StudyConfig:
       None: if this is not a single-objective study.
     """
     if len(self.metric_information) == 1:
-      return self.metric_information[0].name
+      return list(self.metric_information)[0].name
     return None
 
   def _trial_to_external_values(
@@ -432,9 +443,3 @@ class StudyConfig:
             continue
           metrics[name] = pytrial.final_measurement.metrics[name].value
     return metrics
-
-  def to_pythia(self) -> pyvizier.StudyConfig:
-    return pyvizier.StudyConfig(
-        search_space=copy.deepcopy(self.search_space),
-        metric_information=copy.deepcopy(self.metric_information),
-        metadata=copy.deepcopy(self.metadata))

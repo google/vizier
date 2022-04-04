@@ -12,9 +12,10 @@ class EmukitTest(absltest.TestCase):
 
   def test_on_flat_space(self):
     config = vz.StudyConfig(
-        test_studies.flat_space_with_all_types(),
+        search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
-            vz.MetricInformation('x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+            vz.MetricInformation(
+                name='x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
         ])
     designer = emukit.EmukitDesigner(
         config, num_random_samples=10, metadata_ns='emukit')
