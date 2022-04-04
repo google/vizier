@@ -1,6 +1,9 @@
 """Import target for oss."""
 
+# TODO: Re-evalaute what to expose to users, once closed.
+# TODO: Alternatively, remove this import.
 from vizier._src.pyvizier.oss import metadata_util
+
 from vizier._src.pyvizier.oss.automated_stopping import AutomatedStoppingConfig
 from vizier._src.pyvizier.oss.automated_stopping import AutomatedStoppingConfigProto
 from vizier._src.pyvizier.oss.proto_converters import MeasurementConverter
