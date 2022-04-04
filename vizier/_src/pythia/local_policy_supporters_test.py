@@ -2,7 +2,6 @@
 
 from vizier import pyvizier as vz
 from vizier._src.pythia import local_policy_supporters
-from vizier._src.pythia import policy_supporter
 from absl.testing import absltest
 
 LocalPolicyRunner = local_policy_supporters.LocalPolicyRunner
@@ -27,7 +26,7 @@ class LocalPolicySupportersTest(absltest.TestCase):
     runner = _runner_with_10trials()
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
 
-    with policy_supporter.MetadataUpdate(runner) as mu:
+    with runner.MetadataUpdate() as mu:
       mu.assign('ns', 'key', 'value')
       mu.assign('ns', 'key', 'value', trial_id=1)
       # Metadata update is not immediate.
@@ -42,7 +41,7 @@ class LocalPolicySupportersTest(absltest.TestCase):
   def test_update_metadata_inplace(self):
     runner = _runner_with_10trials()
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
-    with policy_supporter.MetadataUpdate(runner) as mu:
+    with runner.MetadataUpdate() as mu:
       mu.assign('ns', 'key', 'value', trial=trial1)
       self.assertEqual(trial1.metadata.ns('ns').get('key'), 'value')
 

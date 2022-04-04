@@ -150,7 +150,7 @@ class Metadata(abc.MutableMapping):
   """Metadata class.
 
   This is the main interface for reading metadata from a Trial (writing metadata
-  should typically be done via the MetadataUpdate class.)
+  should typically be done via the MetadataUpdateContext class.)
 
   This behaves like a str->str dict, within a given namespace.
     mm = Metadata({'foo': 'Foo'})

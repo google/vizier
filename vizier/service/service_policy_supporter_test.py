@@ -99,7 +99,7 @@ class PythiaSupporterTest(absltest.TestCase):
     on_trial1_metadata.ns('bar')['nerf'] = '1.bar.nerf.2'
     delta = pythia.MetadataDelta(
         on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
-    self.policy_supporter.UpdateMetadata(delta)
+    self.policy_supporter.SendMetadata(delta)
     # Read to see that the results are correct.
     pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
     self.assertLen(pythia_sc.metadata.namespaces(), 1)

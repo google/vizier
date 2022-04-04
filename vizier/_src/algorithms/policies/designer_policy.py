@@ -188,9 +188,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         1, 'Updated with %s trials. Designer has seen a total of %s trials.',
         len(new_trials), len(self._incorporated_trial_ids))
 
-    with pythia.MetadataUpdate(self._supporter) as mu:
+    with self._supporter.MetadataUpdate() as mu:
       # pylint: disable=protected-access
-      # TODO: Improve the MetadataUpdate API.
+      # TODO: Improve the MetadataUpdateContext API.
       mu._delta.on_study.ns(self._ns_root).attach(self.dump())
 
     return pythia.SuggestDecisions.from_trials(
