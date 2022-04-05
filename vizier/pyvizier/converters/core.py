@@ -863,6 +863,9 @@ class DefaultTrialConverter(TrialToNumpyDict):
 class TrialToArrayConverter:
   """TrialToArrayConverter.
 
+  Use a factory method (currently, there is one: `from_study_config`) instead
+  of `__init__`.
+
   Unlike TrialtoNumpyDict converters, `to_features` and `to_labels`
   return a single array of floating numbers. CATEGORICAL and DISCRETE parameters
   are one-hot embedded.
