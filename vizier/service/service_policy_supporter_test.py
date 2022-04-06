@@ -1,5 +1,6 @@
 """Tests for vizier.service.service_policy_supporter."""
 
+import logging
 from vizier import pythia
 from vizier.service import pyvizier
 from vizier.service import resources
@@ -96,19 +97,23 @@ class PythiaSupporterTest(absltest.TestCase):
     on_study_metadata = pyvizier.Metadata()
     on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
     on_trial1_metadata = pyvizier.Metadata()
-    on_trial1_metadata.ns('bar')['nerf'] = '1.bar.nerf.2'
+    on_trial1_metadata.ns('bax')['nerf'] = '1.bar.nerf.2'
     delta = pythia.MetadataDelta(
         on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
     self.policy_supporter.SendMetadata(delta)
     # Read to see that the results are correct.
     pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
     self.assertLen(pythia_sc.metadata.namespaces(), 1)
+    logging.info('pythia_sc namespaces: %s', pythia_sc.metadata.namespaces())
+    logging.info('pythia_sc = %s', pythia_sc.metadata.ns('bar'))
+    logging.info('on_study = %s', on_study_metadata.ns('bar'))
+    self.assertNotEmpty(pythia_sc.metadata.ns('bar'))
     self.assertEqual(pythia_sc.metadata.ns('bar'), on_study_metadata.ns('bar'))
     trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, min_trial_id=1, max_trial_id=1)
     self.assertLen(trials, 1)
-    self.assertLen(trials[0].metadata.namespaces(), 1)
-    self.assertEqual(trials[0].metadata.ns('bar'), on_trial1_metadata.ns('bar'))
+    self.assertNotEmpty(trials[0].metadata.ns('bax'))
+    self.assertEqual(trials[0].metadata.ns('bax'), on_trial1_metadata.ns('bax'))
 
 
 if __name__ == '__main__':

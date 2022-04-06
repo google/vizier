@@ -1,9 +1,11 @@
 """Converters for OSS Vizier's protos from/to PyVizier's classes."""
 import datetime
+import logging
 from typing import List, Optional, Sequence, Tuple, Union
 from absl import logging
 
 from vizier._src.pyvizier.oss import metadata_util
+from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import parameter_config
 from vizier._src.pyvizier.shared import trial
 from vizier.service import study_pb2
@@ -363,7 +365,7 @@ class TrialConverter:
 
     metadata = trial.Metadata()
     for kv in proto.metadata:
-      metadata.abs_ns(kv.ns)[kv.key] = (
+      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value)
 
     measurements = []
@@ -433,8 +435,8 @@ class TrialConverter:
       proto.infeasible_reason = pytrial.infeasibility_reason
     if pytrial.metadata is not None:
       for ns in pytrial.metadata.namespaces():
-        repr_ns = repr(ns)
-        abs_ns = pytrial.metadata.abs_ns(ns)
-        for key, value in abs_ns.items():
-          metadata_util.assign(proto, key=key, ns=repr_ns, value=value)
+        ns_string = ns.encode()
+        ns_layer = pytrial.metadata.abs_ns(ns)
+        for key, value in ns_layer.items():
+          metadata_util.assign(proto, key=key, ns=ns_string, value=value)
     return proto

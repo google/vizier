@@ -10,6 +10,7 @@ from vizier._src.pyvizier.shared.base_study_config import SearchSpace
 from vizier._src.pyvizier.shared.base_study_config import SearchSpaceSelector
 from vizier._src.pyvizier.shared.common import Metadata
 from vizier._src.pyvizier.shared.common import MetadataValue
+from vizier._src.pyvizier.shared.common import Namespace
 from vizier._src.pyvizier.shared.parameter_config import ExternalType
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.parameter_config import ParameterType

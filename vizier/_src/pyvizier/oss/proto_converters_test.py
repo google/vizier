@@ -209,13 +209,13 @@ class TrialConverterTest(absltest.TestCase):
     logging.info('TEST-namespaces: %s', test.metadata.namespaces())
     logging.info('test.ns("x"):: %s', test.metadata.ns('x'))
     self.assertEqual(test.metadata['key1'], 'second value takes priority')
-    self.assertEqual(test.metadata.abs_ns('x')['key0'], 'namespace=x0')
-    self.assertEqual(test.metadata.abs_ns('x')['key1'], 'namespace=x1')
+    self.assertEqual(test.metadata.abs_ns(['x'])['key0'], 'namespace=x0')
+    self.assertEqual(test.metadata.abs_ns(['x'])['key1'], 'namespace=x1')
     self.assertEqual(
         test.metadata.get_proto('proto', cls=study_pb2.Trial),
         study_pb2.Trial(id=str(999)))
     self.assertEqual(
-        test.metadata.abs_ns('t').get_proto('proto', cls=study_pb2.Trial),
+        test.metadata.abs_ns(['t']).get_proto('proto', cls=study_pb2.Trial),
         study_pb2.Trial(id=str(991)))
 
 

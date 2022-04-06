@@ -111,14 +111,13 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     # Study Metadata
     for ns in delta.on_study.namespaces():
       for k, v in delta.on_study.abs_ns(ns).items():
-        utils.AssignKeyValuePlus(
-            request, trial_id=None, key=k, ns=repr(ns), value=v)
+        utils.AssignKeyValuePlus(request, trial_id=None, key=k, ns=ns, value=v)
     # Trial Metadata
     for trial_id, trial_metadata in delta.on_trials.items():
       for ns in trial_metadata.namespaces():
         for k, v in trial_metadata.abs_ns(ns).items():
           utils.AssignKeyValuePlus(
-              request, trial_id=trial_id, key=k, ns=repr(ns), value=v)
+              request, trial_id=trial_id, key=k, ns=ns, value=v)
     waiter = utils.ResponseWaiter()
     # In a real server, this happens in another thread:
     response = self._vizier_service.UpdateMetadata(request, None)

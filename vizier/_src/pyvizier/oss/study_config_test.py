@@ -91,7 +91,7 @@ class StudyConfigTest(absltest.TestCase):
     sc.metric_information.append(
         pyvizier.MetricInformation(
             name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
-    sc.metadata.abs_ns('ns')['key'] = 'ns-value'
+    sc.metadata.abs_ns(['ns'])['key'] = 'ns-value'
     sc.metadata.abs_ns()['key'] = 'value'
     sc.metadata['proto'] = empty_trial
 
@@ -99,7 +99,7 @@ class StudyConfigTest(absltest.TestCase):
     compare.assertProto2Contains(
         self, """metadata {
         key: "key"
-        ns: "ns"
+        ns: ":ns"
         value: "ns-value"
       }
       metadata {
@@ -157,7 +157,7 @@ class StudyConfigTest(absltest.TestCase):
     expected.parameters.extend(self.pconfigs)
     compare.assertProto2Equal(self, expected, sc.to_proto())
 
-  @absltest.skip
+  @absltest.skip('???')
   def testTrialToDict(self):
     py_study_config = pyvizier.StudyConfig(metric_information=[
         pyvizier.MetricInformation(
@@ -283,7 +283,7 @@ class StudyConfigTest(absltest.TestCase):
     self.assertIsInstance(parameters['batch_size'], float)
     self.assertIsInstance(parameters['training_steps'], float)
 
-  @absltest.skip
+  @absltest.skip('???')
   def testTrialToDictMultidimensional(self):
     py_study_config = pyvizier.StudyConfig(metric_information=[
         pyvizier.MetricInformation(
@@ -426,7 +426,7 @@ class StudyConfigTest(absltest.TestCase):
     }
     self.assertEqual(expected, parameters)
 
-  @absltest.skip
+  @absltest.skip('???')
   def testTrialToDictConditional(self):
     py_study_config = pyvizier.StudyConfig(metric_information=[
         pyvizier.MetricInformation(

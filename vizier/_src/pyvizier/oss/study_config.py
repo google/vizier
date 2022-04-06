@@ -235,7 +235,7 @@ class StudyConfig(base_study_config.ProblemStatement):
 
     metadata = common.Metadata()
     for kv in proto.metadata:
-      metadata.abs_ns(kv.ns)[kv.key] = (
+      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value)
 
     return cls(
@@ -269,10 +269,10 @@ class StudyConfig(base_study_config.ProblemStatement):
         proto.median_automated_stopping_spec.CopyFrom(auto_stop_proto)
 
     for ns in self.metadata.namespaces():
-      repr_ns = repr(ns)
-      abs_ns = self.metadata.abs_ns(ns)
-      for key, value in abs_ns.items():
-        metadata_util.assign(proto, key=key, ns=repr_ns, value=value)
+      ns_string = ns.encode()
+      ns_layer = self.metadata.abs_ns(ns)
+      for key, value in ns_layer.items():
+        metadata_util.assign(proto, key=key, ns=ns_string, value=value)
     return proto
 
   @property

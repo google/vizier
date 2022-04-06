@@ -5,6 +5,7 @@ import threading
 from typing import Any, Generic, Optional, TypeVar
 from vizier import pythia
 from vizier import pyvizier
+from vizier._src.pyvizier.shared import common
 from google.protobuf import any_pb2
 
 _TT = TypeVar('_TT')
@@ -67,7 +68,8 @@ class ResponseWaiter(Generic[_TT]):
 
 
 def AssignKeyValuePlus(container: Any, *, trial_id: Optional[int], key: str,
-                       ns: str, value: pyvizier.MetadataValue) -> None:
+                       ns: common.Namespace,
+                       value: pyvizier.MetadataValue) -> None:
   """Insert or assign (key, value) to container.metadata.
 
   Args:
@@ -82,6 +84,7 @@ def AssignKeyValuePlus(container: Any, *, trial_id: Optional[int], key: str,
       string, it is inserted into ....value; else if it is a protobuf, it is
       packed into ....proto.
   """
+  ns: str = ns.encode()
   str_trial_id: Optional[str] = str(trial_id) if trial_id is not None else None
   # The key is already in the metadata.
   for kv in container.metadata:
