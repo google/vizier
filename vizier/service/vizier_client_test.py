@@ -110,7 +110,7 @@ class VizierClientTest(parameterized.TestCase):
     self.assertEqual(active_trial_json,
                      json_format.MessageToDict(self.active_trial))
 
-  @parameterized.named_parameters(('Infeasible', 'infeasible test'),
+  @parameterized.named_parameters(('Infeasible', 'infeasible_reason'),
                                   ('Complete', None))
   def test_complete_trial(self, infeasibility_reason):
     final_measurement = pyvizier.Measurement(
@@ -119,17 +119,22 @@ class VizierClientTest(parameterized.TestCase):
         trial_id='1',
         final_measurement=final_measurement,
         infeasibility_reason=infeasibility_reason)
-    self.assertEqual(trial_json, json_format.MessageToDict(self.active_trial))
-
     trial = json_format.ParseDict(trial_json, study_pb2.Trial())
+
     if infeasibility_reason is not None:
       self.assertEqual(trial.state, study_pb2.Trial.State.INFEASIBLE)
+    else:
+      self.assertEqual(trial.state, study_pb2.Trial.State.SUCCEEDED)
+
+    # See if the rest of the contents were maintained.
+    completed_trial = self.servicer.datastore.get_trial(self.active_trial.name)
+    self.assertEqual(trial, completed_trial)
 
   def test_should_trial_stop(self):
     # Only trial 1 was ACTIVE, so RandomPolicy will signal to stop it.
     should_stop = self.client.should_trial_stop(trial_id='1')
     self.assertTrue(should_stop)
-    self.active_trial.state = study_pb2.Trial.State.STOPPING
+    self.client.stop_trial(trial_id='1')
 
     # The op will become recycled after the time period and early stopping will
     # be recomputed again. But RandomPolicy will consider the trial non-ACTIVE

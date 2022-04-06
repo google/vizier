@@ -3,6 +3,7 @@
 See resources.py for naming conventions.
 """
 import abc
+import copy
 import dataclasses
 import logging
 from typing import Callable, Dict, Iterable, List, Optional
@@ -18,7 +19,10 @@ _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
 class DataStore(abc.ABC):
-  """Abstract class for data storing."""
+  """Abstract class for data storage.
+
+  Input/Outputs should always be pass-by-value.
+  """
 
   @abc.abstractmethod
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
@@ -45,6 +49,10 @@ class DataStore(abc.ABC):
     """Retrieves trial from database."""
 
   @abc.abstractmethod
+  def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
+    """Updates pre-existing trial."""
+
+  @abc.abstractmethod
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     """List all trials given a study."""
 
@@ -66,6 +74,12 @@ class DataStore(abc.ABC):
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     """Retrieves suggestion operation."""
+
+  @abc.abstractmethod
+  def update_suggestion_operation(
+      self, operation: operations_pb2.Operation
+  ) -> resources.SuggestionOperationResource:
+    """Updates pre-existing suggestion operation."""
 
   @abc.abstractmethod
   def list_suggestion_operations(
@@ -91,6 +105,12 @@ class DataStore(abc.ABC):
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
     """Retrieves early stopping operation."""
+
+  @abc.abstractmethod
+  def update_early_stopping_operation(
+      self, operation: vizier_oss_pb2.EarlyStoppingOperation
+  ) -> resources.EarlyStoppingOperationResource:
+    """Updates pre-existing early stopping operation."""
 
   @abc.abstractmethod
   def update_metadata(
@@ -158,7 +178,7 @@ class NestedDictRAMDataStore(DataStore):
 
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
     resource = resources.StudyResource.from_name(study.name)
-    temp_dict = {resource.study_id: StudyNode(study_proto=study)}
+    temp_dict = {resource.study_id: StudyNode(study_proto=copy.deepcopy(study))}
 
     if resource.owner_id not in self._owners:
       self._owners[resource.owner_id] = OwnerNode(studies=temp_dict)
@@ -172,8 +192,8 @@ class NestedDictRAMDataStore(DataStore):
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     resource = resources.StudyResource.from_name(study_name)
-    return self._owners[resource.owner_id].studies[
-        resource.study_id].study_proto
+    return copy.deepcopy(
+        self._owners[resource.owner_id].studies[resource.study_id].study_proto)
 
   def delete_study(self, study_name: str) -> None:
     resource = resources.StudyResource.from_name(study_name)
@@ -182,23 +202,34 @@ class NestedDictRAMDataStore(DataStore):
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
     study_nodes = list(self._owners[resource.owner_id].studies.values())
-    return [study_node.study_proto for study_node in study_nodes]
+    return copy.deepcopy([study_node.study_proto for study_node in study_nodes])
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
     self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
-        resource.trial_id] = trial
+        resource.trial_id] = copy.deepcopy(trial)
     return resource
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     resource = resources.TrialResource.from_name(trial_name)
-    return self._owners[resource.owner_id].studies[
-        resource.study_id].trial_protos[resource.trial_id]
+    return copy.deepcopy(self._owners[resource.owner_id].studies[
+        resource.study_id].trial_protos[resource.trial_id])
+
+  def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
+    resource = resources.TrialResource.from_name(trial.name)
+    try:
+      self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
+          resource.trial_id] = copy.deepcopy(trial)
+      return resource
+    except KeyError as err:
+      raise KeyError('Could not update Trial with name:',
+                     resource.name) from err
 
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     resource = resources.StudyResource.from_name(study_name)
-    return list(self._owners[resource.owner_id].studies[
-        resource.study_id].trial_protos.values())
+    return copy.deepcopy(
+        list(self._owners[resource.owner_id].studies[
+            resource.study_id].trial_protos.values()))
 
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
@@ -226,18 +257,31 @@ class NestedDictRAMDataStore(DataStore):
     if resource.operation_id in suggestion_operations:
       raise ValueError('Operation already exists:', resource.operation_id)
 
-    suggestion_operations[resource.operation_id] = operation
+    suggestion_operations[resource.operation_id] = copy.deepcopy(operation)
     return resource
 
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     resource = resources.SuggestionOperationResource.from_name(operation_name)
     try:
-      return self._owners[resource.owner_id].clients[
-          resource.client_id].suggestion_operations[resource.operation_id]
+      return copy.deepcopy(self._owners[resource.owner_id].clients[
+          resource.client_id].suggestion_operations[resource.operation_id])
 
     except KeyError as err:
       raise KeyError('Could not find SuggestionOperation with name:',
+                     resource.name) from err
+
+  def update_suggestion_operation(
+      self, operation: operations_pb2.Operation
+  ) -> resources.SuggestionOperationResource:
+    resource = resources.SuggestionOperationResource.from_name(operation.name)
+    try:
+      self._owners[resource.owner_id].clients[
+          resource.client_id].suggestion_operations[
+              resource.operation_id] = copy.deepcopy(operation)
+      return resource
+    except KeyError as err:
+      raise KeyError('Could not update SuggestionOperation with name:',
                      resource.name) from err
 
   def list_suggestion_operations(
@@ -253,13 +297,9 @@ class NestedDictRAMDataStore(DataStore):
       operations_list = list(self._owners[
           resource.owner_id].clients[client_id].suggestion_operations.values())
       if filter_fn is not None:
-        output_list = []
-        for operation in operations_list:
-          if filter_fn(operation):
-            output_list.append(operation)
-        return output_list
+        return copy.deepcopy([op for op in operations_list if filter_fn(op)])
       else:
-        return operations_list
+        return copy.deepcopy(operations_list)
 
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
@@ -277,7 +317,7 @@ class NestedDictRAMDataStore(DataStore):
         operation.name)
     self._owners[resource.owner_id].studies[
         resource.study_id].early_stopping_operations[
-            resource.operation_id] = operation
+            resource.operation_id] = copy.deepcopy(operation)
     return resource
 
   def get_early_stopping_operation(
@@ -285,10 +325,24 @@ class NestedDictRAMDataStore(DataStore):
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation_name)
     try:
-      return self._owners[resource.owner_id].studies[
-          resource.study_id].early_stopping_operations[resource.operation_id]
+      return copy.deepcopy(self._owners[resource.owner_id].studies[
+          resource.study_id].early_stopping_operations[resource.operation_id])
     except KeyError as err:
       raise KeyError('Could not find EarlyStoppingOperation with name:',
+                     resource.name) from err
+
+  def update_early_stopping_operation(
+      self, operation: vizier_oss_pb2.EarlyStoppingOperation
+  ) -> resources.EarlyStoppingOperationResource:
+    resource = resources.EarlyStoppingOperationResource.from_name(
+        operation.name)
+    try:
+      self._owners[resource.owner_id].studies[
+          resource.study_id].early_stopping_operations[
+              resource.operation_id] = copy.deepcopy(operation)
+      return resource
+    except KeyError as err:
+      raise KeyError('Could not update EarlyStoppingOperation with name:',
                      resource.name) from err
 
   def update_metadata(self, study_name: str,

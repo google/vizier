@@ -159,6 +159,13 @@ class VizierClient:
     early_stopping_response = future.result()
     return early_stopping_response.should_stop
 
+  def stop_trial(self, trial_id: Text) -> None:
+    request = vizier_service_pb2.StopTrialRequest(
+        name=resources.TrialResource(self._owner_id, self._study_id,
+                                     int(trial_id)).name)
+    self._server_stub.StopTrial(request)
+    logging.info('Trial with id %s stopped.', trial_id)
+
   def complete_trial(
       self,
       trial_id: Text,

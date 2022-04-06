@@ -117,6 +117,18 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     return study_pb2.Trial.FromString(row['serialized_trial'])
 
+  def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
+    trial_resource = resources.TrialResource.from_name(trial.name)
+    query = sqla.update(self._trials_table).where(
+        self._trials_table.c.trial_name == trial.name).values(
+            trial_name=trial.name,
+            owner_id=trial_resource.owner_id,
+            study_id=trial_resource.study_id,
+            trial_id=trial_resource.trial_id,
+            serialized_trial=trial.SerializeToString())
+    self._connection.execute(query)
+    return trial_resource
+
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     """List all trials given a study."""
     study_resource = resources.StudyResource.from_name(study_name)
@@ -166,6 +178,21 @@ class SQLDataStore(datastore.DataStore):
     result = self._connection.execute(query)
     row = result.fetchone()
     return operations_pb2.Operation.FromString(row['serialized_op'])
+
+  def update_suggestion_operation(
+      self, operation: operations_pb2.Operation
+  ) -> resources.SuggestionOperationResource:
+    resource = resources.SuggestionOperationResource.from_name(operation.name)
+    query = sqla.update(self._suggestion_operations_table).where(
+        self._suggestion_operations_table.c.operation_name ==
+        operation.name).values(
+            operation_name=operation.name,
+            owner_id=resource.owner_id,
+            client_id=resource.client_id,
+            operation_number=resource.operation_number,
+            serialized_op=operation.SerializeToString())
+    self._connection.execute(query)
+    return resource
 
   def list_suggestion_operations(
       self,
@@ -232,6 +259,22 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     return vizier_oss_pb2.EarlyStoppingOperation.FromString(
         row['serialized_op'])
+
+  def update_early_stopping_operation(
+      self, operation: vizier_oss_pb2.EarlyStoppingOperation
+  ) -> resources.EarlyStoppingOperationResource:
+    resource = resources.EarlyStoppingOperationResource.from_name(
+        operation.name)
+    query = sqla.update(self._early_stopping_operations_table).where(
+        self._early_stopping_operations_table.c.operation_name ==
+        operation.name).values(
+            operation_name=operation.name,
+            owner_id=resource.owner_id,
+            study_id=resource.study_id,
+            trial_id=resource.trial_id,
+            serialized_op=operation.SerializeToString())
+    self._connection.execute(query)
+    return resource
 
   def update_metadata(
       self,

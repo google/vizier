@@ -1,4 +1,6 @@
 """Library functions for testing databases."""
+import random
+import string
 from typing import List
 
 from vizier.service import datastore
@@ -10,20 +12,30 @@ from google.longrunning import operations_pb2
 from absl.testing import parameterized
 
 
+def make_random_string() -> str:
+  return ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+
+
 class DataStoreTestCase(parameterized.TestCase):
   """Base class for testing datastores."""
 
   def assertStudyAPI(self, ds: datastore.DataStore, study: study_pb2.Study):
     """Tests if the datastore handles studies correctly."""
     ds.create_study(study)
-    output_study = ds.load_study(study.name)
-    self.assertEqual(output_study, study)
+    copied_study = ds.load_study(study.name)
+    self.assertEqual(copied_study, study)
+    self.assertIsNot(copied_study, study)  # Check pass-by-value.
 
     owner_name = resources.StudyResource.from_name(
         study.name).owner_resource.name
     list_of_one_study = ds.list_studies(owner_name)
     self.assertLen(list_of_one_study, 1)
     self.assertEqual(list_of_one_study[0], study)
+    self.assertIsNot(list_of_one_study[0], study)  # Check pass-by-value.
+
+    study.inactive_reason = make_random_string()
+    copied_original_study = ds.load_study(study.name)
+    self.assertNotEqual(study, copied_original_study)  # Check pass-by-value.
 
     ds.delete_study(study.name)
     empty_list = ds.list_studies(owner_name)
@@ -35,19 +47,27 @@ class DataStoreTestCase(parameterized.TestCase):
     ds.create_study(study)
     for trial in trials:
       ds.create_trial(trial)
+      copied_trial = ds.get_trial(trial.name)
+      self.assertEqual(trial, copied_trial)
+      self.assertIsNot(trial, copied_trial)  # Check pass-by-value.
 
     self.assertLen(trials, ds.max_trial_id(study.name))
 
     list_of_trials = ds.list_trials(study.name)
     self.assertEqual(list_of_trials, trials)
+    self.assertIsNot(list_of_trials, trials)  # Check pass-by-value.
 
     first_trial = trials[0]
-    output_trial = ds.get_trial(first_trial.name)
-    self.assertEqual(output_trial, first_trial)
+    first_trial.infeasible_reason = make_random_string()
+    ds.update_trial(first_trial)
+    new_first_trial = ds.get_trial(first_trial.name)
+    self.assertEqual(first_trial, new_first_trial)
+    self.assertIsNot(first_trial, new_first_trial)  # Check pass-by-value.
 
     ds.delete_trial(first_trial.name)
     leftover_trials = ds.list_trials(study.name)
     self.assertEqual(leftover_trials, trials[1:])
+    self.assertIsNot(leftover_trials, trials[1:])  # Check pass-by-value.
 
   def assertSuggestOpAPI(self, ds: datastore.DataStore, study: study_pb2.Study,
                          client_id: str,
@@ -68,10 +88,16 @@ class DataStoreTestCase(parameterized.TestCase):
         resources.OwnerResource(study_resource.owner_id).name, client_id)
     self.assertEqual(list_of_operations, suggestion_ops)
 
-    output_operation = ds.get_suggestion_operation(
+    output_op = ds.get_suggestion_operation(
         resources.SuggestionOperationResource(
             study_resource.owner_id, client_id, operation_number=1).name)
-    self.assertEqual(output_operation, suggestion_ops[0])
+    self.assertEqual(output_op, suggestion_ops[0])
+    self.assertIsNot(output_op, suggestion_ops[0])  # Check pass-by-value.
+
+    output_op.metadata.type_url = make_random_string()
+    ds.update_suggestion_operation(output_op)
+    new_output_op = ds.get_suggestion_operation(output_op.name)
+    self.assertEqual(output_op, new_output_op)
 
   def assertEarlyStoppingAPI(
       self, ds: datastore.DataStore, study: study_pb2.Study,
@@ -87,8 +113,14 @@ class DataStoreTestCase(parameterized.TestCase):
     for operation in early_stopping_ops:
       ds.create_early_stopping_operation(operation)
 
-    output_operation = ds.get_early_stopping_operation(
+    output_op = ds.get_early_stopping_operation(
         resources.EarlyStoppingOperationResource(study_resource.owner_id,
                                                  study_resource.study_id,
                                                  1).name)
-    self.assertEqual(output_operation, early_stopping_ops[0])
+    self.assertEqual(output_op, early_stopping_ops[0])
+    self.assertIsNot(output_op, early_stopping_ops[0])  # Check pass-by-value.
+
+    output_op.failure_message = make_random_string()
+    ds.update_early_stopping_operation(output_op)
+    new_output_op = ds.get_early_stopping_operation(output_op.name)
+    self.assertEqual(output_op, new_output_op)

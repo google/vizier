@@ -254,7 +254,9 @@ class VizierServerTest(parameterized.TestCase):
       # Since RandomPolicy picks a random ACTIVE trial to stop and current trial
       # t is the only ACTIVE trial, it should always stop.
       self.assertTrue(response.should_stop)
-      t.state = study_pb2.Trial.State.STOPPING
+      stop_trial_request = vizier_service_pb2.StopTrialRequest(name=t.name)
+      new_t = self.vs.StopTrial(stop_trial_request)
+      self.assertEqual(new_t.state, study_pb2.Trial.State.STOPPING)
 
     for t in active_trials:
       trial_resource = resources.TrialResource.from_name(t.name)

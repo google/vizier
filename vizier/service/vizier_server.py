@@ -54,7 +54,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           seconds=60)):
     """Initializes the service.
 
-    Creates the datastore and relevant locks for multhreading.
+    Creates the datastore and relevant locks for multhreading. Note that the
+    datastore input/output is assumed to always be pass-by-value.
 
     Args:
       early_stop_recycle_period: Amount of time needed to pass before recycling
@@ -226,6 +227,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
             trials=active_trials[:request.suggestion_count],
             start_time=start_time).SerializeToString()
         output_op.done = True
+        self.datastore.update_suggestion_operation(output_op)
         return output_op
       else:
         output_trials = active_trials
@@ -237,12 +239,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         while request.suggestion_count - len(
             output_trials) > 0 and requested_trials:
           assigned_trial = requested_trials.pop()
-          # TODO: Currently edits trials via pass-by-ref.
-          # Eventually if datastore passes by copy/value, will need edit_trial()
-          # function.
           assigned_trial.state = study_pb2.Trial.State.ACTIVE
           assigned_trial.client_id = request.client_id
           assigned_trial.start_time.CopyFrom(start_time)
+          self.datastore.update_trial(assigned_trial)
           output_trials.append(assigned_trial)
 
         if len(output_trials) == request.suggestion_count:
@@ -250,6 +250,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
               trials=output_trials, start_time=start_time).SerializeToString()
           output_op.done = True
+          self.datastore.update_suggestion_operation(output_op)
           return output_op
 
         # Still need more suggestions. Pythia begins computing missing amount.
@@ -274,6 +275,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           logging.exception(
               'Failed to request trials from Pythia for request: %s', request)
           output_op.done = True
+          self.datastore.update_suggestion_operation(output_op)
           return output_op
 
         new_py_trials = [
@@ -307,6 +309,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           self.datastore.create_trial(new_trial)
 
         output_op.done = True
+        self.datastore.update_suggestion_operation(output_op)
         return output_op
 
   def GetOperation(
@@ -368,6 +371,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     """
     trial = self.datastore.get_trial(request.trial_name)
     trial.measurements.extend([request.measurement])
+    self.datastore.update_trial(trial)
     return trial
 
   def CompleteTrial(
@@ -393,6 +397,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         raise ValueError(
             "Both the request and trial intermediate measurements are missing. Cannot determine trial's final_measurement."
         )
+    self.datastore.update_trial(trial)
     return trial
 
   def DeleteTrial(
@@ -481,6 +486,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           # recomputation.
           output_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
           output_operation.should_stop = False  # Defaulted back to False.
+          self.datastore.update_early_stopping_operation(output_operation)
 
       study = self.datastore.load_study(study_name)
       policy_supporter = service_policy_supporter.ServicePolicySupporter(
@@ -514,13 +520,16 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
               status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE,
               should_stop=False)
           inner_operation.creation_time.CopyFrom(_get_current_time())
+          self.datastore.create_early_stopping_operation(inner_operation)
 
-        # TODO: This works currently due to in-RAM datastore.
-        # Fix when datastore becomes pass-by-value.
         inner_operation.should_stop = early_stopping_decision.should_stop
         inner_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.DONE
         inner_operation.completion_time.CopyFrom(_get_current_time())
+        self.datastore.update_early_stopping_operation(inner_operation)
 
+      # Operation to be outputted may have changed.
+      output_operation = self.datastore.get_early_stopping_operation(
+          output_operation.name)
       return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
           should_stop=output_operation.should_stop)
 
@@ -530,6 +539,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     trial = self.datastore.get_trial(request.name)
     trial.state = study_pb2.Trial.STOPPING
+    self.datastore.update_trial(trial)
     return trial
 
   def ListOptimalTrials(
