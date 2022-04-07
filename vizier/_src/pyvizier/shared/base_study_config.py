@@ -237,6 +237,11 @@ class MetricsConfig(collections_abc.Collection):
     for metric in metrics:
       self.append(metric)
 
+  @property
+  def is_single_objective(self) -> bool:
+    """Returns True if only one objective metric is configured."""
+    return len(self.of_type(MetricType.OBJECTIVE)) == 1
+
 
 @attr.s(frozen=True, init=True, slots=True, kw_only=True)
 class _PathSegment:
