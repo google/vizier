@@ -105,6 +105,12 @@ class MetricInformation:
       validator=attr.validators.optional(attr.validators.instance_of(float)),
       on_setattr=attr.setters.validate,
       kw_only=True)
+  percentage_unsafe_trials_threshold: Optional[float] = attr.ib(
+      init=True,
+      default=None,
+      validator=attr.validators.optional(attr.validators.instance_of(float)),
+      on_setattr=attr.setters.validate,
+      kw_only=True)
 
   # Minimum value of this metric can be optionally specified.
   min_value: float = attr.ib(
