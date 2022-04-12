@@ -37,7 +37,7 @@ address = f'localhost:{port}'
 # Setup server.
 server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
 
-vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(self.servicer, self.server)
+vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(servicer, server)
 server.add_secure_port(address, grpc.local_server_credentials())
 server.start()
 ```
