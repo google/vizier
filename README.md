@@ -17,11 +17,11 @@ It consists of two main APIs:
 The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service.
 
 ## User API: Running Vizier
-An example of the entire server + client loop running locally can be found in `vizier/service/vizier_client_test.py`.
+An example of the entire server + client loop running locally can be found in the unit test file `vizier/service/vizier_client_test.py`.
 We also present the core components of the example below:
 
 ### Running the Server
-An example is provided at `vizier/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
+An example is provided at `vizier/demos/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```python
 import grpc
@@ -43,7 +43,7 @@ server.start()
 ```
 
 ### Running a client
-An example is shown in `vizier/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
+An example is shown in `vizier/demos/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
 from vizier.service import pyvizier as vz
@@ -114,7 +114,7 @@ class MyPolicy(Policy):
     return [base.EarlyStopDecision(id) for id in trials_to_stop]
 ```
 
-An example is given in `vizier/pythia/policies/random_policy.py`.
+An example is given in `vizier/_src/algorithms/policies/random_policy.py`.
 
 
 ## Citing Vizier
