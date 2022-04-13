@@ -23,22 +23,16 @@ class PythiaSupporterTest(absltest.TestCase):
     self.example_study = test_util.generate_study(self.owner_id, self.study_id)
     self.vs.datastore.create_study(self.example_study)
 
-    self.basic_example_trials = test_util.generate_trials(
-        range(1, 6), self.owner_id, self.study_id)
-
-    self.active_trial = test_util.generate_trials(
-        [6], self.owner_id, self.study_id,
-        state=study_pb2.Trial.State.ACTIVE)[0]
-
+    self.active_trials = test_util.generate_trials(
+        range(1, 7), self.owner_id, self.study_id)
     self.succeeded_trial = test_util.generate_trials(
         [7],
         self.owner_id,
         self.study_id,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+        final_measurement=study_pb2.Measurement())[0]
 
-    for trial in self.basic_example_trials + [
-        self.active_trial, self.succeeded_trial
-    ]:
+    for trial in self.active_trials + [self.succeeded_trial]:
       self.vs.datastore.create_trial(trial)
 
     self.policy_supporter = service_policy_supporter.ServicePolicySupporter(
@@ -50,31 +44,27 @@ class PythiaSupporterTest(absltest.TestCase):
     trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, trial_ids=[3, 4])
 
-    self.assertEqual(
-        trials[0],
-        pyvizier.TrialConverter.from_proto(self.basic_example_trials[2]))
-    self.assertEqual(
-        trials[1],
-        pyvizier.TrialConverter.from_proto(self.basic_example_trials[3]))
+    self.assertEqual(trials[0],
+                     pyvizier.TrialConverter.from_proto(self.active_trials[2]))
+    self.assertEqual(trials[1],
+                     pyvizier.TrialConverter.from_proto(self.active_trials[3]))
 
   def test_min_max_filter(self):
     trials = self.policy_supporter.GetTrials(
         study_guid=self.study_name, min_trial_id=3, max_trial_id=4)
 
-    self.assertEqual(
-        trials[0],
-        pyvizier.TrialConverter.from_proto(self.basic_example_trials[2]))
-    self.assertEqual(
-        trials[1],
-        pyvizier.TrialConverter.from_proto(self.basic_example_trials[3]))
+    self.assertEqual(trials[0],
+                     pyvizier.TrialConverter.from_proto(self.active_trials[2]))
+    self.assertEqual(trials[1],
+                     pyvizier.TrialConverter.from_proto(self.active_trials[3]))
 
   def test_status_match_filter(self):
     trials = self.policy_supporter.GetTrials(
-        study_guid=self.study_name, status_matches=study_pb2.Trial.State.ACTIVE)
+        study_guid=self.study_name, status_matches=pyvizier.TrialStatus.ACTIVE)
 
-    self.assertLen(trials, 1)
+    self.assertLen(trials, 6)
     self.assertEqual(trials[0],
-                     pyvizier.TrialConverter.from_proto(self.active_trial))
+                     pyvizier.TrialConverter.from_proto(self.active_trials[0]))
 
   def test_raise_value_error(self):
 
@@ -82,7 +72,7 @@ class PythiaSupporterTest(absltest.TestCase):
       self.policy_supporter.GetTrials(
           study_guid=self.study_name,
           trial_ids=[1],
-          status_matches=study_pb2.Trial.State.ACTIVE)
+          status_matches=pyvizier.TrialStatus.ACTIVE)
 
       with self.assertRaises(ValueError):
         should_raise_value_error_fn()

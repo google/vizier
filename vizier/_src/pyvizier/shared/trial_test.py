@@ -144,7 +144,7 @@ class TrialTest(absltest.TestCase):
 
   def testCompleteNotInplace(self):
     """Complete with inplace=False."""
-    test = trial.Trial(status=trial.TrialStatus.PENDING)
+    test = trial.Trial()
     measurement = Measurement(metrics={
         'pr-auc': Metric(value=0.8),
         'latency': Metric(value=32)
@@ -168,7 +168,7 @@ class TrialTest(absltest.TestCase):
     self.assertIsNone(test.final_measurement)
     self.assertIsNone(test.completion_time)
     self.assertIsNone(test.duration)
-    self.assertEqual(test.status, trial.TrialStatus.PENDING)
+    self.assertEqual(test.status, trial.TrialStatus.ACTIVE)
     self.assertFalse(test.is_completed)
 
   def testDefaultsNotShared(self):

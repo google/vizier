@@ -198,7 +198,7 @@ class VizierClientTest(parameterized.TestCase):
       study_resource = resources.StudyResource.from_name(
           cifar10_client.study_name)
       trial_name = resources.TrialResource(study_resource.owner_id,
-                                           study_resource.study_id, str(t)).name
+                                           study_resource.study_id, t).name
       stored_trial = self.servicer.datastore.get_trial(trial_name)
       stored_curve = [m.metrics[0].value for m in stored_trial.measurements]
 

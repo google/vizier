@@ -11,32 +11,26 @@ import attr
 
 from vizier._src.pyvizier.shared import trial
 
+ExternalType = trial.ExternalType
 
-class ParameterType(enum.IntEnum):
+
+class ParameterType(enum.Enum):
   """Valid Values for ParameterConfig.type."""
-  DOUBLE = 1
-  INTEGER = 2
-  CATEGORICAL = 3
-  DISCRETE = 4
+  DOUBLE = 'DOUBLE'
+  INTEGER = 'INTEGER'
+  CATEGORICAL = 'CATEGORICAL'
+  DISCRETE = 'DISCRETE'
 
   def is_numeric(self) -> bool:
     return self in [self.DOUBLE, self.INTEGER, self.DISCRETE]
 
 
-class ScaleType(enum.IntEnum):
+class ScaleType(enum.Enum):
   """Valid Values for ParameterConfig.scale_type."""
-  LINEAR = 1
-  LOG = 2
-  REVERSE_LOG = 3
-  UNIFORM_DISCRETE = 4
-
-
-class ExternalType(enum.IntEnum):
-  """Valid Values for ParameterConfig.external_type."""
-  INTERNAL = 0
-  BOOLEAN = 1
-  INTEGER = 2
-  FLOAT = 3
+  LINEAR = 'LINEAR'
+  LOG = 'LOG'
+  REVERSE_LOG = 'REVERSE_LOG'
+  UNIFORM_DISCRETE = 'UNIFORM_DISCRETE'
 
 
 # A sequence of possible internal parameter values.

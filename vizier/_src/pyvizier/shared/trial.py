@@ -25,22 +25,22 @@ OrderedDict = collections.OrderedDict
 Metadata = common.Metadata
 
 
-class ParameterExternalType(enum.IntEnum):
-  AS_INTERNAL = 0
-  AS_BOOLEAN = 1
-  AS_INTEGER = 2
-  AS_FLOAT = 3
+class ExternalType(enum.Enum):
+  """Valid Values for ParameterConfig.external_type."""
+  INTERNAL = 'INTERNAL'
+  BOOLEAN = 'BOOLEAN'
+  INTEGER = 'INTEGER'
+  FLOAT = 'FLOAT'
 
 
 # Values should NEVER be removed from the enums below, only added.
-class TrialStatus(enum.IntEnum):
+class TrialStatus(enum.Enum):
   """Values for Trial.Status."""
-  UNKNOWN = 0
-  REQUESTED = 1
-  PENDING = 2
-  COMPLETED = 4
-  DELETED = 5
-  STOPPING = 6
+  UNKNOWN = 'UNKNOWN'
+  REQUESTED = 'REQUESTED'
+  ACTIVE = 'ACTIVE'
+  COMPLETED = 'COMPLETED'
+  STOPPING = 'STOPPING'
 
 
 @attr.s(frozen=True, init=True, slots=True, kw_only=False)
@@ -93,7 +93,7 @@ class ParameterValue:
 
   def cast(
       self,
-      external_type: ParameterExternalType,
+      external_type: ExternalType,
   ) -> ParameterValueTypes:
     """Returns ParameterValue cast to external_type.
 
@@ -101,21 +101,21 @@ class ParameterValue:
       external_type:
 
     Returns:
-      self.value if external_type is AS_INTERNAL.
-      self.as_bool if external_type is AS_BOOLEAN.
-      self.as_int if external_type is AS_INTEGER.
-      self.as_float if external_type is AS_FLOAT.
+      self.value if external_type is INTERNAL.
+      self.as_bool if external_type is BOOLEAN.
+      self.as_int if external_type is INTEGER.
+      self.as_float if external_type is FLOAT.
 
     Raises:
       ValueError: If external_type is not valid.
     """
-    if external_type == ParameterExternalType.AS_INTERNAL:
+    if external_type == ExternalType.INTERNAL:
       return self.value
-    elif external_type == ParameterExternalType.AS_BOOLEAN:
+    elif external_type == ExternalType.BOOLEAN:
       return self.as_bool
-    elif external_type == ParameterExternalType.AS_INTEGER:
+    elif external_type == ExternalType.INTEGER:
       return self.as_int
-    elif external_type == ParameterExternalType.AS_FLOAT:
+    elif external_type == ExternalType.FLOAT:
       return self.as_float
     else:
       raise ValueError(
@@ -289,48 +289,41 @@ class Trial:
       kw_only=True,
       default=0,
       validator=attr.validators.instance_of(int),
-      on_setattr=attr.setters.validate)
+  )
+
+  _is_requested: bool = attr.ib(
+      init=True,
+      kw_only=True,
+      default=False,
+      validator=attr.validators.instance_of(bool))
 
   assigned_worker: Optional[str] = attr.ib(
       init=True,
       kw_only=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate)
-
-  status: TrialStatus = attr.ib(
-      init=True,
-      converter=lambda g: TrialStatus(g).value,
-      validator=attr.validators.instance_of(int),
-      on_setattr=attr.setters.validate,
-      kw_only=True,
-      default=TrialStatus.PENDING.value)
+  )
 
   stopping_reason: Optional[str] = attr.ib(
       init=True,
       kw_only=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate)
-  _infeasible: Optional[bool] = attr.ib(
-      init=True,
-      kw_only=True,
-      default=None,
-      validator=attr.validators.optional(attr.validators.instance_of(bool)),
-      on_setattr=attr.setters.validate)
+  )
+
   _infeasibility_reason: Optional[str] = attr.ib(
       init=True,
       kw_only=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate)
+  )
 
   description: Optional[str] = attr.ib(
       init=True,
       kw_only=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate)
+  )
 
   parameters: ParameterDict = attr.field(
       init=True,
@@ -344,7 +337,7 @@ class Trial:
       kw_only=True,
       default=Metadata(),
       validator=attr.validators.instance_of(Metadata),
-      on_setattr=attr.setters.validate)
+  )
 
   related_links: Dict[str, str] = attr.ib(
       init=True,
@@ -354,7 +347,7 @@ class Trial:
           key_validator=attr.validators.instance_of(str),
           value_validator=attr.validators.instance_of(str),
           mapping_validator=attr.validators.instance_of(dict)),
-      on_setattr=attr.setters.validate)  # pytype: disable=wrong-arg-types
+  )  # pytype: disable=wrong-arg-types
 
   final_measurement: Optional[Measurement] = attr.ib(
       init=True,
@@ -362,7 +355,7 @@ class Trial:
       default=None,
       validator=attr.validators.optional(
           attr.validators.instance_of(Measurement)),
-      on_setattr=attr.setters.validate)
+  )
 
   measurements: List[Measurement] = attr.ib(
       init=True,
@@ -371,7 +364,7 @@ class Trial:
       validator=attr.validators.deep_iterable(
           member_validator=attr.validators.instance_of(Measurement),
           iterable_validator=attr.validators.instance_of(list)),
-      on_setattr=attr.setters.validate)
+  )
 
   creation_time: Optional[datetime.datetime] = attr.ib(
       init=True,
@@ -381,7 +374,7 @@ class Trial:
       repr=lambda v: v.strftime('%x %X') if v is not None else 'None',
       validator=attr.validators.optional(
           attr.validators.instance_of(datetime.datetime)),
-      on_setattr=attr.setters.validate)
+  )
 
   completion_time: Optional[datetime.datetime] = attr.ib(
       init=True,
@@ -391,7 +384,7 @@ class Trial:
       converter=_to_local_time,
       validator=attr.validators.optional(
           attr.validators.instance_of(datetime.datetime)),
-      on_setattr=attr.setters.validate)
+  )
 
   @property
   def duration(self) -> Optional[datetime.timedelta]:
@@ -400,6 +393,25 @@ class Trial:
       return self.completion_time - self.creation_time
     else:
       return None
+
+  @property
+  def status(self) -> TrialStatus:
+    """Status.
+
+    COMPLETED: Trial has final measurement or is declared infeasible.
+    ACTIVE: Trial is being evaluated.
+    STOPPING: Trial is being evaluated, but was decided to be not worth further
+      evaluating.
+    REQUESTED: Trial is queued for future suggestions.
+    """
+    if self.final_measurement is not None or self.infeasible:
+      return TrialStatus.COMPLETED
+    elif self.stopping_reason is not None:
+      return TrialStatus.STOPPING
+    elif self._is_requested:
+      return TrialStatus.REQUESTED
+    else:
+      return TrialStatus.ACTIVE
 
   @property
   def is_completed(self) -> bool:
@@ -419,7 +431,7 @@ class Trial:
   @property
   def infeasible(self) -> bool:
     """Returns True if this Trial is infeasible."""
-    return self._infeasible or self._infeasibility_reason is not None
+    return self._infeasibility_reason is not None
 
   @property
   def infeasibility_reason(self) -> Optional[str]:
@@ -447,7 +459,6 @@ class Trial:
       # is defined, instead of where we declare attr.ib.
       self.__setattr__('final_measurement', copy.deepcopy(measurement))
       self.completion_time = _to_local_time(datetime.datetime.now())
-      self.status = TrialStatus.COMPLETED.value
       return self
     else:
       clone = copy.deepcopy(self)

@@ -13,7 +13,6 @@ from google.longrunning import operations_pb2
 from absl.testing import absltest
 from absl.testing import parameterized
 
-
 _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
@@ -253,7 +252,9 @@ class VizierServerTest(parameterized.TestCase):
       response = self.vs.CheckTrialEarlyStoppingState(request)
       # Since RandomPolicy picks a random ACTIVE trial to stop and current trial
       # t is the only ACTIVE trial, it should always stop.
-      self.assertTrue(response.should_stop)
+      self.assertTrue(
+          response.should_stop,
+          msg=f'trial={t}, request={request}, response={response}')
       stop_trial_request = vizier_service_pb2.StopTrialRequest(name=t.name)
       new_t = self.vs.StopTrial(stop_trial_request)
       self.assertEqual(new_t.state, study_pb2.Trial.State.STOPPING)
@@ -302,6 +303,7 @@ class VizierServerTest(parameterized.TestCase):
     response = self.vs.UpdateMetadata(request)
     # Check that there was no error.
     self.assertEmpty(response.error_details)
+
 
 if __name__ == '__main__':
   absltest.main()

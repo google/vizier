@@ -569,7 +569,6 @@ class StudyConfigTest(absltest.TestCase):
 
     pytrial = pyvizier.Trial(
         id=1,
-        status=pyvizier.TrialStatus.COMPLETED,
         completion_time=datetime.datetime(
             year=2021, month=12, day=2, hour=7, minute=31),
         parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
@@ -589,6 +588,9 @@ class StudyConfigTest(absltest.TestCase):
     self.assertEqual({'objective': 77.7, 'loss': 56.8}, metrics)
 
   def testTrialToDictWithFinalMetricsNotCompleted(self):
+    # Throw a Trial that has inconsistent field values.
+    # (ACTIVE but has final measurement).
+    # Pyvizier fixes the state.
     py_study_config = pyvizier.StudyConfig(metric_information=[
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
@@ -608,34 +610,8 @@ class StudyConfigTest(absltest.TestCase):
 
     parameters = py_study_config.trial_parameters(trial_proto)
     self.assertEqual({'learning_rate': 0.5}, parameters)
-    self.assertEmpty(py_study_config.trial_metrics(trial_proto))
-    self.assertEmpty(
-        py_study_config.trial_metrics(trial_proto, include_all_metrics=True))
-
-  def testPyTrialToDictWithFinalMetricsNotCompleted(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
-    root = py_study_config.search_space.select_root()
-    root.add_float_param('learning_rate', 0.01, 3.0)
-
-    pytrial = pyvizier.Trial(
-        id=1,
-        status=pyvizier.TrialStatus.PENDING,
-        parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
-        final_measurement=pyvizier.Measurement(
-            metrics={
-                'loss': pyvizier.Metric(value=56.8),
-                'objective': pyvizier.Metric(value=77.7)
-            },
-            elapsed_secs=67,
-            steps=101))
-    parameters = py_study_config._pytrial_parameters(pytrial)
-    self.assertEqual({'learning_rate': 0.5}, parameters)
-    self.assertEmpty(py_study_config._pytrial_metrics(pytrial))
-    self.assertEmpty(
-        py_study_config._pytrial_metrics(pytrial, include_all_metrics=True))
+    self.assertLen(
+        py_study_config.trial_metrics(trial_proto, include_all_metrics=True), 2)
 
   def testTrialToDictWithFinalMetricsInfeasible(self):
     py_study_config = pyvizier.StudyConfig(metric_information=[
@@ -671,8 +647,7 @@ class StudyConfigTest(absltest.TestCase):
 
     pytrial = pyvizier.Trial(
         id=1,
-        status=pyvizier.TrialStatus.COMPLETED,
-        infeasible=True,
+        infeasibility_reason='just because',
         completion_time=datetime.datetime(
             year=2021, month=12, day=2, hour=7, minute=31),
         parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
@@ -735,7 +710,6 @@ class StudyConfigTest(absltest.TestCase):
 
     pytrial = pyvizier.Trial(
         id=1,
-        status=pyvizier.TrialStatus.COMPLETED,
         completion_time=datetime.datetime(
             year=2021, month=12, day=2, hour=7, minute=31),
         parameters={'learning_rate': pyvizier.ParameterValue(0.5)},

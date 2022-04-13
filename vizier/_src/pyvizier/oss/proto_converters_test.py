@@ -149,7 +149,7 @@ class TrialConverterTest(absltest.TestCase):
     proto.state = study_pb2.Trial.State.ACTIVE
     proto.start_time.seconds = 1586649600
     test = proto_converters.TrialConverter.from_proto(proto=proto)
-    self.assertEqual(test.status, trial.TrialStatus.PENDING)
+    self.assertEqual(test.status, trial.TrialStatus.ACTIVE)
     self.assertFalse(test.is_completed)
     self.assertFalse(test.infeasible)
     self.assertIsNone(test.infeasibility_reason)
@@ -190,7 +190,7 @@ class TrialConverterTest(absltest.TestCase):
 
   def testFromProtoMetadata(self):
     proto = study_pb2.Trial(id=str(1))
-    proto.state = trial.TrialStatus.PENDING
+    proto.state = study_pb2.Trial.ACTIVE
     proto.parameters.add(
         parameter_id='float', value=struct_pb2.Value(number_value=1.0))
     proto.metadata.add(key='key0', ns='x', value='namespace=x0')

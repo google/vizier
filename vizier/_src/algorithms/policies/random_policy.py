@@ -67,7 +67,7 @@ class RandomPolicy(pythia.Policy):
 
     all_active_trials = self._policy_supporter.GetTrials(
         study_guid=request.study_guid,
-        status_matches=pyvizier.TrialStatus.PENDING)
+        status_matches=pyvizier.TrialStatus.ACTIVE)
     trial_to_stop_id = None
     if all_active_trials:
       trial_to_stop_id = random.choice(all_active_trials).id

@@ -11,8 +11,30 @@ from vizier._src.pyvizier.shared import trial
 from vizier.service import study_pb2
 
 ScaleType = parameter_config.ScaleType
+_ScaleTypePb2 = study_pb2.StudySpec.ParameterSpec.ScaleType
 ParameterType = parameter_config.ParameterType
 MonotypeParameterSequence = parameter_config.MonotypeParameterSequence
+
+
+class _ScaleTypeMap:
+  """Proto converter for scale type."""
+  _pyvizier_to_proto = {
+      parameter_config.ScaleType.LINEAR:
+          _ScaleTypePb2.UNIT_LINEAR_SCALE,
+      parameter_config.ScaleType.LOG:
+          _ScaleTypePb2.UNIT_LOG_SCALE,
+      parameter_config.ScaleType.REVERSE_LOG:
+          _ScaleTypePb2.UNIT_REVERSE_LOG_SCALE,
+  }
+  _proto_to_pyvizier = {v: k for k, v in _pyvizier_to_proto.items()}
+
+  @classmethod
+  def to_proto(cls, pyvizier: parameter_config.ScaleType) -> _ScaleTypePb2:
+    return cls._pyvizier_to_proto[pyvizier]
+
+  @classmethod
+  def from_proto(cls, proto: _ScaleTypePb2) -> parameter_config.ScaleType:
+    return cls._proto_to_pyvizier[proto]
 
 
 class ParameterConfigConverter:
@@ -113,7 +135,7 @@ class ParameterConfigConverter:
 
     scale_type = None
     if proto.scale_type:
-      scale_type = parameter_config.ScaleType(proto.scale_type)
+      scale_type = _ScaleTypeMap.from_proto(proto.scale_type)
 
     try:
       config = parameter_config.ParameterConfig.factory(
@@ -195,7 +217,7 @@ class ParameterConfigConverter:
     else:
       raise ValueError('Invalid ParameterConfig: {}'.format(pc))
     if pc.scale_type is not None and pc.scale_type != ScaleType.UNIFORM_DISCRETE:
-      proto.scale_type = pc.scale_type
+      proto.scale_type = _ScaleTypeMap.to_proto(pc.scale_type)
     if pc.default_value is not None:
       cls._set_default_value(proto, pc.default_value)
 
@@ -293,7 +315,7 @@ def _to_pyvizier_trial_status(
   if proto_state == study_pb2.Trial.State.REQUESTED:
     return trial.TrialStatus.REQUESTED
   elif proto_state == study_pb2.Trial.State.ACTIVE:
-    return trial.TrialStatus.PENDING
+    return trial.TrialStatus.ACTIVE
   if proto_state == study_pb2.Trial.State.STOPPING:
     return trial.TrialStatus.STOPPING
   if proto_state == study_pb2.Trial.State.SUCCEEDED:
@@ -309,7 +331,7 @@ def _from_pyvizier_trial_status(status: trial.TrialStatus,
   """to_proto conversion for Trial states."""
   if status == trial.TrialStatus.REQUESTED:
     return study_pb2.Trial.State.REQUESTED
-  elif status == trial.TrialStatus.PENDING:
+  elif status == trial.TrialStatus.ACTIVE:
     return study_pb2.Trial.State.ACTIVE
   elif status == trial.TrialStatus.STOPPING:
     return study_pb2.Trial.State.STOPPING
@@ -353,14 +375,12 @@ class TrialConverter:
           proto.final_measurement)
 
     completion_time = None
-    infeasible = False
     infeasibility_reason = None
     if proto.state == study_pb2.Trial.State.SUCCEEDED:
       if proto.HasField('end_time'):
         completion_ts = int(proto.end_time.seconds + 1e9 * proto.end_time.nanos)
         completion_time = datetime.datetime.fromtimestamp(completion_ts)
     elif proto.state == study_pb2.Trial.State.INFEASIBLE:
-      infeasible = True
       infeasibility_reason = proto.infeasible_reason
 
     metadata = trial.Metadata()
@@ -380,12 +400,12 @@ class TrialConverter:
         id=int(proto.id),
         description=proto.name,
         assigned_worker=proto.client_id or None,
-        status=_to_pyvizier_trial_status(proto.state),
-        stopping_reason=None,
+        is_requested=proto.state == proto.REQUESTED,
+        stopping_reason=('stopping reason not supported yet'
+                         if proto.state == proto.STOPPING else None),
         parameters=parameters,
         creation_time=creation_time,
         completion_time=completion_time,
-        infeasible=infeasible,
         infeasibility_reason=infeasibility_reason,
         final_measurement=final_measurement,
         measurements=measurements,
