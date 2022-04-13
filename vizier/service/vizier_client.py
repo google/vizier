@@ -73,15 +73,14 @@ class VizierClient:
   def study_name(self) -> Text:
     return self._study_name
 
-  def get_suggestions(self, suggestion_count: int) -> List[Dict[Text, Any]]:
+  def get_suggestions(self, suggestion_count: int) -> List[pyvizier.Trial]:
     """Gets a list of suggested Trials.
 
     Args:
         suggestion_count: The number of suggestions to request.
 
     Returns:
-      A list of Trials (represented by JSON dicts). This may be an empty
-      list if:
+      A list of PyVizier Trials. This may be an empty list if:
       1. A finite search space has been exhausted.
       2. If max_num_trials has been reached.
       3. Or if there are no longer any trials that match a supplied Context.
@@ -119,14 +118,14 @@ class VizierClient:
     # TODO: Replace with any.Unpack().
     trials = vizier_service_pb2.SuggestTrialsResponse.FromString(
         operation.response.value).trials
-    return [json_format.MessageToDict(trial) for trial in trials]
+    return pyvizier.TrialConverter.from_protos(trials)
 
   def report_intermediate_objective_value(
       self,
       step: int,
       elapsed_secs: float,
       metric_list: List[Mapping[Text, Union[int, float]]],
-      trial_id: Text,
+      trial_id: int,
   ) -> None:
     """Sends intermediate objective value for the trial identified by trial_id."""
     new_metric_list = []
@@ -145,36 +144,36 @@ class VizierClient:
         metrics=new_metric_list)
     request = vizier_service_pb2.AddTrialMeasurementRequest(
         trial_name=resources.TrialResource(self._owner_id, self._study_id,
-                                           int(trial_id)).name,
+                                           trial_id).name,
         measurement=measurement)
     future = self._server_stub.AddTrialMeasurement.future(request)
     trial = future.result()
     logging.info('Trial modified: %s', trial)
 
-  def should_trial_stop(self, trial_id: Text) -> bool:
+  def should_trial_stop(self, trial_id: int) -> bool:
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
         trial_name=resources.TrialResource(self._owner_id, self._study_id,
-                                           int(trial_id)).name)
+                                           trial_id).name)
     future = self._server_stub.CheckTrialEarlyStoppingState.future(request)
     early_stopping_response = future.result()
     return early_stopping_response.should_stop
 
-  def stop_trial(self, trial_id: Text) -> None:
+  def stop_trial(self, trial_id: int) -> None:
     request = vizier_service_pb2.StopTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
-                                     int(trial_id)).name)
+                                     trial_id).name)
     self._server_stub.StopTrial(request)
     logging.info('Trial with id %s stopped.', trial_id)
 
   def complete_trial(
       self,
-      trial_id: Text,
+      trial_id: int,
       final_measurement: Optional[pyvizier.Measurement] = None,
-      infeasibility_reason: Optional[Text] = None) -> Dict[Text, Any]:
+      infeasibility_reason: Optional[Text] = None) -> pyvizier.Trial:
     """Completes the trial, which is infeasible if given a infeasibility_reason."""
     request = vizier_service_pb2.CompleteTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
-                                     int(trial_id)).name,
+                                     trial_id).name,
         trial_infeasible=infeasibility_reason is not None,
         infeasible_reason=infeasibility_reason)
 
@@ -186,27 +185,24 @@ class VizierClient:
 
     future = self._server_stub.CompleteTrial.future(request)
     trial = future.result()
-    return json_format.MessageToDict(trial)
+    return pyvizier.TrialConverter.from_proto(trial)
 
-  def get_trial(self, trial_id: Text) -> Dict[Text, Any]:
+  def get_trial(self, trial_id: int) -> pyvizier.Trial:
     """Return the Optimizer trial for the given trial_id."""
     request = vizier_service_pb2.GetTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
-                                     int(trial_id)).name)
+                                     trial_id).name)
     future = self._server_stub.GetTrial.future(request)
     trial = future.result()
-    return json_format.MessageToDict(trial)
+    return pyvizier.TrialConverter.from_proto(trial)
 
-  def list_trials(self) -> List[Dict[Text, Any]]:
+  def list_trials(self) -> List[pyvizier.Trial]:
     """List trials."""
     request = vizier_service_pb2.ListTrialsRequest(
         parent=resources.StudyResource(self._owner_id, self._study_id).name)
     future = self._server_stub.ListTrials.future(request)
     list_trials_response = future.result()
-    return [
-        json_format.MessageToJson(trial)
-        for trial in list_trials_response.trials
-    ]
+    return pyvizier.TrialConverter.from_protos(list_trials_response.trials)
 
   def list_studies(self) -> List[Dict[Text, Any]]:
     """List all studies for the given owner."""
@@ -214,6 +210,7 @@ class VizierClient:
         parent=resources.OwnerResource(self._owner_id).name)
     future = self._server_stub.ListStudies.future(request)
     list_studies_response = future.result()
+    # TODO: Use PyVizier StudyDescriptor instead.
     return [
         json_format.MessageToJson(study)
         for study in list_studies_response.studies

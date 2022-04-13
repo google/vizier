@@ -43,16 +43,16 @@ server.start()
 ```
 
 ### Running a client
-The user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
+An example is shown in `vizier/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
 from vizier.service import pyvizier as vz
 
 study_config = vz.StudyConfig() # Search space, metrics, and algorithm.
 root = study_config.search_space.select_root() # "Root" params must exist in every trial.
-root.add_float('learning_rate', min=1e-4, max=1e-2, scale=vz.ScaleType.LOG)
-root.add_int('num_layers', min=1, max=5)
-study_config.metrics.add('accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE, min=0.0, max=1.0)
+root.add_float_param('learning_rate', min_value=1e-4, max_value=1e-2, scale_type=vz.ScaleType.LOG)
+root.add_int_param('num_layers', min_value=1, max_value=5)
+study_config.metric_information.append(vz.MetricInformation(name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE, min_value=0.0, max_value=1.0))
 study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
 ```
 
@@ -62,7 +62,7 @@ Using the `address` created above in the server section, we may now create the c
 from vizier.service import vizier_client
 
 client = vizier_client.create_or_load_study(
-    service_endpoint=address,
+    service_endpoint=address,  # Same address as server.
     owner_id='my_name',
     client_id='my_client_id',
     study_display_name='cifar10',
@@ -75,17 +75,17 @@ Each client may now send requests to the server and receive responses, for examp
 
 ```python
 client.list_trials()  # List out trials for the corresponding study.
-client.get_trial(trial_id='1')  # Get the first trial.
+client.get_trial(trial_id=1)  # Get the first trial.
 ```
 
-The default usage is to tune a user defined blackbox objective `_evaluate_trial()`, with an example shown below:
+The default usage is to tune a user defined blackbox objective `evaluate_trial()`, with an example shown below:
 
 ```python
-while suggestions := client.get_suggestions(count=1)
-  # Evaluate the suggestion(s) and report the results to Vizier.
-  for trial in suggestions:
-    metrics = _evaluate_trial(trial.parameters)
-    client.complete_trial(metrics, trial_id=trial.id)
+suggestions = client.get_suggestions(suggestion_count=5)  # Batch of 5 suggestions.
+# Evaluate the suggestion(s) and report the results to Vizier.
+for trial in suggestions:
+  measurement = evaluate_trial(trial)
+  client.complete_trial(trial_id, measurement)
 ```
 
 The Vizier service is designed to handle multiple concurrent clients all requesting suggestions and returning metrics.

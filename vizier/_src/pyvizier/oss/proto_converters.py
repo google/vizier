@@ -378,7 +378,7 @@ class TrialConverter:
     infeasibility_reason = None
     if proto.state == study_pb2.Trial.State.SUCCEEDED:
       if proto.HasField('end_time'):
-        completion_ts = int(proto.end_time.seconds + 1e9 * proto.end_time.nanos)
+        completion_ts = proto.end_time.seconds + 1e-9 * proto.end_time.nanos
         completion_time = datetime.datetime.fromtimestamp(completion_ts)
     elif proto.state == study_pb2.Trial.State.INFEASIBLE:
       infeasibility_reason = proto.infeasible_reason
@@ -394,7 +394,7 @@ class TrialConverter:
 
     creation_time = None
     if proto.HasField('start_time'):
-      creation_ts = int(proto.start_time.seconds + 1e9 * proto.start_time.nanos)
+      creation_ts = proto.start_time.seconds + 1e-9 * proto.start_time.nanos
       creation_time = datetime.datetime.fromtimestamp(creation_ts)
     return trial.Trial(
         id=int(proto.id),

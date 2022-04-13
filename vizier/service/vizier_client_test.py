@@ -14,7 +14,6 @@ from vizier.service import vizier_client
 from vizier.service import vizier_server
 from vizier.service import vizier_service_pb2_grpc
 
-from google.protobuf import json_format
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -77,9 +76,9 @@ class VizierClientTest(parameterized.TestCase):
     client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
         owner_id=self.owner_id,
+        client_id='a_client',
         study_display_name=study_display_name,
-        study_config=study_config,
-        client_id='a_client')
+        study_config=study_config)
     study = self.servicer.datastore.load_study(client.study_name)
     self.assertEqual(study.study_spec, study_config.to_proto())
     self.assertIsNotNone(study.name)
@@ -102,45 +101,43 @@ class VizierClientTest(parameterized.TestCase):
     self.assertEmpty(empty_list_json)
 
   def test_list_trials(self):
-    trial_list_json = self.client.list_trials()
-    self.assertLen(trial_list_json, 1)
+    trial_list = self.client.list_trials()
+    self.assertLen(trial_list, 1)
 
   def test_get_trial(self):
-    active_trial_json = self.client.get_trial(trial_id='1')
-    self.assertEqual(active_trial_json,
-                     json_format.MessageToDict(self.active_trial))
+    active_trial = self.client.get_trial(trial_id=1)
+    self.assertEqual(active_trial,
+                     pyvizier.TrialConverter.from_proto(self.active_trial))
 
   @parameterized.named_parameters(('Infeasible', 'infeasible_reason'),
                                   ('Complete', None))
   def test_complete_trial(self, infeasibility_reason):
     final_measurement = pyvizier.Measurement(
         metrics={'metric': pyvizier.Metric(value=0.1)})
-    trial_json = self.client.complete_trial(
-        trial_id='1',
+    output_trial = self.client.complete_trial(
+        trial_id=1,
         final_measurement=final_measurement,
         infeasibility_reason=infeasibility_reason)
-    trial = json_format.ParseDict(trial_json, study_pb2.Trial())
 
-    if infeasibility_reason is not None:
-      self.assertEqual(trial.state, study_pb2.Trial.State.INFEASIBLE)
-    else:
-      self.assertEqual(trial.state, study_pb2.Trial.State.SUCCEEDED)
+    self.assertEqual(output_trial.status, pyvizier.TrialStatus.COMPLETED)
+    self.assertEqual(output_trial.infeasibility_reason, infeasibility_reason)
 
     # See if the rest of the contents were maintained.
-    completed_trial = self.servicer.datastore.get_trial(self.active_trial.name)
-    self.assertEqual(trial, completed_trial)
+    completed_trial = pyvizier.TrialConverter.from_proto(
+        self.servicer.datastore.get_trial(self.active_trial.name))
+    self.assertEqual(output_trial, completed_trial)
 
   def test_should_trial_stop(self):
     # Only trial 1 was ACTIVE, so RandomPolicy will signal to stop it.
-    should_stop = self.client.should_trial_stop(trial_id='1')
+    should_stop = self.client.should_trial_stop(trial_id=1)
     self.assertTrue(should_stop)
-    self.client.stop_trial(trial_id='1')
+    self.client.stop_trial(trial_id=1)
 
     # The op will become recycled after the time period and early stopping will
     # be recomputed again. But RandomPolicy will consider the trial non-ACTIVE
     # and simply return False.
     time.sleep(self.early_stop_recycle_period.total_seconds())
-    should_stop_again = self.client.should_trial_stop(trial_id='1')
+    should_stop_again = self.client.should_trial_stop(trial_id=1)
     self.assertFalse(should_stop_again)
 
   def test_intermediate_measurement(self):
@@ -150,7 +147,7 @@ class VizierClientTest(parameterized.TestCase):
         metric_list=[{
             'example_metric': 5
         }],
-        trial_id='1')
+        trial_id=1)
 
   def test_get_suggestions(self):
     suggestion_count = 2
@@ -181,8 +178,8 @@ class VizierClientTest(parameterized.TestCase):
         client_id=self.client_id)
 
     for t in range(1, 101):
-      suggestion_json = cifar10_client.get_suggestions(suggestion_count=1)[0]
-      learning_rate = suggestion_json['parameters'][0]['value']
+      trial = cifar10_client.get_suggestions(suggestion_count=1)[0]
+      learning_rate = trial.parameters.get_value('learning_rate')
       curve = learning_curve_generator(learning_rate)
       for i in range(len(curve)):
         cifar10_client.report_intermediate_objective_value(
@@ -191,8 +188,8 @@ class VizierClientTest(parameterized.TestCase):
             metric_list=[{
                 'accuracy': curve[i]
             }],
-            trial_id=str(t))
-      cifar10_client.complete_trial(trial_id=str(t))
+            trial_id=t)
+      cifar10_client.complete_trial(trial_id=t)
 
       # Recover the trial from database.
       study_resource = resources.StudyResource.from_name(
