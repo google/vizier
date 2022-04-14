@@ -8,6 +8,7 @@ from typing import Sequence
 
 from absl import app
 from absl import flags
+from absl import logging
 
 from vizier.service import pyvizier as vz
 from vizier.service import vizier_client
@@ -60,6 +61,7 @@ def main(argv: Sequence[str]) -> None:
       client_id='my_client_id',
       study_display_name='cifar10',
       study_config=study_config)
+  logging.info('Client created with study name: %s', client.study_name)
 
   for _ in range(FLAGS.max_num_iterations):
     # Evaluate the suggestion(s) and report the results to Vizier.
@@ -68,6 +70,16 @@ def main(argv: Sequence[str]) -> None:
     for trial in suggestions:
       measurement = evaluate_trial(trial)
       client.complete_trial(trial_id=trial.id, final_measurement=measurement)
+      logging.info('Trial %d completed with metrics: %s', trial.id,
+                   measurement.metrics)
+
+  all_trials = client.list_trials()
+  logging.info('%d trials have been completed.', len(all_trials))
+  optimal_trials = client.list_optimal_trials()
+  for optimal_trial in optimal_trials:
+    logging.info('Optimal trial has parameters %s and metrics %s',
+                 optimal_trial.parameters,
+                 optimal_trial.final_measurement.metrics)
 
 
 if __name__ == '__main__':

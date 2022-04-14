@@ -201,8 +201,12 @@ class NestedDictRAMDataStore(DataStore):
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
-    study_nodes = list(self._owners[resource.owner_id].studies.values())
-    return copy.deepcopy([study_node.study_proto for study_node in study_nodes])
+    if resource.owner_id not in self._owners:
+      return []
+    else:
+      study_nodes = list(self._owners[resource.owner_id].studies.values())
+      return copy.deepcopy(
+          [study_node.study_proto for study_node in study_nodes])
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)

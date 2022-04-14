@@ -1,7 +1,6 @@
 """Sets up the Vizier Service. This should be done on a server machine."""
 
 from concurrent import futures
-import socket
 import time
 from typing import Sequence
 
@@ -15,7 +14,7 @@ from vizier.service import vizier_server
 from vizier.service import vizier_service_pb2_grpc
 
 flags.DEFINE_string(
-    'host', socket.gethostname(),
+    'host', 'localhost',
     'Host location for the server. For distributed cases, use the IP address.')
 
 FLAGS = flags.FLAGS

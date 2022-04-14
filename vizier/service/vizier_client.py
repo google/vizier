@@ -197,12 +197,21 @@ class VizierClient:
     return pyvizier.TrialConverter.from_proto(trial)
 
   def list_trials(self) -> List[pyvizier.Trial]:
-    """List trials."""
-    request = vizier_service_pb2.ListTrialsRequest(
-        parent=resources.StudyResource(self._owner_id, self._study_id).name)
+    """List all trials."""
+    parent = resources.StudyResource(self._owner_id, self._study_id).name
+    request = vizier_service_pb2.ListTrialsRequest(parent=parent)
     future = self._server_stub.ListTrials.future(request)
-    list_trials_response = future.result()
-    return pyvizier.TrialConverter.from_protos(list_trials_response.trials)
+
+    response = future.result()
+    return pyvizier.TrialConverter.from_protos(response.trials)
+
+  def list_optimal_trials(self) -> List[pyvizier.Trial]:
+    """List only the optimal completed trials."""
+    parent = resources.StudyResource(self._owner_id, self._study_id).name
+    request = vizier_service_pb2.ListOptimalTrialsRequest(parent=parent)
+    future = self._server_stub.ListOptimalTrials.future(request)
+    response = future.result()
+    return pyvizier.TrialConverter.from_protos(response.optimal_trials)
 
   def list_studies(self) -> List[Dict[Text, Any]]:
     """List all studies for the given owner."""

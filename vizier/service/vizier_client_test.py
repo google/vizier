@@ -37,11 +37,15 @@ class VizierClientTest(parameterized.TestCase):
     double_parameter_spec = study_pb2.StudySpec.ParameterSpec(
         parameter_id='double', double_value_spec=double_value_spec)
 
+    metric_spec = study_pb2.StudySpec.MetricSpec(
+        metric_id='example_metric',
+        goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
     self.example_study = study_pb2.Study(
         name=self.study_name,
         study_spec=study_pb2.StudySpec(
             algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH,
-            parameters=[double_parameter_spec]))
+            parameters=[double_parameter_spec],
+            metrics=[metric_spec]))
 
     self.active_trial = study_pb2.Trial(
         name=resources.TrialResource(self.owner_id, self.study_id, 1).name,
@@ -102,6 +106,22 @@ class VizierClientTest(parameterized.TestCase):
 
   def test_list_trials(self):
     trial_list = self.client.list_trials()
+    self.assertLen(trial_list, 1)
+
+  def test_list_optimal_trials(self):
+    for i in range(2, 10):
+      completed_trial = study_pb2.Trial(
+          name=resources.TrialResource(self.owner_id, self.study_id, i).name,
+          id=str(i),
+          state=study_pb2.Trial.State.SUCCEEDED,
+          final_measurement=study_pb2.Measurement(metrics=[
+              study_pb2.Measurement.Metric(
+                  metric_id='example_metric', value=0.2 * i)
+          ]))
+
+      self.servicer.datastore.create_trial(completed_trial)
+
+    trial_list = self.client.list_optimal_trials()
     self.assertLen(trial_list, 1)
 
   def test_get_trial(self):

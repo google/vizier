@@ -560,6 +560,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       optimal Trials for single-objective Study.
     """
     raw_trial_list = self.datastore.list_trials(request.parent)
+    if not raw_trial_list:
+      return vizier_service_pb2.ListOptimalTrialsResponse(optimal_trials=[])
+
     study_spec = self.datastore.load_study(request.parent).study_spec
 
     metric_id_to_goal = {m.metric_id: m.goal for m in study_spec.metrics}
@@ -588,6 +591,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         considered_trials.append(trial)
         considered_trial_objective_vectors.append(objective_vector)
 
+    if not considered_trials:
+      return vizier_service_pb2.ListOptimalTrialsResponse(optimal_trials=[])
+
     # Find Pareto optimal trials.
     ys = np.array(considered_trial_objective_vectors)
     n = ys.shape[0]
@@ -600,6 +606,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     for i, boolean in enumerate(list(optimal_booleans)):
       if boolean:
         optimal_trials.append(considered_trials[i])
+
     return vizier_service_pb2.ListOptimalTrialsResponse(
         optimal_trials=optimal_trials)
 
