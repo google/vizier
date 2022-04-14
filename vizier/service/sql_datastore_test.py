@@ -1,5 +1,5 @@
 """Tests for sql_datastore."""
-import sqlalchemy.v1_2 as sqla
+import sqlalchemy as sqla
 
 from vizier.service import datastore_test_lib
 from vizier.service import sql_datastore

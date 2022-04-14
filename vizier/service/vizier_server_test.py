@@ -19,7 +19,7 @@ _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
-    self.early_stop_recycle_period = datetime.timedelta(seconds=60)
+    self.early_stop_recycle_period = datetime.timedelta(seconds=0.1)
     self.vs = vizier_server.VizierService(
         early_stop_recycle_period=self.early_stop_recycle_period)
     self.owner_id = 'my_username'

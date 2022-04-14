@@ -27,5 +27,6 @@ do
     --python_out=vizier/service \
     --grpc_python_out=vizier/service \
     --proto_path=vizier/service \
+    --experimental_allow_proto3_optional \
     vizier/service/$proto_name
 done

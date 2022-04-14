@@ -1,6 +1,6 @@
 """Partial progress implementation of SQL Datastore."""
 from typing import Callable, Iterable, List, Optional
-import sqlalchemy.v1_2 as sqla
+import sqlalchemy as sqla
 
 from vizier.service import datastore
 from vizier.service import key_value_pb2
