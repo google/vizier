@@ -21,7 +21,7 @@ An example of the entire server + client loop running locally can be found in th
 We also present the core components of the example below:
 
 ### Running the Server
-An example is provided at `vizier/demos/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
+An example is provided at `demos/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```python
 import grpc
@@ -43,7 +43,7 @@ server.start()
 ```
 
 ### Running a client
-An example is shown in `vizier/demos/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
+An example is shown in `demos/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
 from vizier.service import pyvizier as vz
@@ -148,9 +148,6 @@ If you found this code useful, please consider citing the [technical report (TBA
   doi       = {10.1145/3097983.3098043},
 }
 ```
-
-
-## Code structure
 
 ### Frequently used import targets
 
