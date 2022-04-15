@@ -69,61 +69,53 @@ class MetricType(enum.Enum):
     return self == MetricType.OBJECTIVE
 
 
-@attr.s(frozen=False, init=True, slots=True)
+@attr.define(frozen=False, init=True, slots=True)
 class MetricInformation:
   """MetricInformation provides optimization metrics configuration."""
 
   # The name of this metric. An empty string is allowed for single-metric
   # optimizations.
-  name: str = attr.ib(
-      init=True,
-      default='',
-      validator=attr.validators.instance_of(str),
-      on_setattr=attr.setters.validate)
+  name: str = attr.field(
+      init=True, default='', validator=attr.validators.instance_of(str))
 
-  goal: ObjectiveMetricGoal = attr.ib(
+  goal: ObjectiveMetricGoal = attr.field(
       init=True,
       # pylint: disable=g-long-lambda
-      converter=lambda s: s
-      if isinstance(s, ObjectiveMetricGoal) else ObjectiveMetricGoal(s),
-      validator=attr.validators.instance_of((int, ObjectiveMetricGoal)),
+      converter=ObjectiveMetricGoal,
+      validator=attr.validators.instance_of(ObjectiveMetricGoal),
       on_setattr=[attr.setters.convert, attr.setters.validate],
       kw_only=True)
 
   # The following are only valid for Safety metrics.
   # safety_threshold should always be set to a float (default 0.0), for safety
   # metrics.
-  safety_threshold: Optional[float] = attr.ib(
+  safety_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
-      on_setattr=attr.setters.validate,
       kw_only=True)
-  safety_std_threshold: Optional[float] = attr.ib(
+  safety_std_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
-      on_setattr=attr.setters.validate,
       kw_only=True)
-  percentage_unsafe_trials_threshold: Optional[float] = attr.ib(
+  percentage_unsafe_trials_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
-      on_setattr=attr.setters.validate,
       kw_only=True)
 
   # Minimum value of this metric can be optionally specified.
-  min_value: float = attr.ib(
+  min_value: float = attr.field(
       init=True,
       default=None,
       # FYI: Converter is applied before validator.
       converter=lambda x: float(x) if x is not None else -np.inf,
       validator=[attr.validators.instance_of(float), _min_leq_max],
-      on_setattr=attr.setters.validate,
       kw_only=True)
 
   # Maximum value of this metric can be optionally specified.
-  max_value: float = attr.ib(
+  max_value: float = attr.field(
       init=True,
       default=None,
       # FYI: Converter is applied before validator.

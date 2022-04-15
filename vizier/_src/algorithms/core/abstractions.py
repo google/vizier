@@ -1,12 +1,32 @@
 """Abstractions."""
 
 import abc
-from typing import Generic, Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar
+
+import attr
 from vizier import pyvizier as vz
-from vizier._src.algorithms.core import deltas
 from vizier.interfaces import serializable
 
 _T = TypeVar('_T')
+
+
+@attr.define(frozen=True)
+class CompletedTrials:
+  """A group of completed trials.
+
+  Attributes:
+    completed: Completed Trials.
+  """
+
+  def __attrs_post_init__(self):
+    for trial in self.completed:
+      if trial.status != vz.TrialStatus.COMPLETED:
+        raise ValueError(f'All trials must be completed. Bad trial:\n{trial}')
+
+  completed: Sequence[vz.Trial] = attr.field(
+      converter=tuple,
+      validator=attr.validators.deep_iterable(
+          attr.validators.instance_of(vz.Trial)))
 
 
 class _SuggestionAlgorithm(abc.ABC):
@@ -27,35 +47,32 @@ class _SuggestionAlgorithm(abc.ABC):
     pass
 
 
-class _StatefulSuggestionAlgorithm(Generic[_T], _SuggestionAlgorithm):
-  """Stateful Suggestion algorithm.
+class Designer(_SuggestionAlgorithm):
+  """Suggestion algorithm for sequential usage.
 
-  The generic type _T represents the delta that the algorithm understands.
+  `Designer` is the recommended interface for implementing commonly used
+  algorithms such as GP-UCB and evolutionary algorithms. A `Designer` can be
+  wrapped into a pythia `Policy` via `DesignerPolicy`. When run inside a service
+  binary, `Designer` instance is not guaranteed to persist during
+  the lifetime of a `Study`, and should be assumed to receive all trials from
+  the beginning of the study in `update()` calls.
+
+  If your `Designer` can benefit from a persistent state, implement a
+  either `SerializableDesigner` or `PartiallySerializableDesigner`, and use
+  `SerializableDesignerPolicy` or `PartiallySerializableDesignerPolicy`,
+  respectively.
   """
 
   @abc.abstractmethod
-  def update(self, delta: _T) -> None:
+  def update(self, delta: CompletedTrials) -> None:
+    """Reflect the delta in the designer's state."""
     pass
 
 
-class _PartiallySerializableAlgorithm(_StatefulSuggestionAlgorithm[_T],
-                                      serializable.PartiallySerializable):
+class PartiallySerializableDesigner(Designer,
+                                    serializable.PartiallySerializable):
   pass
 
 
-class _SerializableAlgorithm(_StatefulSuggestionAlgorithm[_T],
-                             serializable.Serializable):
+class SerializableDesigner(Designer, serializable.Serializable):
   pass
-
-
-# Samplers only have suggest().
-Sampler = _SuggestionAlgorithm
-
-# Designers are applicable to settings where trials are
-# sequentially completed and never removed.
-Designer = _StatefulSuggestionAlgorithm[deltas.CompletedTrials]
-
-PartiallySerializableDesigner = _PartiallySerializableAlgorithm[
-    deltas.CompletedTrials]
-
-SerializableDesigner = _SerializableAlgorithm[deltas.CompletedTrials]

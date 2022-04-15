@@ -201,7 +201,9 @@ class PartiallySerializableDesignerPolicy(
     _SerializableDesignerPolicyBase[vza.PartiallySerializableDesigner]):
   """Wraps a PartiallySerializableDesigner."""
 
-  def _create_designer(self, designer_metadata: vz.Metadata):
+  def _create_designer(
+      self,
+      designer_metadata: vz.Metadata) -> vza.PartiallySerializableDesigner:
     designer = self._designer_factory(self._reference_study_config)
     designer.load(designer_metadata)
     return designer
@@ -232,5 +234,6 @@ class SerializableDesignerPolicy(
         supporter, designer_factory, ns_root=ns_root, verbose=verbose)
     self._designer_cls = designer_cls
 
-  def _create_designer(self, designer_metadata: vz.Metadata):
+  def _create_designer(
+      self, designer_metadata: vz.Metadata) -> vza.SerializableDesigner:
     return self._designer_cls.recover(designer_metadata)

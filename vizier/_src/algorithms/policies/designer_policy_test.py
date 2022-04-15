@@ -101,7 +101,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
         runner, lambda _: designer, ns_root='test', verbose=2)
     runner.SuggestTrials(policy, 1)
     # Delta should consist only of the newly completed trials.
-    self.assertEqual(designer._last_delta.completed, trials[::2])
+    self.assertSequenceEqual(designer._last_delta.completed, trials[::2])
     self.assertEqual(designer._num_incorporated_trials, 13)
     self.assertEqual(
         runner.study_descriptor().config.metadata.ns('test').ns('designer')
@@ -125,7 +125,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     # `policy` creates a new designer object by loading from metadata.
     # Delta should consist only of the newly completed trials.
     new_designer = policy.designer
-    self.assertEqual(new_designer._last_delta.completed, trials[::2])
+    self.assertSequenceEqual(new_designer._last_delta.completed, trials[::2])
     self.assertEqual(new_designer._num_incorporated_trials, 13)
     self.assertEqual(
         runner.study_descriptor().config.metadata.ns('test').ns('designer')
