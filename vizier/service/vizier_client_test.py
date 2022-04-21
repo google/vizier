@@ -184,9 +184,13 @@ class VizierClientTest(parameterized.TestCase):
     study_config = pyvizier.StudyConfig()
     study_config.search_space.select_root().add_float_param(
         'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5)
+    study_config.search_space.select_root().add_int_param(
+        'num_layers', min_value=1, max_value=5)
     study_config.metric_information = [
         pyvizier.MetricInformation(
-            name='accuracy', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
+            name='accuracy', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
+        pyvizier.MetricInformation(
+            name='latency', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
     ]
     study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
 
@@ -200,13 +204,15 @@ class VizierClientTest(parameterized.TestCase):
     for t in range(1, 101):
       trial = cifar10_client.get_suggestions(suggestion_count=1)[0]
       learning_rate = trial.parameters.get_value('learning_rate')
+      num_layers = trial.parameters.get_value('num_layers')
       curve = learning_curve_generator(learning_rate)
       for i in range(len(curve)):
         cifar10_client.report_intermediate_objective_value(
             step=i,
             elapsed_secs=0.1 * i,
             metric_list=[{
-                'accuracy': curve[i]
+                'accuracy': curve[i],
+                'latency': 0.5 * num_layers
             }],
             trial_id=t)
       cifar10_client.complete_trial(trial_id=t)

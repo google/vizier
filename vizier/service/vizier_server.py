@@ -268,7 +268,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
                                        policy_supporter)
 
         pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
-        study_descriptor = base_pyvizier.StudyDescriptor(config=pythia_sc)
+        study_descriptor = base_pyvizier.StudyDescriptor(
+            config=pythia_sc,
+            guid=study.display_name,
+            max_trial_id=self.datastore.max_trial_id(study_name))
         suggest_request = pythia.SuggestRequest(
             study_descriptor=study_descriptor,
             count=request.suggestion_count - len(output_trials))
