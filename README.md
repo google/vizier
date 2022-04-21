@@ -149,6 +149,8 @@ If you found this code useful, please consider citing the [technical report (TBA
 }
 ```
 
+## Code structure
+
 ### Frequently used import targets
 
 Includes a brief summary of important symbols and modules.
