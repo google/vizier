@@ -22,6 +22,10 @@ flags.DEFINE_integer(
     'suggestion_count', 5,
     'Number of suggestions to evaluate per iteration. Useful for batched evaluations.'
 )
+flags.DEFINE_boolean(
+    'multiobjective', True,
+    'Whether to demonstrate multiobjective or single-objective capabilities and API.'
+)
 
 FLAGS = flags.FLAGS
 
@@ -32,6 +36,8 @@ def evaluate_trial(trial: vz.Trial) -> vz.Measurement:
   num_layers = trial.parameters.get_value('num_layers')
   m = vz.Measurement()
   m.metrics = {'accuracy': learning_rate * num_layers}  # dummy accuracy
+  if FLAGS.multiobjective:
+    m.metrics['latency'] = 0.5 * num_layers
   return m
 
 
@@ -53,7 +59,17 @@ def main(argv: Sequence[str]) -> None:
           goal=vz.ObjectiveMetricGoal.MAXIMIZE,
           min_value=0.0,
           max_value=1.0))
-  study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
+
+  if FLAGS.multiobjective:
+    # No need to specify min/max values.
+    study_config.metric_information.append(
+        vz.MetricInformation(
+            name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE))
+
+  if FLAGS.multiobjective:
+    study_config.algorithm = vz.Algorithm.NSGA2
+  else:
+    study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
 
   client = vizier_client.create_or_load_study(
       service_endpoint=FLAGS.address,
