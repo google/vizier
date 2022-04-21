@@ -1,0 +1,166 @@
+"""Generic interfaces and template for evolutionary algorithms.
+
+The evolutionary algorithm and Vizier interaction workflow is:
+  * Algorithm generates `Offsprings`, which contains information about the
+  "genes". `PopulationConverter` converts them to `TrialSuggestions`.
+  * User evaluates `TrialSuggestions` and obtains completed `Trial` objects.
+  `PopulationConverter` converts them to `Population`, which is what the
+  algorithm receives.
+  * This template does not dictate the nature of these conversions. They can be
+  stochastic, deterministic, bijective, injective, inverse of each other or not.
+
+Why are Offsprings and Population serializable?
+  * `Offsprings` is serializable so that the original genes can be preserved
+  through the conversions.
+  * `Population` is serializable so that the algorithm can serialize its state.
+
+A canonical evolutionary algorithm consists of the following operations:
+  * `Sampler` generates fresh `Offsprings` independent of `Population`.
+    It is generally used for sampling an initial batch of `Offsprings`.
+  * `Survival` selects a subset of `Population` to keep.
+  * `Mutation` mutates `Population` to generate new `Offsprings`.
+
+To use the provided template, one should implement a subclass of `Offsprings`,
+`Population`, `PopulationConverter`, `Sampler`, `Survival`, and `Mutation`.
+"""
+
+import abc
+from typing import Generic, Optional, Sequence, TypeVar, Union
+
+from vizier import algorithms as vza
+from vizier import pyvizier as vz
+from vizier.interfaces import serializable
+
+_OffspringsType = TypeVar('_OffspringsType', bound=serializable.Serializable)
+
+
+class Sampler(Generic[_OffspringsType], abc.ABC):
+  """Creates new offsprings, typically at the start of evolutionary strategy."""
+
+  @abc.abstractmethod
+  def sample(self, count: int) -> _OffspringsType:
+    """Generate offsprings."""
+
+
+# Temporary typevar, used for defininig Population interface.
+_P = TypeVar('_P', bound=serializable.Serializable)
+
+
+class Population(serializable.Serializable, abc.ABC):
+  """Typically contains genes (x-values) and scores (y-values).
+
+  The supported operations are similar to python sequence, except that slicing
+  always results in a `Population` of length 1.
+  """
+
+  @abc.abstractmethod
+  def __len__(self) -> int:
+    pass
+
+  @abc.abstractmethod
+  def __getitem__(
+      self: _P,
+      index: Union[int, slice],
+      /,
+  ) -> _P:
+    pass
+
+  @abc.abstractmethod
+  def __add__(self: _P, other: _P) -> _P:
+    pass
+
+
+# Actual Typevar. Covariant with `Population`.
+_PopulationType = TypeVar('_PopulationType')
+
+
+class PopulationConverter(abc.ABC, Generic[_PopulationType, _OffspringsType]):
+
+  @abc.abstractmethod
+  def to_population(self,
+                    completed: Sequence[vz.CompletedTrial]) -> _PopulationType:
+    """Adds trials to the population."""
+
+  @abc.abstractmethod
+  def to_suggestions(
+      self, offsprings: _OffspringsType) -> Sequence[vz.TrialSuggestion]:
+    """Converts offsprings to suggestions."""
+
+
+class Survival(abc.ABC, Generic[_PopulationType]):
+
+  @abc.abstractmethod
+  def select(self, population: _PopulationType) -> _PopulationType:
+    """Survival mechanism."""
+
+
+class Mutation(abc.ABC, Generic[_PopulationType, _OffspringsType]):
+
+  @abc.abstractmethod
+  def mutate(self, population: _PopulationType, count: int) -> _OffspringsType:
+    """Generate offsprings."""
+
+
+class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
+                                 Generic[_PopulationType, _OffspringsType]):
+  """Evolution algorithm template."""
+
+  def __init__(self,
+               converter: PopulationConverter[_PopulationType, _OffspringsType],
+               sampler: Sampler[_OffspringsType],
+               survival: Survival[_PopulationType],
+               adaptation: Mutation[_PopulationType, _OffspringsType],
+               *,
+               first_survival_after: Optional[int] = None,
+               population_size: int = 50):
+    """Init.
+
+    Args:
+      converter:
+      sampler:
+      survival:
+      adaptation:
+      first_survival_after: Apply the survival step after observing this many
+        trials. If unset or set to a number less than `population_size`, it
+        defaults to twice the `population_size`.
+      population_size: Survival steps reduce the population to this size.
+    """
+    self._survival = survival
+    self._adaptation = adaptation
+    self._converter = converter
+    self._sampler = sampler
+    self._population_size = population_size
+    self._first_survival_after = max(self._population_size * 2,
+                                     first_survival_after or 0)
+    self._num_trials_seen = 0
+
+    self._population = converter.to_population([])
+
+  @property
+  def converter(self) -> PopulationConverter[_PopulationType, _OffspringsType]:
+    return self._converter
+
+  @property
+  def population(self) -> _PopulationType:
+    return self._population
+
+  def suggest(self,
+              count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
+    count = count or self._population_size
+    if self._num_trials_seen < self._first_survival_after:
+      return self._converter.to_suggestions(self._sampler.sample(count))
+    return self._converter.to_suggestions(
+        self._adaptation.mutate(self._population, count))
+
+  def update(self, delta: vza.CompletedTrials) -> None:
+    completed = delta.completed
+    self._num_trials_seen += len(completed)
+    candidates = self._population + self._converter.to_population(completed)
+    self._population = self._survival.select(candidates)
+    self._pool = self._population
+
+  def load(self, metadata: vz.Metadata):
+    self._population = type(self._population).recover(metadata)
+
+  def dump(self) -> vz.Metadata:
+    return self._population.dump()

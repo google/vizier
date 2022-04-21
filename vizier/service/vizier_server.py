@@ -1,14 +1,18 @@
 """RPC functions implemented from vizier_service.proto."""
+
 import collections
 import datetime
 import random
 import threading
 from typing import Optional
+
 from absl import logging
 import grpc
 import numpy as np
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
+from vizier._src.algorithms.evolution import nsga2
+from vizier._src.algorithms.policies import designer_policy as dp
 from vizier._src.algorithms.policies import random_policy
 from vizier.service import datastore
 from vizier.service import pyvizier
@@ -30,8 +34,12 @@ def policy_creator(
     algorithm: study_pb2.StudySpec.Algorithm,
     policy_supporter: service_policy_supporter.ServicePolicySupporter
 ) -> pythia.Policy:
+  """Creates a policy."""
   if algorithm == study_pb2.StudySpec.Algorithm.RANDOM_SEARCH:
     return random_policy.RandomPolicy(policy_supporter)
+  elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
+    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
+                                                  nsga2.create_nsga2)
   else:
     raise ValueError(f'{algorithm} is not registered.')
 

@@ -1,11 +1,11 @@
 """PyVizier classes for Pythia policies."""
 
-from vizier._src.pyvizier.pythia.study import StudyConfig
 from vizier._src.pyvizier.pythia.study import StudyDescriptor
 from vizier._src.pyvizier.shared.base_study_config import MetricInformation
 from vizier._src.pyvizier.shared.base_study_config import MetricsConfig
 from vizier._src.pyvizier.shared.base_study_config import MetricType
 from vizier._src.pyvizier.shared.base_study_config import ObjectiveMetricGoal
+from vizier._src.pyvizier.shared.base_study_config import ProblemStatement
 from vizier._src.pyvizier.shared.base_study_config import SearchSpace
 from vizier._src.pyvizier.shared.base_study_config import SearchSpaceSelector
 from vizier._src.pyvizier.shared.common import Metadata
@@ -25,3 +25,4 @@ from vizier._src.pyvizier.shared.trial import TrialStatus
 from vizier._src.pyvizier.shared.trial import TrialSuggestion
 
 FlatSpace = SearchSpace
+StudyConfig = ProblemStatement  # To be deprecated.
