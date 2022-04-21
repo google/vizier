@@ -10,17 +10,25 @@ It consists of two main APIs:
 * **User API:** Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
 * **Developer API:** Defines abstractions and utilities for implementing new optimization algorithms for research and benchmarking.
 
-[TOC]
+# Table of Contents
+1. [Installation](#installation)
+2. [User API: Running Vizier](#user_api)
+    1. [Running the Server](#running_server)
+    2. [Running the Client](#running_client)
+3. [Developer API: Writing Algorithms](#developer_api)
+4. [Code Structure](#code_structure)
+    1. [Frequently Used Import Targets](#freq_import_targets)
+5. [Citing Vizier](#citing_vizier)
 
 
-## Installation
+## Installation <a name="installation"></a>
 The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`.
 
-## User API: Running Vizier
+## User API: Running Vizier <a name="user_api"></a>
 An example of the entire server + client loop running locally can be found in the unit test file `vizier/service/vizier_client_test.py`.
 We also present the core components of the example below:
 
-### Running the Server
+### Running the Server <a name="running_server"></a>
 An example is provided at `demos/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```python
@@ -42,7 +50,7 @@ server.add_secure_port(address, grpc.local_server_credentials())
 server.start()
 ```
 
-### Running a client
+### Running a client <a name="running_client"></a>
 An example is shown in `demos/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
@@ -90,7 +98,7 @@ for trial in suggestions:
 
 The Vizier service is designed to handle multiple concurrent clients all requesting suggestions and returning metrics.
 
-## Developer API: Writing Algorithms
+## Developer API: Writing Algorithms <a name="developer_api"></a>
 Writing blackbox optimization algorithms requires implementing the `Policy` interface as part of Vizier's Pythia service, with pseudocode shown below:
 
 ```python
@@ -116,46 +124,13 @@ class MyPolicy(Policy):
 
 An example is given in `vizier/_src/algorithms/policies/random_policy.py`.
 
+## Code structure <a name="code_structure"></a>
 
-## Citing Vizier
-If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
-
-```
-@inproceedings{oss_vizier,
-  author    = {Xingyou Song and
-               Sagi Perel and
-               Chansoo Lee and
-               Greg Kochanski and
-               Daniel Golovin},
-  title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Blackbox Optimization},
-  year      = {2022},
-}
-@inproceedings{original_vizier,
-  author    = {Daniel Golovin and
-               Benjamin Solnik and
-               Subhodeep Moitra and
-               Greg Kochanski and
-               John Karro and
-               D. Sculley},
-  title     = {Google Vizier: {A} Service for Black-Box Optimization},
-  booktitle = {Proceedings of the 23rd {ACM} {SIGKDD} International Conference on
-               Knowledge Discovery and Data Mining, Halifax, NS, Canada, August 13
-               - 17, 2017},
-  pages     = {1487--1495},
-  publisher = {{ACM}},
-  year      = {2017},
-  url       = {https://doi.org/10.1145/3097983.3098043},
-  doi       = {10.1145/3097983.3098043},
-}
-```
-
-## Code structure
-
-### Frequently used import targets
+### Frequently used import targets <a name="freq_import_targets"></a>
 
 Includes a brief summary of important symbols and modules.
 
-#### Service users
+#### Service users <a name="service_users"></a>
 * `from vizier.service import pyvizier as vz`: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
 <!-- TODO(b/226560768): Update this entry after the clean up -->
 * `from vizier.service import ...`: Include binaries and internal utilities.
@@ -193,3 +168,36 @@ Includes a brief summary of important symbols and modules.
       * `variable_from_prior`: Utility layer for handling regularized variables.
   * `vzk.optim`: Wrappers around optimizers in tfp or keras
   * `vzk.models`: Most of the useful models don't easily fit into keras' Model abstraction, but we may add some for display.
+
+
+## Citing Vizier <a name="citing_vizier"></a>
+If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
+
+```
+@inproceedings{oss_vizier,
+  author    = {Xingyou Song and
+               Sagi Perel and
+               Chansoo Lee and
+               Greg Kochanski and
+               Daniel Golovin},
+  title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Blackbox Optimization},
+  year      = {2022},
+}
+@inproceedings{original_vizier,
+  author    = {Daniel Golovin and
+               Benjamin Solnik and
+               Subhodeep Moitra and
+               Greg Kochanski and
+               John Karro and
+               D. Sculley},
+  title     = {Google Vizier: {A} Service for Black-Box Optimization},
+  booktitle = {Proceedings of the 23rd {ACM} {SIGKDD} International Conference on
+               Knowledge Discovery and Data Mining, Halifax, NS, Canada, August 13
+               - 17, 2017},
+  pages     = {1487--1495},
+  publisher = {{ACM}},
+  year      = {2017},
+  url       = {https://doi.org/10.1145/3097983.3098043},
+  doi       = {10.1145/3097983.3098043},
+}
+```
