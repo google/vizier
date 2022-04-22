@@ -19,7 +19,7 @@ flags.DEFINE_integer(
     'max_num_iterations', 10,
     'Maximum number of possible iterations / calls to get suggestions.')
 flags.DEFINE_integer(
-    'suggestion_count', 5,
+    'suggestion_count', 1,
     'Number of suggestions to evaluate per iteration. Useful for batched evaluations.'
 )
 flags.DEFINE_boolean(
@@ -69,7 +69,7 @@ def main(argv: Sequence[str]) -> None:
   if FLAGS.multiobjective:
     study_config.algorithm = vz.Algorithm.NSGA2
   else:
-    study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
+    study_config.algorithm = vz.Algorithm.EMUKIT_GP_EI
 
   client = vizier_client.create_or_load_study(
       service_endpoint=FLAGS.address,

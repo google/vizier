@@ -17,3 +17,6 @@ sqlalchemy==1.2
 # Optional Jax library.
 jax==0.3.7
 jaxlib==0.3.7
+
+# Optional BayesOpt library.
+emukit==0.4.9
