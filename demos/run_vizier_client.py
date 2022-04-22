@@ -91,11 +91,12 @@ def main(argv: Sequence[str]) -> None:
 
   all_trials = client.list_trials()
   logging.info('%d trials have been completed.', len(all_trials))
+
   optimal_trials = client.list_optimal_trials()
   for optimal_trial in optimal_trials:
-    logging.info('Optimal trial has parameters %s and metrics %s',
-                 optimal_trial.parameters,
-                 optimal_trial.final_measurement.metrics)
+    logging.info(
+        'Pareto-optimal trial found so far has parameters %s and metrics %s',
+        optimal_trial.parameters, optimal_trial.final_measurement.metrics)
 
 
 if __name__ == '__main__':
