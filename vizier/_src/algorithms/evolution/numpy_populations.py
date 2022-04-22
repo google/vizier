@@ -18,7 +18,13 @@ class _NumpyArrayEncoder(json.JSONEncoder):
 
   def default(self, obj: Any) -> Any:
     if isinstance(obj, np.ndarray):
-      return {'dtype': np.dtype(obj.dtype).name, 'value': obj.tolist()}
+      # Shape must be dumped and restored, in case that the array has shape
+      # that includes 0-sized dimensions.
+      return {
+          'dtype': np.dtype(obj.dtype).name,
+          'value': obj.tolist(),
+          'shape': obj.shape
+      }
     return json.JSONEncoder.default(self, obj)
 
 
@@ -26,7 +32,9 @@ def _numpy_hook(obj: Any) -> Any:
   """Example: json.loads(..., object_hook=_numpy_hook)."""
   if 'dtype' not in obj:
     return obj
-  return np.array(obj['value'], obj['dtype'])
+  if 'shape' not in obj:
+    return obj
+  return np.array(obj['value'], dtype=obj['dtype']).reshape(obj['shape'])
 
 
 def _filter_and_split(
@@ -215,8 +223,11 @@ class Population(templates.Population):
 
   @classmethod
   def recover(cls, metadata: vz.Metadata) -> 'Population':
-    encoded = metadata.get('values', cls=str)
-    decoded = json.loads(encoded, object_hook=_numpy_hook)
+    encoded = metadata.get('values', default='', cls=str)
+    try:
+      decoded = json.loads(encoded, object_hook=_numpy_hook)
+    except json.JSONDecodeError as e:
+      raise serializable.DecodeError('Failed to recover state.') from e
     return cls(**decoded)
 
   def dump(self) -> vz.Metadata:
