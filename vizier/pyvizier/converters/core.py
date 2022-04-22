@@ -331,7 +331,7 @@ class _ModelInputArrayBijector:
     if low == high:
 
       def backward_fn(y):
-        return np.where(np.isfinite(y), np.zeros_like(y) + low, y),
+        return np.where(np.isfinite(y), np.zeros_like(y) + low, y)
 
       return cls(lambda x: np.where(np.isfinite(x), np.zeros_like(x), x),
                  backward_fn, attr.evolve(spec, bounds=(.0, 1.), scale=None))
@@ -514,12 +514,24 @@ class DefaultModelInputConverter(ModelInputConverter):
   def _to_parameter_value(
       self, value: Union['np.float', float,
                          int]) -> Optional[pyvizier.ParameterValue]:
-    """Converts to a single parameter value."""
+    """Converts to a single parameter value.
+
+    Be aware that the value is automatically truncated.
+
+    Args:
+      value:
+
+    Returns:
+      ParameterValue.
+    """
     if not self._converts_to_parameter:
       return None
     if self.parameter_config.type == pyvizier.ParameterType.DOUBLE:
       # Input parameter was DOUBLE. Output is also DOUBLE.
-      return pyvizier.ParameterValue(float(value))
+      return pyvizier.ParameterValue(
+          float(
+              np.clip(value, self._parameter_config.bounds[0],
+                      self._parameter_config.bounds[1])))
     elif self.output_spec.type == NumpyArraySpecType.CONTINUOUS:
       # The parameter config is originally discrete, but continuified.
       # Round to the closest number.
@@ -534,6 +546,7 @@ class DefaultModelInputConverter(ModelInputConverter):
 
   def to_parameter_values(
       self, array: np.ndarray) -> List[Optional[pyvizier.ParameterValue]]:
+    """Convert and clip to the nearest feasible parameter values."""
     array = self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
     return [self._to_parameter_value(v) for v in list(array.flatten())]
 
@@ -707,7 +720,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
   def to_parameters(
       self, dictionary: Mapping[str,
                                 np.ndarray]) -> List[pyvizier.ParameterDict]:
-    """Convert to parameters."""
+    """Convert to nearest feasible parameter value. NaNs are preserved."""
+    # TODO: Add a boolean flag to disable automatic clipping.
     param_dicts = [
         pyvizier.ParameterDict()
         for _ in range(len(list(dictionary.values())[0]))
@@ -889,6 +903,8 @@ class TrialToArrayConverter:
     return self.to_features(trials), self.to_labels(trials)
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
+    """Convert to nearest feasible parameter value. NaNs are preserved."""
+    # TODO: Add a boolean flag to disable automatic clipping.
     arrformat = DictOf2DArrays(self._impl.to_features([]))
     return self._impl.to_parameters(arrformat.dict_like(arr))
 

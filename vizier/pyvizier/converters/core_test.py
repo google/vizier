@@ -24,6 +24,7 @@ class TrialToArrayConverterTest(absltest.TestCase):
             pyvizier.MetricInformation(
                 'x1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
         ])
+
     self._designer = random.RandomDesigner(
         self._study_config.search_space, seed=0)
     self._trials = test_runners.run_with_random_metrics(
@@ -174,7 +175,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
 
     # The value for `categorical` was invalid, so we can't recover it.
     expected_parameters = pyvizier.ParameterDict({
-        'double': pyvizier.ParameterValue(3.),
+        'double': pyvizier.ParameterValue(2.),
         'integer': pyvizier.ParameterValue(-1),
     })
     self.assertEqual(
@@ -331,6 +332,45 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     expected = np.asarray([[1.0], [2.0], [-3.0], [np.NaN], [np.NaN]], dtype)
     np.testing.assert_allclose(expected, actual)
     self.assertEqual(expected.dtype, actual.dtype)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64')
+  ])
+  def test_double_into_double_log(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1', bounds=(1e-4, 1e2), scale_type=pyvizier.ScaleType.LOG),
+        scale=True,
+        float_dtype=dtype)
+
+    actual = converter.convert([
+        Trial(parameters={'x1': pyvizier.ParameterValue(1e-4)}),
+        Trial(parameters={'x1': pyvizier.ParameterValue(1e2)}),
+    ])
+    expected = np.asarray([[0.0], [1.0]], dtype)
+    np.testing.assert_allclose(expected, actual)
+    self.assertEqual(expected.dtype, actual.dtype)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64')
+  ])
+  def test_double_into_double_log_inverse(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1', bounds=(1e-4, 1e2), scale_type=pyvizier.ScaleType.LOG),
+        scale=True,
+        float_dtype=dtype)
+
+    scaled = np.asarray([[0.0], [1.0]], dtype)
+    actual = converter.to_parameter_values(scaled)
+    self.assertGreaterEqual(actual[0].value, 1e-4)
+    self.assertLessEqual(actual[1].value, 1e2)
 
   @parameterized.parameters([
       dict(dtype=np.float32),
