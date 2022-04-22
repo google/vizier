@@ -9,7 +9,7 @@
 sudo apt-get install -y libprotobuf-dev  # Needed for proto libraries.
 
 # Installs Python packages.
-pip install --upgrade -r requirements.txt --use-deprecated=legacy-resolver # Installs dependencies
+pip install -r requirements.txt --use-deprecated=legacy-resolver # Installs dependencies
 pip install -e . # Installs Vizier
 
 # Builds all .proto files.
