@@ -1,7 +1,14 @@
 """Example of a Vizier Client, which can be run on multiple machines.
 
 This is meant to be used after the Vizier Server (see `run_vizier_server.py`)
-has been launched and provided an address to connect to.
+has been launched and provided an address to connect to. Example of a launch
+command:
+
+```
+python run_vizier_client.py --address="localhost:[PORT]"
+```
+
+where `address` was provided by the server.
 """
 
 from typing import Sequence
@@ -13,8 +20,10 @@ from absl import logging
 from vizier.service import pyvizier as vz
 from vizier.service import vizier_client
 
-flags.DEFINE_string('address', 'localhost:6006',
-                    'Address of the Vizier Server.')
+flags.DEFINE_string(
+    'address', '',
+    "Address of the Vizier Server which will be used by this demo. Should be of the form e.g. 'localhost:6006' if running on the same machine, or `[IP]:[PORT]` if running on a remote machine."
+)
 flags.DEFINE_integer(
     'max_num_iterations', 10,
     'Maximum number of possible iterations / calls to get suggestions.')
@@ -44,6 +53,11 @@ def evaluate_trial(trial: vz.Trial) -> vz.Measurement:
 def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
+
+  if not FLAGS.address:
+    logging.info(
+        'You did not specify the server address. Please see the documentation on the `address` FLAGS.'
+    )
 
   study_config = vz.StudyConfig()  # Search space, metrics, and algorithm.
   root = study_config.search_space.select_root()

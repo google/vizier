@@ -25,11 +25,24 @@ It consists of two main APIs:
 The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`.
 
 ## User API: Running Vizier <a name="user_api"></a>
-An example of the entire server + client loop running locally can be found in the unit test file `vizier/service/vizier_client_test.py`.
-We also present the core components of the example below:
+An example of the entire server + client loop running locally can be found in the unit test file `vizier/service/vizier_client_test.py`. A manual demo can be found in the `/demos/` folder. To run the manual demo, run the following command to start the server:
+
+```
+python run_vizier_server.py
+```
+
+which will print out an `address` of the form `localhost:[PORT]`.
+
+Then run the following command using the `address` to start the client:
+
+```
+python run_vizier_client.py --address="localhost:[PORT]"
+```
+
+We explain how the core components work below:
 
 ### Running the Server <a name="running_server"></a>
-An example is provided at `demos/run_vizier_server.py`. To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
+To start the Vizier service, the standard way via GRPC is to do the following on the host machine:
 
 ```python
 import grpc
@@ -51,7 +64,7 @@ server.start()
 ```
 
 ### Running a client <a name="running_client"></a>
-An example is shown in `demos/run_vizier_client.py`, where the user may interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
+The user may then interact with the service via the client interface. The user first needs to setup the search space, metrics, and algorithm, in the `StudyConfig`:
 
 ```python
 from vizier.service import pyvizier as vz
