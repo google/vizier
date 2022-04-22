@@ -61,13 +61,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     trials = self._vizier_service.ListTrials(request, None).trials
     all_pytrials = pyvizier.TrialConverter.from_protos(trials)
 
-    if (trial_ids
-        is not None) and ((min_trial_id is not None) or
-                          (max_trial_id is not None) or status_matches):
-      raise ValueError(
-          'Can only select trial_names OR '
-          '(min_trial_id, max_trial_id, status_matches), not both.')
-    elif trial_ids is not None:
+    if trial_ids is not None:
       # We're going to do repeated comparisons in _trial_filter(), so this
       # needs to be more real than an Iterator.
       trial_ids = frozenset(trial_ids)
