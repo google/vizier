@@ -7,7 +7,6 @@ from emukit import model_wrappers
 from emukit.bayesian_optimization import acquisitions
 from emukit.bayesian_optimization import loops
 from emukit.core import initial_designs
-from emukit.core import loop
 from GPy import models
 import numpy as np
 from vizier import algorithms as vza
@@ -106,7 +105,6 @@ class EmukitDesigner(vza.Designer):
         space=self._emukit_space,
         acquisition=expected_improvement,
         batch_size=count or 1)
-    x1 = bayesopt_loop.get_next_points(
-        [loop.UserFunctionResult(x, y) for x, y in zip(features, labels)])
+    x1 = bayesopt_loop.get_next_points([])
 
     return self._to_suggestions(x1, 'bayesopt')
