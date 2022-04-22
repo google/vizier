@@ -28,7 +28,7 @@ flags.DEFINE_integer(
     'max_num_iterations', 10,
     'Maximum number of possible iterations / calls to get suggestions.')
 flags.DEFINE_integer(
-    'suggestion_count', 1,
+    'suggestion_count', 5,
     'Number of suggestions to evaluate per iteration. Useful for batched evaluations.'
 )
 flags.DEFINE_boolean(

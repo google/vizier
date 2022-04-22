@@ -176,10 +176,11 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  @parameterized.parameters((pyvizier.Algorithm.RANDOM_SEARCH, 150, False),
-                            (pyvizier.Algorithm.EMUKIT_GP_EI, 30, False),
-                            (pyvizier.Algorithm.NSGA2, 150, True))
-  def test_e2e_tuning(self, algorithm, num_trials: int, multi_objective: bool):
+  @parameterized.parameters((pyvizier.Algorithm.RANDOM_SEARCH, 150, 1, False),
+                            (pyvizier.Algorithm.EMUKIT_GP_EI, 15, 2, False),
+                            (pyvizier.Algorithm.NSGA2, 150, 1, True))
+  def test_e2e_tuning(self, algorithm, num_iterations: int, batch_size: int,
+                      multi_objective: bool):
     # Runs end-to-end tuning via back-and-forth communication to server.
     def learning_curve_generator(learning_rate: float) -> List[float]:
       return [learning_rate * step for step in range(10)]
@@ -206,37 +207,38 @@ class VizierClientTest(parameterized.TestCase):
         study_config=study_config,
         client_id=self.client_id)
 
-    for _ in range(num_trials):
-      trial = cifar10_client.get_suggestions(suggestion_count=1)[0]
-      learning_rate = trial.parameters.get_value('learning_rate')
-      num_layers = trial.parameters.get_value('num_layers')
-      curve = learning_curve_generator(learning_rate)
-      for i in range(len(curve)):
-        cifar10_client.report_intermediate_objective_value(
-            step=i,
-            elapsed_secs=0.1 * i,
-            metric_list=[{
-                'accuracy': curve[i],
-                'latency': 0.5 * num_layers
-            }],
-            trial_id=trial.id)
-      cifar10_client.complete_trial(trial_id=trial.id)
+    for _ in range(num_iterations):
+      suggestions = cifar10_client.get_suggestions(suggestion_count=batch_size)
+      for trial in suggestions:
+        learning_rate = trial.parameters.get_value('learning_rate')
+        num_layers = trial.parameters.get_value('num_layers')
+        curve = learning_curve_generator(learning_rate)
+        for i in range(len(curve)):
+          cifar10_client.report_intermediate_objective_value(
+              step=i,
+              elapsed_secs=0.1 * i,
+              metric_list=[{
+                  'accuracy': curve[i],
+                  'latency': 0.5 * num_layers
+              }],
+              trial_id=trial.id)
+        cifar10_client.complete_trial(trial_id=trial.id)
 
-      # Recover the trial from database.
-      study_resource = resources.StudyResource.from_name(
-          cifar10_client.study_name)
-      trial_name = resources.TrialResource(study_resource.owner_id,
-                                           study_resource.study_id,
-                                           trial.id).name
-      stored_trial = self.servicer.datastore.get_trial(trial_name)
-      stored_curve = [m.metrics[0].value for m in stored_trial.measurements]
+        # Recover the trial from database.
+        study_resource = resources.StudyResource.from_name(
+            cifar10_client.study_name)
+        trial_name = resources.TrialResource(study_resource.owner_id,
+                                             study_resource.study_id,
+                                             trial.id).name
+        stored_trial = self.servicer.datastore.get_trial(trial_name)
+        stored_curve = [m.metrics[0].value for m in stored_trial.measurements]
 
-      # See if curve was stored correctly.
-      self.assertEqual(curve, stored_curve)
+        # See if curve was stored correctly.
+        self.assertEqual(curve, stored_curve)
 
-      # See if final_measurement is defaulted to end of curve.
-      final_accuracy = stored_trial.final_measurement.metrics[0].value
-      self.assertEqual(curve[-1], final_accuracy)
+        # See if final_measurement is defaulted to end of curve.
+        final_accuracy = stored_trial.final_measurement.metrics[0].value
+        self.assertEqual(curve[-1], final_accuracy)
 
 
 if __name__ == '__main__':

@@ -21,3 +21,4 @@ jaxlib==0.3.7
 
 # Optional BayesOpt library.
 emukit==0.4.9
+scipy==1.2.3  # Required downgrade to allow emukit batching behavior.
