@@ -13,12 +13,7 @@ AutomatedStoppingConfigProto = Union[
 @attr.s(frozen=True, init=True, slots=True, kw_only=True)
 class AutomatedStoppingConfig:
   """A wrapper for study_pb2.automated_stopping_spec."""
-  _proto: AutomatedStoppingConfigProto = attr.ib(
-      init=True,
-      validator=attr.validators.instance_of(
-          (study_pb2.StudySpec.DecayCurveAutomatedStoppingSpec,
-           study_pb2.StudySpec.MedianAutomatedStoppingSpec)),
-      kw_only=True)
+  _proto: AutomatedStoppingConfigProto = attr.ib(init=True, kw_only=True)
 
   @classmethod
   def decay_curve_stopping_config(cls,

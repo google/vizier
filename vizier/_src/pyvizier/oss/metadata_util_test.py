@@ -9,8 +9,8 @@ from absl.testing import absltest
 class MetadataUtilTest(absltest.TestCase):
 
   def test_get(self):
-    meta_trial = study_pb2.Trial(id=str(999))
-    trial = study_pb2.Trial(id=1)
+    meta_trial = study_pb2.Trial(id='meta_trial')
+    trial = study_pb2.Trial(id='trial')
     metadata_util.assign(trial, key='any', ns='', value=meta_trial)
     metadata_util.assign(trial, key='text', ns='x', value='x-value')
     metadata_util.assign(trial, key='text', ns='', value='value')
