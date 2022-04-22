@@ -18,11 +18,10 @@ class StudyDescriptor:
 
   guid: str = attr.ib(
       init=True,
-      default='',
-      validator=[attr.validators.optional(attr.validators.instance_of(str))])
+      validator=[attr.validators.optional(attr.validators.instance_of(str))],
+      kw_only=True)
 
   max_trial_id: int = attr.ib(
       init=True,
-      default=0,
       validator=[attr.validators.optional(attr.validators.instance_of(int))],
       kw_only=True)

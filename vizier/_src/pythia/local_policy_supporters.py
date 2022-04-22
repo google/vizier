@@ -43,7 +43,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
 
   def study_descriptor(self) -> vz.StudyDescriptor:
     return vz.StudyDescriptor(
-        self.study_config, self.study_guid, max_trial_id=len(self._trials))
+        self.study_config, guid=self.study_guid, max_trial_id=len(self._trials))
 
   def _check_study_guid(self, study_guid: Optional[str]) -> None:
     if study_guid is not None and self.study_guid != study_guid:

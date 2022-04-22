@@ -20,7 +20,6 @@ class RandomPolicyTest(absltest.TestCase):
     self.study_config.search_space.select_root().add_int_param(
         name='int', min_value=1, max_value=5)
 
-    self.study_descriptor = pyvizier.StudyDescriptor(config=self.study_config)
     self.policy_supporter = pythia.LocalPolicyRunner(self.study_config)
     self.policy = random_policy.RandomPolicy(
         policy_supporter=self.policy_supporter)
@@ -35,7 +34,8 @@ class RandomPolicyTest(absltest.TestCase):
     """Tests random parameter generation wrapped around Policy."""
     num_suggestions = 5
     suggest_request = pythia.SuggestRequest(
-        study_descriptor=self.study_descriptor, count=num_suggestions)
+        study_descriptor=self.policy_supporter.study_descriptor(),
+        count=num_suggestions)
 
     suggestions = self.policy.suggest(suggest_request)
     self.assertLen(suggestions, num_suggestions)
@@ -51,7 +51,8 @@ class RandomPolicyTest(absltest.TestCase):
     trial_ids_stopped = set()
     for _ in range(count):
       request = pythia.EarlyStopRequest(
-          study_descriptor=self.study_descriptor, trial_ids=request_trial_ids)
+          study_descriptor=self.policy_supporter.study_descriptor(),
+          trial_ids=request_trial_ids)
       early_stop_decisions = self.policy.early_stop(request)
       self.assertContainsSubset(
           request_trial_ids, [decision.id for decision in early_stop_decisions])
