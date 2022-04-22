@@ -23,7 +23,7 @@ flags.DEFINE_integer(
     'Number of suggestions to evaluate per iteration. Useful for batched evaluations.'
 )
 flags.DEFINE_boolean(
-    'multiobjective', False,
+    'multiobjective', True,
     'Whether to demonstrate multiobjective or single-objective capabilities and API.'
 )
 

@@ -192,7 +192,7 @@ class VizierClientTest(parameterized.TestCase):
         pyvizier.MetricInformation(
             name='latency', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
     ]
-    study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
+    study_config.algorithm = pyvizier.Algorithm.NSGA2
 
     cifar10_client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
