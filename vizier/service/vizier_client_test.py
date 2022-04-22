@@ -176,7 +176,10 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  def test_e2e_tuning(self):
+  @parameterized.parameters((pyvizier.Algorithm.RANDOM_SEARCH, 150, False),
+                            (pyvizier.Algorithm.EMUKIT_GP_EI, 30, False),
+                            (pyvizier.Algorithm.NSGA2, 150, True))
+  def test_e2e_tuning(self, algorithm, num_trials: int, multi_objective: bool):
     # Runs end-to-end tuning via back-and-forth communication to server.
     def learning_curve_generator(learning_rate: float) -> List[float]:
       return [learning_rate * step for step in range(10)]
@@ -188,11 +191,13 @@ class VizierClientTest(parameterized.TestCase):
         'num_layers', min_value=1, max_value=5)
     study_config.metric_information = [
         pyvizier.MetricInformation(
-            name='accuracy', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
-        pyvizier.MetricInformation(
-            name='latency', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
+            name='accuracy', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ]
-    study_config.algorithm = pyvizier.Algorithm.NSGA2
+    if multi_objective:
+      study_config.metric_information.append(
+          pyvizier.MetricInformation(
+              name='latency', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+    study_config.algorithm = algorithm
 
     cifar10_client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
@@ -201,7 +206,7 @@ class VizierClientTest(parameterized.TestCase):
         study_config=study_config,
         client_id=self.client_id)
 
-    for t in range(1, 101):
+    for _ in range(num_trials):
       trial = cifar10_client.get_suggestions(suggestion_count=1)[0]
       learning_rate = trial.parameters.get_value('learning_rate')
       num_layers = trial.parameters.get_value('num_layers')
@@ -214,14 +219,15 @@ class VizierClientTest(parameterized.TestCase):
                 'accuracy': curve[i],
                 'latency': 0.5 * num_layers
             }],
-            trial_id=t)
-      cifar10_client.complete_trial(trial_id=t)
+            trial_id=trial.id)
+      cifar10_client.complete_trial(trial_id=trial.id)
 
       # Recover the trial from database.
       study_resource = resources.StudyResource.from_name(
           cifar10_client.study_name)
       trial_name = resources.TrialResource(study_resource.owner_id,
-                                           study_resource.study_id, t).name
+                                           study_resource.study_id,
+                                           trial.id).name
       stored_trial = self.servicer.datastore.get_trial(trial_name)
       stored_curve = [m.metrics[0].value for m in stored_trial.measurements]
 

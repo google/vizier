@@ -11,6 +11,7 @@ import grpc
 import numpy as np
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
+from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
 from vizier._src.algorithms.policies import random_policy
@@ -35,11 +36,14 @@ def policy_creator(
     policy_supporter: service_policy_supporter.ServicePolicySupporter
 ) -> pythia.Policy:
   """Creates a policy."""
-  if algorithm == study_pb2.StudySpec.Algorithm.RANDOM_SEARCH:
+  if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
+                   study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
     return random_policy.RandomPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
     return dp.PartiallySerializableDesignerPolicy(policy_supporter,
                                                   nsga2.create_nsga2)
+  elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
+    return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   else:
     raise ValueError(f'{algorithm} is not registered.')
 

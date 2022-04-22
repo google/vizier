@@ -49,6 +49,7 @@ class Algorithm(enum.Enum):
   GRID_SEARCH = study_pb2.StudySpec.Algorithm.GRID_SEARCH
   RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.RANDOM_SEARCH
   NSGA2 = study_pb2.StudySpec.Algorithm.NSGA2
+  EMUKIT_GP_EI = study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI
 
 
 class ObservationNoise(enum.Enum):
