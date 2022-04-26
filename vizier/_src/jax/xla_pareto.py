@@ -7,6 +7,8 @@ import jax
 from jax import numpy as jnp
 import numpy as np
 
+from vizier._src.pyvizier.multimetric import pareto_optimal
+
 # Type aliases for readability only.
 # We don't over-specify for compatibility between jax and np.
 Matrix = Any
@@ -47,15 +49,15 @@ def _is_pareto_optimal_against(yy: Matrix, baseline: Matrix, *,
                                  axis=-1))  # N_y, N_b -> N_y
 
 
-jax_is_pareto_optimal_against = jax.jit(
+_jax_is_pareto_optimal_against = jax.jit(
     _is_pareto_optimal_against, static_argnames='strict')
 
 
 def is_frontier(ys: Matrix,
                 *,
                 num_shards: int = 10,
-                verbose: bool = True) -> jnp.ndarray:
-  """Efficiently compute `jax_is_pareto_optimal_against(ys, ys, strict=True)` using iterative filtering.
+                verbose: bool = False) -> jnp.ndarray:
+  """Efficiently compute `_jax_is_pareto_optimal_against(ys, ys, strict=True)`.
 
   Divide `ys` into shards and gradually trim down the candidates.
 
@@ -78,18 +80,33 @@ def is_frontier(ys: Matrix,
     candidates = ys[frontier]
     # Filter candidates by comparing against the slice.
     if verbose:
-      # Use print. This method won't run in production anyways.
       print(f'Compare {len(candidates)} against {begin}:{end}.')
-    tt = jax_is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
+    tt = _jax_is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
     frontier[frontier] = tt
   return frontier
+
+
+class JaxParetoOptimalAlgorithm(pareto_optimal.BaseParetoOptimalAlgorithm):
+  """Jax-based functions for calculating pareto frontiers."""
+
+  def is_pareto_optimal(self, points: np.ndarray) -> np.ndarray:
+    """Jax-enabled Pareto frontier algorithm. See base class."""
+    return np.array(is_frontier(points), dtype=bool)
+
+  def is_pareto_optimal_against(self, points: np.ndarray,
+                                dominating_points: np.ndarray,
+                                strict: bool) -> np.ndarray:
+    """Jax-enabled optimality/domination algorithm. See base class."""
+    return np.array(
+        _jax_is_pareto_optimal_against(points, dominating_points, strict),
+        dtype=bool)
 
 
 def get_frontier(ys: Matrix,
                  *,
                  num_shards: int = 10,
                  verbose: bool = True) -> jnp.ndarray:
-  """Efficiently compute `ys[jax_is_pareto_optimal_against(ys, ys, strict=True)]` using iterative filtering.
+  """Efficiently compute `ys[_jax_is_pareto_optimal_against(ys, ys, strict=True)]` using iterative filtering.
 
   Divide `ys` into shards and gradually trim down the candidates.
   `get_frontier` doesn't call `is_frontier`, because `get_frontier` runs faster
@@ -114,7 +131,7 @@ def get_frontier(ys: Matrix,
     if verbose:
       # Use print. This method won't run in production anyways.
       print(f'Compare {len(candidates)} against {begin}:{end}.')
-    tt = jax_is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
+    tt = _jax_is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
     candidates = candidates[tt]
   return candidates
 
