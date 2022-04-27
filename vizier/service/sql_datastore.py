@@ -1,5 +1,6 @@
-"""Partial progress implementation of SQL Datastore."""
-from typing import Callable, Iterable, List, Optional
+"""Implementation of SQL Datastore."""
+from typing import Callable, Dict, Iterable, List, Optional
+from absl import logging
 import sqlalchemy as sqla
 
 from vizier.service import datastore
@@ -10,7 +11,7 @@ from vizier.service import vizier_oss_pb2
 from google.longrunning import operations_pb2
 
 
-# TODO: Finish off implementation of this class.
+# TODO: Raise KeyErrors when object is not found.
 class SQLDataStore(datastore.DataStore):
   """SQL Datastore."""
 
@@ -282,15 +283,56 @@ class SQLDataStore(datastore.DataStore):
       study_metadata: Iterable[key_value_pb2.KeyValue],
       trial_metadata: Iterable[datastore._KeyValuePlus],  # pylint:disable=protected-access
   ) -> None:
-    """Store the supplied metadata in the database.
+    """Store the supplied metadata into the SQL database."""
+    s_resource = resources.StudyResource.from_name(study_name)
+    logging.debug('database.update_metadata s_resource= %s', s_resource)
 
-    Args:
-        study_name: (Typically derived from a StudyResource.)
-        study_metadata: Metadata to attach to the Study as a whole.
-        trial_metadata: Metadata to attach to Trials.
+    # Obtain original study.
+    get_study_query = sqla.select([
+        self._studies_table
+    ]).where(self._studies_table.c.study_name == study_name)
+    study_result = self._connection.execute(get_study_query)
+    row = study_result.fetchone()
+    original_study = study_pb2.Study.FromString(row['serialized_study'])
 
-    Raises:
-      KeyError: if the update fails because of an attempt to attach metadata to
-        a nonexistant Trial.
-    """
-    raise NotImplementedError()
+    # Update the study with new study_metadata and update database.
+    original_study.study_spec.ClearField('metadata')
+    for metadata in study_metadata:
+      original_study.study_spec.metadata.append(metadata)
+    update_study_query = sqla.update(self._studies_table).where(
+        self._studies_table.c.study_name == study_name).values(
+            serialized_study=original_study.SerializeToString())
+    self._connection.execute(update_study_query)
+
+    # Store trial-related metadata in the database. We first create a dict of
+    # the relevant `trial_resources` that will be touched.   We clear them, then
+    # loop through the metadata, converting to protos.
+    trial_resources: Dict[str, resources.TrialResource] = {}
+    for metadata in trial_metadata:
+      clear_metadata_bool = False
+      if metadata.trial_id in trial_resources:
+        t_resource = trial_resources[metadata.trial_id]
+      else:
+        # If we don't have a t_resource entry already, create one and clear the
+        # relevant Trial's metadata.
+        t_resource = s_resource.trial_resource(metadata.trial_id)
+        trial_resources[metadata.trial_id] = t_resource
+        clear_metadata_bool = True
+
+      # Obtain original trial.
+      trial_name = t_resource.name
+      original_trial_query = sqla.select([
+          self._trials_table
+      ]).where(self._trials_table.c.trial_name == trial_name)
+      trial_result = self._connection.execute(original_trial_query)
+      row = trial_result.fetchone()
+      original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
+
+      # Edit trial metadata and update database.
+      if clear_metadata_bool:
+        original_trial.ClearField('metadata')
+      original_trial.metadata.append(metadata.k_v)
+      update_trial_query = sqla.update(self._trials_table).where(
+          self._trials_table.c.trial_name == trial_name).values(
+              serialized_trial=original_trial.SerializeToString())
+      self._connection.execute(update_trial_query)

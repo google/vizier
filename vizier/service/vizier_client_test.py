@@ -176,9 +176,9 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  @parameterized.parameters((pyvizier.Algorithm.RANDOM_SEARCH, 150, 1, False),
-                            (pyvizier.Algorithm.EMUKIT_GP_EI, 15, 2, False),
-                            (pyvizier.Algorithm.NSGA2, 150, 1, True))
+  @parameterized.parameters((pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
+                            (pyvizier.Algorithm.EMUKIT_GP_EI, 7, 2, False),
+                            (pyvizier.Algorithm.NSGA2, 50, 1, True))
   def test_e2e_tuning(self, algorithm, num_iterations: int, batch_size: int,
                       multi_objective: bool):
     # Runs end-to-end tuning via back-and-forth communication to server.

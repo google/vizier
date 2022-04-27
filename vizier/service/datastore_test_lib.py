@@ -4,12 +4,16 @@ import string
 from typing import List
 
 from vizier.service import datastore
+from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_oss_pb2
+from vizier.service import vizier_service_pb2
 
 from google.longrunning import operations_pb2
 from absl.testing import parameterized
+
+_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
 def make_random_string() -> str:
@@ -124,3 +128,24 @@ class DataStoreTestCase(parameterized.TestCase):
     ds.update_early_stopping_operation(output_op)
     new_output_op = ds.get_early_stopping_operation(output_op.name)
     self.assertEqual(output_op, new_output_op)
+
+  def assertUpdateMetadataAPI(self, ds: datastore.DataStore,
+                              study: study_pb2.Study,
+                              trials: List[study_pb2.Trial]):
+    """Tests if the datastore handles metadata updates properly."""
+    # TODO: Make this test more general.
+    ds.create_study(study)
+    for trial in trials:
+      ds.create_trial(trial)
+    study_metadata = [key_value_pb2.KeyValue(key='a', ns='b', value='C')]
+    trial_metadata = [
+        _KeyValuePlus(
+            trial_id='1',
+            k_v=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+    ]
+    ds.update_metadata(study.name, study_metadata, trial_metadata)
+    mutated_study_config = ds.load_study(study.name).study_spec
+    self.assertEqual(list(mutated_study_config.metadata), study_metadata)
+    mutated_trial = ds.get_trial(trials[0].name)
+    self.assertEqual(mutated_trial.id, str(trial_metadata[0].trial_id))
+    self.assertEqual(list(mutated_trial.metadata), [trial_metadata[0].k_v])

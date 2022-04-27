@@ -41,6 +41,10 @@ class SQLDataStoreTest(datastore_test_lib.DataStoreTestCase):
                                 self.example_trials,
                                 self.example_early_stopping_operations)
 
+  def test_update_metadata(self):
+    self.assertUpdateMetadataAPI(self.datastore, self.example_study,
+                                 self.example_trials)
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -5,8 +5,8 @@ See resources.py for naming conventions.
 import abc
 import copy
 import dataclasses
-import logging
 from typing import Callable, Dict, Iterable, List, Optional
+from absl import logging
 
 from vizier.service import key_value_pb2
 from vizier.service import resources
@@ -362,29 +362,31 @@ class NestedDictRAMDataStore(DataStore):
     """
     s_resource = resources.StudyResource.from_name(study_name)
     logging.debug('database.update_metadata s_resource= %s', s_resource)
+
     try:
-      study = self._owners[s_resource.owner_id].studies[s_resource.study_id]
+      study_node = self._owners[s_resource.owner_id].studies[
+          s_resource.study_id]
     except KeyError as e:
       raise KeyError('No such study:', s_resource.name) from e
     # Store Study-related metadata into the database.
-    study.study_proto.study_spec.ClearField('metadata')
+    study_node.study_proto.study_spec.ClearField('metadata')
     for metadata in study_metadata:
-      study.study_proto.study_spec.metadata.append(metadata)
-    # Store trial-related metadata in the database.  We first create a table of
-    # the relevant `trial_resources` that will be touched.   We clear them, then
+      study_node.study_proto.study_spec.metadata.append(metadata)
+    # Store trial-related metadata in the database. We first create a dict of
+    # the relevant `trial_resources` that will be touched. We clear them, then
     # loop through the metadata, converting to protos.
     trial_resources: Dict[str, resources.TrialResource] = {}
     for metadata in trial_metadata:
-      try:
+      if metadata.trial_id in trial_resources:
         t_resource = trial_resources[metadata.trial_id]
-      except KeyError:
+      else:
         # If we don't have a t_resource entry already, create one and clear the
         # relevant Trial's metadata.
         t_resource = s_resource.trial_resource(metadata.trial_id)
         trial_resources[metadata.trial_id] = t_resource
         try:
-          study.trial_protos[t_resource.trial_id].ClearField('metadata')
+          study_node.trial_protos[t_resource.trial_id].ClearField('metadata')
         except KeyError as e:
           raise KeyError(f'No such trial ({metadata.trial_id}):',
                          t_resource.name) from e
-      study.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)
+      study_node.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)

@@ -633,7 +633,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
-    del context
+    # TODO: Add locking logic.
     try:
       self.datastore.update_metadata(
           request.name,
