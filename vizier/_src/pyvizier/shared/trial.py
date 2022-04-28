@@ -12,7 +12,7 @@ from collections import abc as cabc
 import copy
 import datetime
 import enum
-from typing import Any, Dict, List, MutableMapping, Optional, Union
+from typing import Any, Dict, List, MutableMapping, Optional, Union, FrozenSet
 
 from absl import logging
 import attr
@@ -505,3 +505,48 @@ class TrialSuggestion:
       Trial object.
     """
     return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)
+
+
+@attr.define
+class TrialFilter:
+  """Trial filter.
+
+  All filters are by default 'AND' conditions.
+
+  Attributes:
+    ids: If set, requires the trial's id to be in the set.
+    min_id: If set, requires the trial's id to be at least this number.
+    max_id: If set, requires the trial's id to be at most this number.
+    status: If set, requires the trial's status to be in the set.
+  """
+  ids: Optional[FrozenSet[int]] = attr.field(
+      default=None,
+      converter=lambda x: frozenset(x) if x is not None else None,
+      validator=attr.validators.optional(
+          attr.validators.deep_iterable(
+              attr.validators.instance_of(int),
+              attr.validators.instance_of(frozenset))))
+  min_id: Optional[int] = attr.field(default=None)
+  max_id: Optional[int] = attr.field(default=None)
+  status: Optional[FrozenSet[TrialStatus]] = attr.field(
+      default=None,
+      converter=lambda x: frozenset(x) if x is not None else None,
+      validator=attr.validators.optional(
+          attr.validators.deep_iterable(
+              attr.validators.instance_of(TrialStatus),
+              attr.validators.instance_of(frozenset))))
+
+  def __call__(self, trial: Trial) -> bool:
+    if self.ids is not None:
+      if trial.id not in self.ids:
+        return False
+    if self.min_id is not None:
+      if trial.id < self.min_id:
+        return False
+    if self.max_id is not None:
+      if trial.id > self.max_id:
+        return False
+    if self.status is not None:
+      if trial.status not in self.status:
+        return False
+    return True

@@ -2,6 +2,8 @@
 import copy
 import datetime
 
+from typing import Sequence
+
 import numpy as np
 
 from vizier._src.pyvizier.shared import trial
@@ -213,6 +215,33 @@ class SuggestionTestI(absltest.TestCase):
     self.assertEqual(t.id, 1)
     self.assertEqual(t.parameters, suggestion.parameters)
     self.assertEqual(t.metadata, suggestion.metadata)
+
+
+class TrialFilterTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      dict(filtr=trial.TrialFilter(), answers=[True, True, True, True]),
+      dict(
+          filtr=trial.TrialFilter(ids=(2, 3)),
+          answers=[False, True, True, False]),
+      dict(
+          filtr=trial.TrialFilter(min_id=3, ids=(2, 3)),
+          answers=[False, False, True, False]),
+      dict(
+          filtr=trial.TrialFilter(
+              min_id=2,
+              max_id=3,
+              ids=(1, 2, 3, 4),
+              status=[trial.TrialStatus.REQUESTED]),
+          answers=[False, True, False, False]))
+  def test_filter(self, filtr: trial.TrialFilter, answers: Sequence[bool]):
+    trials = (
+        trial.Trial(id=1),  # ACTIVE
+        trial.Trial(id=2, is_requested=True),  #  REQUESTED
+        trial.Trial(id=3, stopping_reason='stopping'),  # STOPPING
+        trial.Trial(id=4).complete(trial.Measurement()),  # COMPLETED
+    )
+    self.assertSequenceEqual([filtr(t) for t in trials], answers)
 
 
 if __name__ == '__main__':
