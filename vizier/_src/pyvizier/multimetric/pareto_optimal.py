@@ -91,10 +91,12 @@ class FastParetoOptimalAlgorithm(BaseParetoOptimalAlgorithm):
   https://static.aminer.org/pdf/PDF/000/211/201/on_the_computational_complexity_of_finding_the_maxima_of_a.pdf
   """
 
-  def __init__(self,
-               base_algorithm: BaseParetoOptimalAlgorithm,
-               *,
-               recursive_threshold: int = 10000):
+  def __init__(
+      self,
+      base_algorithm: BaseParetoOptimalAlgorithm = NaiveParetoOptimalAlgorithm(
+      ),
+      *,
+      recursive_threshold: int = 10000):
     """Init.
 
     To use with XLA:
@@ -106,7 +108,7 @@ class FastParetoOptimalAlgorithm(BaseParetoOptimalAlgorithm):
     Args:
       base_algorithm: Base pareto computation algorithm used as base case.
       recursive_threshold: If points are fewer than this threshold, use base
-      case naive algorithm.
+        case naive algorithm.
     """
     self._base_algorithm = base_algorithm
     self._recursive_threshold = recursive_threshold

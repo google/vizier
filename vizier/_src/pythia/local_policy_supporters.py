@@ -3,9 +3,12 @@ import datetime
 from typing import Iterable, List, Optional, Sequence
 
 import attr
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.pythia import policy
 from vizier._src.pythia import policy_supporter
+from vizier.pyvizier import converters
+from vizier.pyvizier import multimetric
 
 
 # TODO: Keep the Pareto frontier trials.
@@ -91,19 +94,72 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
       for ns in deltum.namespaces():
         self._trials[tid - 1].metadata.abs_ns(ns).update(deltum.abs_ns(ns))
 
+  # TODO: Return `count` trials for multi-objectives, when
+  # `count` exceeds the size of the pareto frontier.
+  def GetBestTrials(self, *, count: Optional[int] = None) -> List[vz.Trial]:
+    """Returns optimal trials.
+
+    Single-objective study:
+      * If `count` is unset, returns all tied top trials.
+      * If `count` is set, returns top `count` trials, breaking ties
+           arbitrarily.
+
+    Multi-objective study:
+      * If `count` is unset, returns all pareto optimal trials.
+      * If `count` is set, returns up to `count` of pareto optimal trials that
+          are arbitrarily selected.
+
+    Args:
+      count: If unset, returns pareto optimal trials only. If set, returns the
+        top "count" trials.
+
+    Returns:
+      Best trials.
+    """
+    if not self.study_config.metric_information.of_type(
+        vz.MetricType.OBJECTIVE):
+      raise ValueError('Requires at least one objective metric.')
+    if self.study_config.metric_information.of_type(vz.MetricType.SAFETY):
+      raise ValueError('Cannot work with safe metrics.')
+
+    converter = converters.TrialToArrayConverter.from_study_config(
+        self.study_config,
+        flip_sign_for_minimization_metrics=True,
+        dtype=np.float32)
+
+    if len(self.study_config.metric_information) == 1:
+      # Single metric: Sort and take top N.
+      count = count or 1  # Defaults to 1.
+      labels = converter.to_labels(self._trials).squeeze()
+      sorted_idx = np.argsort(-labels)  # np.argsort sorts in ascending order.
+      return list(np.asarray(self._trials)[sorted_idx[:count]])
+    else:
+      algorithm = multimetric.FastParetoOptimalAlgorithm()
+      is_optimal = algorithm.is_pareto_optimal(
+          points=converter.to_labels(self._trials))
+      return list(np.asarray(self._trials)[is_optimal][:count])
+
   def AddTrials(self, trials: Sequence[vz.Trial]) -> None:
     """(Re-)assigns ids to the trials and add them to the study."""
     for i, trial in enumerate(trials):
       trial.id = i + len(self.trials) + 1
     self._trials.extend(trials)
 
-  def SuggestTrials(self, algorithm: policy.Policy,
-                    count: int) -> Sequence[vz.Trial]:
-    """Suggest and add new trials."""
+  def AddSuggestions(
+      self, suggestions: Sequence[vz.TrialSuggestion]) -> Sequence[vz.Trial]:
+    """Assigns ids to suggestions and add them to the study."""
     trials = []
-    for suggestion in algorithm.suggest(
-        policy.SuggestRequest(self.study_descriptor(), count)):
+    for suggestion in suggestions:
       # Assign temporary ids, which will be overwritten by AddTrials() method.
       trials.append(suggestion.to_trial(-1))
     self.AddTrials(trials)
     return trials
+
+  def SuggestTrials(self, algorithm: policy.Policy,
+                    count: int) -> Sequence[vz.Trial]:
+    """Suggest and add new trials."""
+    decisions = algorithm.suggest(
+        policy.SuggestRequest(self.study_descriptor(), count))
+    return self.AddSuggestions([
+        vz.TrialSuggestion(d.parameters, metadata=d.metadata) for d in decisions
+    ])
