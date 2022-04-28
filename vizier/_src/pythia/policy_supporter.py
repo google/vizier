@@ -154,7 +154,6 @@ class PolicySupporter(abc.ABC):
       $status_matches will be ignored.
     """
 
-  @abc.abstractmethod
   def CheckCancelled(self, note: Optional[str] = None) -> None:
     """Throws a CancelComputeError on timeout or if Vizier cancels.
 
@@ -168,8 +167,8 @@ class PolicySupporter(abc.ABC):
     Raises:
       CancelComputeError: (Do not catch.)
     """
+    pass
 
-  @abc.abstractmethod
   def TimeRemaining(self) -> datetime.timedelta:
     """The time remaining to compute a result.
 
@@ -182,6 +181,7 @@ class PolicySupporter(abc.ABC):
     you should raise TemporaryPythiaError (if you want a retry) or
     InactivateStudyError (if not).
     """
+    return datetime.timedelta(hours=1.0)
 
   def MetadataUpdate(self) -> _MetadataUpdateContext:
     """Queues metadata updates, then passes them to UpdateMetadata().

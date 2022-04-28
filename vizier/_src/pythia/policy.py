@@ -2,7 +2,7 @@
 
 import abc
 from collections import abc as cabc
-from typing import Any, Collection, FrozenSet, Iterable, List, Optional, Type, TypeVar
+from typing import Any, FrozenSet, Iterable, List, Optional, Type, TypeVar
 
 import attr
 from vizier import pyvizier as vz
@@ -70,18 +70,16 @@ class EarlyStopRequest:
     checkpoint_dir: If the policy wishes to use a checkpoint, then this is the
       path to find one.
   """
-  _study_descriptor: vz.StudyDescriptor = attr.ib(
+  _study_descriptor: vz.StudyDescriptor = attr.field(
       validator=attr.validators.instance_of(vz.StudyDescriptor))
-  trial_ids: FrozenSet[int] = attr.ib(
+  trial_ids: FrozenSet[int] = attr.field(
       default=attr.Factory(frozenset),
-      validator=attr.validators.instance_of(Collection),
-      converter=frozenset,
-      on_setattr=attr.setters.validate)
+      validator=attr.validators.instance_of(FrozenSet),
+      converter=frozenset)
 
-  checkpoint_dir: Optional[str] = attr.ib(
+  checkpoint_dir: Optional[str] = attr.field(
       default=None,
-      validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate)
+      validator=attr.validators.optional(attr.validators.instance_of(str)))
 
   @property
   def study_guid(self) -> str:
@@ -117,7 +115,7 @@ class SuggestDecision:
         id=trial_id, parameters=self.parameters, metadata=self.metadata)
 
 
-class SuggestDecisions(cabc.Sequence):
+class SuggestDecisions(cabc.Sequence[SuggestDecision]):
   """Sequence of suggestions."""
 
   def __init__(self, items: Iterable[SuggestDecision] = tuple()):

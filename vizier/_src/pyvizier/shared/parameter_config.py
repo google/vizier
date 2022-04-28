@@ -138,8 +138,9 @@ class ParameterConfig:
       validator=attr.validators.optional(
           attr.validators.instance_of((float, int, str))),
       kw_only=True)
-  _external_type: Optional[ExternalType] = attr.ib(
+  _external_type: ExternalType = attr.ib(
       init=True,
+      converter=lambda v: v or ExternalType.INTERNAL,
       validator=attr.validators.optional(
           attr.validators.instance_of(ExternalType)),
       repr=lambda v: v.name if v is not None else 'None',
