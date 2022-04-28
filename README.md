@@ -22,7 +22,7 @@ It consists of two main APIs:
 
 
 ## Installation <a name="installation"></a>
-The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`.
+The simplest way is to run the provided `install.sh`. It installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.9+.
 
 ## User API: Running Vizier <a name="user_api"></a>
 An example of the entire server + client loop running locally can be found in the unit test file `vizier/service/vizier_client_test.py`. A manual demo can be found in the `/demos/` folder. To run the manual demo, run the following command to start the server:
