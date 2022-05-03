@@ -10,15 +10,7 @@ It consists of two main APIs:
 * **User API:** Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
 * **Developer API:** Defines abstractions and utilities for implementing new optimization algorithms for research and benchmarking.
 
-# Table of Contents
-1. [Installation](#installation)
-2. [User API: Running Vizier](#user_api)
-    1. [Running the Server](#running_server)
-    2. [Running the Client](#running_client)
-3. [Developer API: Writing Algorithms](#developer_api)
-4. [Code Structure](#code_structure)
-    1. [Frequently Used Import Targets](#freq_import_targets)
-5. [Citing Vizier](#citing_vizier)
+
 
 
 ## Installation <a name="installation"></a>
@@ -112,30 +104,83 @@ for trial in suggestions:
 The Vizier service is designed to handle multiple concurrent clients all requesting suggestions and returning metrics.
 
 ## Developer API: Writing Algorithms <a name="developer_api"></a>
-Writing blackbox optimization algorithms requires implementing the `Policy` interface as part of Vizier's Pythia service, with pseudocode shown below:
+
+### Pythia Policy is what runs in Vizier service.
+
+Vizier server keeps a mapping between algorithm names and `Policy` objects ([Example](http://github.com/google/vizier/tree/main/vizier/service/vizier_server.py)). All algorithm implementations
+must be eventually wrapped into `Policy`.
+
+However, you should directly subclass a `Policy` **only if you are an advanced user
+and wants to fully control the algorithm behavior** including all database
+operations. For all other developers, we recommend using an alternative abstraction
+listed in the remainder of this section.
+
+A typical `Policy` implementation is injected with a `PolicySupporter`, which is
+used for fetching data.
+For a minimal example, see [`RandomPolicy`](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/policies/random_policy.py).
+
+To interact with a `Policy` locally, you can use
+`LocalPolicyRunner` which is a local in-ram server-client for `Policy`.
+For implementing a policy, one should use `vizier.pyvizier` instead of
+`vizier.service.pyvizier` library. The former is platform-independent, and the
+latter is platform-dependent. The most notable difference is that
+`vizier.pyvizier.ProblemStatement` is a subset of `vizier.service.pyvizier.ProblemStatement`
+that does not carry any service-related attributes (such as study identifier
+and algorithms).
 
 ```python
-class MyPolicy(Policy):
-  def __init__(self, ...):
-    self.policy_supporter = PolicySupporter(...)  # Used to obtain old trials.
+from vizier.pythia import Policy, LocalPolicyRunner
+from vizier import pyvizier as vz
 
-  def suggest(self, request: SuggestRequest) -> List[SuggestDecision]:
-    """Suggests trials to be evaluated."""
-    suggestions = []
-    for _ in range(request.count):
-      old_trials = self.policy_supporter.GetTrials(...)
-      trial = make_new_trial(old_trials, request.study_config)
-      suggestions.append(base.SuggestDecision(trial))
-    return suggestions
+problem = vz.ProblemStatement()
+problem.search_space.select_root().add_float_param('x', 0.0, 1.0)
+problem.metric_information.append(
+    vz.MetricInformation(name='objective', goal=vz.MetricInformation.MAXIMIZE))
 
-  def early_stop(self, request: EarlyStopRequest) -> List[EarlyStopDecision]:
-    """Selects trials to stop from the request."""
-    old_trials = self.policy_supporter.GetTrials(...)
-    trials_to_stop = determine_trials_to_stop(old_trials, request.trial_ids)
-    return [base.EarlyStopDecision(id) for id in trials_to_stop]
+runner = LocalPolicyRunner(problem)
+policy = MyPolicy(runner)
+
+# Run for 10 iterations, each of which evaluates 5 new trials.
+for _ in range(10):
+  new_trials = runner.SuggestTrials(policy, 5)
+  for trial in new_trials:
+    trial.complete(vz.Measurement(
+        {'objective': trial.parameters_dict['x'] ** 2}))
 ```
 
-An example is given in `vizier/_src/algorithms/policies/random_policy.py`.
+
+### Designer API is the recommended starting point
+
+[`Designer`](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/core/abstractions.py)
+API provides a simplified entry point for implementing suggestion algorithms. For a minimal example, see [`EmukitDesigner`](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/designers/emukit.py) which wraps GP-EI algorithm implemented in `emukit` into `Designer` interface. `Designer`s are trivially wrapped into `Policy` via [`DesignerPolicy`](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/policies/designer_policy.py).
+
+
+Also see our [designer testing routine](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/testing/test_runners.py)
+for an up-to-date example on how to interact with designers.
+
+The `Designer` interface is designed to let you forget about the ultimate goal
+of serving the algorithm in a distributed environment. Pretend you'll use it
+locally by doing a suggest-update loop in RAM, during the lifetime of a study.
+
+
+#### Serializing your designer
+
+You can consider making your `Designer` serializable so that you can save and
+load its state. Vizier offers [two options](http://github.com/google/vizier/tree/main/vizier/interfaces/serializable.py):
+
+* `Serializable` should be used if your algorithm can be easily serialized. You
+can save and restore the state in full.
+* `PartiallySerializable` should be used if your algorithm has subcomponents
+that are not easily serializable. You can recover the designer's state as long
+as it was initialized with the same arguments.
+
+For an example of a `Serializable` object, see [`Population`] (http://github.com/google/vizier/tree/main/vizier/_src/algorithms/evolution/numpy_populations.py),
+which is the internal state used by NSGA2. [NSGA2 itself](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/evolution/templates.py) is only
+`PartiallySerializable` so that people can easily plug in their own mutation
+and selection operations without worrying about serilaizations.
+
+Serialization also makes your `Designer` run faster if its state size scales sublinearly in the number of observed Trials. For example, typical evolution algorithms and metaheuristics qualify, while GP-based algorithms do not because they use a non-parametric model. All you have to do is wrap your `(Partially)SerializableDesigner` into `(Partially)SerializableDesignerPolicy`, which takes care of the state management.
+
 
 ## Code structure <a name="code_structure"></a>
 
