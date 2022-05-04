@@ -64,42 +64,42 @@ class ParameterValueTest(parameterized.TestCase):
     self.assertEqual(value.as_float, 0.0)
     self.assertEqual(value.as_int, 0)
     self.assertEqual(value.as_bool, False)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '0.0')
 
   def testIntegralFloat1(self):
     value = ParameterValue(1.0)
     self.assertEqual(value.as_float, 1.0)
     self.assertEqual(value.as_int, 1)
     self.assertEqual(value.as_bool, True)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '1.0')
 
   def testIntegralFloat2(self):
     value = ParameterValue(2.0)
     self.assertEqual(value.as_float, 2.0)
     self.assertEqual(value.as_int, 2)
     self.assertIsNone(value.as_bool)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '2.0')
 
   def testInteger0(self):
     value = ParameterValue(0)
     self.assertEqual(value.as_float, 0)
     self.assertEqual(value.as_int, 0)
     self.assertEqual(value.as_bool, False)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '0')
 
   def testInteger1(self):
     value = ParameterValue(1)
     self.assertEqual(value.as_float, 1)
     self.assertEqual(value.as_int, 1)
     self.assertEqual(value.as_bool, True)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '1')
 
   def testInteger2(self):
     value = ParameterValue(2)
     self.assertEqual(value.as_float, 2)
     self.assertEqual(value.as_int, 2)
     self.assertIsNone(value.as_bool)
-    self.assertIsNone(value.as_str)
+    self.assertEqual(value.as_str, '2')
 
   def testStringTrue(self):
     value = ParameterValue('true')
@@ -110,6 +110,20 @@ class ParameterValueTest(parameterized.TestCase):
     value = ParameterValue('false')
     self.assertEqual(value.as_bool, False)
     self.assertEqual(value.as_str, 'false')
+
+  def testStringFloat1(self):
+    value = ParameterValue('1.0')
+    self.assertEqual(value.as_float, 1.0)
+    self.assertIsNone(value.as_int)
+    self.assertIsNone(value.as_bool)
+    self.assertEqual(value.as_str, '1.0')
+
+  def testStringInt1(self):
+    value = ParameterValue('1')
+    self.assertEqual(value.as_float, 1.0)
+    self.assertEqual(value.as_int, 1)
+    self.assertIsNone(value.as_bool)
+    self.assertEqual(value.as_str, '1')
 
   def testCastAsExternalNone(self):
     value = ParameterValue(1.0)

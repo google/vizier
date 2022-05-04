@@ -128,9 +128,11 @@ class ParameterValue:
       return 1.0
     elif self.value == 'false':
       return 0.0
-    elif isinstance(self.value, str):
+    try:
+      # Note str -> float conversion exists for benchmark use.
+      return float(self.value)
+    except ValueError:
       return None
-    return float(self.value)
 
   @property
   def as_int(self) -> Optional[int]:
@@ -139,9 +141,11 @@ class ParameterValue:
       return 1
     elif self.value == 'false':
       return 0
-    elif isinstance(self.value, str):
+    try:
+      # Note str -> int conversion exists for benchmark use.
+      return int(self.value)
+    except ValueError:
       return None
-    return int(self.value)
 
   @property
   def as_str(self) -> Optional[str]:
@@ -150,7 +154,8 @@ class ParameterValue:
       return str(self.value).lower()
     elif isinstance(self.value, str):
       return self.value
-    return None
+    # Note str conversion exists for benchmark use. Use __str__ instead.
+    return str(self.value)
 
   @property
   def as_bool(self) -> Optional[bool]:
