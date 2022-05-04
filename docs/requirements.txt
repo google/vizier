@@ -1,0 +1,5 @@
+# Required Sphinx-related packages.
+
+autodocsumm
+sphinx_autodoc_typehints
+myst_nb

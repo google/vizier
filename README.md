@@ -174,10 +174,10 @@ can save and restore the state in full.
 that are not easily serializable. You can recover the designer's state as long
 as it was initialized with the same arguments.
 
-For an example of a `Serializable` object, see [`Population`] (http://github.com/google/vizier/tree/main/vizier/_src/algorithms/evolution/numpy_populations.py),
+For an example of a `Serializable` object, see [`Population`](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/evolution/numpy_populations.py),
 which is the internal state used by NSGA2. [NSGA2 itself](http://github.com/google/vizier/tree/main/vizier/_src/algorithms/evolution/templates.py) is only
 `PartiallySerializable` so that people can easily plug in their own mutation
-and selection operations without worrying about serilaizations.
+and selection operations without worrying about serializations.
 
 Serialization also makes your `Designer` run faster if its state size scales sublinearly in the number of observed Trials. For example, typical evolution algorithms and metaheuristics qualify, while GP-based algorithms do not because they use a non-parametric model. All you have to do is wrap your `(Partially)SerializableDesigner` into `(Partially)SerializableDesignerPolicy`, which takes care of the state management.
 
