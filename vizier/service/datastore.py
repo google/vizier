@@ -18,6 +18,16 @@ from google.longrunning import operations_pb2
 _KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
 
 
+class AlreadyExistsError(ValueError):
+  """The resource key already exists in the database."""
+  pass
+
+
+class NotFoundError(KeyError):
+  """The resource key does not exist in the database."""
+  pass
+
+
 class DataStore(abc.ABC):
   """Abstract class for data storage.
 
@@ -26,60 +36,101 @@ class DataStore(abc.ABC):
 
   @abc.abstractmethod
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
-    """Creates study in the database. If already exists, raises ValueError."""
+    """Creates study in database. If preexisting, raises AlreadyExistsError."""
 
   @abc.abstractmethod
   def load_study(self, study_name: str) -> study_pb2.Study:
-    """Loads a study from the database."""
+    """Loads study from the database. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def delete_study(self, study_name: str) -> None:
-    """Deletes study from database. If Study doesn't exist, raises KeyError."""
+    """Deletes study from database. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
-    """Lists all studies under a given owner."""
+    """Lists all studies under owner.
+
+
+    Args:
+      owner_name: Name of owner.
+
+    Returns:
+      List of Studies associated with owner.
+
+    Raises:
+      NotFoundError: If the owner does not exist.
+    """
 
   @abc.abstractmethod
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
-    """Stores trial in database."""
+    """Stores trial in database. If preexisting, raises AlreadyExistsError."""
 
   @abc.abstractmethod
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
-    """Retrieves trial from database."""
+    """Retrieves trial from database. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
-    """Updates pre-existing trial."""
+    """Updates pre-existing trial. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
-    """List all trials given a study."""
+    """List all trials for study. If study nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def delete_trial(self, trial_name: str) -> None:
-    """Deletes trial from database."""
+    """Deletes trial from database. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def max_trial_id(self, study_name: str) -> int:
-    """Maximal trial ID in study. Returns 0 if no trials exist."""
+    """Maximal trial ID in study (defaults to 0 if no trials exist).
+
+    Args:
+      study_name: Name of study.
+
+    Returns:
+      Maximum trial ID as an int.
+
+    Raises:
+      NotFoundError: If the study does not exist.
+    """
 
   @abc.abstractmethod
   def create_suggestion_operation(
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
-    """Stores suggestion operation."""
+    """Stores suggestion operation.
+
+    Args:
+      operation:
+
+    Returns:
+      Resource for created op.
+
+    Raises:
+      AlreadyExistsError: If the suggest op already exists.
+    """
 
   @abc.abstractmethod
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
-    """Retrieves suggestion operation."""
+    """Retrieves suggestion operation. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def update_suggestion_operation(
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
-    """Updates pre-existing suggestion operation."""
+    """Updates pre-existing suggestion op.
+
+    Args:
+      operation: New suggestion speration.
+
+    Returns:
+      Resource to operation.
+
+    Raises:
+      NotFoundError if suggest op is nonexistent.
+    """
 
   @abc.abstractmethod
   def list_suggestion_operations(
@@ -88,29 +139,59 @@ class DataStore(abc.ABC):
       client_id: str,
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
-    """Retrieve all suggestion operations from a client."""
+    """Retrieve all suggestion op from client.
+
+    Args:
+      owner_name: Associated owner for the suggest op.
+      client_id: Associated client for the suggest op.
+      filter_fn: Optional function to filter out the suggest ops.
+
+    Raises:
+      NotFoundError: If owner or client is nonexistent.
+    """
 
   @abc.abstractmethod
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
-    """Maximal suggestion number for a given client."""
+    """Maximal suggestion number for given client.
+
+    Args:
+      owner_name: Name of associated owners.
+      client_id: ID of associated client.
+
+    Returns:
+      Maximum suggest op number as an int.
+
+    Raises:
+      NotFoundError if owner or client is nonexistent.
+    """
 
   @abc.abstractmethod
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
-    """Stores early stopping operation."""
+    """Stores early stopping op. If preexisting, raises AlreadyExistsError."""
 
   @abc.abstractmethod
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
-    """Retrieves early stopping operation."""
+    """Retrieves early stopping op. If nonexistent, raises NotFoundError."""
 
   @abc.abstractmethod
   def update_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
-    """Updates pre-existing early stopping operation."""
+    """Updates preexisting early stopping op.
+
+    Args:
+      operation: New version of EarlyStoppingOp.
+
+    Returns:
+      Resource to the EarlyStoppingOp.
+
+    Raises:
+      NotFoundError: If early stopping op is nonexistent.
+    """
 
   @abc.abstractmethod
   def update_metadata(
@@ -122,13 +203,13 @@ class DataStore(abc.ABC):
     """Store the supplied metadata in the database.
 
     Args:
-        study_name: (Typically derived from a StudyResource.)
-        study_metadata: Metadata to attach to the Study as a whole.
-        trial_metadata: Metadata to attach to Trials.
+      study_name: (Typically derived from a StudyResource.)
+      study_metadata: Metadata to attach to the Study as a whole.
+      trial_metadata: Metadata to attach to Trials.
 
     Raises:
-      KeyError: if the update fails because of an attempt to attach metadata to
-        a nonexistant Trial.
+      NotFoundError: If the update fails because of an attempt to attach
+        metadata to a nonexistant Trial.
     """
 
 
@@ -187,63 +268,92 @@ class NestedDictRAMDataStore(DataStore):
       if resource.study_id not in study_dict:
         study_dict.update(temp_dict)
       else:
-        raise ValueError('Study with that name already exists.', study.name)
+        raise AlreadyExistsError('Study with that name already exists.',
+                                 study.name)
     return resource
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     resource = resources.StudyResource.from_name(study_name)
-    return copy.deepcopy(
-        self._owners[resource.owner_id].studies[resource.study_id].study_proto)
+    try:
+      return copy.deepcopy(self._owners[resource.owner_id].studies[
+          resource.study_id].study_proto)
+    except KeyError as err:
+      raise NotFoundError('Could not get Study with name:',
+                          resource.name) from err
 
   def delete_study(self, study_name: str) -> None:
     resource = resources.StudyResource.from_name(study_name)
-    del self._owners[resource.owner_id].studies[resource.study_id]
+    try:
+      del self._owners[resource.owner_id].studies[resource.study_id]
+    except KeyError as err:
+      raise NotFoundError('Study does not exist:', study_name) from err
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
-    if resource.owner_id not in self._owners:
-      return []
-    else:
+    try:
       study_nodes = list(self._owners[resource.owner_id].studies.values())
       return copy.deepcopy(
           [study_node.study_proto for study_node in study_nodes])
+    except KeyError as err:
+      raise NotFoundError('Owner does not exist:', owner_name) from err
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
-    self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
-        resource.trial_id] = copy.deepcopy(trial)
+    trial_protos = self._owners[resource.owner_id].studies[
+        resource.study_id].trial_protos
+    if resource.trial_id in trial_protos:
+      raise AlreadyExistsError('Trial %s already exists' % trial.name)
+    else:
+      trial_protos[resource.trial_id] = copy.deepcopy(trial)
     return resource
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     resource = resources.TrialResource.from_name(trial_name)
-    return copy.deepcopy(self._owners[resource.owner_id].studies[
-        resource.study_id].trial_protos[resource.trial_id])
+    try:
+      return copy.deepcopy(self._owners[resource.owner_id].studies[
+          resource.study_id].trial_protos[resource.trial_id])
+    except KeyError as err:
+      raise NotFoundError('Could not get Trial with name:',
+                          resource.name) from err
 
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
     try:
-      self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
-          resource.trial_id] = copy.deepcopy(trial)
+      trial_protos = self._owners[resource.owner_id].studies[
+          resource.study_id].trial_protos
+      if resource.trial_id not in trial_protos:
+        raise NotFoundError('Trial %s does not exist.' % trial.name)
+      trial_protos[resource.trial_id] = copy.deepcopy(trial)
       return resource
     except KeyError as err:
-      raise KeyError('Could not update Trial with name:',
-                     resource.name) from err
+      raise NotFoundError('Could not update Trial with name:',
+                          resource.name) from err
 
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     resource = resources.StudyResource.from_name(study_name)
-    return copy.deepcopy(
-        list(self._owners[resource.owner_id].studies[
-            resource.study_id].trial_protos.values()))
+    try:
+      return copy.deepcopy(
+          list(self._owners[resource.owner_id].studies[
+              resource.study_id].trial_protos.values()))
+    except KeyError as err:
+      raise NotFoundError('Study does not exist:', study_name) from err
 
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
-    del self._owners[resource.owner_id].studies[resource.study_id].trial_protos[
-        resource.trial_id]
+    try:
+      del self._owners[resource.owner_id].studies[
+          resource.study_id].trial_protos[resource.trial_id]
+    except KeyError as err:
+      raise NotFoundError('Trial does not exist:', trial_name) from err
 
   def max_trial_id(self, study_name: str) -> int:
     resource = resources.StudyResource.from_name(study_name)
-    trial_ids = list(self._owners[resource.owner_id].studies[
-        resource.study_id].trial_protos.keys())
+    try:
+      trial_ids = list(self._owners[resource.owner_id].studies[
+          resource.study_id].trial_protos.keys())
+    except KeyError as err:
+      raise NotFoundError('Study does not exist:', study_name) from err
+
     if trial_ids:
       return max(trial_ids)
     else:
@@ -259,7 +369,8 @@ class NestedDictRAMDataStore(DataStore):
     suggestion_operations = self._owners[resource.owner_id].clients[
         resource.client_id].suggestion_operations
     if resource.operation_id in suggestion_operations:
-      raise ValueError('Operation already exists:', resource.operation_id)
+      raise AlreadyExistsError('Operation already exists:',
+                               resource.operation_id)
 
     suggestion_operations[resource.operation_id] = copy.deepcopy(operation)
     return resource
@@ -272,8 +383,8 @@ class NestedDictRAMDataStore(DataStore):
           resource.client_id].suggestion_operations[resource.operation_id])
 
     except KeyError as err:
-      raise KeyError('Could not find SuggestionOperation with name:',
-                     resource.name) from err
+      raise NotFoundError('Could not find SuggestionOperation with name:',
+                          resource.name) from err
 
   def update_suggestion_operation(
       self, operation: operations_pb2.Operation
@@ -285,8 +396,8 @@ class NestedDictRAMDataStore(DataStore):
               resource.operation_id] = copy.deepcopy(operation)
       return resource
     except KeyError as err:
-      raise KeyError('Could not update SuggestionOperation with name:',
-                     resource.name) from err
+      raise NotFoundError('Could not update SuggestionOperation with name:',
+                          resource.name) from err
 
   def list_suggestion_operations(
       self,
@@ -332,8 +443,8 @@ class NestedDictRAMDataStore(DataStore):
       return copy.deepcopy(self._owners[resource.owner_id].studies[
           resource.study_id].early_stopping_operations[resource.operation_id])
     except KeyError as err:
-      raise KeyError('Could not find EarlyStoppingOperation with name:',
-                     resource.name) from err
+      raise NotFoundError('Could not find EarlyStoppingOperation with name:',
+                          resource.name) from err
 
   def update_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
@@ -346,8 +457,8 @@ class NestedDictRAMDataStore(DataStore):
               resource.operation_id] = copy.deepcopy(operation)
       return resource
     except KeyError as err:
-      raise KeyError('Could not update EarlyStoppingOperation with name:',
-                     resource.name) from err
+      raise NotFoundError('Could not update EarlyStoppingOperation with name:',
+                          resource.name) from err
 
   def update_metadata(self, study_name: str,
                       study_metadata: Iterable[key_value_pb2.KeyValue],
@@ -367,7 +478,7 @@ class NestedDictRAMDataStore(DataStore):
       study_node = self._owners[s_resource.owner_id].studies[
           s_resource.study_id]
     except KeyError as e:
-      raise KeyError('No such study:', s_resource.name) from e
+      raise NotFoundError('No such study:', s_resource.name) from e
     # Store Study-related metadata into the database.
     study_node.study_proto.study_spec.ClearField('metadata')
     for metadata in study_metadata:
@@ -387,6 +498,6 @@ class NestedDictRAMDataStore(DataStore):
         try:
           study_node.trial_protos[t_resource.trial_id].ClearField('metadata')
         except KeyError as e:
-          raise KeyError(f'No such trial ({metadata.trial_id}):',
-                         t_resource.name) from e
+          raise NotFoundError(f'No such trial ({metadata.trial_id}):',
+                              t_resource.name) from e
       study_node.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)

@@ -11,7 +11,6 @@ from vizier.service import vizier_oss_pb2
 from google.longrunning import operations_pb2
 
 
-# TODO: Raise KeyErrors when object is not found.
 class SQLDataStore(datastore.DataStore):
   """SQL Datastore."""
 
@@ -57,49 +56,67 @@ class SQLDataStore(datastore.DataStore):
     self._root_metadata.create_all(self._engine)
 
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
-    """Creates study in the database. If already exists, raises ValueError."""
     study_resource = resources.StudyResource.from_name(study.name)
     query = self._studies_table.insert().values(
         study_name=study.name,
         owner_id=study_resource.owner_id,
         study_id=study_resource.study_id,
         serialized_study=study.SerializeToString())
-    self._connection.execute(query)
-    return study_resource
+    try:
+      self._connection.execute(query)
+      return study_resource
+    except sqla.exc.IntegrityError as integrity_error:
+      raise datastore.AlreadyExistsError('Study with name %s already exists.' %
+                                         study.name) from integrity_error
 
   def load_study(self, study_name: str) -> study_pb2.Study:
-    """Loads a study from the database."""
     query = sqla.select([self._studies_table
                         ]).where(self._studies_table.c.study_name == study_name)
     result = self._connection.execute(query)
     row = result.fetchone()
+    if not row:
+      raise datastore.NotFoundError('Failed to find study name: %s' %
+                                    study_name)
+
     return study_pb2.Study.FromString(row['serialized_study'])
 
   def delete_study(self, study_name: str) -> None:
-    """Deletes study from database. If Study doesn't exist, raises KeyError."""
+    study_resource = resources.StudyResource.from_name(study_name)
+
+    exists_query = sqla.select([
+        self._studies_table
+    ]).where(self._studies_table.c.study_name == study_name)
+    exists_query = sqla.exists(exists_query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Study %s does not exist.' % study_name)
+
     query = self._studies_table.delete().where(
         self._studies_table.c.study_name == study_name)
     self._connection.execute(query)
 
-    study_resource = resources.StudyResource.from_name(study_name)
     trial_query = self._trials_table.delete().where(
         self._trials_table.c.owner_id == study_resource.owner_id).where(
             self._trials_table.c.study_id == study_resource.study_id)
     self._connection.execute(trial_query)
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
-    """Lists all studies under a given owner."""
-    owner_resource = resources.OwnerResource.from_name(owner_name)
-    query = sqla.select([
-        self._studies_table
-    ]).where(self._studies_table.c.owner_id == owner_resource.owner_id)
-    result = self._connection.execute(query)
+    owner_id = resources.OwnerResource.from_name(owner_name).owner_id
+
+    query = sqla.select([self._studies_table
+                        ]).where(self._studies_table.c.owner_id == owner_id)
+    exists_query = sqla.exists(query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Owner name %s does not exist.' %
+                                    owner_name)
+
+    result = self._connection.execute(query).fetchall()
     return [
         study_pb2.Study.FromString(row['serialized_study']) for row in result
     ]
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
-    """Stores trial in database."""
     trial_resource = resources.TrialResource.from_name(trial.name)
     query = self._trials_table.insert().values(
         trial_name=trial.name,
@@ -107,19 +124,36 @@ class SQLDataStore(datastore.DataStore):
         study_id=trial_resource.study_id,
         trial_id=trial_resource.trial_id,
         serialized_trial=trial.SerializeToString())
-    self._connection.execute(query)
-    return trial_resource
+    try:
+      self._connection.execute(query)
+      return trial_resource
+    except sqla.exc.IntegrityError as integrity_error:
+      raise datastore.AlreadyExistsError('Trial with name %s already exists.' %
+                                         trial.name) from integrity_error
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
-    """Retrieves trial from database."""
     query = sqla.select([self._trials_table
                         ]).where(self._trials_table.c.trial_name == trial_name)
     result = self._connection.execute(query)
     row = result.fetchone()
+
+    if not row:
+      raise datastore.NotFoundError('Failed to find trial name: %s' %
+                                    trial_name)
+
     return study_pb2.Trial.FromString(row['serialized_trial'])
 
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     trial_resource = resources.TrialResource.from_name(trial.name)
+
+    exists_query = sqla.select([
+        self._trials_table
+    ]).where(self._trials_table.c.trial_name == trial.name)
+    exists_query = sqla.exists(exists_query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Trial %s does not exist.' % trial.name)
+
     query = sqla.update(self._trials_table).where(
         self._trials_table.c.trial_name == trial.name).values(
             trial_name=trial.name,
@@ -131,26 +165,49 @@ class SQLDataStore(datastore.DataStore):
     return trial_resource
 
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
-    """List all trials given a study."""
     study_resource = resources.StudyResource.from_name(study_name)
+
     query = sqla.select([
         self._trials_table
     ]).where(self._trials_table.c.owner_id == study_resource.owner_id).where(
         self._trials_table.c.study_id == study_resource.study_id)
+    exists_query = sqla.exists(query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Study name %s does not exist.' %
+                                    study_name)
+
     result = self._connection.execute(query)
     return [
         study_pb2.Trial.FromString(row['serialized_trial']) for row in result
     ]
 
   def delete_trial(self, trial_name: str) -> None:
-    """Deletes trial from database."""
+    exists_query = sqla.select([
+        self._trials_table
+    ]).where(self._trials_table.c.trial_name == trial_name)
+    exists_query = sqla.exists(exists_query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Trial %s does not exist.' % trial_name)
+
     query = self._trials_table.delete().where(
         self._trials_table.c.trial_name == trial_name)
     self._connection.execute(query)
 
   def max_trial_id(self, study_name: str) -> int:
-    """Maximal trial ID in study. Returns 0 if no trials exist."""
     study_resource = resources.StudyResource.from_name(study_name)
+
+    query = sqla.select([
+        self._trials_table
+    ]).where(self._trials_table.c.owner_id == study_resource.owner_id).where(
+        self._trials_table.c.study_id == study_resource.study_id)
+    exists_query = sqla.exists(query).select()
+    exists = self._connection.execute(exists_query).fetchone()[0]
+    if not exists:
+      raise datastore.NotFoundError('Study name %s does not exist.' %
+                                    study_name)
+
     query = sqla.select([
         sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)
     ]).where(self._trials_table.c.owner_id == study_resource.owner_id).where(
@@ -160,7 +217,6 @@ class SQLDataStore(datastore.DataStore):
   def create_suggestion_operation(
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
-    """Stores suggestion operation."""
     resource = resources.SuggestionOperationResource.from_name(operation.name)
     query = self._suggestion_operations_table.insert().values(
         operation_name=operation.name,
@@ -173,7 +229,6 @@ class SQLDataStore(datastore.DataStore):
 
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
-    """Retrieves suggestion operation."""
     query = sqla.select([self._suggestion_operations_table]).where(
         self._suggestion_operations_table.c.operation_name == operation_name)
     result = self._connection.execute(query)
@@ -201,7 +256,6 @@ class SQLDataStore(datastore.DataStore):
       client_id: str,
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
-    """Retrieve all suggestion operations from a client."""
     owner_resource = resources.OwnerResource.from_name(owner_name)
     query = sqla.select([
         self._suggestion_operations_table
@@ -224,7 +278,6 @@ class SQLDataStore(datastore.DataStore):
 
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
-    """Maximal suggestion number for a given client."""
     resource = resources.OwnerResource.from_name(owner_name)
     query = sqla.select([
         sqla.func.max(
@@ -237,7 +290,6 @@ class SQLDataStore(datastore.DataStore):
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
-    """Stores early stopping operation."""
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation.name)
     query = self._early_stopping_operations_table.insert().values(
@@ -251,7 +303,6 @@ class SQLDataStore(datastore.DataStore):
 
   def get_early_stopping_operation(
       self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
-    """Retrieves early stopping operation."""
     query = sqla.select([
         self._early_stopping_operations_table
     ]).where(self._early_stopping_operations_table.c.operation_name ==

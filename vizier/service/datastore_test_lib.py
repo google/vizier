@@ -1,4 +1,5 @@
 """Library functions for testing databases."""
+import copy
 import random
 import string
 from typing import List
@@ -26,13 +27,20 @@ class DataStoreTestCase(parameterized.TestCase):
   def assertStudyAPI(self, ds: datastore.DataStore, study: study_pb2.Study):
     """Tests if the datastore handles studies correctly."""
     ds.create_study(study)
+    with self.assertRaises(datastore.AlreadyExistsError):
+      ds.create_study(study)  # Can't make another study w/ same name.
+
     copied_study = ds.load_study(study.name)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.load_study(study.name + 'does_not_exist')  # Non-existent study.
     self.assertEqual(copied_study, study)
     self.assertIsNot(copied_study, study)  # Check pass-by-value.
 
     owner_name = resources.StudyResource.from_name(
         study.name).owner_resource.name
     list_of_one_study = ds.list_studies(owner_name)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.list_studies(owner_name + 'does_not_exist')  # Non-existent study.
     self.assertLen(list_of_one_study, 1)
     self.assertEqual(list_of_one_study[0], study)
     self.assertIsNot(list_of_one_study[0], study)  # Check pass-by-value.
@@ -42,33 +50,52 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertNotEqual(study, copied_original_study)  # Check pass-by-value.
 
     ds.delete_study(study.name)
-    empty_list = ds.list_studies(owner_name)
-    self.assertEmpty(empty_list)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.delete_study(study.name)  # Deleting non-existent study.
+    with self.assertRaises(datastore.NotFoundError):
+      ds.load_study(study.name)  # Non-existent study.
 
   def assertTrialAPI(self, ds: datastore.DataStore, study: study_pb2.Study,
                      trials: List[study_pb2.Trial]):
     """Tests if the datastore handles trials correctly."""
+    num_trials = len(trials)
+
     ds.create_study(study)
     for trial in trials:
       ds.create_trial(trial)
+      with self.assertRaises(datastore.AlreadyExistsError):
+        ds.create_trial(trial)  # Already exists.
       copied_trial = ds.get_trial(trial.name)
+      with self.assertRaises(datastore.NotFoundError):
+        ds.get_trial(trial.name + str(num_trials))  # Does not exist.
       self.assertEqual(trial, copied_trial)
       self.assertIsNot(trial, copied_trial)  # Check pass-by-value.
 
     self.assertLen(trials, ds.max_trial_id(study.name))
+    with self.assertRaises(datastore.NotFoundError):
+      ds.max_trial_id(study.name + 'does_not_exist')  # Does not exist.
 
     list_of_trials = ds.list_trials(study.name)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.list_trials(study.name + 'does_not_exist')  # Does not exist.
     self.assertEqual(list_of_trials, trials)
     self.assertIsNot(list_of_trials, trials)  # Check pass-by-value.
 
     first_trial = trials[0]
     first_trial.infeasible_reason = make_random_string()
     ds.update_trial(first_trial)
+    with self.assertRaises(datastore.NotFoundError):
+      missing_trial = copy.deepcopy(first_trial)
+      missing_trial.name += str(num_trials)
+      ds.update_trial(missing_trial)  # Does not exist.
     new_first_trial = ds.get_trial(first_trial.name)
     self.assertEqual(first_trial, new_first_trial)
     self.assertIsNot(first_trial, new_first_trial)  # Check pass-by-value.
 
     ds.delete_trial(first_trial.name)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.delete_trial(first_trial.name)  # Already deleted.
+      ds.delete_trial(first_trial.name + str(num_trials))  # Does not exist.
     leftover_trials = ds.list_trials(study.name)
     self.assertEqual(leftover_trials, trials[1:])
     self.assertIsNot(leftover_trials, trials[1:])  # Check pass-by-value.
