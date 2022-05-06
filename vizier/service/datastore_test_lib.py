@@ -109,15 +109,22 @@ class DataStoreTestCase(parameterized.TestCase):
     ds.create_study(study)
     for operation in suggestion_ops:
       ds.create_suggestion_operation(operation)
+      with self.assertRaises(datastore.AlreadyExistsError):
+        ds.create_suggestion_operation(operation)  # Already exists.
 
-    self.assertLen(
-        suggestion_ops,
-        ds.max_suggestion_operation_number(
-            resources.OwnerResource(study_resource.owner_id).name, client_id))
+    owner_name = resources.OwnerResource(study_resource.owner_id).name
+    self.assertLen(suggestion_ops,
+                   ds.max_suggestion_operation_number(owner_name, client_id))
 
-    list_of_operations = ds.list_suggestion_operations(
-        resources.OwnerResource(study_resource.owner_id).name, client_id)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.max_suggestion_operation_number(
+          owner_name, client_id + 'does_not_exist')  # Client doesn't exist.
+
+    list_of_operations = ds.list_suggestion_operations(owner_name, client_id)
     self.assertEqual(list_of_operations, suggestion_ops)
+    with self.assertRaises(datastore.NotFoundError):
+      ds.list_suggestion_operations(owner_name, client_id +
+                                    'does_not_exist')  # Client doesn't exist.
 
     output_op = ds.get_suggestion_operation(
         resources.SuggestionOperationResource(
@@ -125,10 +132,25 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertEqual(output_op, suggestion_ops[0])
     self.assertIsNot(output_op, suggestion_ops[0])  # Check pass-by-value.
 
+    with self.assertRaises(datastore.NotFoundError):
+      ds.get_suggestion_operation(
+          resources.SuggestionOperationResource(
+              study_resource.owner_id,
+              client_id + 'does_not_exist',  # Client doesn't exist.
+              operation_number=1).name)
+
     output_op.metadata.type_url = make_random_string()
     ds.update_suggestion_operation(output_op)
     new_output_op = ds.get_suggestion_operation(output_op.name)
     self.assertEqual(output_op, new_output_op)
+
+    wrong_output_op = copy.deepcopy(output_op)
+    wrong_output_op.name = resources.SuggestionOperationResource(
+        study_resource.owner_id,
+        client_id + 'does_not_exist',  # Client doesn't exist.
+        operation_number=1).name
+    with self.assertRaises(datastore.NotFoundError):
+      ds.update_suggestion_operation(wrong_output_op)
 
   def assertEarlyStoppingAPI(
       self, ds: datastore.DataStore, study: study_pb2.Study,
@@ -143,6 +165,8 @@ class DataStoreTestCase(parameterized.TestCase):
 
     for operation in early_stopping_ops:
       ds.create_early_stopping_operation(operation)
+      with self.assertRaises(datastore.AlreadyExistsError):
+        ds.create_early_stopping_operation(operation)  # Op already exists.
 
     output_op = ds.get_early_stopping_operation(
         resources.EarlyStoppingOperationResource(study_resource.owner_id,
@@ -151,10 +175,25 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertEqual(output_op, early_stopping_ops[0])
     self.assertIsNot(output_op, early_stopping_ops[0])  # Check pass-by-value.
 
+    wrong_op_name = resources.EarlyStoppingOperationResource(
+        study_resource.owner_id,
+        study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
+        1).name
+    with self.assertRaises(datastore.NotFoundError):
+      ds.get_early_stopping_operation(wrong_op_name)
+
     output_op.failure_message = make_random_string()
     ds.update_early_stopping_operation(output_op)
     new_output_op = ds.get_early_stopping_operation(output_op.name)
     self.assertEqual(output_op, new_output_op)
+
+    wrong_output_op = copy.deepcopy(output_op)
+    wrong_output_op.name = resources.EarlyStoppingOperationResource(
+        study_resource.owner_id,
+        study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
+        1).name
+    with self.assertRaises(datastore.NotFoundError):
+      ds.update_early_stopping_operation(wrong_output_op)
 
   def assertUpdateMetadataAPI(self, ds: datastore.DataStore,
                               study: study_pb2.Study,

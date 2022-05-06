@@ -214,15 +214,21 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
       # Checks for a non-done operation in the database with this name.
       active_op_filter_fn = lambda op: not op.done
-      active_op_list = self.datastore.list_suggestion_operations(
-          owner_name, request.client_id, active_op_filter_fn)
+      try:
+        active_op_list = self.datastore.list_suggestion_operations(
+            owner_name, request.client_id, active_op_filter_fn)
+      except datastore.NotFoundError:
+        active_op_list = []
       if active_op_list:
         return active_op_list[0]  # We've found the active one!
 
       start_time = _get_current_time()
       # Create a new Op if there aren't any active (not done) ops.
-      new_op_number = self.datastore.max_suggestion_operation_number(
-          owner_name, request.client_id) + 1
+      try:
+        new_op_number = self.datastore.max_suggestion_operation_number(
+            owner_name, request.client_id) + 1
+      except datastore.NotFoundError:
+        new_op_number = 1
       new_op_name = resources.SuggestionOperationResource(
           owner_id, request.client_id, new_op_number).name
       output_op = operations_pb2.Operation(name=new_op_name, done=False)
@@ -341,16 +347,18 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.CreateTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
-    trial = request.trial
-    trial.id = str(self.datastore.max_trial_id(request.parent) + 1)
+    lock = self._study_name_to_lock[request.parent]
+    with lock:
+      trial = request.trial
+      trial.id = str(self.datastore.max_trial_id(request.parent) + 1)
 
-    if trial.state != study_pb2.Trial.State.SUCCEEDED:
-      trial.state = study_pb2.Trial.State.REQUESTED
-    trial.ClearField('client_id')
+      if trial.state != study_pb2.Trial.State.SUCCEEDED:
+        trial.state = study_pb2.Trial.State.REQUESTED
+      trial.ClearField('client_id')
 
-    trial.start_time.CopyFrom(_get_current_time())
-    self.datastore.create_trial(trial)
-    return trial
+      trial.start_time.CopyFrom(_get_current_time())
+      self.datastore.create_trial(trial)
+      return trial
 
   def GetTrial(
       self,

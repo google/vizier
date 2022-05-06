@@ -63,7 +63,17 @@ class DataStore(abc.ABC):
 
   @abc.abstractmethod
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
-    """Stores trial in database. If preexisting, raises AlreadyExistsError."""
+    """Stores trial in database.
+
+    Args:
+      trial: Trial to be stored.
+
+    Returns:
+      The newly created trial resource name.
+
+    Raises:
+      AlreadyExistsError: If trial already exists.
+    """
 
   @abc.abstractmethod
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
@@ -163,14 +173,24 @@ class DataStore(abc.ABC):
       Maximum suggest op number as an int.
 
     Raises:
-      NotFoundError if owner or client is nonexistent.
+      NotFoundError: If owner or client is nonexistent.
     """
 
   @abc.abstractmethod
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
-    """Stores early stopping op. If preexisting, raises AlreadyExistsError."""
+    """Stores early stopping operation.
+
+    Args:
+      operation: Operation to be stored.
+
+    Returns:
+      The newly created op resource name.
+
+    Raises:
+      AlreadyExistsError: If the suggest op already exists.
+    """
 
   @abc.abstractmethod
   def get_early_stopping_operation(
@@ -363,11 +383,12 @@ class NestedDictRAMDataStore(DataStore):
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
     resource = resources.SuggestionOperationResource.from_name(operation.name)
+
     if resource.client_id not in self._owners[resource.owner_id].clients:
       self._owners[resource.owner_id].clients[resource.client_id] = ClientNode()
-
     suggestion_operations = self._owners[resource.owner_id].clients[
         resource.client_id].suggestion_operations
+
     if resource.operation_id in suggestion_operations:
       raise AlreadyExistsError('Operation already exists:',
                                resource.operation_id)
@@ -406,33 +427,42 @@ class NestedDictRAMDataStore(DataStore):
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
     resource = resources.OwnerResource.from_name(owner_name)
-    if client_id not in self._owners[resource.owner_id].clients:
-      return []
-    else:
+    try:
       operations_list = list(self._owners[
           resource.owner_id].clients[client_id].suggestion_operations.values())
-      if filter_fn is not None:
-        return copy.deepcopy([op for op in operations_list if filter_fn(op)])
-      else:
-        return copy.deepcopy(operations_list)
+    except KeyError as err:
+      raise NotFoundError('(owner_name, client_id) does not exist:',
+                          (owner_name, client_id)) from err
+
+    if filter_fn is not None:
+      return copy.deepcopy([op for op in operations_list if filter_fn(op)])
+    else:
+      return copy.deepcopy(operations_list)
 
   def max_suggestion_operation_number(self, owner_name: str,
                                       client_id: str) -> int:
     resource = resources.OwnerResource.from_name(owner_name)
-    if client_id not in self._owners[resource.owner_id].clients:
-      return 0
-    else:
-      return len(self._owners[
-          resource.owner_id].clients[client_id].suggestion_operations)
+    try:
+      ops = self._owners[
+          resource.owner_id].clients[client_id].suggestion_operations
+    except KeyError as err:
+      raise NotFoundError('(owner_name, client_id) does not exist:',
+                          (owner_name, client_id)) from err
+    return len(ops)
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation.name)
-    self._owners[resource.owner_id].studies[
-        resource.study_id].early_stopping_operations[
-            resource.operation_id] = copy.deepcopy(operation)
+
+    early_stopping_ops = self._owners[resource.owner_id].studies[
+        resource.study_id].early_stopping_operations
+    if resource.operation_id in early_stopping_ops:
+      raise AlreadyExistsError('Operation already exists:',
+                               resource.operation_id)
+
+    early_stopping_ops[resource.operation_id] = copy.deepcopy(operation)
     return resource
 
   def get_early_stopping_operation(
