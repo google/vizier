@@ -8,6 +8,10 @@
 
 [**Documentation**](https://oss-vizier.readthedocs.io/)
 | [**Installation**](#installation)
+| [**User API**](#user_api)
+| [**Developer API**](#developer_api)
+| [**Code Structure**](#code_structure)
+| [**Citing Vizier**](#citing_vizier)
 
 
 ## What is Open Source (OSS) Vizier?
@@ -191,7 +195,7 @@ and selection operations without worrying about serializations.
 Serialization also makes your `Designer` run faster if its state size scales sublinearly in the number of observed Trials. For example, typical evolution algorithms and metaheuristics qualify, while GP-based algorithms do not because they use a non-parametric model. All you have to do is wrap your `(Partially)SerializableDesigner` into `(Partially)SerializableDesignerPolicy`, which takes care of the state management.
 
 
-## Code structure <a name="code_structure"></a>
+## Code Structure <a name="code_structure"></a>
 
 ### Frequently used import targets <a name="freq_import_targets"></a>
 
