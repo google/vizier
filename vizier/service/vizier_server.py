@@ -113,7 +113,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     with lock:
       # Database creates a new active study or loads existing study using the
       # display name.
-      possible_candidate_studies = self.datastore.list_studies(request.parent)
+      try:
+        possible_candidate_studies = self.datastore.list_studies(request.parent)
+      except datastore.NotFoundError:
+        possible_candidate_studies = []
 
       # Check if all possible study_id's have been taken.
       if len(possible_candidate_studies) >= MAX_STUDY_ID:

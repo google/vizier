@@ -90,9 +90,9 @@ class VizierClientTest(parameterized.TestCase):
     another_client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
         owner_id=self.owner_id,
+        client_id='another_client',
         study_display_name=study_display_name,
-        study_config=study_config,
-        client_id='another_client')
+        study_config=study_config)
     self.assertEqual(client.study_name, another_client.study_name)
 
   def test_list_studies(self):
