@@ -14,9 +14,9 @@ sudo apt-get install python3-sphinx
 # Installs relevant Sphinx packages.
 pip install -r requirements.txt --use-deprecated=legacy-resolver
 
-# Build HTML webpage files into `OUTPUT_FOLDER` directory.
+# Build files (HTML, doctests, etc.) into `OUTPUT_FOLDER` directory.
 rm -rf ${OUTPUT_FOLDER}  # Clear out original folder
-sphinx-build -b html -a . ${OUTPUT_FOLDER}
+sphinx-build -b $1 -a . ${OUTPUT_FOLDER}
 
 # Optionally host the HTML folder. Access on browser `https://localhost:5000/`.
 # python -m http.server --directory ${OUTPUT_FOLDER} 5000

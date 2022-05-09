@@ -29,9 +29,13 @@ jobs:
     - name: Print installed dependencies
       run: |
         pip freeze
-    - name: Make Sphinx Docs (Test)
+    - name: Make Sphinx Docs to HTML (Test)
       run: |
         cd docs
-        bash ./generate_docs.sh
+        bash ./generate_docs.sh html
+    - name: Documentation Test (Test)
+      run: |
+        cd docs
+        bash ./generate_docs.sh doctest
 
 
