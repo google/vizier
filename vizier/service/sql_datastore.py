@@ -20,6 +20,11 @@ class SQLDataStore(datastore.DataStore):
     self._engine = engine
     self._connection = self._engine.connect()
     self._root_metadata = sqla.MetaData()
+    self._owners_table = sqla.Table(
+        'owners',
+        self._root_metadata,
+        sqla.Column('owner_name', sqla.String, primary_key=True),
+    )
     self._studies_table = sqla.Table(
         'studies',
         self._root_metadata,
@@ -59,6 +64,13 @@ class SQLDataStore(datastore.DataStore):
 
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
     study_resource = resources.StudyResource.from_name(study.name)
+    owner_name = study_resource.owner_resource.name
+    owner_query = self._owners_table.insert().values(owner_name=owner_name)
+    try:
+      self._connection.execute(owner_query)
+    except sqla.exc.IntegrityError:
+      logging.info('Owner with name %s currently exists.', owner_name)
+
     query = self._studies_table.insert().values(
         study_name=study.name,
         owner_id=study_resource.owner_id,
@@ -105,14 +117,17 @@ class SQLDataStore(datastore.DataStore):
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     owner_id = resources.OwnerResource.from_name(owner_name).owner_id
 
-    query = sqla.select([self._studies_table])
-    query = query.where(self._studies_table.c.owner_id == owner_id)
-    exists_query = sqla.exists(query).select()
+    exists_query = sqla.select([self._owners_table])
+    exists_query = exists_query.where(
+        self._owners_table.c.owner_name == owner_name)
+    exists_query = sqla.exists(exists_query).select()
     exists = self._connection.execute(exists_query).fetchone()[0]
     if not exists:
       raise datastore.NotFoundError('Owner name %s does not exist.' %
                                     owner_name)
 
+    query = sqla.select([self._studies_table])
+    query = query.where(self._studies_table.c.owner_id == owner_id)
     result = self._connection.execute(query).fetchall()
     return [
         study_pb2.Study.FromString(row['serialized_study']) for row in result
@@ -169,17 +184,20 @@ class SQLDataStore(datastore.DataStore):
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     study_resource = resources.StudyResource.from_name(study_name)
 
-    query = sqla.select([self._trials_table])
-    query = query.where(
-        self._trials_table.c.owner_id == study_resource.owner_id)
-    query = query.where(
-        self._trials_table.c.study_id == study_resource.study_id)
-    exists_query = sqla.exists(query).select()
+    exists_query = sqla.select([self._studies_table])
+    exists_query = exists_query.where(
+        self._studies_table.c.study_name == study_name)
+    exists_query = sqla.exists(exists_query).select()
     exists = self._connection.execute(exists_query).fetchone()[0]
     if not exists:
       raise datastore.NotFoundError('Study name %s does not exist.' %
                                     study_name)
 
+    query = sqla.select([self._trials_table])
+    query = query.where(
+        self._trials_table.c.owner_id == study_resource.owner_id)
+    query = query.where(
+        self._trials_table.c.study_id == study_resource.study_id)
     result = self._connection.execute(query)
     return [
         study_pb2.Trial.FromString(row['serialized_trial']) for row in result
@@ -201,16 +219,13 @@ class SQLDataStore(datastore.DataStore):
   def max_trial_id(self, study_name: str) -> int:
     study_resource = resources.StudyResource.from_name(study_name)
 
-    exists_query = sqla.select([self._trials_table])
+    exists_query = sqla.select([self._studies_table])
     exists_query = exists_query.where(
-        self._trials_table.c.owner_id == study_resource.owner_id)
-    exists_query = exists_query.where(
-        self._trials_table.c.study_id == study_resource.study_id)
+        self._studies_table.c.study_name == study_name)
     exists_query = sqla.exists(exists_query).select()
     exists = self._connection.execute(exists_query).fetchone()[0]
     if not exists:
-      raise datastore.NotFoundError('Study name %s does not exist.' %
-                                    study_name)
+      raise datastore.NotFoundError('Study %s does not exist.' % study_name)
 
     query = sqla.select(
         [sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)])
@@ -218,7 +233,10 @@ class SQLDataStore(datastore.DataStore):
         self._trials_table.c.owner_id == study_resource.owner_id)
     query = query.where(
         self._trials_table.c.study_id == study_resource.study_id)
-    return self._connection.execute(query).fetchone()[0]
+    potential_trial_id = self._connection.execute(query).fetchone()[0]
+    if potential_trial_id is None:
+      return 0
+    return potential_trial_id
 
   def create_suggestion_operation(
       self, operation: operations_pb2.Operation

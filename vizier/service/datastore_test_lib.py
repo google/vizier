@@ -55,12 +55,22 @@ class DataStoreTestCase(parameterized.TestCase):
     with self.assertRaises(datastore.NotFoundError):
       ds.load_study(study.name)  # Non-existent study.
 
+    # Owner should be kept track of.
+    expected_studies = ds.list_studies(owner_name)
+    self.assertEmpty(expected_studies)
+
   def assertTrialAPI(self, ds: datastore.DataStore, study: study_pb2.Study,
                      trials: List[study_pb2.Trial]):
     """Tests if the datastore handles trials correctly."""
     num_trials = len(trials)
 
     ds.create_study(study)
+    empty_list = ds.list_trials(study.name)
+    self.assertEmpty(empty_list)
+
+    expected_max_trial_id = ds.max_trial_id(study.name)
+    self.assertEqual(expected_max_trial_id, 0)
+
     for trial in trials:
       ds.create_trial(trial)
       with self.assertRaises(datastore.AlreadyExistsError):
