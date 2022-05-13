@@ -6,11 +6,13 @@ from vizier._src.algorithms.testing import test_runners
 from vizier.testing import test_studies
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
-class EmukitTest(absltest.TestCase):
+class EmukitTest(parameterized.TestCase):
 
-  def test_on_flat_space(self):
+  @parameterized.parameters(((v,) for v in emukit.Version))
+  def test_on_flat_space(self, version):
     config = vz.StudyConfig(
         search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
@@ -18,7 +20,7 @@ class EmukitTest(absltest.TestCase):
                 name='x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
         ])
     designer = emukit.EmukitDesigner(
-        config, num_random_samples=10, metadata_ns='emukit')
+        config, num_random_samples=10, metadata_ns='emukit', version=version)
     trials = test_runners.run_with_random_metrics(
         designer,
         config,
