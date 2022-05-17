@@ -16,7 +16,7 @@ for i in range(10):
 """
 
 import abc
-from typing import Sequence
+from typing import List, Sequence
 
 from vizier import pyvizier
 
@@ -24,17 +24,17 @@ from vizier import pyvizier
 class Experimenter(metaclass=abc.ABCMeta):
   """Abstract base class for Experimenters."""
 
+  # TODO: Use CompletedTrials as output type.
   @abc.abstractmethod
-  def evaluate(
-      self, trials: Sequence[pyvizier.TrialSuggestion]
-  ) -> list[pyvizier.CompletedTrial]:
+  def evaluate(self,
+               suggestions: Sequence[pyvizier.Trial]) -> List[pyvizier.Trial]:
     """Evaluates and completes the Trials.
 
     Args:
-      trials: Sequence of TrialSuggestions to be evaluated and completed.
+      suggestions: Sequence of Trials to be evaluated.
 
     Returns:
-      List of CompletedTrials.
+      List of completed Trials.
     """
     pass
 

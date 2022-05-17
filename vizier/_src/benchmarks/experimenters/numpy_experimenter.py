@@ -65,10 +65,9 @@ class NumpyExperimenter(experimenter.Experimenter):
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
 
-  def evaluate(
-      self, trials: Sequence[pyvizier.TrialSuggestion]
-  ) -> List[pyvizier.CompletedTrial]:
-    completed_trials = [t.to_trial(uid=0) for t in trials]
+  def evaluate(self,
+               suggestions: Sequence[pyvizier.Trial]) -> List[pyvizier.Trial]:
+    completed_trials = list(copy.deepcopy(suggestions))
     # Features has shape (num_trials, num_features).
     features = self._converter.to_features(completed_trials)
     for idx, completed_trial in enumerate(completed_trials):

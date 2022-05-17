@@ -33,7 +33,7 @@ class NumpyExperimenterTest(parameterized.TestCase):
     parameters = exptr.problem_statement().search_space.parameters
     self.assertLen(parameters, dim)
 
-    t = pyvizier.TrialSuggestion(parameters={
+    t = pyvizier.Trial(parameters={
         param.name: float(index) for index, param in enumerate(parameters)
     })
 
@@ -53,10 +53,10 @@ class NumpyExperimenterTest(parameterized.TestCase):
     parameters = exptr.problem_statement().search_space.parameters
     self.assertLen(parameters, dim)
 
-    t1 = pyvizier.TrialSuggestion(parameters={
+    t1 = pyvizier.Trial(parameters={
         param.name: float(index) for index, param in enumerate(parameters)
     })
-    t2 = pyvizier.TrialSuggestion(parameters={
+    t2 = pyvizier.Trial(parameters={
         param.name: -float(index) for index, param in enumerate(parameters)
     })
 

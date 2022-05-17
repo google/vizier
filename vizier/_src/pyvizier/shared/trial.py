@@ -287,7 +287,42 @@ class ParameterDict(cabc.MutableMapping):
 
 
 @attr.define(auto_attribs=True, frozen=False, init=True, slots=True)
-class Trial:
+class TrialSuggestion:
+  """Freshly suggested trial.
+
+  Suggestion can be converted to Trial object which has more functionalities.
+  """
+
+  parameters: ParameterDict = attr.field(
+      init=True,
+      factory=ParameterDict,
+      converter=ParameterDict,
+      validator=attr.validators.instance_of(ParameterDict))  # pytype: disable=wrong-arg-types
+
+  metadata: Metadata = attr.field(
+      init=True,
+      kw_only=True,
+      factory=Metadata,
+      validator=attr.validators.instance_of(Metadata))
+
+  def to_trial(self, uid: int = 0) -> 'Trial':
+    """Assign an id and make it a Trial object.
+
+    Usually SuggetedTrial objects are shorted-lived and not exposed to end
+    users. This method is for non-service usage of trial suggestions in
+    benchmarks, tests, colabs, etc.
+
+    Args:
+      uid: Trial id.
+
+    Returns:
+      Trial object.
+    """
+    return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)
+
+
+@attr.define(auto_attribs=True, frozen=False, init=True, slots=True)
+class Trial(TrialSuggestion):
   """Wrapper for learning_vizier.service.Trial proto."""
   id: int = attr.ib(
       init=True,
@@ -328,20 +363,6 @@ class Trial:
       kw_only=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-  )
-
-  parameters: ParameterDict = attr.field(
-      init=True,
-      kw_only=True,
-      factory=ParameterDict,
-      converter=ParameterDict,
-      validator=attr.validators.instance_of(ParameterDict))
-
-  metadata: Metadata = attr.ib(
-      init=True,
-      kw_only=True,
-      default=Metadata(),
-      validator=attr.validators.instance_of(Metadata),
   )
 
   related_links: Dict[str, str] = attr.ib(
@@ -475,41 +496,6 @@ CompletedTrial = Trial
 PendingTrial = Trial
 CompletedTrialWithMeasurements = Trial
 PendingTrialWithMeasurements = Trial
-
-
-@attr.frozen
-class TrialSuggestion:
-  """Freshly suggested trial.
-
-  Suggestion can be converted to Trial object which has more functionalities.
-  """
-
-  parameters: ParameterDict = attr.field(
-      init=True,
-      factory=ParameterDict,
-      converter=ParameterDict,
-      validator=attr.validators.instance_of(ParameterDict))  # pytype: disable=wrong-arg-types
-
-  metadata: Metadata = attr.field(
-      init=True,
-      kw_only=True,
-      factory=Metadata,
-      validator=attr.validators.instance_of(Metadata))
-
-  def to_trial(self, uid: int) -> Trial:
-    """Assign an id and make it a Trial object.
-
-    Usually SuggetedTrial objects are shorted-lived and not exposed to end
-    users. This method is for non-service usage of trial suggestions in
-    benchmarks, tests, colabs, etc.
-
-    Args:
-      uid: Trial id.
-
-    Returns:
-      Trial object.
-    """
-    return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)
 
 
 @attr.define
