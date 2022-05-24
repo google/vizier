@@ -1,3 +1,4 @@
+# TODO(chansoo): remove optional packages
 attrs==21.4.0
 absl-py>=0.7,<1.0
 numpy==1.21.5

@@ -1,0 +1,3 @@
+keras-tuner>=1.0,<2.0
+tensorflow-probability >= 0.16
+
