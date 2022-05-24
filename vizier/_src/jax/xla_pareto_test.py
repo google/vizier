@@ -40,7 +40,7 @@ class XlaParetoTest(absltest.TestCase):
     np.testing.assert_array_almost_equal(
         hypervolume._cum_hypervolume_origin(points, vectors),
         xla_pareto.jax_cum_hypervolume_origin(points, vectors),
-        decimal=4)
+        decimal=2)
 
 
 if __name__ == '__main__':

@@ -242,7 +242,7 @@ Includes a brief summary of important symbols and modules.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>
-If you found this code useful, please consider citing the [technical report (TBA)]() as well as the [original Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
+If you found this code useful, please consider citing the [OSS Vizier paper](https://openreview.net/forum?id=SfIRlTSUxc) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
 
 ```
 @inproceedings{oss_vizier,
@@ -255,7 +255,7 @@ If you found this code useful, please consider citing the [technical report (TBA
   booktitle = {Automated Machine Learning Conference, Systems Track (AutoML-Conf Systems)}
   year      = {2022},
 }
-@inproceedings{original_vizier,
+@inproceedings{google_vizier,
   author    = {Daniel Golovin and
                Benjamin Solnik and
                Subhodeep Moitra and
