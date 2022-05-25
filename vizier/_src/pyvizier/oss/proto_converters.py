@@ -1,10 +1,11 @@
 """Converters for OSS Vizier's protos from/to PyVizier's classes."""
 import datetime
 import logging
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 from absl import logging
 
 from vizier._src.pyvizier.oss import metadata_util
+from vizier._src.pyvizier.shared import base_study_config
 from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import parameter_config
 from vizier._src.pyvizier.shared import trial
@@ -307,6 +308,77 @@ class MeasurementConverter:
     proto.elapsed_duration.nanos = int(1e9 *
                                        (measurement.elapsed_secs - int_seconds))
     return proto
+
+
+class MetricInformationConverter:
+  """A converter to/from study_pb2.StudySpec.MetricInformation."""
+
+  @classmethod
+  def from_proto(
+      cls, proto: study_pb2.StudySpec.MetricSpec
+  ) -> base_study_config.MetricInformation:
+    """Converts a MetricInformation proto to a MetricInformation object."""
+    if proto.goal not in list(base_study_config.ObjectiveMetricGoal):
+      raise ValueError('Unknown MetricInformation.goal: {}'.format(proto.goal))
+
+    return base_study_config.MetricInformation(
+        name=proto.metric_id,
+        goal=proto.goal,
+        safety_threshold=None,
+        safety_std_threshold=None,
+        min_value=None,
+        max_value=None)
+
+  @classmethod
+  def to_proto(
+      cls, obj: base_study_config.MetricInformation
+  ) -> study_pb2.StudySpec.MetricSpec:
+    """Returns this object as a proto."""
+    return study_pb2.StudySpec.MetricSpec(
+        metric_id=obj.name, goal=obj.goal.value)
+
+
+class SearchSpaceConverter:
+  """A wrapper for study_pb2.StudySpec."""
+
+  @classmethod
+  def from_proto(cls,
+                 proto: study_pb2.StudySpec) -> base_study_config.SearchSpace:
+    """Extracts a SearchSpace object from a StudyConfig proto."""
+    parameter_configs = []
+    for pc in proto.parameters:
+      parameter_configs.append(ParameterConfigConverter.from_proto(pc))
+    # TODO: Remove _factory implementation.
+    return base_study_config.SearchSpace._factory(  # pylint:disable=protected-access
+        parameter_configs=parameter_configs)
+
+  @classmethod
+  def parameter_protos(
+      cls, obj: base_study_config.SearchSpace
+  ) -> List[study_pb2.StudySpec.ParameterSpec]:
+    """Returns the search space as a List of ParameterConfig protos."""
+    return [
+        ParameterConfigConverter.to_proto(pc) for pc in obj._parameter_configs  # pylint:disable=protected-access
+    ]
+
+
+class MetricsConfigConverter:
+  """A wrapper for study_pb2.StudySpec.MetricSpec's."""
+
+  @classmethod
+  def from_proto(
+      cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]
+  ) -> base_study_config.MetricsConfig:
+    return base_study_config.MetricsConfig(
+        [MetricInformationConverter.from_proto(m) for m in protos])
+
+  @classmethod
+  def to_proto(
+      cls, obj: base_study_config.MetricsConfig
+  ) -> List[study_pb2.StudySpec.MetricSpec]:
+    return [
+        MetricInformationConverter.to_proto(metric) for metric in obj._metrics  # pylint:disable=protected-access
+    ]
 
 
 def _to_pyvizier_trial_status(

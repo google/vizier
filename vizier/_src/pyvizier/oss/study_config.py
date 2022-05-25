@@ -15,7 +15,7 @@ protos:
 import collections
 import copy
 import enum
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import attr
 from vizier._src.pyvizier.oss import automated_stopping
@@ -58,72 +58,7 @@ class ObservationNoise(enum.Enum):
   LOW = study_pb2.StudySpec.ObservationNoise.LOW
   HIGH = study_pb2.StudySpec.ObservationNoise.HIGH
 
-
-################### Classes For Various Config Protos ###################
-@attr.define(frozen=False, init=True, slots=True, kw_only=True)
-class MetricInformationConverter:
-  """A wrapper for vizier_pb2.MetricInformation."""
-
-  @classmethod
-  def from_proto(
-      cls, proto: study_pb2.StudySpec.MetricSpec
-  ) -> base_study_config.MetricInformation:
-    """Converts a MetricInformation proto to a MetricInformation object."""
-    if proto.goal not in list(ObjectiveMetricGoal):
-      raise ValueError('Unknown MetricInformation.goal: {}'.format(proto.goal))
-
-    return base_study_config.MetricInformation(
-        name=proto.metric_id,
-        goal=proto.goal,
-        safety_threshold=None,
-        safety_std_threshold=None,
-        min_value=None,
-        max_value=None)
-
-  @classmethod
-  def to_proto(
-      cls, obj: base_study_config.MetricInformation
-  ) -> study_pb2.StudySpec.MetricSpec:
-    """Returns this object as a proto."""
-    return study_pb2.StudySpec.MetricSpec(
-        metric_id=obj.name, goal=obj.goal.value)
-
-
-class MetricsConfig(base_study_config.MetricsConfig):
-  """Metrics config."""
-
-  @classmethod
-  def from_proto(
-      cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]) -> 'MetricsConfig':
-    return cls(MetricInformationConverter.from_proto(m) for m in protos)
-
-  def to_proto(self) -> List[study_pb2.StudySpec.MetricSpec]:
-    return [MetricInformationConverter.to_proto(metric) for metric in self]
-
-
 SearchSpaceSelector = base_study_config.SearchSpaceSelector
-
-
-@attr.define(frozen=True, init=True, slots=True, kw_only=True)
-class SearchSpace(base_study_config.SearchSpace):
-  """A Selector for all, or part of a SearchSpace."""
-
-  @classmethod
-  def from_proto(cls, proto: study_pb2.StudySpec) -> 'SearchSpace':
-    """Extracts a SearchSpace object from a StudyConfig proto."""
-    parameter_configs = []
-    for pc in proto.parameters:
-      parameter_configs.append(
-          proto_converters.ParameterConfigConverter.from_proto(pc))
-    return cls._factory(parameter_configs=parameter_configs)
-
-  @property
-  def parameter_protos(self) -> List[study_pb2.StudySpec.ParameterSpec]:
-    """Returns the search space as a List of ParameterConfig protos."""
-    return [
-        proto_converters.ParameterConfigConverter.to_proto(pc)
-        for pc in self._parameter_configs
-    ]
 
 
 ################### Main Class ###################
@@ -154,14 +89,17 @@ class SearchSpace(base_study_config.SearchSpace):
 #     root.add_float_param('learning_rate', 0.001, 1.0,
 #       scale_type=pyvizier.ScaleType.LOG)
 #
+
+
+# TODO: Add to_problem_statement / from_problem_statement.
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
 class StudyConfig(base_study_config.ProblemStatement):
   """A builder and wrapper for study_pb2.StudySpec proto."""
 
-  search_space: SearchSpace = attr.field(
+  search_space: base_study_config.SearchSpace = attr.field(
       init=True,
-      factory=SearchSpace,
-      validator=attr.validators.instance_of(SearchSpace),
+      factory=base_study_config.SearchSpace,
+      validator=attr.validators.instance_of(base_study_config.SearchSpace),
       on_setattr=attr.setters.validate)
 
   algorithm: Algorithm = attr.field(
@@ -171,11 +109,12 @@ class StudyConfig(base_study_config.ProblemStatement):
       default=Algorithm.GAUSSIAN_PROCESS_BANDIT,
       kw_only=True)
 
-  metric_information: MetricsConfig = attr.field(
+  # TODO: This name/type combo is confusing.
+  metric_information: base_study_config.MetricsConfig = attr.field(
       init=True,
-      factory=MetricsConfig,
-      converter=MetricsConfig,
-      validator=attr.validators.instance_of(MetricsConfig),
+      factory=base_study_config.MetricsConfig,
+      converter=base_study_config.MetricsConfig,
+      validator=attr.validators.instance_of(base_study_config.MetricsConfig),
       kw_only=True)
 
   observation_noise: ObservationNoise = attr.field(
@@ -223,10 +162,12 @@ class StudyConfig(base_study_config.ProblemStatement):
     Returns:
       A StudyConfig object.
     """
-    metric_information = MetricsConfig(
-        sorted(
-            [MetricInformationConverter.from_proto(m) for m in proto.metrics],
-            key=lambda x: x.name))
+    metric_information = base_study_config.MetricsConfig(
+        sorted([
+            proto_converters.MetricInformationConverter.from_proto(m)
+            for m in proto.metrics
+        ],
+               key=lambda x: x.name))
 
     oneof_name = proto.WhichOneof('automated_stopping_spec')
     if not oneof_name:
@@ -241,7 +182,7 @@ class StudyConfig(base_study_config.ProblemStatement):
           kv.proto if kv.HasField('proto') else kv.value)
 
     return cls(
-        search_space=SearchSpace.from_proto(proto),
+        search_space=proto_converters.SearchSpaceConverter.from_proto(proto),
         algorithm=Algorithm(proto.algorithm),
         metric_information=metric_information,
         observation_noise=ObservationNoise(proto.observation_noise),
@@ -256,10 +197,14 @@ class StudyConfig(base_study_config.ProblemStatement):
     proto.observation_noise = self.observation_noise.value
 
     del proto.metrics[:]
-    proto.metrics.extend(self.metric_information.to_proto())
+    proto.metrics.extend(
+        proto_converters.MetricsConfigConverter.to_proto(
+            self.metric_information))
 
     del proto.parameters[:]
-    proto.parameters.extend(self.search_space.parameter_protos)
+    proto.parameters.extend(
+        proto_converters.SearchSpaceConverter.parameter_protos(
+            self.search_space))
 
     if self.automated_stopping_config is not None:
       auto_stop_proto = self.automated_stopping_config.to_proto()
