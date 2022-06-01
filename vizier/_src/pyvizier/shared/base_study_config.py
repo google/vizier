@@ -1315,7 +1315,7 @@ class SearchSpace:
       init=False, factory=list)
 
   @classmethod
-  def _factory(
+  def factory(
       cls: Type[_T],
       parameter_configs: Optional[List[parameter_config.ParameterConfig]] = None
   ) -> _T:
