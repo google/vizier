@@ -386,7 +386,7 @@ class Trial(TrialSuggestion):
   measurements: List[Measurement] = attr.ib(
       init=True,
       kw_only=True,
-      default=list(),
+      factory=list,
       validator=attr.validators.deep_iterable(
           member_validator=attr.validators.instance_of(Measurement),
           iterable_validator=attr.validators.instance_of(list)),
@@ -498,7 +498,7 @@ CompletedTrialWithMeasurements = Trial
 PendingTrialWithMeasurements = Trial
 
 
-@attr.define
+@attr.define(kw_only=True)
 class TrialFilter:
   """Trial filter.
 
@@ -526,6 +526,8 @@ class TrialFilter:
           attr.validators.deep_iterable(
               attr.validators.instance_of(TrialStatus),
               attr.validators.instance_of(frozenset))))
+
+  # TODO: Add "search_space" argument
 
   def __call__(self, trial: Trial) -> bool:
     if self.ids is not None:
