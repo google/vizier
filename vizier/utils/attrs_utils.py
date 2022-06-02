@@ -1,6 +1,27 @@
 """Utils for attrs."""
 
-from typing import Any, Optional, Collection, Callable
+from typing import Any, Callable, Collection, Optional
+
+import attr
+
+
+def assert_not_empty(instance: Any, attribute: attr.Attribute,
+                     value: Any) -> None:
+  if not value:
+    raise ValueError(f'{attribute.name} must not be empty in {type(instance)}.')
+
+
+def assert_not_negative(instance: Any, attribute: attr.Attribute,
+                        value: int) -> None:
+  if value < 0:
+    raise ValueError(
+        f'{attribute.name} must not be negative in {type(instance)}.')
+
+
+def assert_not_none(instance: Any, attribute: attr.Attribute,
+                    value: Any) -> None:
+  if value is None:
+    raise ValueError(f'{attribute.name} must not be None in {type(instance)}.')
 
 
 def shape_equals(instance_to_shape: Callable[[Any], Collection[Optional[int]]]):
