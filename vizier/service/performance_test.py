@@ -7,6 +7,7 @@ from absl import logging
 import grpc
 import portpicker
 
+from vizier import benchmarks
 from vizier.service import pyvizier
 from vizier.service import vizier_client
 from vizier.service import vizier_server
@@ -16,7 +17,6 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-# TODO: Replace w/ upcoming Experimenter API.
 class PerformanceTest(parameterized.TestCase):
 
   def setUp(self):
@@ -39,21 +39,20 @@ class PerformanceTest(parameterized.TestCase):
     self.server.start()
 
   @parameterized.parameters(
-      (1, 10),
-      (10, 10),
-      (50, 10),
-      (100, 10),
+      (1, 10, 2),
+      (10, 10, 2),
+      (50, 10, 2),
+      (100, 10, 2),
   )
   def test_multiple_clients_basic(self, num_simultaneous_clients,
-                                  num_trials_per_client):
+                                  num_trials_per_client, dimension):
 
     def fn(client_id: int):
-      study_config = pyvizier.StudyConfig()
-      study_config.search_space.select_root().add_float_param(
-          'x', min_value=0.0, max_value=1.0)
-      study_config.metric_information.append(
-          pyvizier.MetricInformation(
-              name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
+      func = benchmarks.bbob.Sphere
+      experimenter = benchmarks.NumpyExperimenter(
+          func, benchmarks.bbob.DefaultBBOBProblemStatement(dimension))
+      problem_statement = experimenter.problem_statement()
+      study_config = pyvizier.StudyConfig.from_problem(problem_statement)
       study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
 
       client = vizier_client.create_or_load_study(
@@ -65,11 +64,10 @@ class PerformanceTest(parameterized.TestCase):
 
       for _ in range(num_trials_per_client):
         suggestions = client.get_suggestions(suggestion_count=1)
-        for trial in suggestions:
-          x = trial.parameters.get_value('x')
-          final_measurement = pyvizier.Measurement()
-          final_measurement.metrics['objective'] = pyvizier.Metric(value=2 * x)
-          client.complete_trial(trial.id, final_measurement)
+        completed_trials = experimenter.evaluate(suggestions)
+        for completed_trial in completed_trials:
+          client.complete_trial(completed_trial.id,
+                                completed_trial.final_measurement)
 
       return client
 
