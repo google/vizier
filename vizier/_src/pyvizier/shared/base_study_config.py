@@ -1416,3 +1416,16 @@ class ProblemStatement:
   @property
   def debug_info(self) -> str:
     return ''
+
+  @classmethod
+  def from_problem(cls: Type[_T], problem: 'ProblemStatement') -> _T:
+    return cls(
+        search_space=problem.search_space,
+        metric_information=problem.metric_information,
+        metadata=problem.metadata)
+
+  def to_problem(self) -> 'ProblemStatement':
+    return ProblemStatement(
+        search_space=self.search_space,
+        metric_information=self.metric_information,
+        metadata=self.metadata)

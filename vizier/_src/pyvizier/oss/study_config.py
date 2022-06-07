@@ -390,17 +390,3 @@ class StudyConfig(base_study_config.ProblemStatement):
             continue
           metrics[name] = pytrial.final_measurement.metrics[name].value
     return metrics
-
-  @classmethod
-  def from_problem(
-      cls, problem: base_study_config.ProblemStatement) -> 'StudyConfig':
-    # TODO: Implement this in ProblemStatement class.
-    # pylint: disable=protected-access
-    return cls(
-        search_space=problem.search_space,
-        metric_information=problem.metric_information)
-
-  def to_problem(self) -> base_study_config.ProblemStatement:
-    # TODO: Implement this in ProblemStatement class.
-    return base_study_config.ProblemStatement(
-        **attr.asdict(self, recurse=False))

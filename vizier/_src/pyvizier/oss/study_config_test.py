@@ -27,7 +27,7 @@ class StudyConfigTest(absltest.TestCase):
             .CategoricalValueSpec(values=['adagrad', 'adam', 'experimental'])),
     ]
 
-  def testCreationFromAndToProtoModernStudy(self):
+  def testCreationFromAndToProtoStudy(self):
     expected_automated_stopping_config = study_pb2.StudySpec.DecayCurveAutomatedStoppingSpec(
         use_elapsed_duration=False)
 
@@ -53,8 +53,9 @@ class StudyConfigTest(absltest.TestCase):
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
-  def testCreationFromAndToProtoModernMultiObjectiveStudy(self):
+  def testCreationFromAndToProtoMultiObjectiveStudy(self):
     study_config_proto = study_pb2.StudySpec(
         metrics=[
             study_pb2.StudySpec.MetricSpec(
@@ -78,6 +79,8 @@ class StudyConfigTest(absltest.TestCase):
     self.assertIsNone(sc.single_objective_metric_name)
     self.assertFalse(sc.is_single_objective)
     compare.assertProto2SameElements(self, study_config_proto, sc.to_proto())
+
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
   def testCreationFromProtoNoGoalRaises(self):
     study_config_proto = study_pb2.StudySpec()
