@@ -186,7 +186,14 @@ class ParameterValue:
     return str(self.value)
 
 
-class _MetricDict(collections.UserDict):
+class _MetricDict(collections.UserDict[str, Metric]):
+  """Dictionary of string to metrics."""
+
+  def get_value(self, key: str, default: float) -> float:
+    if key in self.data:
+      return self.data[key].value
+    else:
+      return default
 
   def __setitem__(self, key: str, value: Union[float, Metric]):
     if isinstance(value, Metric):
@@ -204,7 +211,7 @@ class Measurement:
       raise ValueError('Must be finite and non-negative.')
 
   # Should be used as a regular Dict.
-  metrics: MutableMapping[str, Metric] = attr.ib(
+  metrics: _MetricDict = attr.ib(
       init=True,
       converter=lambda d: _MetricDict(**d),
       default=_MetricDict(),
@@ -219,6 +226,7 @@ class Measurement:
       on_setattr=[attr.setters.convert, attr.setters.validate],
       kw_only=True)
 
+  # TODO: Change type annotation to int.
   steps: float = attr.ib(
       converter=int,
       init=True,
@@ -244,12 +252,18 @@ class ParameterDict(cabc.MutableMapping):
     ParameterDict(a=3) and
     ParameterDict(a=ParameterValue(3)) are equivalent.
 
-  To access the raw value directly, use get_value() method.
-    d.get('a').value == d.get_value('a')
+
+  To access the raw value directly, use get_value() or as_dict():
+    d.get_value('a') == d.get('a').value
+    d.as_dict()['a'] == d.get_value('a')
   """
 
   _items: MutableMapping[str, ParameterValue] = attr.field(
       init=False, factory=dict)
+
+  def as_dict(self) -> dict[str, ParameterValueTypes]:
+    """Returns the dict of parameter names to raw values."""
+    return {k: self.get_value(k) for k in self._items}
 
   def __init__(self, iterable: Any = tuple(), **kwargs):
     self.__attrs_init__()
@@ -279,6 +293,7 @@ class ParameterDict(cabc.MutableMapping):
       key: str,
       default: Optional[ParameterValueTypes] = None
   ) -> Optional[ParameterValueTypes]:
+    """Returns the raw value of the given parameter name."""
     pv = self.get(key, default)
     if isinstance(pv, ParameterValue):
       return pv.value

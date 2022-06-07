@@ -287,9 +287,10 @@ class _PathSelector(Sequence[_PathSegment]):
       other = [other]
     return _PathSelector(self._paths + tuple(other))
 
-  def __str__(self) -> str:
+  def __repr__(self) -> str:
     """Returns the path as a string."""
-    return '/'.join(['{}={}'.format(p.name, p.value) for p in self._paths])
+    path = '/'.join(['{}={}'.format(p.name, p.value) for p in self._paths])
+    return f'{path}'
 
 
 class InvalidParameterError(Exception):

@@ -20,6 +20,7 @@ from vizier._src.pyvizier.shared.trial import Measurement
 from vizier._src.pyvizier.shared.trial import Metric
 from vizier._src.pyvizier.shared.trial import ParameterDict
 from vizier._src.pyvizier.shared.trial import ParameterValue
+from vizier._src.pyvizier.shared.trial import ParameterValueTypes
 from vizier._src.pyvizier.shared.trial import Trial
 from vizier._src.pyvizier.shared.trial import TrialFilter
 from vizier._src.pyvizier.shared.trial import TrialStatus
