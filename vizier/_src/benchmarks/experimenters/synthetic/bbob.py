@@ -12,6 +12,7 @@ from vizier import pyvizier
 def DefaultBBOBProblemStatement(
     dimension: int,
     *,
+    metric_name="bbob_eval",
     min_value: float = -5.0,
     max_value: float = 5.0) -> pyvizier.ProblemStatement:
   """Returns default BBOB ProblemStatement for given dimension."""
@@ -22,7 +23,7 @@ def DefaultBBOBProblemStatement(
         name=f"x{dim}", min_value=min_value, max_value=max_value)
   problem_statement.metric_information.append(
       pyvizier.MetricInformation(
-          name="bbob_eval", goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+          name=metric_name, goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
   return problem_statement
 
 

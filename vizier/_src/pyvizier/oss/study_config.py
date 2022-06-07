@@ -91,7 +91,6 @@ SearchSpaceSelector = base_study_config.SearchSpaceSelector
 #
 
 
-# TODO: Add to_problem_statement / from_problem_statement.
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
 class StudyConfig(base_study_config.ProblemStatement):
   """A builder and wrapper for study_pb2.StudySpec proto."""
