@@ -22,6 +22,9 @@ class ValidatorsTest(parameterized.TestCase):
       (attrs_utils.assert_not_none, 0, True),
   )
   def test_validator(self, validator, value: Any, result: bool):
+    self.assertValidatorWorksAsIntended(validator, value, result)
+
+  def assertValidatorWorksAsIntended(self, validator, value: Any, result: bool):
 
     @attrs.define
     class Test:
@@ -32,6 +35,15 @@ class ValidatorsTest(parameterized.TestCase):
     else:
       with self.assertRaises(ValueError):
         Test(value)
+
+  @parameterized.parameters(
+      (r'[^\/]+', 'good', True),
+      (r'[^\/]+', 'bad/', False),
+      (r'[^\/]+', '', False),
+  )
+  def test_regex_validator(self, regex: str, value: str, result: bool):
+    self.assertValidatorWorksAsIntended(
+        attrs_utils.assert_re_fullmatch(regex), value, result)
 
   def test_good_shape_none(self):
     _ShapeEqualsTestAttr(np.zeros([3, 5]), None)

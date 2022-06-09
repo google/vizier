@@ -2,7 +2,6 @@
 
 import collections
 import datetime
-import random
 import threading
 from typing import Optional
 
@@ -45,7 +44,9 @@ def policy_creator(
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   else:
-    raise ValueError(f'{algorithm} is not registered.')
+    raise ValueError(
+        f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '
+        'is not registered.')
 
 
 def _get_current_time() -> timestamp_pb2.Timestamp:
@@ -57,6 +58,8 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
 MAX_STUDY_ID = 2147483647  # Max int32 value.
 
 
+# TODO: remove context = None
+# TODO: remove context = None
 class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   """Implements the GRPC functions outlined in vizier_service.proto."""
 
@@ -109,8 +112,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     if not request.study.display_name:
       raise ValueError('Study display_name must be specified.')
 
-    lock = self._owner_name_to_lock[request.parent]
-    with lock:
+    with self._owner_name_to_lock[request.parent]:
       # Database creates a new active study or loads existing study using the
       # display name.
       try:
@@ -125,16 +127,13 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
       for candidate_study in possible_candidate_studies:
         if candidate_study.display_name == request.study.display_name:
+          logging.info('Found existing study of owner=%s display_name=%s!',
+                       owner_id, candidate_study.display_name)
           return candidate_study
+
       # No study in the database matches the resource name. Making a new one.
       # study_id must be unique among existing studies.
-      previous_study_ids = [
-          resources.StudyResource.from_name(candidate_study.name).study_id
-          for candidate_study in possible_candidate_studies
-      ]
-      study_id = str(random.randint(1, MAX_STUDY_ID))
-      while study_id in previous_study_ids:
-        study_id = str(random.randint(1, MAX_STUDY_ID))
+      study_id = study.display_name
 
       # Finally create study in database and return it.
       study.name = resources.StudyResource(owner_id, study_id).name
@@ -211,8 +210,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     owner_name = study_resource.owner_resource.name
 
     # Lock the database for this study and load it.
-    lock = self._study_name_to_lock[request.parent]
-    with lock:
+    with self._study_name_to_lock[request.parent]:
       study = self.datastore.load_study(request.parent)
 
       # Checks for a non-done operation in the database with this name.
@@ -350,10 +348,11 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.CreateTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
-    lock = self._study_name_to_lock[request.parent]
-    with lock:
+    with self._study_name_to_lock[request.parent]:
       trial = request.trial
       trial.id = str(self.datastore.max_trial_id(request.parent) + 1)
+      trial.name = (resources.StudyResource.from_name(
+          request.parent).trial_resource(trial_id=trial.id)).name
 
       if trial.state != study_pb2.Trial.State.SUCCEEDED:
         trial.state = study_pb2.Trial.State.REQUESTED
@@ -363,12 +362,14 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self.datastore.create_trial(trial)
       return trial
 
-  def GetTrial(
-      self,
-      request: vizier_service_pb2.GetTrialRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
+  def GetTrial(self, request: vizier_service_pb2.GetTrialRequest,
+               context: grpc.ServicerContext) -> Optional[study_pb2.Trial]:
     """Gets a Trial."""
-    return self.datastore.get_trial(request.name)
+    try:
+      return self.datastore.get_trial(request.name)
+    except datastore.NotFoundError as e:
+      context.set_code(grpc.StatusCode.NOT_FOUND)
+      context.set_details(str(e))
 
   def ListTrials(
       self,
@@ -400,29 +401,34 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self.datastore.update_trial(trial)
     return trial
 
+  # TODO: Auto selection defaults to the last measurement.
+  # Add support for "best measurement" behavior.
   def CompleteTrial(
       self,
       request: vizier_service_pb2.CompleteTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     """Marks a Trial as complete."""
     trial = self.datastore.get_trial(request.name)
-    if request.trial_infeasible:
-      trial.state = study_pb2.Trial.State.INFEASIBLE
-      trial.infeasible_reason = request.infeasible_reason
-    else:
-      trial.state = study_pb2.Trial.State.SUCCEEDED
 
     if request.final_measurement.metrics:
       trial.final_measurement.CopyFrom(request.final_measurement)
-    else:
+      trial.state = study_pb2.Trial.State.SUCCEEDED
+    elif not request.trial_infeasible:
+      # Trial's final measurement auto-selected from latest reported
+      # measurement.
+      trial.state = study_pb2.Trial.State.SUCCEEDED
       if trial.measurements:
-        # Trial's final measurement auto-selected from latest reported
-        # measurement.
         trial.final_measurement.CopyFrom(trial.measurements[-1])
       else:
         raise ValueError(
             "Both the request and trial intermediate measurements are missing. Cannot determine trial's final_measurement."
         )
+
+    # Handle infeasibility.
+    if request.trial_infeasible:
+      trial.state = study_pb2.Trial.State.INFEASIBLE
+      trial.infeasible_reason = request.infeasible_reason
+
     self.datastore.update_trial(trial)
     return trial
 
@@ -434,6 +440,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self.datastore.delete_trial(request.name)
     return empty_pb2.Empty()
 
+  # TODO: This curerntly uses the same algorithm as suggestion.
   def CheckTrialEarlyStoppingState(
       self,
       request: vizier_service_pb2.CheckTrialEarlyStoppingStateRequest,
@@ -477,8 +484,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         trial_resource.owner_id, trial_resource.study_id,
         trial_resource.trial_id).name
 
-    lock = self._study_name_to_lock[study_name]
-    with lock:
+    with self._study_name_to_lock[study_name]:
       try:
         # Reuse any existing early stopping op, since the Pythia policy may have
         # already signaled this trial to stop.
@@ -529,11 +535,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           trial_ids=[trial_resource.trial_id])
       early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
 
-      # Pythia guarantees output_operation's id will be in the decisions.
-      assert trial_resource.trial_id in [
-          decision.id for decision in early_stopping_decisions
-      ]
-
+      # Pythia does not guarantee that the output_operation's id
+      # will be in the decisions.
       for early_stopping_decision in early_stopping_decisions:
         inner_op_name = resources.EarlyStoppingOperationResource(
             trial_resource.owner_id, trial_resource.study_id,

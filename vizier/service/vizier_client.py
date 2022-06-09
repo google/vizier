@@ -4,22 +4,23 @@ This client can be used interchangeably with the Cloud Vizier client.
 """
 
 import datetime
+import functools
 import time
-from typing import Any, Dict, List, Mapping, Optional, Text, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from absl import flags
 from absl import logging
+import attr
 import grpc
-
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
+from vizier.utils import attrs_utils
 
 from google.longrunning import operations_pb2
 from google.protobuf import duration_pb2
-from google.protobuf import empty_pb2
 from google.protobuf import json_format
 
 flags.DEFINE_integer(
@@ -31,53 +32,99 @@ flags.DEFINE_integer(
 FLAGS = flags.FLAGS
 
 
-def _create_server_stub(
-    service_endpoint: Text) -> vizier_service_pb2_grpc.VizierServiceStub:
+@functools.lru_cache
+def create_server_stub(
+    service_endpoint: str) -> vizier_service_pb2_grpc.VizierServiceStub:
+  """Creates the GRPC stub.
+
+  This method uses LRU cache so we create a single stub per endpoint (which is
+  effectively one per binary). Stub and channel are both thread-safe and can
+  take a while to create. The LRU cache makes binaries run faster, especially
+  for unit tests.
+
+  Args:
+    service_endpoint:
+
+  Returns:
+    Vizier service stub at service_endpoint.
+  """
+  logging.info('Securing channel to %s.', service_endpoint)
   channel = grpc.secure_channel(service_endpoint,
                                 grpc.local_channel_credentials())
   grpc.channel_ready_future(channel).result()
+  logging.info('Secured channel to %s.', service_endpoint)
   return vizier_service_pb2_grpc.VizierServiceStub(channel)
 
 
+@attr.frozen(init=True)
 class VizierClient:
-  """Client for communicating with the Vizer Service via GRPC."""
+  """Client for communicating with the Vizer Service via GRPC.
 
-  def __init__(self, service_endpoint: Text, study_name: Text, client_id: Text):
-    """Create an VizierClient object.
+  It can be initialized directly with a Vizier service stub, or created
+  from endpoint. See also `create_server_stub`.
+  """
 
-    Use this constructor when you know the study_id, and when the Study
-    already exists. Otherwise, you'll probably want to use
+  _server_stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field()
+  _study_resource_name: str = attr.field(
+      validator=attr.validators.instance_of(str))
+  _client_id: str = attr.field(validator=[
+      attr.validators.instance_of(str), attrs_utils.assert_not_empty
+  ])
+
+  @property
+  def _study_resource(self) -> resources.StudyResource:
+    return resources.StudyResource.from_name(self._study_resource_name)
+
+  @classmethod
+  def from_endpoint(cls, service_endpoint: str, study_resource_name: str,
+                    client_id: str) -> 'VizierClient':
+    """Create a VizierClient object.
+
+    Use this constructor when you know the study_resource_name, and when the
+    Study already exists. Otherwise, you'll probably want to use
     create_or_load_study() instead of constructing the
     VizierClient class directly.
 
     Args:
-        service_endpoint: Address of VizierService for creation of gRPC stub,
-          e.g. 'localhost:8998'.
-        study_name: An identifier of the study. The full study name will be
-          `owners/{owner_id}/studies/{study_id}`.
-        client_id: An ID that identifies the worker requesting a `Trial`.
-          Workers that should run the same trial (for instance, when running a
-          multi-worker model) should have the same ID. If multiple
-          suggestTrialsRequests have the same client_id, the service will return
-          the identical suggested trial if the trial is PENDING, and provide a
-          new trial if the last suggest trial was completed.
+      service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
+        'localhost:8998'.
+      study_resource_name: An identifier of the study. The full study name will
+        be `owners/{owner_id}/studies/{study_id}`.
+      client_id: An ID that identifies the worker requesting a `Trial`. Workers
+        that should run the same trial (for instance, when running a
+        multi-worker model) should have the same ID. If multiple
+        suggestTrialsRequests have the same client_id, the service will return
+        the identical suggested trial if the trial is PENDING, and provide a new
+        trial if the last suggest trial was completed.
+
+    Returns:
+      Vizier client.
     """
-    self._server_stub = _create_server_stub(service_endpoint)
-    self._study_name = study_name
-    self._client_id = client_id
-    study_resource = resources.StudyResource.from_name(self._study_name)
-    self._owner_id = study_resource.owner_id
-    self._study_id = study_resource.study_id
+    return cls(
+        create_server_stub(service_endpoint), study_resource_name, client_id)
 
   @property
-  def study_name(self) -> Text:
-    return self._study_name
+  def _owner_id(self) -> str:
+    return self._study_resource.owner_id
 
-  def get_suggestions(self, suggestion_count: int) -> List[pyvizier.Trial]:
+  @property
+  def _study_id(self) -> str:
+    return self._study_resource.study_id
+
+  @property
+  def study_resource_name(self) -> str:
+    return self._study_resource_name
+
+  def get_suggestions(
+      self,
+      suggestion_count: int,
+      *,
+      client_id_override: Optional[str] = None) -> List[pyvizier.Trial]:
     """Gets a list of suggested Trials.
 
     Args:
         suggestion_count: The number of suggestions to request.
+        client_id_override: If set, overrides self._client_id for this call.
 
     Returns:
       A list of PyVizier Trials. This may be an empty list if:
@@ -91,10 +138,14 @@ class VizierClient:
             finite Study runs out of suggestions. In such a case, an empty
             list is returned.
     """
+    if client_id_override is not None:
+      client_id = client_id_override
+    else:
+      client_id = self._client_id
     request = vizier_service_pb2.SuggestTrialsRequest(
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         suggestion_count=suggestion_count,
-        client_id=self._client_id)
+        client_id=client_id)
     future = self._server_stub.SuggestTrials.future(request)
     operation = future.result()
 
@@ -124,9 +175,9 @@ class VizierClient:
       self,
       step: int,
       elapsed_secs: float,
-      metric_list: List[Mapping[Text, Union[int, float]]],
+      metric_list: List[Mapping[str, Union[int, float]]],
       trial_id: int,
-  ) -> None:
+  ) -> pyvizier.Trial:
     """Sends intermediate objective value for the trial identified by trial_id."""
     new_metric_list = []
     for metric in metric_list:
@@ -148,7 +199,7 @@ class VizierClient:
         measurement=measurement)
     future = self._server_stub.AddTrialMeasurement.future(request)
     trial = future.result()
-    logging.info('Trial modified: %s', trial)
+    return pyvizier.TrialConverter.from_proto(trial)
 
   def should_trial_stop(self, trial_id: int) -> bool:
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
@@ -169,7 +220,7 @@ class VizierClient:
       self,
       trial_id: int,
       final_measurement: Optional[pyvizier.Measurement] = None,
-      infeasibility_reason: Optional[Text] = None) -> pyvizier.Trial:
+      infeasibility_reason: Optional[str] = None) -> pyvizier.Trial:
     """Completes the trial, which is infeasible if given a infeasibility_reason."""
     request = vizier_service_pb2.CompleteTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
@@ -213,7 +264,7 @@ class VizierClient:
     response = future.result()
     return pyvizier.TrialConverter.from_protos(response.optimal_trials)
 
-  def list_studies(self) -> List[Dict[Text, Any]]:
+  def list_studies(self) -> List[Dict[str, Any]]:
     """List all studies for the given owner."""
     request = vizier_service_pb2.ListStudiesRequest(
         parent=resources.OwnerResource(self._owner_id).name)
@@ -225,33 +276,68 @@ class VizierClient:
         for study in list_studies_response.studies
     ]
 
-  def delete_study(self, study_name: Optional[Text] = None) -> None:
-    """Deletes study from datastore."""
-    if study_name:
-      request_study_name = study_name
-    else:
-      request_study_name = resources.StudyResource(self._owner_id,
-                                                   self._study_id).name
-    request = vizier_service_pb2.DeleteStudyRequest(name=request_study_name)
-    future = self._server_stub.DeleteStudy.future(request)
-    empty_proto = future.result()
+  def add_trial(self, trial: pyvizier.Trial) -> pyvizier.Trial:
+    """Adds a trial.
 
-    # Confirms successful execution.
-    assert isinstance(empty_proto, empty_pb2.Empty)
-    logging.info('Study deleted: %s', study_name)
+    Args:
+      trial:
+
+    Returns:
+      A new trial object from the database. It will have different timestamps,
+      newly assigned id, and newly assigned state (either REQUESTED
+      or COMPLETED).
+    """
+    request = vizier_service_pb2.CreateTrialRequest(
+        parent=resources.StudyResource(self._owner_id, self._study_id).name,
+        trial=pyvizier.TrialConverter.to_proto(trial))
+    future = self._server_stub.CreateTrial.future(request)
+    trial_proto = future.result()
+    return pyvizier.TrialConverter.from_proto(trial_proto)
+
+  def delete_trial(self, trial_id: int) -> None:
+    """Deletes trial from datastore."""
+    request_trial_name = resources.TrialResource(self._owner_id, self._study_id,
+                                                 trial_id).name
+    request = vizier_service_pb2.DeleteTrialRequest(name=request_trial_name)
+    future = self._server_stub.DeleteTrial.future(request)
+    _ = future.result()
+    logging.info('Trial deleted: %s', trial_id)
+
+  def delete_study(self, study_resource_name: Optional[str] = None, /) -> None:
+    """Deletes study from datastore."""
+    study_resource_name = study_resource_name or (resources.StudyResource(
+        self._owner_id, self._study_id).name)
+    request = vizier_service_pb2.DeleteStudyRequest(name=study_resource_name)
+    future = self._server_stub.DeleteStudy.future(request)
+    _ = future.result()
+    logging.info('Study deleted: %s', study_resource_name)
+
+  def get_study_config(
+      self, study_name: Optional[str] = None) -> pyvizier.StudyConfig:
+    """Returns the study config."""
+    if study_name:
+      study_resource_name = study_name
+    else:
+      study_resource_name = resources.StudyResource(self._owner_id,
+                                                    self._study_id).name
+    request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
+    future = self._server_stub.GetStudy.future(request)
+    response = future.result()
+
+    return pyvizier.StudyConfig.from_proto(response.study_spec)
 
 
 def create_or_load_study(
-    service_endpoint: Text,
-    owner_id: Text,
-    client_id: Text,
-    study_display_name: Text,
+    service_endpoint: str,
+    owner_id: str,
+    client_id: str,
+    study_id: str,
     study_config: pyvizier.StudyConfig,
 ) -> VizierClient:
   """Factory method for creating or loading a VizierClient.
 
   This will either create or load the specified study, given
-  (owner_id, study_display_name, study_config). It will create it if it doesn't
+  (owner_id, study_id, study_config). It will create it if it doesn't
   already exist, and load it if someone has already created it.
 
   Note that once a study is created, you CANNOT modify it with this function.
@@ -262,13 +348,12 @@ def create_or_load_study(
   to the same study.
 
   Args:
-      service_endpoint: Address of VizierService for creation of gRPC stub,
-        e.g. 'localhost:8998'.
+      service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
+        'localhost:8998'.
       owner_id: An owner id.
       client_id: ID for the VizierClient. See class for notes.
-      study_display_name: Each study is uniquely identified by (owner_id,
-        study_display_name). The service will assign the study a unique
-        `study_id`.
+      study_id: Each study is uniquely identified by the tuple (owner_id,
+        study_id).
       study_config: Study configuration for Vizier service. If not supplied, it
         will be assumed that the study with the given study_id already exists,
         and will try to retrieve that study.
@@ -283,9 +368,9 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = _create_server_stub(service_endpoint)
+  vizier_stub = create_server_stub(service_endpoint)
   study = study_pb2.Study(
-      display_name=study_display_name, study_spec=study_config.to_proto())
+      display_name=study_id, study_spec=study_config.to_proto())
   request = vizier_service_pb2.CreateStudyRequest(
       parent=resources.OwnerResource(owner_id).name, study=study)
   future = vizier_stub.CreateStudy.future(request)
@@ -293,10 +378,7 @@ def create_or_load_study(
   # The response study contains a service assigned `name`, and may have been
   # created by this RPC or a previous RPC from another client.
   study = future.result()
-  return VizierClient(
-      service_endpoint=service_endpoint,
-      study_name=study.name,
-      client_id=client_id)
+  return VizierClient(vizier_stub, study.name, client_id)
 
 
 def PollingDelay(num_attempts: int, time_scale: float) -> datetime.timedelta:  # pylint:disable=invalid-name

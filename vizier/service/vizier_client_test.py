@@ -1,4 +1,10 @@
 """Tests for vizier.service.vizier_client."""
+
+# TODO: Rewrite using RPC calls and remove all direct lookups
+# into the datastore.
+# TODO: Cover delete_trial, delete_study, get_study_config, and
+# add_trial, OR turn it into a private module
+
 from concurrent import futures
 import datetime
 import time
@@ -29,7 +35,8 @@ class VizierClientTest(parameterized.TestCase):
         early_stop_recycle_period=self.early_stop_recycle_period)
     self.owner_id = 'my_username'
     self.study_id = '1231232'
-    self.study_name = resources.StudyResource(self.owner_id, self.study_id).name
+    self.study_resource_name = resources.StudyResource(self.owner_id,
+                                                       self.study_id).name
     self.client_id = 'my_client'
 
     double_value_spec = study_pb2.StudySpec.ParameterSpec.DoubleValueSpec(
@@ -41,7 +48,7 @@ class VizierClientTest(parameterized.TestCase):
         metric_id='example_metric',
         goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
     self.example_study = study_pb2.Study(
-        name=self.study_name,
+        name=self.study_resource_name,
         study_spec=study_pb2.StudySpec(
             algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH,
             parameters=[double_parameter_spec],
@@ -68,22 +75,22 @@ class VizierClientTest(parameterized.TestCase):
     self.server.start()
 
     # Setup connection to server.
-    self.client = vizier_client.VizierClient(
+    self.client = vizier_client.VizierClient.from_endpoint(
         service_endpoint=self.address,
-        study_name=self.study_name,
+        study_resource_name=self.study_resource_name,
         client_id=self.client_id)
 
   def test_create_or_load_study(self):
     study_config = pyvizier.StudyConfig()
-    study_display_name = 'example_display_name'
+    study_id = 'example_display_name'
 
     client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
         owner_id=self.owner_id,
         client_id='a_client',
-        study_display_name=study_display_name,
+        study_id=study_id,
         study_config=study_config)
-    study = self.servicer.datastore.load_study(client.study_name)
+    study = self.servicer.datastore.load_study(client.study_resource_name)
     self.assertEqual(study.study_spec, study_config.to_proto())
     self.assertIsNotNone(study.name)
 
@@ -91,16 +98,17 @@ class VizierClientTest(parameterized.TestCase):
         service_endpoint=self.address,
         owner_id=self.owner_id,
         client_id='another_client',
-        study_display_name=study_display_name,
+        study_id=study_id,
         study_config=study_config)
-    self.assertEqual(client.study_name, another_client.study_name)
+    self.assertEqual(client.study_resource_name,
+                     another_client.study_resource_name)
 
   def test_list_studies(self):
     study_list_json = self.client.list_studies()
     self.assertLen(study_list_json, 1)
 
   def test_delete_study(self):
-    self.client.delete_study(study_name=self.example_study.name)
+    self.client.delete_study()
     empty_list_json = self.client.list_studies()
     self.assertEmpty(empty_list_json)
 
@@ -203,7 +211,7 @@ class VizierClientTest(parameterized.TestCase):
     cifar10_client = vizier_client.create_or_load_study(
         service_endpoint=self.address,
         owner_id=self.owner_id,
-        study_display_name='cifar10',
+        study_id='cifar10',
         study_config=study_config,
         client_id=self.client_id)
 
@@ -226,7 +234,7 @@ class VizierClientTest(parameterized.TestCase):
 
         # Recover the trial from database.
         study_resource = resources.StudyResource.from_name(
-            cifar10_client.study_name)
+            cifar10_client.study_resource_name)
         trial_name = resources.TrialResource(study_resource.owner_id,
                                              study_resource.study_id,
                                              trial.id).name

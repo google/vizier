@@ -1,4 +1,7 @@
 """Tests for vizier.service.vizier_server."""
+# TODO: Change the test to create a vizier stub and call its
+# methods, instead of directly calling VizierService methods.
+
 import datetime
 import time
 from vizier.service import key_value_pb2

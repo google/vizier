@@ -1,48 +1,30 @@
 """Large-scale stress tests (multiple clients, mulithreading, etc.) for Vizier Service."""
-from concurrent import futures
-import datetime
+
 import multiprocessing.pool
 import time
 from absl import logging
-import grpc
-import portpicker
 
 from vizier import benchmarks
 from vizier.service import pyvizier
 from vizier.service import vizier_client
-from vizier.service import vizier_server
-from vizier.service import vizier_service_pb2_grpc
+from vizier.service.testing import local_service
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 
 class PerformanceTest(parameterized.TestCase):
+  service: local_service.LocalVizierTestService
 
-  def setUp(self):
-    super().setUp()
-
-    # Setup Vizier Service.
-    self.early_stop_recycle_period = datetime.timedelta(seconds=1)
-    self.servicer = vizier_server.VizierService(
-        early_stop_recycle_period=self.early_stop_recycle_period)
-
-    # Setup local networking.
-    self.port = portpicker.pick_unused_port()
-    self.address = f'localhost:{self.port}'
-
-    # Setup server.
-    self.server = grpc.server(futures.ThreadPoolExecutor())
-    vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
-        self.servicer, self.server)
-    self.server.add_secure_port(self.address, grpc.local_server_credentials())
-    self.server.start()
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    cls.service = local_service.LocalVizierTestService()
 
   @parameterized.parameters(
       (1, 10, 2),
+      (2, 10, 2),
       (10, 10, 2),
-      (50, 10, 2),
-      (100, 10, 2),
   )
   def test_multiple_clients_basic(self, num_simultaneous_clients,
                                   num_trials_per_client, dimension):
@@ -56,9 +38,9 @@ class PerformanceTest(parameterized.TestCase):
       study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
 
       client = vizier_client.create_or_load_study(
-          service_endpoint=self.address,
+          service_endpoint=self.service.endpoint,
           owner_id='my_username',
-          study_display_name='study_name',
+          study_id=self.id(),  # Use the testcase name.
           study_config=study_config,
           client_id=str(client_id))
 
@@ -79,9 +61,8 @@ class PerformanceTest(parameterized.TestCase):
     end = time.time()
     pool.close()
 
-    study_name = clients[0].study_name
     self.assertEqual(
-        self.servicer.datastore.max_trial_id(study_name),
+        max({t.id for t in clients[0].list_trials()}),
         num_simultaneous_clients * num_trials_per_client)
 
     logging.info(

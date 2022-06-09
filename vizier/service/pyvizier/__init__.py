@@ -3,7 +3,6 @@
 # TODO: Re-evalaute what to expose to users, once closed.
 # TODO: Alternatively, remove this import.
 from vizier._src.pyvizier.oss import metadata_util
-
 from vizier._src.pyvizier.oss.automated_stopping import AutomatedStoppingConfig
 from vizier._src.pyvizier.oss.automated_stopping import AutomatedStoppingConfigProto
 from vizier._src.pyvizier.oss.proto_converters import MeasurementConverter
@@ -22,6 +21,7 @@ from vizier._src.pyvizier.oss.study_config import SearchSpaceSelector
 from vizier._src.pyvizier.oss.study_config import StudyConfig
 from vizier._src.pyvizier.shared.base_study_config import MetricInformation
 from vizier._src.pyvizier.shared.base_study_config import MetricsConfig
+from vizier._src.pyvizier.shared.base_study_config import ProblemStatement
 from vizier._src.pyvizier.shared.base_study_config import SearchSpace
 from vizier._src.pyvizier.shared.common import Metadata
 from vizier._src.pyvizier.shared.common import MetadataValue
@@ -36,5 +36,6 @@ from vizier._src.pyvizier.shared.trial import ParameterValue
 from vizier._src.pyvizier.shared.trial import PendingTrial
 from vizier._src.pyvizier.shared.trial import PendingTrialWithMeasurements
 from vizier._src.pyvizier.shared.trial import Trial
+from vizier._src.pyvizier.shared.trial import TrialFilter
 from vizier._src.pyvizier.shared.trial import TrialStatus
 from vizier._src.pyvizier.shared.trial import TrialSuggestion

@@ -10,25 +10,22 @@ dependents should only call official API functions from this file and never
 explicitly write their own string processing.
 """
 import re
-from typing import Optional, Any, Union
+
 import attr
+from vizier.utils import attrs_utils
 
-
-def _assert_not_empty(instance: Any, attribute: Any,
-                      value: Optional[Union[str, int]]):
-  del instance, attribute
-  if value is None:
-    raise ValueError('must not be empty.')
+# Resource components cannot contain "/".
+_resource_component_validator = [attrs_utils.assert_re_fullmatch(r'[^\/]+')]
 
 
 @attr.define(init=True, frozen=True)
 class OwnerResource:
   """Resource for Owners."""
-  _owner_id: str = attr.ib(init=True, validator=_assert_not_empty)
+  _owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
 
   @classmethod
   def from_name(cls, resource_name: str):
-    owner_match = re.match(r'^owners/(?P<owner_id>[\w\s]+)$', resource_name)
+    owner_match = re.match(r'^owners\/(?P<owner_id>[^\/]+)$', resource_name)
 
     if owner_match:
       return OwnerResource(owner_id=owner_match.group('owner_id'))
@@ -47,21 +44,22 @@ class OwnerResource:
 @attr.define(init=True, frozen=True)
 class StudyResource:
   """Resource for Studies."""
-  owner_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  study_id: str = attr.ib(init=True, validator=_assert_not_empty)
+  owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  study_id: str = attr.ib(init=True, validator=_resource_component_validator)
 
   @classmethod
   def from_name(cls, resource_name: str):
     """Creates StudyResource from a name."""
     study_match = re.match(
-        r'^owners/(?P<owner_id>[\w\s]+)/studies/(?P<study_id>[\w\s]+)$',
+        r'^owners\/(?P<owner_id>[^\/]+)\/studies\/(?P<study_id>[^\/]+)$',
         resource_name)
 
     if study_match:
       return StudyResource(
           study_match.group('owner_id'), study_match.group('study_id'))
     else:
-      raise ValueError(f'Incorrect resource name sent: {resource_name}')
+      raise ValueError(f'{repr(resource_name)} is not a valid name for a '
+                       'Study resource.')
 
   @property
   def owner_resource(self) -> OwnerResource:
@@ -82,15 +80,19 @@ class StudyResource:
 @attr.define(init=True, frozen=True)
 class TrialResource:
   """Resource for Trials."""
-  owner_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  study_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  trial_id: int = attr.ib(init=True, validator=_assert_not_empty)
+  owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  study_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  trial_id: int = attr.ib(
+      init=True,
+      validator=[
+          attr.validators.instance_of(int), attrs_utils.assert_not_negative
+      ])
 
   @classmethod
   def from_name(cls, resource_name: str) -> 'TrialResource':
     """Creates TrialResource from a name."""
     trial_match = re.match(
-        r'^owners/(?P<owner_id>[\w\s]+)/studies/(?P<study_id>[\w\s]+)/trials/(?P<trial_id>[\w\s]+)$',
+        r'^owners\/(?P<owner_id>[^\/]+)\/studies\/(?P<study_id>[^\/]+)\/trials\/(?P<trial_id>[^\/]+)$',
         resource_name)
 
     if trial_match:
@@ -98,7 +100,8 @@ class TrialResource:
           trial_match.group('owner_id'), trial_match.group('study_id'),
           int(trial_match.group('trial_id')))
     else:
-      raise ValueError(f'Incorrect resource name sent: {resource_name}')
+      raise ValueError(f'{repr(resource_name)} is not a valid name for a '
+                       'Trial resource.')
 
   def make_early_stopping_operation(self, operation_id: str = ''):
     pass
@@ -115,13 +118,17 @@ class TrialResource:
 @attr.define(init=True, frozen=True)
 class EarlyStoppingOperationResource:
   """Resource for Early Stopping Operations."""
-  owner_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  study_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  trial_id: int = attr.ib(init=True, validator=_assert_not_empty)
+  owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  study_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  trial_id: int = attr.ib(
+      init=True,
+      validator=[
+          attr.validators.instance_of(int), attrs_utils.assert_not_negative
+      ])
 
   @property
   def operation_id(self) -> str:
-    return f'earlystopping_{self.study_id}_{self.trial_id}'
+    return f'earlystopping/{self.study_id}/{self.trial_id}'
 
   @property
   def name(self) -> str:
@@ -131,7 +138,7 @@ class EarlyStoppingOperationResource:
   def from_name(cls, resource_name: str):
     """Creates EarlyStoppingOperationResource from a name."""
     operation_match = re.match(
-        r'^owners/(?P<owner_id>[\w\s]+)/operations/earlystopping_(?P<study_id>[\w\s]+)_(?P<trial_id>[\w\s]+)$',
+        r'^owners\/(?P<owner_id>[^\/]+)/operations/earlystopping/(?P<study_id>[^\/]+)/(?P<trial_id>[^\/]+)$',
         resource_name)
     if operation_match:
       return EarlyStoppingOperationResource(
@@ -150,13 +157,18 @@ class EarlyStoppingOperationResource:
 class SuggestionOperationResource:
   """Resource for Suggestion Operations."""
 
-  owner_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  client_id: str = attr.ib(init=True, validator=_assert_not_empty)
-  operation_number: int = attr.ib(init=True, validator=_assert_not_empty)
+  # TODO: study_id should be included here.
+  owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  client_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  operation_number: int = attr.ib(
+      init=True,
+      validator=[
+          attr.validators.instance_of(int), attrs_utils.assert_not_negative
+      ])
 
   @property
   def operation_id(self) -> str:
-    return f'suggestion_{self.client_id}_{self.operation_number}'
+    return f'suggestion/{self.client_id}/{self.operation_number}'
 
   @property
   def name(self) -> str:
@@ -166,7 +178,7 @@ class SuggestionOperationResource:
   def from_name(cls, resource_name: str):
     """Creates SuggestionOperationResource from a name."""
     operation_match = re.match(
-        r'^owners/(?P<owner_id>[\w\s]+)/operations/suggestion_(?P<client_id>[\w\s]+)_(?P<operation_number>[\w\s]+)$',
+        r'^owners\/(?P<owner_id>[^\/]+)/operations/suggestion/(?P<client_id>[^\/]+)/(?P<operation_number>[^\/]+)$',
         resource_name)
     if operation_match:
       return SuggestionOperationResource(

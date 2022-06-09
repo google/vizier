@@ -1,8 +1,11 @@
 """Utils for attrs."""
 
+import re
 from typing import Any, Callable, Collection, Optional
 
 import attr
+
+_Validator = Callable[[Any, attr.Attribute, Any], None]
 
 
 def assert_not_empty(instance: Any, attribute: attr.Attribute,
@@ -22,6 +25,17 @@ def assert_not_none(instance: Any, attribute: attr.Attribute,
                     value: Any) -> None:
   if value is None:
     raise ValueError(f'{attribute.name} must not be None in {type(instance)}.')
+
+
+def assert_re_fullmatch(
+    regex: str) -> Callable[[Any, attr.Attribute, str], None]:
+
+  def validator(instance: Any, attribute: attr.Attribute, value: str) -> None:
+    if not re.fullmatch(regex, value):
+      raise ValueError(
+          f'{attribute.name} must match the regex {regex} in {type(instance)}.')
+
+  return validator
 
 
 def shape_equals(instance_to_shape: Callable[[Any], Collection[Optional[int]]]):

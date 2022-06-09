@@ -89,9 +89,9 @@ def main(argv: Sequence[str]) -> None:
       service_endpoint=FLAGS.address,
       owner_id='my_name',
       client_id='my_client_id',
-      study_display_name='cifar10',
+      study_id='cifar10',
       study_config=study_config)
-  logging.info('Client created with study name: %s', client.study_name)
+  logging.info('Client created with study name: %s', client.study_resource_name)
 
   for _ in range(FLAGS.max_num_iterations):
     # Evaluate the suggestion(s) and report the results to Vizier.
