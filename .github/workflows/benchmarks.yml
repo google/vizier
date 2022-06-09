@@ -1,4 +1,4 @@
-name: pytest_core
+name: pytest_benchmarks
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   test-ubuntu:
-    name: "pytest on ${{ matrix.python-version }} on ${{ matrix.os }}"
+    name: "Benchmarks test on ${{ matrix.python-version }} on ${{ matrix.os }}"
     runs-on: "${{ matrix.os }}"
     strategy:
       matrix:
@@ -30,9 +30,10 @@ jobs:
       - name: Install Vizier
         run: |
           bash ./install.sh
+          pip install -r requirements-benchmarks.txt
       - name: Print installed dependencies
         run: |
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier --ignore=vizier/_src/integration/ --ignore=vizier/_src/benchmarks/
+          pytest -n auto vizier/_src/benchmarks/
