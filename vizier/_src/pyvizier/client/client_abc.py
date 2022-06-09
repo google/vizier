@@ -17,7 +17,7 @@ Modifying the returned object does not update the Vizier service.
 
 import abc
 
-from typing import Optional, Collection, Type, TypeVar, Mapping, Any
+from typing import Iterable, Optional, Collection, Type, TypeVar, Mapping, Any
 
 from vizier import pyvizier as vz
 
@@ -34,18 +34,16 @@ class TrialInterface(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def uid(self) -> int:
-    """Unique identifier of the trial."""
+  def id(self) -> int:
+    """Identifier of the trial within the study.
+
+    Ids are sorted in increasing order of creation time.
+    """
 
   @property
   @abc.abstractmethod
   def parameters(self) -> Mapping[str, Any]:
-    """Parameters of the trial."""
-
-  @property
-  @abc.abstractmethod
-  def status(self) -> vz.TrialStatus:
-    """Trial's status."""
+    """#Materializes the parameters of the trial."""
 
   @abc.abstractmethod
   def delete(self) -> None:
@@ -71,7 +69,6 @@ class TrialInterface(abc.ABC):
     * If neither is provided, then Vizier selects an existing (intermediate)
     measurement to be the final measurement and returns it.
 
-
     Args:
       measurement: Final measurement.
       infeasible_reason: Infeasible reason for missing final measurement.
@@ -86,8 +83,21 @@ class TrialInterface(abc.ABC):
     """
 
   @abc.abstractmethod
-  def should_stop(self) -> bool:
-    """Returns true if the trial should stop."""
+  def check_early_stopping(self) -> bool:
+    """Decide if the trial should stop.
+
+    If the Trial is in ACTIVE state and an early stopping algorithm is
+    configured fior the Study, the stopping algorithm makes a stopping decision.
+    If the algorithm decides that the trial is not worth continuing, Vizier
+    service moves it into `STOPPING` state.
+
+    Then, this method returns True if the Trial is in `STOPPING` state.
+
+    Returns:
+      True if trial is already in STOPPING state or entered STOPPING as a
+      result of this method invocation.
+    """
+    pass
 
   @abc.abstractmethod
   def add_measurement(self, measurement: vz.Measurement) -> None:
@@ -110,18 +120,25 @@ class TrialInterface(abc.ABC):
 class StudyInterface(abc.ABC):
   """Responsible for study-level operations."""
 
+  @property
   @abc.abstractmethod
-  def suggest(self,
-              *,
-              count: Optional[int] = None,
-              worker: str = '') -> Collection[TrialInterface]:
-    """Returns Trials to be evaluated by worker.
+  def resource_name(self) -> str:
+    """Globally unique identifier of the study in Vizier service."""
+
+  @abc.abstractmethod
+  def suggest(
+      self,
+      *,
+      count: Optional[int] = None,
+      client_id: str = 'default_client_id') -> Collection[TrialInterface]:
+    """Returns Trials to be evaluated by client_id.
 
     Args:
       count: Number of suggestions.
-      worker: When new Trials are generated, their `assigned_worker` field is
-        populated with this worker. suggest() first looks for existing Trials
-        that are assigned to `worker`, before generating new ones.
+      client_id: When new Trials are generated, their `client_id` field is
+        populated with this client_id. The Vizier service first looks for
+        existing ACTIVE Trials that are assigned to `client_id`, before
+        generating new ones.
 
     Returns:
       Trials.
@@ -129,13 +146,23 @@ class StudyInterface(abc.ABC):
 
   @abc.abstractmethod
   def delete(self) -> None:
-    """Deletes the study."""
+    """Delete the Study in Vizier service.
+
+    There is currently no promise on how this object behaves after `delete()`.
+    If you are sharing a Study object in parallel processes, proceed with
+    caution.
+    """
+
+  # TODO: Make this method public.
+  @abc.abstractmethod
+  def _add_trial(self, trial: vz.Trial) -> TrialInterface:
+    """Adds a trial to the Study. For testing only."""
 
   @abc.abstractmethod
   def trials(
       self,
       trial_filter: Optional[vz.TrialFilter] = None
-  ) -> Collection[TrialInterface]:
+  ) -> Iterable[TrialInterface]:
     """Fetches a collection of trials."""
 
   @abc.abstractmethod
@@ -153,19 +180,20 @@ class StudyInterface(abc.ABC):
     """
 
   @abc.abstractmethod
-  def optimal_trials(self) -> Collection[TrialInterface]:
+  def optimal_trials(self) -> Iterable[TrialInterface]:
     """Returns optimal trial(s)."""
 
   @abc.abstractmethod
-  def materialize_study_config(self) -> vz.StudyConfig:
-    """#Materializes the study config."""
+  def materialize_problem_statement(self) -> vz.ProblemStatement:
+    """#Materializes the problem statement."""
 
-  @abc.abstractclassmethod
-  def from_uid(cls: Type[_T], uid: str) -> _T:
+  @classmethod
+  @abc.abstractmethod
+  def from_resource_name(cls: Type[_T], name: str, /) -> _T:
     """Fetches an existing study from the Vizier service.
 
     Args:
-      uid: Unique identifier of the study.
+      name: Globally unique identifier of the study.
 
     Returns:
       Study.
