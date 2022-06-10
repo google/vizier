@@ -1,5 +1,4 @@
 """RPC functions implemented from vizier_service.proto."""
-
 import collections
 import datetime
 import threading
@@ -8,6 +7,8 @@ from typing import Optional
 from absl import logging
 import grpc
 import numpy as np
+import sqlalchemy as sqla
+
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.designers import emukit
@@ -18,6 +19,7 @@ from vizier.service import datastore
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
+from vizier.service import sql_datastore
 from vizier.service import study_pb2
 from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
@@ -39,8 +41,12 @@ def policy_creator(
                    study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
     return random_policy.RandomPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
-    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
-                                                  nsga2.create_nsga2)
+    # TODO: See ValueError below.
+    raise ValueError(
+        'Currently NSGA2 is broken when using SQL datastore, due to needed metadata update changes.'
+    )
+    return dp.PartiallySerializableDesignerPolicy(  # pylint:disable=unreachable
+        policy_supporter, nsga2.create_nsga2)
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   else:
@@ -65,6 +71,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
   def __init__(
       self,
+      database_url: str = 'sqlite:///:memory:',
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
           seconds=60)):
     """Initializes the service.
@@ -73,11 +80,17 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     datastore input/output is assumed to always be pass-by-value.
 
     Args:
+      database_url: URL to the database. Can be local.
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
     """
-    self.datastore = datastore.NestedDictRAMDataStore()
+    engine = sqla.create_engine(
+        database_url,
+        echo=False,  # Set True to log transactions for debugging.
+        connect_args={'check_same_thread': False},
+        poolclass=sqla.pool.StaticPool)
+    self.datastore = sql_datastore.SQLDataStore(engine)
 
     # For database edits using owner names.
     self._owner_name_to_lock = collections.defaultdict(threading.Lock)
@@ -161,9 +174,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.DeleteStudyRequest,
       context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
     """Deletes a Study."""
-    lock = self._owner_name_to_lock[resources.StudyResource.from_name(
-        request.name).owner_resource.name]
-    with lock:
+    owner_name = resources.StudyResource.from_name(
+        request.name).owner_resource.name
+    with self._owner_name_to_lock[owner_name]:
       self.datastore.delete_study(request.name)
     return empty_pb2.Empty()
 
@@ -360,7 +373,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
       trial.start_time.CopyFrom(_get_current_time())
       self.datastore.create_trial(trial)
-      return trial
+    return trial
 
   def GetTrial(self, request: vizier_service_pb2.GetTrialRequest,
                context: grpc.ServicerContext) -> Optional[study_pb2.Trial]:
@@ -396,9 +409,12 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     Returns:
       Trial whose measurement was appended.
     """
-    trial = self.datastore.get_trial(request.trial_name)
-    trial.measurements.extend([request.measurement])
-    self.datastore.update_trial(trial)
+    study_name = resources.TrialResource.from_name(
+        request.trial_name).study_resource.name
+    with self._study_name_to_lock[study_name]:
+      trial = self.datastore.get_trial(request.trial_name)
+      trial.measurements.extend([request.measurement])
+      self.datastore.update_trial(trial)
     return trial
 
   # TODO: Auto selection defaults to the last measurement.
@@ -408,28 +424,31 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.CompleteTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     """Marks a Trial as complete."""
-    trial = self.datastore.get_trial(request.name)
+    study_name = resources.TrialResource.from_name(
+        request.name).study_resource.name
+    with self._study_name_to_lock[study_name]:
+      trial = self.datastore.get_trial(request.name)
 
-    if request.final_measurement.metrics:
-      trial.final_measurement.CopyFrom(request.final_measurement)
-      trial.state = study_pb2.Trial.State.SUCCEEDED
-    elif not request.trial_infeasible:
-      # Trial's final measurement auto-selected from latest reported
-      # measurement.
-      trial.state = study_pb2.Trial.State.SUCCEEDED
-      if trial.measurements:
-        trial.final_measurement.CopyFrom(trial.measurements[-1])
-      else:
-        raise ValueError(
-            "Both the request and trial intermediate measurements are missing. Cannot determine trial's final_measurement."
-        )
+      if request.final_measurement.metrics:
+        trial.final_measurement.CopyFrom(request.final_measurement)
+        trial.state = study_pb2.Trial.State.SUCCEEDED
+      elif not request.trial_infeasible:
+        # Trial's final measurement auto-selected from latest reported
+        # measurement.
+        trial.state = study_pb2.Trial.State.SUCCEEDED
+        if trial.measurements:
+          trial.final_measurement.CopyFrom(trial.measurements[-1])
+        else:
+          raise ValueError(
+              "Both the request and trial intermediate measurements are missing. Cannot determine trial's final_measurement."
+          )
 
-    # Handle infeasibility.
-    if request.trial_infeasible:
-      trial.state = study_pb2.Trial.State.INFEASIBLE
-      trial.infeasible_reason = request.infeasible_reason
+      # Handle infeasibility.
+      if request.trial_infeasible:
+        trial.state = study_pb2.Trial.State.INFEASIBLE
+        trial.infeasible_reason = request.infeasible_reason
 
-    self.datastore.update_trial(trial)
+      self.datastore.update_trial(trial)
     return trial
 
   def DeleteTrial(
@@ -437,7 +456,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.DeleteTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
     """Deletes a Trial."""
-    self.datastore.delete_trial(request.name)
+    study_name = resources.TrialResource.from_name(
+        request.name).study_resource.name
+    with self._study_name_to_lock[study_name]:
+      self.datastore.delete_trial(request.name)
     return empty_pb2.Empty()
 
   # TODO: This curerntly uses the same algorithm as suggestion.
@@ -568,9 +590,12 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self,
       request: vizier_service_pb2.StopTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
-    trial = self.datastore.get_trial(request.name)
-    trial.state = study_pb2.Trial.STOPPING
-    self.datastore.update_trial(trial)
+    study_name = resources.TrialResource.from_name(
+        request.name).study_resource.name
+    with self._study_name_to_lock[study_name]:
+      trial = self.datastore.get_trial(request.name)
+      trial.state = study_pb2.Trial.STOPPING
+      self.datastore.update_trial(trial)
     return trial
 
   def ListOptimalTrials(
@@ -647,12 +672,12 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
-    # TODO: Add locking logic.
     try:
-      self.datastore.update_metadata(
-          request.name,
-          [x.k_v for x in request.metadata if not x.HasField('trial_id')],
-          [x for x in request.metadata if x.HasField('trial_id')])
+      with self._study_name_to_lock[request.name]:
+        self.datastore.update_metadata(
+            request.name,
+            [x.k_v for x in request.metadata if not x.HasField('trial_id')],
+            [x for x in request.metadata if x.HasField('trial_id')])
     except KeyError as e:
       return vizier_service_pb2.UpdateMetadataResponse(
           error_details=';'.join(e.args))

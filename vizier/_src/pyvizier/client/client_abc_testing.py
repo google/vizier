@@ -229,16 +229,18 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         assert isinstance(trial, _TrialClient), type(trial)
         learning_rate = trial.parameters['learning_rate']
         num_layers = trial.parameters['num_layers']
-        curve = learning_curve_simulator(learning_rate)
-        for i in range(len(curve)):
+        possible_curve = learning_curve_simulator(learning_rate)
+        evaluated_curve = []
+        for i, obj in enumerate(possible_curve):
           if i > 1 and trial.check_early_stopping():
             break
+          evaluated_curve.append(obj)
           trial.add_measurement(
               vz.Measurement(
                   steps=i,
                   elapsed_secs=0.1 * i,
                   metrics={
-                      'accuracy': curve[i],
+                      'accuracy': obj,
                       'latency': 0.5 * num_layers
                   }))
         trial.complete()
@@ -248,9 +250,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         ]
 
         # See if curve was stored correctly.
-        self.assertEqual(curve, stored_curve)
+        self.assertEqual(evaluated_curve, stored_curve)
 
         # See if final_measurement is defaulted to end of curve.
         final_accuracy = (
             trial.materialize().final_measurement.metrics['accuracy'].value)
-        self.assertEqual(curve[-1], final_accuracy)
+        self.assertEqual(evaluated_curve[-1], final_accuracy)

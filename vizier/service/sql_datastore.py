@@ -415,6 +415,7 @@ class SQLDataStore(datastore.DataStore):
     self._connection.execute(query)
     return resource
 
+  # TODO: To be fixed after Pythia changes.
   def update_metadata(
       self,
       study_name: str,
@@ -422,7 +423,6 @@ class SQLDataStore(datastore.DataStore):
       trial_metadata: Iterable[datastore._KeyValuePlus],  # pylint:disable=protected-access
   ) -> None:
     """Store the supplied metadata into the SQL database."""
-    # TODO: Add exception logic when this function is updated.
     s_resource = resources.StudyResource.from_name(study_name)
     logging.debug('database.update_metadata s_resource= %s', s_resource)
 
