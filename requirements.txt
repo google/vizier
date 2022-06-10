@@ -14,7 +14,7 @@ pytest  # Use the latest version to match github workflow.
 grpcio-tools==1.35.0
 googleapis-common-protos==1.56.0
 google-api-python-client==1.12.8
-sqlalchemy==1.2
+sqlalchemy==1.4
 
 # Optional Jax library.
 jax==0.3.7
