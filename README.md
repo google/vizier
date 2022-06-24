@@ -258,7 +258,7 @@ If you found this code useful, please consider citing the [OSS Vizier paper](htt
                Greg Kochanski and
                Daniel Golovin},
   title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Blackbox Optimization},
-  booktitle = {Automated Machine Learning Conference, Systems Track (AutoML-Conf Systems)}
+  booktitle = {Automated Machine Learning Conference, Systems Track (AutoML-Conf Systems)},
   year      = {2022},
 }
 @inproceedings{google_vizier,
