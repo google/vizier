@@ -181,6 +181,42 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     self.assertEqual(
         converter.to_trials(expected)[0].parameters, expected_parameters)
 
+  def test_labels(self):
+    study_config = pyvizier.StudyConfig()
+    root = study_config.search_space.select_root()
+    root.add_float_param('x1', 0., 10.)
+    root.add_float_param('x2', 0., 10.)
+
+    study_config.metric_information.extend([
+        pyvizier.MetricInformation(
+            name='y1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
+        pyvizier.MetricInformation(
+            name='y2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE),
+        pyvizier.MetricInformation(
+            name='y3', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
+    ])
+    converter = core.DefaultTrialConverter.from_study_config(study_config)
+    params_dict = {'x1': np.array([[1, 3, 5]]).T, 'x2': np.array([[2, 4, 6]]).T}
+    labels_dict = {
+        'y1': np.array([[10, 30, 50]]).T,
+        'y2': np.array([[20, 40, 60]]).T,
+        'y3': np.array([[np.nan, 70, 80]]).T
+    }
+    expected = {
+        'y1': pyvizier.Metric(value=10.0),
+        'y2': pyvizier.Metric(value=20.0),
+        'y3': pyvizier.Metric(value=np.nan)
+    }
+    actual = dict(
+        converter.to_trials(params_dict,
+                            labels_dict)[0].final_measurement.metrics)
+    for k in expected:
+      if np.isnan(expected[k].value):
+        self.assertTrue((np.isnan(expected[k].value) and
+                         np.isnan(actual[k].value)))
+      else:
+        self.assertAlmostEqual(expected[k].value, actual[k].value)
+
   def test_metrics(self):
     converter = core.DefaultTrialConverter.from_study_configs(
         [], [

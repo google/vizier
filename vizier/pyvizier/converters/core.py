@@ -746,12 +746,41 @@ class DefaultTrialConverter(TrialToNumpyDict):
       result_dict[converter.parameter_config.name] = converter.convert(trials)
     return result_dict
 
-  def to_trials(self, dictionary: Mapping[str,
-                                          np.ndarray]) -> List[pyvizier.Trial]:
-    """Inverse of `to_features`."""
-    return [
-        pyvizier.Trial(parameters=p) for p in self.to_parameters(dictionary)
+  def to_trials(
+      self,
+      features: Mapping[str, np.ndarray],
+      experimental_labels: Optional[Mapping[str, np.ndarray]] = None
+  ) -> List[pyvizier.Trial]:
+    """Inverse of `to_features` and optionally the inverse of `to_labels`.
+
+    We assume that label values are already shifted and their signs are flipped
+    if required.
+
+    Args:
+      features: A dictionary from feature names to feature value arrays (one
+        array entry per trial)
+      experimental_labels: (EXPERIMENTAL) A dictionary of labels.
+
+    Returns:
+      A list of pyvizier trials created with parameters corresponding to
+      `features` and final measurements corresponding to `experimental_labels`.
+      Note that final measurements miss any time stamps.
+    """
+    trials = [
+        pyvizier.Trial(parameters=p) for p in self.to_parameters(features)
     ]
+
+    if experimental_labels is None:
+      return trials
+
+    # Validate the consistency of the array sizes.
+    DictOf2DArrays(experimental_labels)
+
+    for i, t in enumerate(trials):
+      t.final_measurement = pyvizier.Measurement(
+          {k: experimental_labels[k][i].item() for k in experimental_labels})
+
+    return trials
 
   def to_parameters(
       self, dictionary: Mapping[str,
