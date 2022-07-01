@@ -1,4 +1,15 @@
-"""Sets up the Vizier Service. This should be done on a server machine."""
+"""Sets up the Vizier Service gRPC server.
+
+This should be done on a server machine:
+
+```
+python run_vizier_server.py
+```
+
+After running the command, the address of the server, formatted as:
+"localhost:[PORT]" will be logged to stdout.
+This address should be used as a command line argument to run_vizier_client.py
+"""
 
 from concurrent import futures
 import time
