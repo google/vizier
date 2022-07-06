@@ -163,7 +163,7 @@ class StudyInterface(abc.ABC):
       self,
       trial_filter: Optional[vz.TrialFilter] = None
   ) -> Iterable[TrialInterface]:
-    """Fetches a collection of trials."""
+    """Fetches a collection of trials. Default uses vz.TrialFilter()."""
 
   @abc.abstractmethod
   def get_trial(self, uid: int) -> TrialInterface:

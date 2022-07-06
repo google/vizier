@@ -17,7 +17,7 @@ _StudyClient = client_abc.StudyInterface
 _TrialClient = client_abc.TrialInterface
 
 
-class VizierClientTestMixin(metaclass=abc.ABCMeta):
+class VizierClientTestMixin(abc.ABC):
 
   @abc.abstractmethod
   def create_study(self, study_config: vz.ProblemStatement,
@@ -164,7 +164,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
 
   def test_complete_trial_manual_measurement(self):
     study = self.create_test_study_with_trials(self.id())
-    trial = study.get_trial(2)
+    trial = study.get_trial(3)
     final_measurement = vz.Measurement(metrics={'maximize_metric': .1})
     self.assertEqual(trial.complete(final_measurement), final_measurement)
     self.assertEqual(trial.materialize().status, vz.TrialStatus.COMPLETED)
@@ -172,12 +172,12 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_should_trial_stop(self):
     # TODO: Improve coverage.
     study = self.create_test_study_with_trials(self.id())
-    trial = study.get_trial(2)
+    trial = study.get_trial(3)
     self.assertIsInstance(trial.check_early_stopping(), bool)
 
   def test_intermediate_measurement(self):
     study = self.create_test_study_with_trials(self.id())
-    trial = study.get_trial(2)
+    trial = study.get_trial(3)
     before = trial.materialize()
     trial.add_measurement(
         vz.Measurement(steps=2, metrics={'maximize_metric': 0.2}))
@@ -231,7 +231,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         num_layers = trial.parameters['num_layers']
         possible_curve = learning_curve_simulator(learning_rate)
         evaluated_curve = []
-        for i, obj in enumerate(possible_curve):
+        for i, obj in enumerate(possible_curve, start=1):
           if i > 1 and trial.check_early_stopping():
             break
           evaluated_curve.append(obj)
