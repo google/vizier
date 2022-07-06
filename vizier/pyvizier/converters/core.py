@@ -57,7 +57,11 @@ class NumpyArraySpecType(enum.Enum):
 
 @attr.define(frozen=True, auto_attribs=True)
 class NumpyArraySpec:
-  """Encodes what an array represents.
+  """Encodes what a feature array represents.
+
+  This class can be seen as a counterpart of Vizier ParameterConfig.
+  Vizier ParameterConfigs describe Trial parameters. NumpyArraySpec describes
+  numpy arrays returned from trial-to-numpy converters.
 
   This class is similar to `BoundedTensorSpec` in tf agents, except it carries
   extra information specific to vizier.
@@ -153,7 +157,7 @@ class NumpyArraySpec:
     raise ValueError(f'Unknown type {type}')
 
 
-def dict_to_array(array_dict: Dict[str, np.ndarray]) -> np.ndarray:
+def dict_to_array(array_dict: Mapping[str, np.ndarray]) -> np.ndarray:
   r"""Converts a dict of (..., D_i) arrays to a (..., \sum_i D_i) array."""
   return np.concatenate(list(array_dict.values()), axis=-1)
 
@@ -168,7 +172,7 @@ class DictOf2DArrays(Mapping[str, np.ndarray]):
     size: Array's shape[0].
   """
 
-  def __init__(self, d: Dict[str, np.ndarray]):
+  def __init__(self, d: Mapping[str, np.ndarray]):
     self._d = d
     shape = None
     for k, v in self.items():
@@ -236,43 +240,71 @@ class DictOf2DArrays(Mapping[str, np.ndarray]):
 class TrialToNumpyDict(abc.ABC):
   """Parses a sequence of Trials to a dict keyed by parameter and metric names.
 
-  A typical Keras/JAX pipeline consists of:
-    1. Load data into arrays.
-    2. Call Model.build() to initialize a model for the loaded data shape.
-    3. Call Model.fit() to train the model.
-    4. Call Model.__call__() to predict with the model.
+  Design note:
+    A typical Keras pipeline consists of:
+      1. Load data into arrays.
+      2. Call Model.build() to initialize a model for the loaded data shape.
+      3. Call Model.fit() to train the model.
+      4. Call Model.__call__() to predict with the model.
+    This abstraction allows us to switch implementations for the step number 1.
 
-  This abstraction allows a shared implementation of steps 1,2 and 3.
+  This class consists of `to_xy()` function and properties that describe
+  the returned values of `to_xy()`. Subclasses are free to have extra functions
+  for convenience.
   """
 
   @abc.abstractmethod
   def to_xy(
       self, trials: Sequence[pyvizier.Trial]
   ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
-    """Returns (x,y) pair that can be used as input for keras.Model.fit()."""
+    """Extracts features-labels pairs that can be used for fitting a model."""
     pass
 
   @property
   @abc.abstractmethod
   def features_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
-    """Returned value can be used as `input_shape` for keras.Model.build()."""
+    """Describes the shape of the first element returned from to_xy().
+
+    Returns:
+      Dict of feature names to shapes. `None` means that the shape depends
+      on the input "trials".
+    # TODO: Add compute_feature_shape(trials) that returns exact
+    shapes.
+    """
     pass
 
   @property
   @abc.abstractmethod
   def output_specs(self) -> Dict[str, NumpyArraySpec]:
-    """Same keys as features_shape, with more details."""
+    """Describes the semantics of the first element returned from to_xy().
+
+    See NumpyArraySpec for more details.
+
+    Returns:
+      Dict of feature names to NumpyArraySpecs.
+    """
     pass
 
   @property
   @abc.abstractmethod
   def labels_shape(self) -> Dict[str, Any]:
+    """Describes the shape of the second element returned from to_xy().
+
+    Returns:
+      Dict of label names to shapes. `None` means that the shape depends
+      on the input "trials".
+    """
     pass
 
   @property
   @abc.abstractmethod
   def metric_information(self) -> Dict[str, pyvizier.MetricInformation]:
-    pass
+    """Describes the semantics of the second element returned from to_xy().
+
+    See ModelOutputConverter for more details.
+    Returns:
+      Dict of label names to MetricInformation.
+    """
 
 
 class ModelInputConverter(metaclass=abc.ABCMeta):
@@ -524,6 +556,8 @@ class DefaultModelInputConverter(ModelInputConverter):
     Returns:
       ParameterValue.
     """
+    # TODO: NaNs and out-of-vocab values should return None instead
+    # of raising an error.
     if not self._converts_to_parameter:
       return None
     if self.parameter_config.type == pyvizier.ParameterType.DOUBLE:
@@ -551,7 +585,7 @@ class DefaultModelInputConverter(ModelInputConverter):
     return [self._to_parameter_value(v) for v in list(array.flatten())]
 
   def _convert_index(self, trial: pyvizier.Trial):
-    """Used for non-continuous types."""
+    """Called by `convert()` if configured for a non-continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value in self.parameter_config.feasible_values:
       return self.parameter_config.feasible_values.index(raw_value)
@@ -560,7 +594,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       return len(self.parameter_config.feasible_values)
 
   def _convert_continuous(self, trial: pyvizier.Trial):
-    """Used for continuous types."""
+    """Called by `convert()` if configured for a continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value is None:
       return np.nan
@@ -599,13 +633,15 @@ class ModelOutputConverter(metaclass=abc.ABCMeta):
   @property
   @abc.abstractmethod
   def metric_information(self) -> pyvizier.MetricInformation:
-    """Reflects how the converter treates the metric.
+    """Describes the semantics of the return value from convert() method.
 
-    If this metric converter flips the signs or changes the semantics of
-    safety configs, then the returned metric_information should reflect such
-    changes.
+    Returns:
+      The MetricInformation that reflects how the labels should be
+      interpreted. It may not be identical to the MetricInformation that the
+      converter was created from. For example, if the converter flips the signs
+      or changes the semantics of safety configs, then the returned
+      MetricInformation should reflect such changes.
     """
-    pass
 
   @property
   def output_shape(self) -> Tuple[None, int]:
@@ -704,7 +740,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
   def to_features(self,
                   trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
-    """Returned value can be used as `x` for keras.Model.fit()."""
+    """Shorthand for to_xy(trials))[0]."""
     result_dict = dict()
     for converter in self.parameter_converters:
       result_dict[converter.parameter_config.name] = converter.convert(trials)
@@ -720,12 +756,17 @@ class DefaultTrialConverter(TrialToNumpyDict):
   def to_parameters(
       self, dictionary: Mapping[str,
                                 np.ndarray]) -> List[pyvizier.ParameterDict]:
-    """Convert to nearest feasible parameter value. NaNs are preserved."""
+    """Convert to nearest feasible parameter value. NaNs trigger errors."""
+    # TODO: NaNs should be ignored instead of triggering errors.
     # TODO: Add a boolean flag to disable automatic clipping.
+
+    # Validate dictionary's shape, and create empty ParameterDicts.
     param_dicts = [
         pyvizier.ParameterDict()
-        for _ in range(len(list(dictionary.values())[0]))
+        for _ in range(DictOf2DArrays(dictionary).size)
     ]
+
+    # Iterate through parameter names and convert them.
     for key, values in dictionary.items():
       parameter_converter = self._parameter_converters_dict[key]
       parameter_values = parameter_converter.to_parameter_values(values)
@@ -736,7 +777,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
   def to_labels(self,
                 trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
-    """Returned value can be used as `y` for keras.Model.fit()."""
+    """Shorthand for to_xy(trials))[1]."""
     result_dict = dict()
     for converter in self.metric_converters:
       result_dict[converter.metric_information.name] = converter.convert(
@@ -750,29 +791,27 @@ class DefaultTrialConverter(TrialToNumpyDict):
   def to_xy(
       self, trials: Sequence[pyvizier.Trial]
   ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
-    """Returned value can be used as `x`, `y` for keras.Model.fit()."""
+    """See base class."""
     return self.to_features(trials), self.to_labels(trials)
 
   @property
   def features_shape(self) -> Dict[str, Tuple[Union[int, None], int]]:
-    """Returned value can be used as `input_shape` for keras.Model.build()."""
+    """See base class."""
     return {
         pc.output_spec.name: (None, pc.output_spec.num_dimensions)
         for pc in self.parameter_converters
     }
 
-  def compute_features_shape(
-      self, trials: Sequence[pyvizier.Trial]) -> Dict[str, Tuple[int, int]]:
-    return {k: (len(trials), v[1]) for k, v in self.features_shape.items()}
-
   @property
   def output_specs(self) -> Dict[str, NumpyArraySpec]:
+    """See base class."""
     return {
         pc.output_spec.name: pc.output_spec for pc in self.parameter_converters
     }
 
   @property
   def labels_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
+    """See base class."""
     return {
         mc.metric_information.name: mc.output_shape
         for mc in self.metric_converters
@@ -780,13 +819,16 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
   @property
   def metric_information(self) -> Dict[str, pyvizier.MetricInformation]:
+    """See base class."""
     return {
         mc.metric_information.name: mc.metric_information
         for mc in self.metric_converters
     }
 
+  # TODO: Deprecate or update so that it returns SearchSpace.
   @property
   def parameter_configs(self) -> Dict[str, pyvizier.ParameterConfig]:
+    """Returns a dict of the original Parameter configs."""
     return {
         converter.parameter_config.name: converter.parameter_config
         for converter in self.parameter_converters
@@ -875,22 +917,30 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
 
 class TrialToArrayConverter:
-  """TrialToArrayConverter.
-
-  Use a factory method (currently, there is one: `from_study_config`) instead
-  of `__init__`.
+  """EXPERIMENTAL: A quick-and-easy converter that returns a single array.
 
   Unlike TrialtoNumpyDict converters, `to_features` and `to_labels`
   return a single array of floating numbers. CATEGORICAL and DISCRETE parameters
   are one-hot embedded.
-  """
-  _waiver = 'I am aware that this code may break at any point.'
 
-  def __init__(self, impl: DefaultTrialConverter, _waiver: str = ''):
+  IMPORTANT: Use a factory method (currently, there is one: `from_study_config`)
+  instead of `__init__`.
+
+  WARNING: This class is not exchangable with `TrialToNumpyDict`, and does not
+  have functions that return shape or metric informations. Use it at your own
+  risk.
+  """
+  _experimental_override = 'I am aware that this code may break at any point.'
+
+  def __init__(self,
+               impl: DefaultTrialConverter,
+               experimental_override: str = ''):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
 
-    if _waiver != self._waiver:
-      raise ValueError('Sign the waiver if you want to use init directly.')
+    if experimental_override != self._experimental_override:
+      raise ValueError(
+          'Set "experimental_override" if you want to call __init__ directly. '
+          'Otherwise, use TrialToArrayConverter.from_study_config.')
     self._impl = impl
 
   def to_features(self, trials) -> np.ndarray:
@@ -955,7 +1005,7 @@ class TrialToArrayConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information])
 
-    return cls(converter, cls._waiver)
+    return cls(converter, cls._experimental_override)
 
   @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:
