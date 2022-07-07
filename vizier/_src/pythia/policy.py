@@ -65,17 +65,20 @@ class EarlyStopRequest:
 
   Attributes:
     study_guid:
-    trial_ids: Trials to be considered for stopping. Used as hints.
+    trial_ids: Trials to be considered for stopping, or None meaning "all
+      Trials". This is a hint; it is allowable to consider stopping more or
+      fewer trials.
     study_config:
     checkpoint_dir: If the policy wishes to use a checkpoint, then this is the
       path to find one.
   """
   _study_descriptor: vz.StudyDescriptor = attr.field(
       validator=attr.validators.instance_of(vz.StudyDescriptor))
-  trial_ids: FrozenSet[int] = attr.field(
-      default=attr.Factory(frozenset),
-      validator=attr.validators.instance_of(FrozenSet),
-      converter=frozenset)
+
+  trial_ids: Optional[FrozenSet[int]] = attr.field(
+      default=None,
+      validator=lambda x, c, v: x is None or isinstance(x, FrozenSet),
+      converter=lambda x: None if x is None else frozenset(x))
 
   checkpoint_dir: Optional[str] = attr.field(
       default=None,
@@ -111,8 +114,13 @@ class SuggestDecision:
       validator=[attr.validators.instance_of(vz.Metadata)])
 
   def to_trial(self, trial_id: int) -> vz.Trial:
-    return vz.Trial(
-        id=trial_id, parameters=self.parameters, metadata=self.metadata)
+    """Convert to a Trial by way of a TrialSuggestion."""
+    return self.to_trial_suggestion().to_trial(uid=trial_id)
+
+  def to_trial_suggestion(self) -> vz.TrialSuggestion:
+    """Convert this to a freshly suggested Trial, a TrialSuggestion."""
+    return vz.TrialSuggestion(
+        parameters=self.parameters, metadata=self.metadata)
 
 
 class SuggestDecisions(cabc.Sequence[SuggestDecision]):
