@@ -86,7 +86,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
   def TimeRemaining(self) -> datetime.timedelta:
     return datetime.timedelta(seconds=100.0)
 
-  def SendMetadata(self, delta: policy_supporter.MetadataDelta) -> None:
+  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
     for ns in delta.on_study.namespaces():
       self.study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
 

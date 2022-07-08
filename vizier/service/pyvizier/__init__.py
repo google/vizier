@@ -29,6 +29,7 @@ from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.trial import CompletedTrial
 from vizier._src.pyvizier.shared.trial import CompletedTrialWithMeasurements
 from vizier._src.pyvizier.shared.trial import Measurement
+from vizier._src.pyvizier.shared.trial import MetadataDelta
 from vizier._src.pyvizier.shared.trial import Metric
 from vizier._src.pyvizier.shared.trial import NaNMetric
 from vizier._src.pyvizier.shared.trial import ParameterDict

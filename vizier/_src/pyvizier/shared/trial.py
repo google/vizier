@@ -10,6 +10,7 @@ Example usage:
 import collections
 from collections import abc as cabc
 import copy
+import dataclasses
 import datetime
 import enum
 from typing import Any, Dict, List, MutableMapping, Optional, Union, FrozenSet
@@ -558,3 +559,17 @@ class TrialFilter:
       if trial.status not in self.status:
         return False
     return True
+
+
+@dataclasses.dataclass(frozen=True)
+class MetadataDelta:
+  """Carries cumulative delta for a batch metadata update.
+
+  Attributes:
+    on_study: Updates to be made on study-level metadata.
+    on_trials: Maps trial id to updates.
+  """
+
+  on_study: common.Metadata = dataclasses.field(default_factory=common.Metadata)
+  on_trials: Dict[int, common.Metadata] = dataclasses.field(
+      default_factory=lambda: collections.defaultdict(common.Metadata))

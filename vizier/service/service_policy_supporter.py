@@ -98,7 +98,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     """The time remaining to compute a result."""
     return datetime.timedelta.max  # RPCs don't have timeouts in OSS.
 
-  def SendMetadata(self, delta: pythia.MetadataDelta) -> None:
+  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
     """Updates the metadata."""
     self.CheckCancelled('UpdateMetadata entry')
     request = vizier_service_pb2.UpdateMetadataRequest(name=self._study_guid)

@@ -1,26 +1,10 @@
 """The Policy can use these classes to communicate with Vizier."""
 
 import abc
-import collections
-import dataclasses
 import datetime
-from typing import Dict, Iterable, List, Optional
+from typing import Iterable, List, Optional
 
 from vizier import pyvizier as vz
-
-
-@dataclasses.dataclass(frozen=True)
-class MetadataDelta:
-  """Carries cumulative delta for a batch metadata update.
-
-  Attributes:
-    on_study: Updates to be made on study-level metadata.
-    on_trials: Maps trial id to updates.
-  """
-
-  on_study: vz.Metadata = dataclasses.field(default_factory=vz.Metadata)
-  on_trials: Dict[int, vz.Metadata] = dataclasses.field(
-      default_factory=lambda: collections.defaultdict(vz.Metadata))
 
 
 class _MetadataUpdateContext:
@@ -42,7 +26,7 @@ class _MetadataUpdateContext:
 
   def __init__(self, supporter: 'PolicySupporter'):
     self._supporter = supporter
-    self._delta = MetadataDelta()
+    self._delta = vz.MetadataDelta()
 
   # pylint: disable=invalid-name
   def assign(self,
@@ -204,7 +188,7 @@ class PolicySupporter(abc.ABC):
     return _MetadataUpdateContext(self)
 
   @abc.abstractmethod
-  def SendMetadata(self, delta: MetadataDelta) -> None:
+  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
     """Updates the Study's metadata in Vizier's database.
 
     The MetadataUpdate() method is preferred for normal use.

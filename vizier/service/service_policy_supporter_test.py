@@ -1,7 +1,6 @@
 """Tests for vizier.service.service_policy_supporter."""
 
 import logging
-from vizier import pythia
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
@@ -88,7 +87,7 @@ class PythiaSupporterTest(absltest.TestCase):
     on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
     on_trial1_metadata = pyvizier.Metadata()
     on_trial1_metadata.ns('bax')['nerf'] = '1.bar.nerf.2'
-    delta = pythia.MetadataDelta(
+    delta = pyvizier.MetadataDelta(
         on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
     self.policy_supporter.SendMetadata(delta)
     # Read to see that the results are correct.
