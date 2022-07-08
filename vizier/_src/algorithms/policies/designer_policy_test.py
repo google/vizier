@@ -79,8 +79,9 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.PartiallySerializableDesignerPolicy(
         runner, lambda _: designer, ns_root='test', verbose=2)
     trials = runner.SuggestTrials(policy, 5)
-    self.assertLen(designer._last_delta.completed,
-                   _NUM_INITIAL_COMPLETED_TRIALS)
+    self.assertLen(
+        designer._last_delta.completed,  # pytype:disable=attribute-error
+        _NUM_INITIAL_COMPLETED_TRIALS)
     self.assertEqual(
         runner.study_descriptor().config.metadata.ns('test').ns('designer')
         ['num_incorporated_trials'], str(_NUM_INITIAL_COMPLETED_TRIALS))

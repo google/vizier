@@ -14,6 +14,7 @@ from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
+from vizier._src.algorithms.policies import grid_search_policy
 from vizier._src.algorithms.policies import random_policy
 from vizier.service import datastore
 from vizier.service import pyvizier
@@ -40,6 +41,8 @@ def policy_creator(
   if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
                    study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
     return random_policy.RandomPolicy(policy_supporter)
+  elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
+    return grid_search_policy.GridSearchPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
     # TODO: See ValueError below.
     raise ValueError(

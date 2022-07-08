@@ -187,6 +187,7 @@ class VizierClientTest(parameterized.TestCase):
   # TODO: NSGA2 fails w/ SQL datastore's UpdateMetadata.
   @parameterized.parameters(
       (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
+      (pyvizier.Algorithm.GRID_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.EMUKIT_GP_EI, 7, 2, False),
       # (pyvizier.Algorithm.NSGA2, 50, 1, True),
   )
