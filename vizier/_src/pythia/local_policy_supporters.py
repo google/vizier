@@ -146,7 +146,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
     self._trials.extend(trials)
 
   def AddSuggestions(
-      self, suggestions: Sequence[vz.TrialSuggestion]) -> Sequence[vz.Trial]:
+      self, suggestions: Iterable[vz.TrialSuggestion]) -> Sequence[vz.Trial]:
     """Assigns ids to suggestions and add them to the study."""
     trials = []
     for suggestion in suggestions:
