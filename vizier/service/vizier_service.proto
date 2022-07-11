@@ -413,7 +413,7 @@ message UpdateMetadataRequest {
     // Which Trial should this metadata be attached to?
     // Note that this should not be an arbitrary string; it should be derived
     // from the TrialResource class.
-    // When $trial_id is unset, KeyValuePluscarries StudyConfig.metadata.
+    // When $trial_id is unset, UnitMetadataUpdate carries StudyConfig.metadata.
     optional string trial_id = 3;
     // The metadata itself.
     KeyValue metadatum = 2;

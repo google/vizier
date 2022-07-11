@@ -6,12 +6,13 @@ This client can be used interchangeably with the Cloud Vizier client.
 import datetime
 import functools
 import time
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from absl import flags
 from absl import logging
 import attr
 import grpc
+
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -54,6 +55,9 @@ def create_server_stub(
   grpc.channel_ready_future(channel).result()
   logging.info('Secured channel to %s.', service_endpoint)
   return vizier_service_pb2_grpc.VizierServiceStub(channel)
+
+
+Metadata = Mapping[Tuple[str, str], Any]
 
 
 @attr.frozen(init=True)
@@ -312,19 +316,45 @@ class VizierClient:
     _ = future.result()
     logging.info('Study deleted: %s', study_resource_name)
 
-  def get_study_config(
-      self, study_name: Optional[str] = None) -> pyvizier.StudyConfig:
+  def get_study_config(self,
+                       study_resource_name: Optional[str] = None
+                      ) -> pyvizier.StudyConfig:
     """Returns the study config."""
-    if study_name:
-      study_resource_name = study_name
-    else:
-      study_resource_name = resources.StudyResource(self._owner_id,
-                                                    self._study_id).name
+    study_resource_name = study_resource_name or (resources.StudyResource(
+        self._owner_id, self._study_id).name)
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
     future = self._server_stub.GetStudy.future(request)
     response = future.result()
 
     return pyvizier.StudyConfig.from_proto(response.study_spec)
+
+  def update_metadata(self,
+                      delta: pyvizier.MetadataDelta,
+                      study_resource_name: Optional[str] = None) -> None:
+    """Updates metadata.
+
+    Args:
+      delta: Batch updates to Metadata, consisting of numerous (namespace, key,
+        value) objects.
+      study_resource_name: An identifier of the study. The full study name will
+        be `owners/{owner_id}/studies/{study_id}`.
+
+    Returns:
+      None.
+
+    Raises:
+      RuntimeError: If server reported an error or if a value could not be
+      pickled.
+    """
+    study_resource_name = study_resource_name or (resources.StudyResource(
+        self._owner_id, self._study_id).name)
+    request = pyvizier.metadata_util.to_request_proto(study_resource_name,
+                                                      delta)
+    future = self._server_stub.UpdateMetadata.future(request)
+    response = future.result()
+
+    if response.error_details:
+      raise RuntimeError(response.error_details)
 
 
 def create_or_load_study(

@@ -1,8 +1,11 @@
 """Utility functions for handling vizier metadata."""
 
 from typing import Tuple, Union, Optional, TypeVar, Type, Literal
+
+from vizier._src.pyvizier.shared import trial
 from vizier.service import key_value_pb2
 from vizier.service import study_pb2
+from vizier.service import vizier_service_pb2
 from google.protobuf import any_pb2
 from google.protobuf.message import Message
 
@@ -109,3 +112,39 @@ def get_proto(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
         success = kv.proto.Unpack(message)
         return message if success else None
   return None
+
+
+def to_request_proto(
+    study_resource_name: str,
+    delta: trial.MetadataDelta) -> vizier_service_pb2.UpdateMetadataRequest:
+  """Create an UpdateMetadataRequest proto.
+
+  Args:
+    study_resource_name:
+    delta:
+
+  Returns:
+
+  """
+  request = vizier_service_pb2.UpdateMetadataRequest(name=study_resource_name)
+
+  # Study Metadata
+  for ns in delta.on_study.namespaces():
+    for k, v in delta.on_study.abs_ns(ns).items():
+      metadatum = request.delta.add().metadatum
+      metadatum.key = k
+      metadatum.ns = ns.encode()
+      assign_value(metadatum, v)
+
+  # Trial Metadata
+  for trial_id, trial_metadata in delta.on_trials.items():
+    for ns in trial_metadata.namespaces():
+      for k, v in trial_metadata.abs_ns(ns).items():
+        # TODO: Verify this implementation.
+        # Should this be "resources.StudyResource.from_name(
+        # study_resource_name).trial_resource(trial_id=str(trial_id)).name"?
+        metadatum = request.delta.add(trial_id=str(trial_id)).metadatum
+        metadatum.key = k
+        metadatum.ns = ns.encode()
+        assign_value(metadatum, v)
+  return request

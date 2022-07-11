@@ -252,6 +252,16 @@ class VizierClientTest(parameterized.TestCase):
         final_accuracy = stored_trial.final_measurement.metrics[0].value
         self.assertEqual(curve[-1], final_accuracy)
 
+  def test_update_metadata(self):
+    # Only a smoke test, same as in `service_policy_supporter_test.py`.
+    on_study_metadata = pyvizier.Metadata()
+    on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
+    on_trial1_metadata = pyvizier.Metadata()
+    on_trial1_metadata.ns('bax')['nerf'] = '1.bar.nerf.2'
+    metadata_delta = pyvizier.MetadataDelta(
+        on_study=on_study_metadata, on_trials={1: on_trial1_metadata})
+    self.client.update_metadata(metadata_delta)
+
 
 if __name__ == '__main__':
   absltest.main()
