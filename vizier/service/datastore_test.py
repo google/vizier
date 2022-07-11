@@ -6,7 +6,7 @@ from vizier.service import vizier_service_pb2
 
 from absl.testing import absltest
 
-_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
+UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
 
 
 class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):

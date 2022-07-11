@@ -679,8 +679,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       with self._study_name_to_lock[request.name]:
         self.datastore.update_metadata(
             request.name,
-            [x.k_v for x in request.metadata if not x.HasField('trial_id')],
-            [x for x in request.metadata if x.HasField('trial_id')])
+            [x.metadatum for x in request.delta if not x.HasField('trial_id')],
+            [x for x in request.delta if x.HasField('trial_id')])
     except KeyError as e:
       return vizier_service_pb2.UpdateMetadataResponse(
           error_details=';'.join(e.args))

@@ -15,7 +15,7 @@ from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
-_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
+_UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
 
 
 class AlreadyExistsError(ValueError):
@@ -213,12 +213,14 @@ class DataStore(abc.ABC):
       NotFoundError: If early stopping op is nonexistent.
     """
 
+  # TODO: Simplify the API by taking MetadataUpdateRequest proto
+  # as input.
   @abc.abstractmethod
   def update_metadata(
       self,
       study_name: str,
       study_metadata: Iterable[key_value_pb2.KeyValue],
-      trial_metadata: Iterable[_KeyValuePlus],
+      trial_metadata: Iterable[_UnitMetadataUpdate],
   ) -> None:
     """Store the supplied metadata in the database.
 
@@ -492,7 +494,8 @@ class NestedDictRAMDataStore(DataStore):
 
   def update_metadata(self, study_name: str,
                       study_metadata: Iterable[key_value_pb2.KeyValue],
-                      trial_metadata: Iterable[_KeyValuePlus]) -> None:
+                      trial_metadata: Iterable[_UnitMetadataUpdate]) -> None:
+    # TODO:
     """Writes the supplied metadata to the database.
 
     Args:
@@ -530,4 +533,5 @@ class NestedDictRAMDataStore(DataStore):
         except KeyError as e:
           raise NotFoundError(f'No such trial ({metadata.trial_id}):',
                               t_resource.name) from e
-      study_node.trial_protos[t_resource.trial_id].metadata.append(metadata.k_v)
+      study_node.trial_protos[t_resource.trial_id].metadata.append(
+          metadata.metadatum)

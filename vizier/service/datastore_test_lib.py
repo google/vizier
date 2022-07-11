@@ -14,7 +14,7 @@ from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 from absl.testing import parameterized
 
-_KeyValuePlus = vizier_service_pb2.UpdateMetadataRequest.KeyValuePlus
+UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
 
 
 def make_random_string() -> str:
@@ -215,13 +215,14 @@ class DataStoreTestCase(parameterized.TestCase):
       ds.create_trial(trial)
     study_metadata = [key_value_pb2.KeyValue(key='a', ns='b', value='C')]
     trial_metadata = [
-        _KeyValuePlus(
+        UnitMetadataUpdate(
             trial_id='1',
-            k_v=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+            metadatum=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
     ]
     ds.update_metadata(study.name, study_metadata, trial_metadata)
     mutated_study_config = ds.load_study(study.name).study_spec
     self.assertEqual(list(mutated_study_config.metadata), study_metadata)
     mutated_trial = ds.get_trial(trials[0].name)
     self.assertEqual(mutated_trial.id, str(trial_metadata[0].trial_id))
-    self.assertEqual(list(mutated_trial.metadata), [trial_metadata[0].k_v])
+    self.assertEqual(
+        list(mutated_trial.metadata), [trial_metadata[0].metadatum])

@@ -420,7 +420,7 @@ class SQLDataStore(datastore.DataStore):
       self,
       study_name: str,
       study_metadata: Iterable[key_value_pb2.KeyValue],
-      trial_metadata: Iterable[datastore._KeyValuePlus],  # pylint:disable=protected-access
+      trial_metadata: Iterable[datastore._UnitMetadataUpdate],  # pylint:disable=protected-access
   ) -> None:
     """Store the supplied metadata into the SQL database."""
     s_resource = resources.StudyResource.from_name(study_name)
@@ -470,7 +470,7 @@ class SQLDataStore(datastore.DataStore):
       # Edit trial metadata and update database.
       if clear_metadata_bool:
         original_trial.ClearField('metadata')
-      original_trial.metadata.append(metadata.k_v)
+      original_trial.metadata.append(metadata.metadatum)
       update_trial_query = sqla.update(self._trials_table).where(
           self._trials_table.c.trial_name == trial_name).values(
               serialized_trial=original_trial.SerializeToString())

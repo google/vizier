@@ -90,9 +90,9 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
     for ns in delta.on_study.namespaces():
       self.study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
 
-    for tid, deltum in delta.on_trials.items():
-      for ns in deltum.namespaces():
-        self._trials[tid - 1].metadata.abs_ns(ns).update(deltum.abs_ns(ns))
+    for tid, metadatum in delta.on_trials.items():
+      for ns in metadatum.namespaces():
+        self._trials[tid - 1].metadata.abs_ns(ns).update(metadatum.abs_ns(ns))
 
   # TODO: Return `count` trials for multi-objectives, when
   # `count` exceeds the size of the pareto frontier.

@@ -5,13 +5,49 @@ The Policy can use these methods to communicate with Vizier.
 
 import datetime
 from typing import Iterable, List, Optional
+
 from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.service import pyvizier
 from vizier.service import utils
-
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
+
+
+def _to_request_proto(
+    study_resource_name: str,
+    delta: vz.MetadataDelta) -> vizier_service_pb2.UpdateMetadataRequest:
+  """Create an UpdateMetadataRequest proto.
+
+  Args:
+    study_resource_name:
+    delta:
+
+  Returns:
+
+  """
+  request = vizier_service_pb2.UpdateMetadataRequest(name=study_resource_name)
+
+  # Study Metadata
+  for ns in delta.on_study.namespaces():
+    for k, v in delta.on_study.abs_ns(ns).items():
+      metadatum = request.delta.add().metadatum
+      metadatum.key = k
+      metadatum.ns = ns.encode()
+      pyvizier.metadata_util.assign_value(metadatum, v)
+
+  # Trial Metadata
+  for trial_id, trial_metadata in delta.on_trials.items():
+    for ns in trial_metadata.namespaces():
+      for k, v in trial_metadata.abs_ns(ns).items():
+        # TODO: Verify this implementation.
+        # Should this be "resources.StudyResource.from_name(
+        # study_resource_name).trial_resource(trial_id=str(trial_id)).name"?
+        metadatum = request.delta.add(trial_id=str(trial_id)).metadatum
+        metadatum.key = k
+        metadatum.ns = ns.encode()
+        pyvizier.metadata_util.assign_value(metadatum, v)
+  return request
 
 
 # TODO: Implement UpdateMetadata after metadata additions
@@ -43,6 +79,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     study = self._vizier_service.GetStudy(request, None)
     return pyvizier.StudyConfig.from_proto(study.study_spec)
 
+  # TODO: Use TrialsFilter instead.
   def GetTrials(
       self,
       *,
@@ -101,17 +138,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
   def SendMetadata(self, delta: vz.MetadataDelta) -> None:
     """Updates the metadata."""
     self.CheckCancelled('UpdateMetadata entry')
-    request = vizier_service_pb2.UpdateMetadataRequest(name=self._study_guid)
-    # Study Metadata
-    for ns in delta.on_study.namespaces():
-      for k, v in delta.on_study.abs_ns(ns).items():
-        utils.AssignKeyValuePlus(request, trial_id=None, key=k, ns=ns, value=v)
-    # Trial Metadata
-    for trial_id, trial_metadata in delta.on_trials.items():
-      for ns in trial_metadata.namespaces():
-        for k, v in trial_metadata.abs_ns(ns).items():
-          utils.AssignKeyValuePlus(
-              request, trial_id=trial_id, key=k, ns=ns, value=v)
+    request = _to_request_proto(self._study_guid, delta)
     waiter = utils.ResponseWaiter()
     # In a real server, this happens in another thread:
     response = self._vizier_service.UpdateMetadata(request, None)

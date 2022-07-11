@@ -1,6 +1,6 @@
 """Utility functions for handling vizier metadata."""
 
-from typing import Tuple, Union, Optional, TypeVar, Type
+from typing import Tuple, Union, Optional, TypeVar, Type, Literal
 from vizier.service import key_value_pb2
 from vizier.service import study_pb2
 from google.protobuf import any_pb2
@@ -9,11 +9,29 @@ from google.protobuf.message import Message
 T = TypeVar('T')
 
 
+def assign_value(metadatum: key_value_pb2.KeyValue,
+                 value: Union[str, any_pb2.Any, Message]) -> None:
+  """Assigns value to the metadatum."""
+  if isinstance(value, str):
+    metadatum.ClearField('proto')
+    metadatum.value = value
+  elif isinstance(value, any_pb2.Any):
+    metadatum.ClearField('value')
+    metadatum.proto.CopyFrom(value)
+  else:
+    metadatum.ClearField('value')
+    metadatum.proto.Pack(value)
+
+
 def assign(
-    container: Union[study_pb2.StudySpec, study_pb2.Trial], *, key: str,
-    ns: str, value: Union[str, any_pb2.Any,
-                          Message]) -> Tuple[key_value_pb2.KeyValue, bool]:
-  """Insert or assign (key, value) to container.metadata.
+    container: Union[study_pb2.StudySpec, study_pb2.Trial],
+    *,
+    key: str,
+    ns: str,
+    value: Union[str, any_pb2.Any, Message],
+    mode: Literal['insert_or_assign', 'insert_or_error', 'insert'] = 'insert'
+) -> Tuple[key_value_pb2.KeyValue, bool]:
+  """Insert and/or assign (key, value) to container.metadata.
 
   Args:
     container: container.metadata must be repeated KeyValue (protobuf) field.
@@ -22,35 +40,35 @@ def assign(
     value: Behavior depends on the type. `str` is copied to KeyValue.value
       `any_pb2.Any` is copied to KeyValue.proto Other types are packed to
       any_pb2.Any proto, which is then copied to KeyValue.proto.
+    mode: `insert_or_assign` overrides the value if (ns, key)-pair already
+      exists and `insert_or_error` raises ValueError if duplicate (ns, key)-pair
+      exists. `insert` blindly inserts. This is fastest and should be used if
+      the data source can be trusted.
 
   Returns:
     (proto, inserted) where
     proto is the protobuf that was just inserted into the $container, and
     inserted is True if the proto was newly inserted, False if it was replaced.
   """
+  inserted = True
 
-  for kv in container.metadata:
-    if kv.key == key and kv.ns == ns:
-      if isinstance(value, str):
-        kv.ClearField('proto')
-        kv.value = value
-      elif isinstance(value, any_pb2.Any):
-        kv.ClearField('value')
-        kv.proto.CopyFrom(value)
-      else:
-        kv.ClearField('value')
-        kv.proto.Pack(value)
-      return kv, False
+  # Find existing metadatum, unless in `insert` mode.
+  existing_metadatum = None
+  if mode in ('insert_or_assign', 'insert_or_error'):
+    for metadatum in container.metadata:
+      if metadatum.key == key and metadatum.ns == ns:
+        inserted = False
+        if mode == 'insert_or_error':
+          raise ValueError(f'Duplicate (ns, key) pair: '
+                           f'({metadatum.ns}, {metadatum.key})')
+        existing_metadatum = metadatum
+        break
 
-  # The key does not exist in the metadata.
-  if isinstance(value, str):
-    metadata = container.metadata.add(key=key, ns=ns, value=value)
-  elif isinstance(value, any_pb2.Any):
-    metadata = container.metadata.add(key=key, ns=ns, proto=value)
-  else:
-    metadata = container.metadata.add(key=key, ns=ns)
-    metadata.proto.Pack(value)
-  return metadata, True
+  # If the metadatum does not exist, then add the (ns, key) pair.
+  metadatum = existing_metadatum or container.metadata.add(key=key, ns=ns)
+  assign_value(metadatum, value)
+
+  return metadatum, inserted
 
 
 def get(container: Union[study_pb2.StudySpec, study_pb2.Trial], *, key: str,
