@@ -367,10 +367,54 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         scale=True,
         float_dtype=dtype)
 
-    scaled = np.asarray([[0.0], [1.0]], dtype)
+    scaled = np.asarray([[0.0], [0.5], [1.0]], dtype)
     actual = converter.to_parameter_values(scaled)
     self.assertGreaterEqual(actual[0].value, 1e-4)
+    self.assertLessEqual(actual[1].value, 0.5)
     self.assertLessEqual(actual[1].value, 1e2)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64')
+  ])
+  def test_double_into_double_reverse_log(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1', bounds=(1e-4, 1e2),
+            scale_type=pyvizier.ScaleType.REVERSE_LOG),
+        scale=True,
+        float_dtype=dtype)
+
+    actual = converter.convert([
+        Trial(parameters={'x1': pyvizier.ParameterValue(1e-4)}),
+        Trial(parameters={'x1': pyvizier.ParameterValue(1.0)}),
+        Trial(parameters={'x1': pyvizier.ParameterValue(1e2)}),
+    ])
+    expected = np.asarray([[0.0], [7.273945e-4], [1.0]], dtype)
+    np.testing.assert_allclose(expected, actual, rtol=1e-3)
+    self.assertEqual(expected.dtype, actual.dtype)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64')
+  ])
+  def test_double_into_double_reverse_log_inverse(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1', bounds=(1e-4, 1e2),
+            scale_type=pyvizier.ScaleType.REVERSE_LOG),
+        scale=True,
+        float_dtype=dtype)
+
+    scaled = np.asarray([[0.0], [0.5], [1.0]], dtype)
+    actual = converter.to_parameter_values(scaled)
+    self.assertGreaterEqual(actual[0].value, 1e-4)
+    self.assertGreaterEqual(actual[1].value, 0.5)
+    self.assertLessEqual(actual[2].value, 1e2)
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -406,6 +450,30 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
             'x1',
             bounds=(np.exp(.9), np.exp(.9)),
             scale_type=pyvizier.ScaleType.LOG),
+        scale=True,
+        onehot_embed=True,
+        float_dtype=dtype)
+    actual = converter.convert([
+        Trial(parameters={'x1': pyvizier.ParameterValue(np.exp(.9))}),
+        Trial(parameters={'x1': pyvizier.ParameterValue(np.exp(1.2))}),
+        Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
+        Trial()
+    ])
+    expected = np.asarray([[.0], [.0], [np.NaN], [np.NaN]], dtype=dtype)
+    np.testing.assert_equal(expected, actual)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64')
+  ])
+  def test_zero_range_reverse_log_double(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1',
+            bounds=(np.exp(.9), np.exp(.9)),
+            scale_type=pyvizier.ScaleType.REVERSE_LOG),
         scale=True,
         onehot_embed=True,
         float_dtype=dtype)

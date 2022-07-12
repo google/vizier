@@ -32,6 +32,8 @@ class ScaleType(enum.Enum):
   REVERSE_LOG = 'REVERSE_LOG'
   UNIFORM_DISCRETE = 'UNIFORM_DISCRETE'
 
+  def is_nonlinear(self) -> bool:
+    return self in [self.LOG, self.REVERSE_LOG]
 
 # A sequence of possible internal parameter values.
 MonotypeParameterSequence = Union[Sequence[Union[int, float]], Sequence[str]]
