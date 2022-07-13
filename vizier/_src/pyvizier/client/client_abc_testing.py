@@ -135,6 +135,21 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     completed = study.trials(vz.TrialFilter(status={vz.TrialStatus.COMPLETED}))
     self.assertLen(list(completed), 2)
 
+  def test_study_update_metadata(self):
+    """Checks for correct merge behavior."""
+    study = self.create_test_study(self.id())
+    delta_metadata = vz.Metadata({'bar': 'bar_v'}, foo='foo_v')
+    study.update_metadata(delta_metadata)
+    self.assertEqual(study.materialize_problem_statement().metadata.get('bar'),
+                     'bar_v')
+
+    delta_metadata_2 = vz.Metadata({'bar': 'bar_w'})
+    study.update_metadata(delta_metadata_2)
+
+    problem_statement = study.materialize_problem_statement()
+    self.assertEqual(problem_statement.metadata.get('bar'), 'bar_w')
+    self.assertEqual(problem_statement.metadata.get('foo'), 'foo_v')
+
   ###########################################
   ## Tests on Trial class start here.
   ###########################################
@@ -256,3 +271,15 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         final_accuracy = (
             trial.materialize().final_measurement.metrics['accuracy'].value)
         self.assertEqual(evaluated_curve[-1], final_accuracy)
+
+  def test_trial_update_metadata(self):
+    """Checks for correct merge behavior."""
+    study = self.create_test_study_with_trials(self.id())
+    trial = study.get_trial(3)
+    delta_metadata = vz.Metadata({'bar': 'bar_v'}, foo='foo_v')
+    trial.update_metadata(delta_metadata)
+    self.assertEqual(trial.materialize().metadata.get('bar'), 'bar_v')
+    delta_metadata_2 = vz.Metadata({'bar': 'bar_w'})
+    trial.update_metadata(delta_metadata_2)
+    self.assertEqual(trial.materialize().metadata.get('bar'), 'bar_w')
+    self.assertEqual(trial.materialize().metadata.get('foo'), 'foo_v')

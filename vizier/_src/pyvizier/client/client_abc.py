@@ -116,6 +116,17 @@ class TrialInterface(abc.ABC):
       Trial object.
     """
 
+  @abc.abstractmethod
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    """Updates Trial metadata.
+
+    New keys will be appended, while old keys will be
+    updated with new values.
+
+    Args:
+      delta: Change in Metadata from the original.
+    """
+
 
 class StudyInterface(abc.ABC):
   """Responsible for study-level operations."""
@@ -200,4 +211,15 @@ class StudyInterface(abc.ABC):
 
     Raises:
       ResourceNotFoundError: If study does not exist.
+    """
+
+  @abc.abstractmethod
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    """Updates StudyConfig metadata.
+
+    New keys will be appended, while old keys will be
+    updated with new values.
+
+    Args:
+      delta: Change in Metadata from the original.
     """

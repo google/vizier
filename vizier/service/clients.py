@@ -72,6 +72,10 @@ class Trial(client_abc.TrialInterface):
       trial.measurements.clear()
     return trial
 
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    actual_delta = vz.MetadataDelta(on_trials={self._id: delta})
+    self._client.update_metadata(actual_delta)
+
 
 @attr.define
 class Study(client_abc.StudyInterface):
@@ -157,3 +161,7 @@ class Study(client_abc.StudyInterface):
             client_id=_UNUSED_CLIENT_ID,
             study_id=study_id,
             study_config=config))
+
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    actual_delta = vz.MetadataDelta(on_study=delta)
+    self._client.update_metadata(actual_delta)
