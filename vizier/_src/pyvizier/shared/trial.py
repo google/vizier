@@ -13,7 +13,7 @@ import copy
 import dataclasses
 import datetime
 import enum
-from typing import Any, Dict, List, MutableMapping, Optional, Union, FrozenSet
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Union, FrozenSet
 
 from absl import logging
 import attr
@@ -187,7 +187,7 @@ class ParameterValue:
     return str(self.value)
 
 
-class _MetricDict(collections.UserDict[str, Metric]):
+class _MetricDict(collections.UserDict, Mapping[str, Metric]):
   """Dictionary of string to metrics."""
 
   def get_value(self, key: str, default: float) -> float:
@@ -262,7 +262,7 @@ class ParameterDict(cabc.MutableMapping):
   _items: MutableMapping[str, ParameterValue] = attr.field(
       init=False, factory=dict)
 
-  def as_dict(self) -> dict[str, ParameterValueTypes]:
+  def as_dict(self) -> Dict[str, ParameterValueTypes]:
     """Returns the dict of parameter names to raw values."""
     return {k: self.get_value(k) for k in self._items}
 

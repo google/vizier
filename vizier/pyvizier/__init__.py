@@ -12,6 +12,7 @@ from vizier._src.pyvizier.shared.common import Metadata
 from vizier._src.pyvizier.shared.common import MetadataValue
 from vizier._src.pyvizier.shared.common import Namespace
 from vizier._src.pyvizier.shared.parameter_config import ExternalType
+from vizier._src.pyvizier.shared.parameter_config import MonotypeParameterSequence
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.parameter_config import ParameterType
 from vizier._src.pyvizier.shared.parameter_config import ScaleType
