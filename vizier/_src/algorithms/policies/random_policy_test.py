@@ -37,9 +37,10 @@ class RandomPolicyTest(absltest.TestCase):
         study_descriptor=self.policy_supporter.study_descriptor(),
         count=num_suggestions)
 
-    suggestions = self.policy.suggest(suggest_request)
-    self.assertLen(suggestions, num_suggestions)
-    for suggestion in suggestions:
+    decisions = self.policy.suggest(suggest_request)
+    self.assertLen(decisions.suggestions, num_suggestions)
+    self.assertFalse(decisions.metadata)
+    for suggestion in decisions.suggestions:
       self.assertLen(suggestion.parameters, 4)
 
   def test_make_early_stopping_decisions(self):

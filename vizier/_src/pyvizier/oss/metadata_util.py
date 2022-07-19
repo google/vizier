@@ -2,6 +2,7 @@
 
 from typing import Tuple, Union, Optional, TypeVar, Type, Literal
 
+from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import trial
 from vizier.service import key_value_pb2
 from vizier.service import study_pb2
@@ -12,9 +13,9 @@ from google.protobuf.message import Message
 T = TypeVar('T')
 
 
-def assign_value(metadatum: key_value_pb2.KeyValue,
-                 value: Union[str, any_pb2.Any, Message]) -> None:
-  """Assigns value to the metadatum."""
+def _assign_value(metadatum: key_value_pb2.KeyValue,
+                  value: Union[str, any_pb2.Any, Message]) -> None:
+  """Assigns value to $metadatum."""
   if isinstance(value, str):
     metadatum.ClearField('proto')
     metadatum.value = value
@@ -69,7 +70,7 @@ def assign(
 
   # If the metadatum does not exist, then add the (ns, key) pair.
   metadatum = existing_metadatum or container.metadata.add(key=key, ns=ns)
-  assign_value(metadatum, value)
+  _assign_value(metadatum, value)
 
   return metadatum, inserted
 
@@ -114,6 +115,41 @@ def get_proto(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
   return None
 
 
+def make_key_value_list(
+    metadata: common.Metadata) -> list[key_value_pb2.KeyValue]:
+  """Convert $metadata to a list of KeyValue protobufs."""
+  result = []
+  for ns in metadata.namespaces():
+    for k, v in metadata.abs_ns(ns).items():
+      item = key_value_pb2.KeyValue(key=k, ns=ns.encode())
+      _assign_value(item, v)
+      result.append(item)
+  return result
+
+
+def make_unit_metadata_update_list(
+    trial_metadata: dict[int, common.Metadata]
+) -> list[vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate]:
+  """Convert a dictionary of Trial.id:Metadata to a list of UnitMetadataUpdate.
+
+  Args:
+    trial_metadata: Typically MetadataDelta.on_trials.
+
+  Returns:
+    a list of UnitMetadataUpdate objects.
+  """
+  result = []
+  for trial_id, md in trial_metadata.items():
+    for kv in make_key_value_list(md):
+      # TODO: Verify this implementation.
+      # Should str(trial_id) below be "resources.StudyResource.from_name(
+      # study_resource_name).trial_resource(trial_id=str(trial_id)).name"?
+      result.append(
+          vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate(
+              trial_id=str(trial_id), metadatum=kv))
+  return result
+
+
 def to_request_proto(
     study_resource_name: str,
     delta: trial.MetadataDelta) -> vizier_service_pb2.UpdateMetadataRequest:
@@ -134,17 +170,7 @@ def to_request_proto(
       metadatum = request.delta.add().metadatum
       metadatum.key = k
       metadatum.ns = ns.encode()
-      assign_value(metadatum, v)
+      _assign_value(metadatum, v)
 
-  # Trial Metadata
-  for trial_id, trial_metadata in delta.on_trials.items():
-    for ns in trial_metadata.namespaces():
-      for k, v in trial_metadata.abs_ns(ns).items():
-        # TODO: Verify this implementation.
-        # Should this be "resources.StudyResource.from_name(
-        # study_resource_name).trial_resource(trial_id=str(trial_id)).name"?
-        metadatum = request.delta.add(trial_id=str(trial_id)).metadatum
-        metadatum.key = k
-        metadatum.ns = ns.encode()
-        assign_value(metadatum, v)
+  request.delta.extend(make_unit_metadata_update_list(delta.on_trials))
   return request

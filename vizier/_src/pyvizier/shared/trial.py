@@ -8,7 +8,7 @@ Example usage:
 """
 
 import collections
-from collections import abc as cabc
+from collections import abc
 import copy
 import dataclasses
 import datetime
@@ -22,8 +22,6 @@ import numpy as np
 from vizier._src.pyvizier.shared import common
 
 ParameterValueTypes = Union[str, int, float, bool]
-OrderedDict = collections.OrderedDict
-Metadata = common.Metadata
 
 
 class ExternalType(enum.Enum):
@@ -244,7 +242,7 @@ def _to_local_time(
 
 
 @attr.define(init=False, frozen=True, eq=True)
-class ParameterDict(cabc.MutableMapping):
+class ParameterDict(abc.MutableMapping):
   """Parameter dictionary.
 
   Maps the parameter names to their values. Works like a regular
@@ -315,11 +313,11 @@ class TrialSuggestion:
       converter=ParameterDict,
       validator=attr.validators.instance_of(ParameterDict))  # pytype: disable=wrong-arg-types
 
-  metadata: Metadata = attr.field(
+  metadata: common.Metadata = attr.field(
       init=True,
       kw_only=True,
-      factory=Metadata,
-      validator=attr.validators.instance_of(Metadata))
+      factory=common.Metadata,
+      validator=attr.validators.instance_of(common.Metadata))
 
   def to_trial(self, uid: int = 0) -> 'Trial':
     """Assign an id and make it a Trial object.
@@ -571,5 +569,53 @@ class MetadataDelta:
   """
 
   on_study: common.Metadata = dataclasses.field(default_factory=common.Metadata)
+
   on_trials: Dict[int, common.Metadata] = dataclasses.field(
       default_factory=lambda: collections.defaultdict(common.Metadata))
+
+  def __bool__(self):
+    """Returns True if this carries any Metadata items."""
+    if self.on_study:
+      return True
+    for v in self.on_trials.values():
+      if v:
+        return True
+    return False
+
+  def on_trial(self, trial_id: int) -> common.Metadata:
+    """Enables easy assignment to a single Trial."""
+    return self.on_trials[trial_id]
+
+  def assign(self,
+             namespace: str,
+             key: str,
+             value: common.MetadataValue,
+             *,
+             trial: Optional[Trial] = None,
+             trial_id: Optional[int] = None):
+    """Assigns metadata.
+
+    Args:
+      namespace: Namespace of the metadata. See common.Metadata doc for more
+        details.
+      key:
+      value:
+      trial: If specified, `trial_id` must be None. It behaves the same as when
+        `trial_id=trial.id`, and additionally, the metadata is added to `trial`.
+      trial_id: If specified, `trial` must be None. If both `trial` and
+        `trial_id` are None, then the key-value pair will be assigned to the
+        study.
+
+    Raises:
+      ValueError:
+    """
+    if trial is None and trial_id is None:
+      self.on_study.ns(namespace)[key] = value
+    elif trial is not None and trial_id is not None:
+      raise ValueError(
+          'At most one of `trial` and `trial_id` can be specified.')
+    elif trial is not None:
+      self.on_trials[trial.id].ns(namespace)[key] = value
+      trial.metadata.ns(namespace)[key] = value
+    elif trial_id is not None:
+      self.on_trials[trial_id].ns(namespace)[key] = value

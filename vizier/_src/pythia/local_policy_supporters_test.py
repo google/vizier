@@ -29,28 +29,20 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     runner = _runner_with_10trials()
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
 
-    with runner.MetadataUpdate() as mu:
-      mu.assign('ns', 'key', 'value')
-      mu.assign('ns', 'key', 'value', trial_id=1)
-      # Metadata update is not immediate.
-      self.assertEmpty(runner.GetStudyConfig().metadata.ns('ns'))
-      self.assertEmpty(trial1.metadata.ns('ns'))
+    mu = vz.MetadataDelta()
+    mu.assign('ns', 'key', 'value')
+    mu.assign('ns', 'key', 'value', trial_id=1)
+    # Metadata update is not immediate.
+    self.assertEmpty(runner.GetStudyConfig().metadata.ns('ns'))
+    self.assertEmpty(trial1.metadata)
+    runner._SendMetadata(mu)
 
     self.assertEqual(runner.GetStudyConfig().metadata.ns('ns').get('key'),
                      'value')
     trial0 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
     self.assertSequenceEqual(trial0.metadata.ns('ns'), {'key': 'value'})
 
-  def test_update_metadata_inplace(self):
-    runner = _runner_with_10trials()
-    trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
-    with runner.MetadataUpdate() as mu:
-      mu.assign('ns', 'key', 'value', trial=trial1)
-      self.assertEqual(trial1.metadata.ns('ns').get('key'), 'value')
-
-    # Update is reflected.
-    trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
-    self.assertSequenceEqual(trial1.metadata.ns('ns'), {'key': 'value'})
+  # TODO: Need a test for LocalPolicySupporter.SuggestTrials().
 
 
 class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):

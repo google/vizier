@@ -452,7 +452,15 @@ class Metadata(abc.MutableMapping):
     return iter(self._store)
 
   def __len__(self):
+    """The number of elements in the current namespace."""
     return len(self._store)
+
+  def __bool__(self):
+    """True if this instance contains any metadata in _any_ namespace."""
+    for s in self._stores.values():
+      if s:
+        return True
+    return False
 
   def __copy__(self) -> 'Metadata':
     """Shallow copy -- metadata continues to be shared.

@@ -1,13 +1,10 @@
 """Base class for all PythiaPolicies."""
 
 import abc
-from collections import abc as cabc
-from typing import Any, FrozenSet, Iterable, List, Optional, Type, TypeVar
+from typing import Any, FrozenSet, List, Optional
 
 import attr
 from vizier import pyvizier as vz
-
-_T = TypeVar('_T')
 
 
 def _is_positive(instance: Any, attribute: Any, value: Any):
@@ -47,7 +44,7 @@ class EarlyStopDecision:
       validator=[attr.validators.instance_of(bool)],
       on_setattr=attr.setters.validate)
   metadata: vz.Metadata = attr.ib(
-      default=attr.Factory(vz.Metadata),
+      factory=vz.Metadata,
       validator=[attr.validators.instance_of(vz.Metadata)],
       on_setattr=attr.setters.validate)
 
@@ -94,51 +91,25 @@ class EarlyStopRequest:
 
 
 @attr.define(init=True)
-class SuggestDecision:
-  """Suggest decision.
-
-  Currently only supports suggesting new points to be evaluated. In the future,
-  we want to support other operations such as: freeze/thaw, or warm-start.
+class SuggestDecisionX:
+  """This is the output of the Pythia suggestion method.
 
   Attributes:
-    parameters: Trial parameters to be newly evaluated.
-    metadata:
+    suggestions: Trials to be suggested to the user.
+    metadata: Metadata that's associated with the Study or with already existing
+      Trials.
   """
-  parameters: vz.ParameterDict = attr.field(
+
+  suggestions: list[vz.TrialSuggestion] = attr.field(
       init=True,
-      validator=attr.validators.instance_of(vz.ParameterDict),
-      converter=vz.ParameterDict)
-  metadata: vz.Metadata = attr.field(
+      validator=attr.validators.deep_iterable(
+          attr.validators.instance_of(vz.TrialSuggestion)),
+      converter=list)
+
+  metadata: vz.MetadataDelta = attr.field(
       init=True,
-      factory=vz.Metadata,
-      validator=[attr.validators.instance_of(vz.Metadata)])
-
-  def to_trial(self, trial_id: int) -> vz.Trial:
-    """Convert to a Trial by way of a TrialSuggestion."""
-    return self.to_trial_suggestion().to_trial(uid=trial_id)
-
-  def to_trial_suggestion(self) -> vz.TrialSuggestion:
-    """Convert this to a freshly suggested Trial, a TrialSuggestion."""
-    return vz.TrialSuggestion(
-        parameters=self.parameters, metadata=self.metadata)
-
-
-class SuggestDecisions(cabc.Sequence[SuggestDecision]):
-  """Sequence of suggestions."""
-
-  def __init__(self, items: Iterable[SuggestDecision] = tuple()):
-    self._container = tuple(items)
-
-  def __len__(self) -> int:
-    return len(self._container)
-
-  def __getitem__(self, index: int) -> SuggestDecision:
-    return self._container[index]
-
-  # TODO: rename to create_new_trials.
-  @classmethod
-  def from_trials(cls: Type[_T], trials: Iterable[vz.TrialSuggestion]) -> _T:
-    return [SuggestDecision(t.parameters, t.metadata) for t in trials]
+      default=attr.Factory(vz.MetadataDelta),
+      validator=attr.validators.instance_of(vz.MetadataDelta))
 
 
 @attr.define
@@ -185,15 +156,15 @@ class Policy(abc.ABC):
   """
 
   @abc.abstractmethod
-  def suggest(self, request: SuggestRequest) -> SuggestDecisions:
+  def suggest(self, request: SuggestRequest) -> SuggestDecisionX:
     """Compute suggestions that Vizier will eventually hand to the user.
 
     Args:
       request:
 
     Returns:
-      A list of Trials that will be passed on to the user.
-      (See caveats in the SuggestionAnswer proto.)
+      A bundle of TrialSuggestions and MetadataDelta that will be passed on to
+        the user.  (See caveats in the SuggestionAnswer proto.)
 
     Raises:
       TemporaryPythiaError:  Generic retryable error.
@@ -202,12 +173,6 @@ class Policy(abc.ABC):
         E.g. if this Policy cannot handle this StudyConfig.
         E.g. if this StudyConfig is somehow invalid.
         E.g. if this no more suggestions will ever be generated.
-      CachedPolicyIsStaleError: Causes the computation to be restarted with a
-        freshly constructed Policy instance.  It is incorrect to raise
-        this on the first use of a Policy; the Study will be inactivated.
-
-    NOTE: Trials should not have Trial.id set; these are new Trials rather than
-      modifications of existing Trials.
     """
     pass
 

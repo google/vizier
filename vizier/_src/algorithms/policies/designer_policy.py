@@ -21,14 +21,14 @@ class DesignerPolicy(pythia.Policy):
     self._supporter = supporter
     self._designer_factory = designer_factory
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisions:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
     self._designer = self._designer_factory(request.study_config)
     new_trials = self._supporter.GetTrials(
         status_matches=vz.TrialStatus.COMPLETED)
     self._designer.update(vza.CompletedTrials(new_trials))
 
-    return pythia.SuggestDecisions.from_trials(
-        self._designer.suggest(request.count))
+    return pythia.SuggestDecisionX(
+        self._designer.suggest(request.count), metadata=vz.MetadataDelta())
 
 
 class _SerializableDesignerPolicyBase(pythia.Policy,
@@ -174,7 +174,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         max_trial_id)
     return trials
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisions:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
     # Note that we can avoid O(Num trials) dependency in the standard scenario,
     # by storing only the last element in a consecutive sequence, e.g.,
     # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
@@ -188,13 +188,11 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         1, 'Updated with %s trials. Designer has seen a total of %s trials.',
         len(new_trials), len(self._incorporated_trial_ids))
 
-    with self._supporter.MetadataUpdate() as mu:
-      # pylint: disable=protected-access
-      # TODO: Improve the MetadataUpdateContext API.
-      mu._delta.on_study.ns(self._ns_root).attach(self.dump())
+    metadata_delta = vz.MetadataDelta()
+    metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
 
-    return pythia.SuggestDecisions.from_trials(
-        self.designer.suggest(request.count))
+    return pythia.SuggestDecisionX(
+        self.designer.suggest(request.count), metadata=metadata_delta)
 
 
 class PartiallySerializableDesignerPolicy(

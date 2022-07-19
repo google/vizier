@@ -7,70 +7,6 @@ from typing import Iterable, List, Optional
 from vizier import pyvizier as vz
 
 
-class _MetadataUpdateContext:
-  """Metadata update context.
-
-  Usage:
-    # All metadata updates in the context are queued, not immediately applied.
-    # Upon exit, supporter handles all metadata updates in a batch.
-    with pythia2._MetadataUpdateContext(policy_supporter) as mu:
-      # Study-level metadata.
-      mu.assign('namespace', 'key', 'value')
-      # Trial-level metadata.
-      mu.assign('namespace', 'key', 'value', trial_id=1)
-      # Same as above but with a side effect. After this line the following
-      # line is True:
-      #   trial.metadata.ns('namespace')['key'] == 'value'
-      mu.assign('namespace', 'key', 'value', trial)
-  """
-
-  def __init__(self, supporter: 'PolicySupporter'):
-    self._supporter = supporter
-    self._delta = vz.MetadataDelta()
-
-  # pylint: disable=invalid-name
-  def assign(self,
-             namespace: str,
-             key: str,
-             value: vz.MetadataValue,
-             trial: Optional[vz.Trial] = None,
-             *,
-             trial_id: Optional[int] = None):
-    """Assigns metadata.
-
-    Args:
-      namespace: Namespace of the metadata. See vz.Metadata doc for more
-        details.
-      key:
-      value:
-      trial: If specified, `trial_id` must be None. It behaves the same as when
-        `trial_id=trial.id`, except that `trial` is immediately modified.
-      trial_id: If specified, `trial` must be None. If both `trial` and
-        `trial_id` are None, then the key-value pair will be assigned to the
-        study.
-
-    Raises:
-      ValueError:
-    """
-    if trial is None and trial_id is None:
-      self._delta.on_study.ns(namespace)[key] = value
-    elif trial is not None and trial_id is not None:
-      raise ValueError(
-          'At most one of `trial` and `trial_id` can be specified.')
-    elif trial is not None:
-      self._delta.on_trials[trial.id].ns(namespace)[key] = value
-      trial.metadata.ns(namespace)[key] = value
-    elif trial_id is not None:
-      self._delta.on_trials[trial_id].ns(namespace)[key] = value
-
-  def __enter__(self):
-    return self
-
-  def __exit__(self, *args):
-    """upon exit, sends a batch update request."""
-    self._supporter.SendMetadata(self._delta)
-
-
 class PolicySupporter(abc.ABC):
   """Used by Policy instances to communicate with Vizier."""
 
@@ -166,38 +102,3 @@ class PolicySupporter(abc.ABC):
     InactivateStudyError (if not).
     """
     return datetime.timedelta(hours=1.0)
-
-  def MetadataUpdate(self) -> _MetadataUpdateContext:
-    """Queues metadata updates, then passes them to UpdateMetadata().
-
-    Usage:
-      ps = PolicySupporter()
-      with ps.MetadataUpdate() as mu:
-        # Study-level metadata.
-        mu.assign('namespace', 'key', 'value')
-        # Trial-level metadata.
-        mu.assign('namespace', 'key', 'value', trial_id=1)
-
-    Returns:
-      A _MetadataUpdateContext instance to use as a context.
-    Raises:
-      CancelComputeError: (Do not catch.)
-      PythiaProtocolError: (Do not catch.)
-      VizierDatabaseError: If the database operation raises an error.
-    """
-    return _MetadataUpdateContext(self)
-
-  @abc.abstractmethod
-  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
-    """Updates the Study's metadata in Vizier's database.
-
-    The MetadataUpdate() method is preferred for normal use.
-
-    Args:
-      delta: Metadata to be uploaded to the Vizier database.
-
-    Raises:
-      CancelComputeError: (Do not catch.)
-      PythiaProtocolError: (Do not catch.)
-      VizierDatabaseError: If the database operation raises an error.
-    """

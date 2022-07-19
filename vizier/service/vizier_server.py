@@ -16,6 +16,7 @@ from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
 from vizier._src.algorithms.policies import grid_search_policy
 from vizier._src.algorithms.policies import random_policy
+from vizier._src.pyvizier.oss import metadata_util
 from vizier.service import datastore
 from vizier.service import pyvizier
 from vizier.service import resources
@@ -304,7 +305,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
             count=request.suggestion_count - len(output_trials))
         try:
           suggest_decisions = pythia_policy.suggest(suggest_request)
-          assert len(suggest_decisions
+          assert len(suggest_decisions.suggestions
                     ) >= request.suggestion_count - len(output_trials)
         # Leaving a broad catch for now since Pythia can raise any exception.
         except Exception as e:  # pylint: disable=broad-except
@@ -316,9 +317,26 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           self.datastore.update_suggestion_operation(output_op)
           return output_op
 
+        # Write the metadata update to the datastore.
+        try:
+          self.datastore.update_metadata(
+              study_name,
+              metadata_util.make_key_value_list(
+                  suggest_decisions.metadata.on_study),
+              metadata_util.make_unit_metadata_update_list(
+                  suggest_decisions.metadata.on_trials))
+        except KeyError as e:
+          output_op.error.CopyFrom(
+              status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
+          logging.exception('Failed to write metadata update to datastore: %s',
+                            suggest_decisions.metadata)
+          output_op.done = True
+          self.datastore.update_suggestion_operation(output_op)
+          return output_op
+
         new_py_trials = [
             pyvizier.Trial(parameters=decision.parameters)
-            for decision in suggest_decisions
+            for decision in suggest_decisions.suggestions
         ]
         new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
 

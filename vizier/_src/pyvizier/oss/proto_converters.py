@@ -455,7 +455,7 @@ class TrialConverter:
     elif proto.state == study_pb2.Trial.State.INFEASIBLE:
       infeasibility_reason = proto.infeasible_reason
 
-    metadata = trial.Metadata()
+    metadata = common.Metadata()
     for kv in proto.metadata:
       metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value)

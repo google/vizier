@@ -6,8 +6,7 @@ from vizier._src.pythia.local_policy_supporters import LocalPolicyRunner
 from vizier._src.pythia.policy import EarlyStopDecision
 from vizier._src.pythia.policy import EarlyStopRequest
 from vizier._src.pythia.policy import Policy
-from vizier._src.pythia.policy import SuggestDecision
-from vizier._src.pythia.policy import SuggestDecisions
+from vizier._src.pythia.policy import SuggestDecisionX
 from vizier._src.pythia.policy import SuggestRequest
 from vizier._src.pythia.policy_supporter import PolicySupporter
 from vizier._src.pythia.pythia_errors import CachedPolicyIsStaleError

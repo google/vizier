@@ -47,17 +47,18 @@ class GridSearchPolicyTest(absltest.TestCase):
         study_descriptor=self.policy_supporter.study_descriptor(),
         count=num_suggestions)
 
-    suggestions = self.policy.suggest(suggest_request)
-    self.assertLen(suggestions, num_suggestions)
-    for suggestion in suggestions:
+    decisions = self.policy.suggest(suggest_request)
+    self.assertLen(decisions.suggestions, num_suggestions)
+    for suggestion in decisions.suggestions:
       self.assertLen(suggestion.parameters, 4)
 
     distinct_suggestions = set([
         tuple(suggestion.parameters.as_dict().values())
-        for suggestion in suggestions
+        for suggestion in decisions.suggestions
     ])
 
     self.assertLen(distinct_suggestions, num_suggestions)
+    self.assertFalse(decisions.metadata)
 
   def test_make_early_stopping_decisions(self):
     """Checks if all ACTIVE/PENDING trials become completed in order."""
