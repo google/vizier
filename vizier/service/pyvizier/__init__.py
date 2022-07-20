@@ -19,6 +19,9 @@ from vizier._src.pyvizier.oss.study_config import ObservationNoise
 from vizier._src.pyvizier.oss.study_config import ParameterValueSequence
 from vizier._src.pyvizier.oss.study_config import SearchSpaceSelector
 from vizier._src.pyvizier.oss.study_config import StudyConfig
+from vizier._src.pyvizier.pythia.study import StudyDescriptor
+from vizier._src.pyvizier.pythia.study import StudyState
+from vizier._src.pyvizier.pythia.study import StudyStateInfo
 from vizier._src.pyvizier.shared.base_study_config import MetricInformation
 from vizier._src.pyvizier.shared.base_study_config import MetricsConfig
 from vizier._src.pyvizier.shared.base_study_config import ProblemStatement

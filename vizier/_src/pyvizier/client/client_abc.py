@@ -1,11 +1,10 @@
 """Cross-platform Vizier client interfaces.
 
-Aside from "materialize_" methods, code written using these interfaces are
-compatible with OSS and Cloud Vertex Vizier. Note importantly that subclasses
-may have more methods than what is required by interfaces, and such methods
-are not cross compatible. Our recommendation is to explicitly type your objects
-to be `StudyInterface` or `TrialInterface` when you want to guarantee that
-a code block is cross-platform.
+Code written using these interfaces are compatible with OSS and Cloud Vertex
+Vizier. Note importantly that subclasses may have more methods than what is
+required by interfaces, and such methods are not cross compatible. Our
+recommendation is to use type annotatations of `StudyInterface` or
+`TrialInterface` wherever applicable.
 
 Keywords:
 
@@ -14,10 +13,8 @@ Modifying the returned object does not update the Vizier service.
 """
 
 # TODO: Add a dedicated .md file with more code examples.
-
 import abc
-
-from typing import Iterable, Optional, Collection, Type, TypeVar, Mapping, Any
+from typing import Any, Collection, Iterator, Mapping, Optional, Type, TypeVar
 
 from vizier import pyvizier as vz
 
@@ -52,6 +49,17 @@ class TrialInterface(abc.ABC):
     There is currently no promise on how this object behaves after `delete()`.
     If you are sharing a Trial object in parallel processes, proceed with
     caution.
+    """
+
+  @abc.abstractmethod
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    """Updates Trial metadata.
+
+    New keys will be appended, while old keys will be
+    updated with new values.
+
+    Args:
+      delta: Change in Metadata from the original.
     """
 
   @abc.abstractmethod
@@ -116,16 +124,32 @@ class TrialInterface(abc.ABC):
       Trial object.
     """
 
+  @property
   @abc.abstractmethod
-  def update_metadata(self, delta: vz.Metadata) -> None:
-    """Updates Trial metadata.
+  def study(self) -> 'StudyInterface':
+    """Returns the Study that this Trial belongs to."""
 
-    New keys will be appended, while old keys will be
-    updated with new values.
 
-    Args:
-      delta: Change in Metadata from the original.
-    """
+class TrialIterable(abc.ABC):
+  """Allows iterating through both `TrialInterface` and `vz.Trial`.
+
+  TrialIterable satisfies Iterable[TrialInterface] Protocol which is not
+  explicitly inherited (See https://peps.python.org/pep-0544/). In addition,
+  it guarantees that `list(StudyInterface.trials().get())` is at least as fast
+  as `[t.materialize() for t in StudyInterface.trials()]`.
+
+  StudyInterface returns this object when trials are already materialized
+  while processing a request. A typical implementation of TrialIterable.get()
+  uses a generator of the materialized trials.
+  """
+
+  @abc.abstractmethod
+  def __iter__(self) -> Iterator[TrialInterface]:
+    """Returns an iterator of TrialInterfaces, which are clients."""
+
+  @abc.abstractmethod
+  def get(self) -> Iterator[vz.Trial]:
+    """Returns Trial objects, which are local objects."""
 
 
 class StudyInterface(abc.ABC):
@@ -164,16 +188,25 @@ class StudyInterface(abc.ABC):
     caution.
     """
 
+  @abc.abstractmethod
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    """Updates StudyConfig metadata.
+
+    New keys will be appended, while old keys will be
+    updated with new values.
+
+    Args:
+      delta: Change in Metadata from the original.
+    """
+
   # TODO: Make this method public.
   @abc.abstractmethod
   def _add_trial(self, trial: vz.Trial) -> TrialInterface:
     """Adds a trial to the Study. For testing only."""
 
   @abc.abstractmethod
-  def trials(
-      self,
-      trial_filter: Optional[vz.TrialFilter] = None
-  ) -> Iterable[TrialInterface]:
+  def trials(self,
+             trial_filter: Optional[vz.TrialFilter] = None) -> TrialIterable:
     """Fetches a collection of trials. Default uses vz.TrialFilter()."""
 
   @abc.abstractmethod
@@ -191,7 +224,7 @@ class StudyInterface(abc.ABC):
     """
 
   @abc.abstractmethod
-  def optimal_trials(self) -> Iterable[TrialInterface]:
+  def optimal_trials(self) -> TrialIterable:
     """Returns optimal trial(s)."""
 
   @abc.abstractmethod
@@ -214,12 +247,9 @@ class StudyInterface(abc.ABC):
     """
 
   @abc.abstractmethod
-  def update_metadata(self, delta: vz.Metadata) -> None:
-    """Updates StudyConfig metadata.
-
-    New keys will be appended, while old keys will be
-    updated with new values.
+  def set_state(self, state: vz.StudyState) -> None:
+    """Sets the state of the study.
 
     Args:
-      delta: Change in Metadata from the original.
+      state: New state of the study.
     """

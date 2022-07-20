@@ -1,6 +1,8 @@
 """PyVizier classes for Pythia policies."""
 
 from vizier._src.pyvizier.pythia.study import StudyDescriptor
+from vizier._src.pyvizier.pythia.study import StudyState
+from vizier._src.pyvizier.pythia.study import StudyStateInfo
 from vizier._src.pyvizier.shared.base_study_config import MetricInformation
 from vizier._src.pyvizier.shared.base_study_config import MetricsConfig
 from vizier._src.pyvizier.shared.base_study_config import MetricType

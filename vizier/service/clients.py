@@ -2,7 +2,7 @@
 
 # TODO: Raise vizier-specific exceptions.
 
-from typing import Iterable, Any, Collection, Mapping, Optional, Type
+from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optional, Type
 
 import attr
 from vizier._src.pyvizier.client import client_abc
@@ -29,7 +29,11 @@ def _get_stub() -> vizier_service_pb2_grpc.VizierServiceStub:
 
 @attr.define
 class Trial(client_abc.TrialInterface):
-  """Trial class."""
+  """Trial class.
+
+  This class owns a Vizier client of the Study that contains the Trial that
+  it is associated with.
+  """
 
   _client: vizier_client.VizierClient = attr.field()
   _id: int = attr.field(validator=attr.validators.instance_of(int))
@@ -46,6 +50,10 @@ class Trial(client_abc.TrialInterface):
 
   def delete(self) -> None:
     self._client.delete_trial(self._id)
+
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    actual_delta = vz.MetadataDelta(on_trials={self._id: delta})
+    self._client.update_metadata(actual_delta)
 
   def complete(
       self,
@@ -66,15 +74,38 @@ class Trial(client_abc.TrialInterface):
         [{k: v.value for k, v in measurement.metrics.items()}],
         trial_id=self._id)
 
-  def materialize(self, *, include_all_measurements: bool = True) -> vz.Trial:
+  def materialize(
+      self,
+      *,
+      include_all_measurements: bool = True,
+  ) -> vz.Trial:
     trial = self._client.get_trial(self._id)
     if not include_all_measurements:
       trial.measurements.clear()
     return trial
 
-  def update_metadata(self, delta: vz.Metadata) -> None:
-    actual_delta = vz.MetadataDelta(on_trials={self._id: delta})
-    self._client.update_metadata(actual_delta)
+  @property
+  def study(self) -> 'Study':
+    return Study(self._client)
+
+
+@attr.define
+class TrialIterable(client_abc.TrialIterable):
+  """Holds a collection of materialized Trials.
+
+  See the parent class for full pydocs.
+  """
+
+  _iterable_factory: Callable[[], Iterable[vz.Trial]] = attr.field()
+  _client: vizier_client.VizierClient = attr.field()
+
+  def __iter__(self) -> Iterator[Trial]:
+    for trial in self._iterable_factory():
+      yield Trial(self._client, trial.id)
+
+  def get(self) -> Iterator[vz.Trial]:
+    for trial in self._iterable_factory():
+      yield trial
 
 
 @attr.define
@@ -86,48 +117,65 @@ class Study(client_abc.StudyInterface):
   def resource_name(self) -> str:
     return self._client.study_resource_name
 
-  def _trial_client(self, trial_id: int) -> Trial:
-    return Trial(self._client, trial_id)
+  def _trial_client(self, trial: vz.Trial) -> Trial:
+    """Returns the client for the vz.Trial object."""
+    return Trial(self._client, trial.id)
 
   def suggest(self,
               *,
               count: Optional[int] = None,
               client_id: str = 'default_client_id') -> Collection[Trial]:
     return [
-        self._trial_client(t.id) for t in self._client.get_suggestions(
+        self._trial_client(t) for t in self._client.get_suggestions(
             count, client_id_override=client_id)
     ]
 
   def delete(self) -> None:
     self._client.delete_study()
 
+  def update_metadata(self, delta: vz.Metadata) -> None:
+    actual_delta = vz.MetadataDelta(on_study=delta)
+    self._client.update_metadata(actual_delta)
+
   def _add_trial(self, trial: vz.Trial) -> Trial:
-    return self._trial_client(self._client.add_trial(trial).id)
+    return self._trial_client(self._client.add_trial(trial))
 
   def trials(self,
-             trial_filter: Optional[vz.TrialFilter] = None) -> Iterable[Trial]:
+             trial_filter: Optional[vz.TrialFilter] = None) -> TrialIterable:
     all_trials = self._client.list_trials()
     trial_filter = trial_filter or vz.TrialFilter()
-    for t in filter(trial_filter, all_trials):
-      yield self._trial_client(t.id)
+
+    def iterable_factory():
+      for t in filter(trial_filter, all_trials):
+        yield self._trial_client(t)
+
+    return TrialIterable(iterable_factory, self._client)
 
   def get_trial(self, trial_id: int, /) -> Trial:
-    trial = self._trial_client(trial_id)
     try:
       # Check if the trial actually exists.
-      trial.materialize(include_all_measurements=False)
-      return trial
+      trial = self._client.get_trial(trial_id)
+      return self._trial_client(trial)
     except KeyError as err:
       raise client_abc.ResourceNotFoundError(
           f'Study f{self.resource_name} does not have '
           f'Trial {trial_id}.') from err
 
-  def optimal_trials(self) -> list[Trial]:
+  def optimal_trials(self) -> TrialIterable:
     trials = self._client.list_optimal_trials()
-    return [self._trial_client(t.id) for t in trials]
+    return TrialIterable(lambda: trials, self._client)
 
   def materialize_problem_statement(self) -> vz.ProblemStatement:
     return self._client.get_study_config().to_problem()
+
+  def set_state(self, state: vz.StudyState) -> None:
+    # TODO: Add support for study states.
+    if state == vz.StudyState.ABORTED:
+      raise NotImplementedError(f'Unsupported state: {state}')
+    elif state == vz.StudyState.ACTIVE:
+      raise NotImplementedError(f'Unsupported state: {state}')
+    else:
+      raise NotImplementedError(f'Unknown state: {state}')
 
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str, /) -> 'Study':
@@ -161,7 +209,3 @@ class Study(client_abc.StudyInterface):
             client_id=_UNUSED_CLIENT_ID,
             study_id=study_id,
             study_config=config))
-
-  def update_metadata(self, delta: vz.Metadata) -> None:
-    actual_delta = vz.MetadataDelta(on_study=delta)
-    self._client.update_metadata(actual_delta)

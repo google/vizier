@@ -87,13 +87,30 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
       study._add_trial(t)  # pylint: disable=protected-access
     return study
 
+  @parameterized.parameters(list(state for state in vz.StudyState))
+  def test_set_state(self, target_state: vz.StudyState):
+    study = self.create_test_study_with_trials(self.id())
+    # TODO: Check that the study moved to the target state.
+    # This test is currently a placeholder.
+    try:
+      study.set_state(target_state)
+    except NotImplementedError:
+      logging.exception('Set study state for %s is not implemented in %s',
+                        target_state, type(self))
+
   def test_list_trials(self):
     study = self.create_test_study_with_trials(self.id())
     self.assertLen(list(study.trials()), 4)
 
+  def test_trials_iter_and_get_are_equal(self):
+    study = self.create_test_study_with_trials(self.id())
+    all_trials = study.trials()
+    self.assertEqual([t.id for t in all_trials],
+                     [t.id for t in all_trials.get()])
+
   def test_optimal_trials_on_empty(self):
     study = self.create_test_study(self.id())
-    self.assertEmpty(study.optimal_trials())
+    self.assertEmpty(list(study.optimal_trials()))
 
   def test_optimal_trials_notempty(self):
     study = self.create_test_study_with_trials(self.id())
@@ -198,6 +215,12 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         vz.Measurement(steps=2, metrics={'maximize_metric': 0.2}))
     after = trial.materialize()
     self.assertLen(after.measurements, len(before.measurements) + 1)
+
+  def test_study_property(self):
+    study = self.create_test_study_with_trials(self.id())
+    trial = study.get_trial(2)
+    self.assertEqual(trial.materialize(),
+                     trial.study.get_trial(2).materialize())
 
   def assertPassesE2ETuning(
       self,
