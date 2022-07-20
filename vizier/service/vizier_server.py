@@ -67,6 +67,8 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
 
 MAX_STUDY_ID = 2147483647  # Max int32 value.
 
+SQL_MEMORY_URL = 'sqlite:///:memory:'
+
 
 # TODO: remove context = None
 # TODO: remove context = None
@@ -75,7 +77,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
   def __init__(
       self,
-      database_url: str = 'sqlite:///:memory:',
+      database_url: Optional[str] = SQL_MEMORY_URL,
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
           seconds=60)):
     """Initializes the service.
@@ -84,17 +86,21 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     datastore input/output is assumed to always be pass-by-value.
 
     Args:
-      database_url: URL to the database. Can be local.
+      database_url: URL to the SQL database. If None, it connects to our
+        custom RAM Datastore.
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
     """
-    engine = sqla.create_engine(
-        database_url,
-        echo=False,  # Set True to log transactions for debugging.
-        connect_args={'check_same_thread': False},
-        poolclass=sqla.pool.StaticPool)
-    self.datastore = sql_datastore.SQLDataStore(engine)
+    if database_url is None:
+      self.datastore = datastore.NestedDictRAMDataStore()
+    else:
+      engine = sqla.create_engine(
+          database_url,
+          echo=False,  # Set True to log transactions for debugging.
+          connect_args={'check_same_thread': False},
+          poolclass=sqla.pool.StaticPool)
+      self.datastore = sql_datastore.SQLDataStore(engine)
 
     # For database edits using owner names.
     self._owner_name_to_lock = collections.defaultdict(threading.Lock)

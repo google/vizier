@@ -23,7 +23,9 @@ class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
     self.early_stop_recycle_period = datetime.timedelta(seconds=0.1)
+    # TODO: Find a way to cleanly test both datastores.
     self.vs = vizier_server.VizierService(
+        database_url=vizier_server.SQL_MEMORY_URL,
         early_stop_recycle_period=self.early_stop_recycle_period)
     self.owner_id = 'my_username'
     self.study_id = '0123123'
