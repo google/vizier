@@ -181,6 +181,77 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     self.assertEqual(
         converter.to_trials(expected)[0].parameters, expected_parameters)
 
+  def test_parameters_and_labels(self):
+    study_config = pyvizier.StudyConfig()
+    root = study_config.search_space.select_root()
+    root.add_float_param('x1', 0., 10.)
+    root.add_float_param('x2', 0., 10.)
+
+    study_config.metric_information.extend([
+        pyvizier.MetricInformation(
+            name='y1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
+        pyvizier.MetricInformation(
+            name='y2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE),
+        pyvizier.MetricInformation(
+            name='y3', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
+    ])
+    converter = core.DefaultTrialConverter.from_study_config(study_config)
+    actual_features = {
+        'x1': np.array([[1., 3.]]).T,
+        'x2': np.array([[2., 4.]]).T
+    }
+    actual_labels = {
+        'y1': np.array([[10., 40.]]).T,
+        'y2': np.array([[20., 50.]]).T,
+        'y3': np.array([[np.nan, 60.]]).T
+    }
+    actual_trials = [
+        pyvizier.Trial(
+            parameters={
+                'x1': pyvizier.ParameterValue(1.),
+                'x2': pyvizier.ParameterValue(2.)
+            },
+            final_measurement=pyvizier.Measurement(
+                steps=1, metrics={
+                    'y1': 10.,
+                    'y2': 20.
+                })),
+        pyvizier.Trial(
+            parameters={
+                'x1': pyvizier.ParameterValue(3.),
+                'x2': pyvizier.ParameterValue(4.)
+            },
+            final_measurement=pyvizier.Measurement(
+                steps=1, metrics={
+                    'y1': 40.,
+                    'y2': 50.,
+                    'y3': 60.
+                }))
+    ]
+    trials = converter.to_trials(actual_features, actual_labels)
+    self.assertEqual(
+        actual_trials,
+        trials,
+        msg='conversion from features and labels to trials failed.')
+    features, labels = converter.to_xy(actual_trials)
+    np.testing.assert_equal(
+        actual_features,
+        features,
+        err_msg='conversion from trials to features failed.')
+    np.testing.assert_equal(
+        actual_labels,
+        labels,
+        err_msg='conversion from trials to lables failed.')
+    features_, labels_ = converter.to_xy(trials)
+    np.testing.assert_equal(
+        actual_features,
+        features_,
+        err_msg='roundtrip conversion for features failed.')
+    np.testing.assert_equal(
+        actual_labels,
+        labels_,
+        err_msg='roundtrip conversion for labels failed.')
+
   def test_metrics(self):
     converter = core.DefaultTrialConverter.from_study_configs(
         [], [

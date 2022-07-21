@@ -642,6 +642,21 @@ class ModelOutputConverter(metaclass=abc.ABCMeta):
     """Returns N x 1 array."""
     pass
 
+  @abc.abstractmethod
+  def to_metrics(self,
+                 labels: np.ndarray) -> Sequence[Optional[pyvizier.Metric]]:
+    """Returns a list of pyvizier metrics.
+
+    The metrics are converted from an array of labels with shape (len(metrics),)
+    or (len(metrics), 1) and nan values in the labels are translated to None.
+
+    Args:
+      labels: (len(metrics),) or (len(metrics), 1) shaped array of labels.
+
+    Returns:
+      A list of pyvizier metrics created with `labels`.
+    """
+
   @property
   @abc.abstractmethod
   def metric_information(self) -> pyvizier.MetricInformation:
@@ -779,6 +794,9 @@ class DefaultTrialConverter(TrialToNumpyDict):
         pc.parameter_config.name: pc for pc in self.parameter_converters
     }
     self.metric_converters = list(metric_converters)
+    self._metric_converters_dict = {
+        mc.metric_information.name: mc for mc in self.metric_converters
+    }
 
   def to_features(self,
                   trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
@@ -788,34 +806,109 @@ class DefaultTrialConverter(TrialToNumpyDict):
       result_dict[converter.parameter_config.name] = converter.convert(trials)
     return result_dict
 
-  def to_trials(self, dictionary: Mapping[str,
-                                          np.ndarray]) -> List[pyvizier.Trial]:
-    """Inverse of `to_features`."""
+  def to_trials(
+      self,
+      features: Mapping[str, np.ndarray],
+      labels: Optional[Mapping[str,
+                               np.ndarray]] = None) -> List[pyvizier.Trial]:
+    """Inverse of `to_features` and optionally the inverse of `to_labels`.
+
+    We assume that label values are already shifted and their signs are flipped
+    if required.
+
+    Args:
+      features: A dictionary where keys correspond to parameter names in the
+        returned Trial and values correspond to parameter values and have shape
+        (num_obs, ) or (num_obs, 1).
+      labels: A dictionary of labels where each key corresponds to a metric name
+        and its value is an array of shape (num_obs,) or (num_obs, 1) of oberved
+        metric values.
+
+    Returns:
+      A list of pyvizier trials created with parameters corresponding to
+      `features` and final measurements corresponding to `labels`.
+      NOTE: All final measurements have steps=1
+    """
+    if labels is None:
+      return [
+          pyvizier.Trial(parameters=p) for p in self.to_parameters(features)
+      ]
+
+    try:
+      labels = DictOf2DArrays(labels)
+    except ValueError as e:
+      raise ValueError('Please check the shape of "labels"') from e
+
+    try:
+      features = DictOf2DArrays(features)
+    except ValueError as e:
+      raise ValueError('Please check the shape of "features"') from e
+
+    if labels.size != features.size:
+      raise ValueError(
+          'The number of features and labels observations do not match.')
+    measurements = self._to_measurements(labels)
+    for m in measurements:
+      m.steps = 1
+
     return [
-        pyvizier.Trial(parameters=p) for p in self.to_parameters(dictionary)
+        pyvizier.Trial(parameters=p, final_measurement=m)
+        for p, m in zip(self.to_parameters(features), measurements)
     ]
 
+  def _to_measurements(
+      self, labels: Mapping[str, np.ndarray]) -> List[pyvizier.Measurement]:
+    """Converts a dictionary of labels into a list of pyvizier measurements.
+
+    Each key in the dictionary corresponds to a metric and the length of the
+    list of pyvizier measurements equals to the number of keys. Note that this
+    method generates measurements without setting steps, hence steps are
+    defaulted to zero. The caller should assign them later if desired.
+
+    Args:
+      labels: A dictionary of labels where each key corresponds to a metric name
+        with dictionary values as metric values casted as an array of shape
+        (num_obs,) or (num_obs, 1).
+
+    Returns:
+      A list of pyvizier measurements created with final measurements
+        corresponding to `labels`.
+    """
+    try:
+      DictOf2DArrays(labels)
+    except ValueError as e:
+      raise ValueError('Please check the shape of "labels"') from e
+    measurements = [
+        pyvizier.Measurement() for _ in range(DictOf2DArrays(labels).size)
+    ]
+    # Iterate through labels names and convert them.
+    for metric_name, metric_values in labels.items():
+      metric_converter = self._metric_converters_dict[metric_name]
+      metrics_values = metric_converter.to_metrics(metric_values)
+      for measurement_dict, value in zip(measurements, metrics_values):
+        if value is not None:
+          measurement_dict.metrics[metric_name] = value
+    return measurements
+
   def to_parameters(
-      self, dictionary: Mapping[str,
-                                np.ndarray]) -> List[pyvizier.ParameterDict]:
+      self, features: Mapping[str, np.ndarray]) -> List[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs trigger errors."""
     # TODO: NaNs should be ignored instead of triggering errors.
     # TODO: Add a boolean flag to disable automatic clipping.
 
-    # Validate dictionary's shape, and create empty ParameterDicts.
-    param_dicts = [
-        pyvizier.ParameterDict()
-        for _ in range(DictOf2DArrays(dictionary).size)
+    # Validate features's shape, and create empty ParameterDicts.
+    parameters = [
+        pyvizier.ParameterDict() for _ in range(DictOf2DArrays(features).size)
     ]
 
     # Iterate through parameter names and convert them.
-    for key, values in dictionary.items():
+    for key, values in features.items():
       parameter_converter = self._parameter_converters_dict[key]
       parameter_values = parameter_converter.to_parameter_values(values)
-      for param_dict, value in zip(param_dicts, parameter_values):
+      for param_dict, value in zip(parameters, parameter_values):
         if value is not None:
           param_dict[key] = value
-    return param_dicts
+    return parameters
 
   def to_labels(self,
                 trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
