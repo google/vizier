@@ -2,11 +2,10 @@
 
 import abc
 import dataclasses
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Sequence
 
 import attr
 from vizier import pyvizier as vz
-from vizier.pyvizier import converters
 
 Array = Any
 
@@ -56,8 +55,7 @@ class GradientFreeMaximizer(abc.ABC):
 
   @abc.abstractmethod
   def maximize(self,
-               score_fn: Callable[[Array], Array],
-               converter: converters.DefaultTrialConverter,
+               score_fn: Callable[[Sequence[vz.Trial]], Array],
                search_space: vz.SearchSpace,
                *,
                count: int = 1,
@@ -66,10 +64,8 @@ class GradientFreeMaximizer(abc.ABC):
     """Maximize a function.
 
     Args:
-      score_fn: A function that takes as input `converter.to_features()` and
-        outputs a numpy array-like object of shape (B,).
-      converter: Responsible for converting between `Trial`s (which is the
-        return type) and `score_fn`'s desired input type.
+      score_fn: A function that takes a sequence of N trials and returns a
+        numpy array of shape (N, 1).
       search_space: Returned Trials must be contained in this search space.
       count: Optimizer tries to return this many trials.
       budget_factor: Every optimizer has a rough notion of "standard" budget.
@@ -105,8 +101,7 @@ class BranchThenMaximizer(GradientFreeMaximizer):
       return min(self.max_num_suggestions_per_branch, branch.num_suggestions)
 
   def maximize(self,
-               score_fn: Callable[[Array], Array],
-               converter: converters.DefaultTrialConverter,
+               score_fn: Callable[[Sequence[vz.Trial]], Array],
                search_space: vz.SearchSpace,
                *,
                count: int = 1,
@@ -121,7 +116,6 @@ class BranchThenMaximizer(GradientFreeMaximizer):
       suggestions.extend(
           maximizer.maximize(
               score_fn,
-              converter,
               branch.search_space,
               count=self._num_suggestions_for_branch(branch),
               budget_factor=budget_factor * (branch.num_suggestions / count)))
