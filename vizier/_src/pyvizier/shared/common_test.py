@@ -1,6 +1,8 @@
 """Tests for vizier.pyvizier.shared.common."""
 
 import copy
+import logging
+
 from vizier._src.pyvizier.shared import common
 from google.protobuf import any_pb2
 from google.protobuf import duration_pb2
@@ -152,12 +154,23 @@ class MetadataTest(absltest.TestCase):
     mm_in_namespace['foofoo'] = 'Name_foofoo_v'
     self.assertEqual(mm.ns('Name')['foofoo'], 'Name_foofoo_v')
 
-  def test_iterators(self):
+  def test_iterator(self):
     mm = self.create_test_metadata()
     self.assertSequenceEqual(list(mm.keys()), ['bar', 'foo'])
     self.assertSequenceEqual(
         list(mm.ns('Name').values()), ['Name_foo_v', 'Name_baz_v'])
     self.assertLen(list(mm.items()), 2)
+
+  def test_all_items(self):
+    mm = self.create_test_metadata()
+    sorted_tuples = list(sorted(mm.all_items()))
+    logging.info('sorted_tuples: %s', sorted_tuples)
+    self.assertLen(sorted_tuples, 4)
+    self.assertSequenceEqual(
+        sorted_tuples, [(common.Namespace([]), 'bar', 'bar_v'),
+                        (common.Namespace([]), 'foo', 'foo_v'),
+                        (common.Namespace(['Name']), 'baz', 'Name_baz_v'),
+                        (common.Namespace(['Name']), 'foo', 'Name_foo_v')])
 
   def test_repr_str(self):
     mm = self.create_test_metadata()

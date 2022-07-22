@@ -2,7 +2,7 @@
 
 import collections
 from collections import abc
-from typing import DefaultDict, Dict, overload
+from typing import DefaultDict, Dict, overload, Iterator
 from typing import Iterable, List, Optional, Tuple, TypeVar, Union, Type
 import attr
 
@@ -243,19 +243,19 @@ class Metadata(abc.MutableMapping):
       ...
 
     will not yield anything because there are no keys in the 'gleep' namespace.
-    WARNING: Because of this behavior, Metadata(mm) will quietly drop metadata
-      from all but mm's current namespace.
+    WARNING: Because of this behavior, if you iterate over Metadata(mm), you
+      will quietly drop metadata from all but mm's current namespace.
 
+    To iterate over all the keys in all the namespaces use
+
+    mm = Metadata()
+    mm.ns('gleep')['x'] = 'X'
+    for ns, k, v in mm.all_items():
+      # iteration will include ('gleep', 'x', 'X')
+
+  4.
     Be aware that type(v) is MetadataValue, which includes protos in addition to
     strings.
-
-    To iterate over all the keys in all the namespaces use the namespaces()
-    method.
-
-    mm : Metadata
-    for ns in mm.namespaces():
-      for k, v in mm.abs_ns(ns).items():
-        ...
   """
 
   def __init__(self, *args: Union[Dict[str, MetadataValue],
@@ -437,6 +437,20 @@ class Metadata(abc.MutableMapping):
   def current_ns(self) -> Namespace:
     """Displays the object's current Namespace."""
     return self._namespace
+
+  def all_items(self) -> Iterator[Tuple[Namespace, str, MetadataValue]]:
+    """Yields an iterator that walks through all metadata items.
+
+    This iterates through all the metadata items in all namespaces, vs.
+    __iter__() which just iterates through all the items in the current
+    namespace.
+
+    Yields:
+      Tuple of (namespace, key, value).
+    """
+    for ns in self.namespaces():
+      for k, v in self.abs_ns(ns).items():
+        yield (ns, k, v)
 
   # START OF abstract methods inherited from `MutableMapping` base class.
   def __getitem__(self, key: str) -> MetadataValue:

@@ -119,11 +119,10 @@ def make_key_value_list(
     metadata: common.Metadata) -> list[key_value_pb2.KeyValue]:
   """Convert $metadata to a list of KeyValue protobufs."""
   result = []
-  for ns in metadata.namespaces():
-    for k, v in metadata.abs_ns(ns).items():
-      item = key_value_pb2.KeyValue(key=k, ns=ns.encode())
-      _assign_value(item, v)
-      result.append(item)
+  for ns, k, v in metadata.all_items():
+    item = key_value_pb2.KeyValue(key=k, ns=ns.encode())
+    _assign_value(item, v)
+    result.append(item)
   return result
 
 
@@ -165,12 +164,11 @@ def to_request_proto(
   request = vizier_service_pb2.UpdateMetadataRequest(name=study_resource_name)
 
   # Study Metadata
-  for ns in delta.on_study.namespaces():
-    for k, v in delta.on_study.abs_ns(ns).items():
-      metadatum = request.delta.add().metadatum
-      metadatum.key = k
-      metadatum.ns = ns.encode()
-      _assign_value(metadatum, v)
+  for ns, k, v in delta.on_study.all_items():
+    metadatum = request.delta.add().metadatum
+    metadatum.key = k
+    metadatum.ns = ns.encode()
+    _assign_value(metadatum, v)
 
   request.delta.extend(make_unit_metadata_update_list(delta.on_trials))
   return request
