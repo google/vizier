@@ -1,5 +1,6 @@
 """Implementation of SQL Datastore."""
-from typing import Callable, Dict, Iterable, List, Optional
+import collections
+from typing import Callable, DefaultDict, Iterable, List, Optional
 from absl import logging
 
 import sqlalchemy as sqla
@@ -432,31 +433,27 @@ class SQLDataStore(datastore.DataStore):
     ]).where(self._studies_table.c.study_name == study_name)
     study_result = self._connection.execute(get_study_query)
     row = study_result.fetchone()
+    if not row:
+      raise datastore.NotFoundError('No such study:', s_resource.name)
     original_study = study_pb2.Study.FromString(row['serialized_study'])
 
-    # Update the study with new study_metadata and update database.
-    original_study.study_spec.ClearField('metadata')
-    for metadata in study_metadata:
-      original_study.study_spec.metadata.append(metadata)
+    # Store Study-related metadata into the database.
+    datastore.merge_study_metadata(original_study.study_spec, study_metadata)
     update_study_query = sqla.update(self._studies_table).where(
         self._studies_table.c.study_name == study_name).values(
             serialized_study=original_study.SerializeToString())
     self._connection.execute(update_study_query)
 
-    # Store trial-related metadata in the database. We first create a dict of
-    # the relevant `trial_resources` that will be touched.   We clear them, then
-    # loop through the metadata, converting to protos.
-    trial_resources: Dict[str, resources.TrialResource] = {}
-    for metadata in trial_metadata:
-      clear_metadata_bool = False
-      if metadata.trial_id in trial_resources:
-        t_resource = trial_resources[metadata.trial_id]
-      else:
-        # If we don't have a t_resource entry already, create one and clear the
-        # relevant Trial's metadata.
-        t_resource = s_resource.trial_resource(metadata.trial_id)
-        trial_resources[metadata.trial_id] = t_resource
-        clear_metadata_bool = True
+    # Split the trial-related metadata by Trial.
+    split_metadata: DefaultDict[
+        str,
+        List[datastore._UnitMetadataUpdate]] = collections.defaultdict(list)
+    for md in trial_metadata:
+      split_metadata[md.trial_id].append(md)
+
+    # Now, we update one Trial at a time:
+    for trial_id, md_list in split_metadata.items():
+      t_resource = s_resource.trial_resource(trial_id)
 
       # Obtain original trial.
       trial_name = t_resource.name
@@ -467,10 +464,8 @@ class SQLDataStore(datastore.DataStore):
       row = trial_result.fetchone()
       original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
 
-      # Edit trial metadata and update database.
-      if clear_metadata_bool:
-        original_trial.ClearField('metadata')
-      original_trial.metadata.append(metadata.metadatum)
+      # Update Trial.
+      datastore.merge_trial_metadata(original_trial, md_list)
       update_trial_query = sqla.update(self._trials_table).where(
           self._trials_table.c.trial_name == trial_name).values(
               serialized_trial=original_trial.SerializeToString())

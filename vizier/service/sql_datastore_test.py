@@ -42,10 +42,8 @@ class SQLDataStoreTest(datastore_test_lib.DataStoreTestCase):
                                 self.example_early_stopping_operations)
 
   def test_update_metadata(self):
-    pass
-    # TODO: Put this back in ASAP.
-    # self.assertUpdateMetadataAPI(self.datastore, self.example_study,
-    # self.example_trials)
+    self.assertUpdateMetadataAPI(self.datastore, self.example_study,
+                                 self.example_trials)
 
 
 if __name__ == '__main__':
