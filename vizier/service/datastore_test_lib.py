@@ -209,20 +209,42 @@ class DataStoreTestCase(parameterized.TestCase):
                               study: study_pb2.Study,
                               trials: List[study_pb2.Trial]):
     """Tests if the datastore handles metadata updates properly."""
-    # TODO: Make this test more general.
+    #   We start with two metadata items in the Trial:  'd':'D' and 'e':'E',
+    #   and we merge in two metadata items in $new_metadata:
+    #   {'d':'Dnew' and 'f': 'Fnew'}.  The result should overwrite 'd' and
+    #   be {'d':'Dnew', 'e':'E', 'f':'Fnew'}.
+    study.study_spec.metadata.add(ns='s', key='d', value='D')
+    study.study_spec.metadata.add(ns='s', key='e', value='E')
     ds.create_study(study)
     for trial in trials:
+      trial.metadata.add(ns='t', key='d', value='D')
+      trial.metadata.add(ns='t', key='e', value='E')
       ds.create_trial(trial)
-    study_metadata = [key_value_pb2.KeyValue(key='a', ns='b', value='C')]
+    study_metadata = [
+        key_value_pb2.KeyValue(key='d', ns='s', value='Dnew'),
+        key_value_pb2.KeyValue(key='f', ns='s', value='Fnew'),
+    ]
     trial_metadata = [
         UnitMetadataUpdate(
             trial_id='1',
-            metadatum=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+            metadatum=key_value_pb2.KeyValue(key='d', ns='t', value='Dnew')),
+        UnitMetadataUpdate(
+            trial_id='1',
+            metadatum=key_value_pb2.KeyValue(key='f', ns='t', value='Fnew'))
     ]
     ds.update_metadata(study.name, study_metadata, trial_metadata)
     mutated_study_config = ds.load_study(study.name).study_spec
-    self.assertEqual(list(mutated_study_config.metadata), study_metadata)
+    self.assertEqual(
+        list(mutated_study_config.metadata), [
+            key_value_pb2.KeyValue(ns='s', key='d', value='Dnew'),
+            key_value_pb2.KeyValue(ns='s', key='e', value='E'),
+            key_value_pb2.KeyValue(ns='s', key='f', value='Fnew')
+        ])
     mutated_trial = ds.get_trial(trials[0].name)
     self.assertEqual(mutated_trial.id, str(trial_metadata[0].trial_id))
     self.assertEqual(
-        list(mutated_trial.metadata), [trial_metadata[0].metadatum])
+        list(mutated_trial.metadata), [
+            key_value_pb2.KeyValue(ns='t', key='d', value='Dnew'),
+            key_value_pb2.KeyValue(ns='t', key='e', value='E'),
+            key_value_pb2.KeyValue(ns='t', key='f', value='Fnew')
+        ])

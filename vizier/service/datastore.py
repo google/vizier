@@ -3,9 +3,10 @@
 See resources.py for naming conventions.
 """
 import abc
+import collections
 import copy
 import dataclasses
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple
 from absl import logging
 
 from vizier.service import key_value_pb2
@@ -270,6 +271,45 @@ class OwnerNode:
   clients: Dict[str, ClientNode] = dataclasses.field(default_factory=dict)
 
 
+def merge_study_metadata(
+    study_spec: study_pb2.StudySpec,
+    new_metadata: Iterable[key_value_pb2.KeyValue]) -> None:
+  """Merges $new_metadata into a Study's existing metadata."""
+  metadata_dict: Dict[Tuple[str, str], key_value_pb2.KeyValue] = {}
+  for kv in study_spec.metadata:
+    metadata_dict[(kv.ns, kv.key)] = kv
+  for kv in new_metadata:
+    metadata_dict[(kv.ns, kv.key)] = kv
+  study_spec.ClearField('metadata')
+  study_spec.metadata.extend(
+      sorted(metadata_dict.values(), key=lambda kv: (kv.ns, kv.key)))
+
+
+def merge_trial_metadata(trial_proto: study_pb2.Trial,
+                         new_metadata: Iterable[_UnitMetadataUpdate]) -> None:
+  """Merges $new_metadata into a Trial's existing metadata.
+
+  Args:
+    trial_proto: A representation of a Trial; this will be modified.
+    new_metadata: Metadata that will add or update metadata in the Trial.
+  NOTE: the metadata updates in $new_metadata should have the same ID as
+    $trial_proto.
+  """
+  metadata_dict: Dict[Tuple[str, str], key_value_pb2.KeyValue] = {}
+  for kv in trial_proto.metadata:
+    metadata_dict[(kv.ns, kv.key)] = kv
+  for md_update in new_metadata:
+    if md_update.trial_id == trial_proto.id:
+      metadata_dict[(md_update.metadatum.ns,
+                     md_update.metadatum.key)] = md_update.metadatum
+    else:
+      logging.warning('Metadata associated with wrong trial: %s instead of %s',
+                      md_update.trial_id, trial_proto.id)
+  trial_proto.ClearField('metadata')
+  trial_proto.metadata.extend(
+      sorted(metadata_dict.values(), key=lambda kv: (kv.ns, kv.key)))
+
+
 class NestedDictRAMDataStore(DataStore):
   """Basic Datastore class using nested dictionaries."""
 
@@ -513,25 +553,14 @@ class NestedDictRAMDataStore(DataStore):
     except KeyError as e:
       raise NotFoundError('No such study:', s_resource.name) from e
     # Store Study-related metadata into the database.
-    study_node.study_proto.study_spec.ClearField('metadata')
-    for metadata in study_metadata:
-      study_node.study_proto.study_spec.metadata.append(metadata)
-    # Store trial-related metadata in the database. We first create a dict of
-    # the relevant `trial_resources` that will be touched. We clear them, then
-    # loop through the metadata, converting to protos.
-    trial_resources: Dict[str, resources.TrialResource] = {}
-    for metadata in trial_metadata:
-      if metadata.trial_id in trial_resources:
-        t_resource = trial_resources[metadata.trial_id]
-      else:
-        # If we don't have a t_resource entry already, create one and clear the
-        # relevant Trial's metadata.
-        t_resource = s_resource.trial_resource(metadata.trial_id)
-        trial_resources[metadata.trial_id] = t_resource
-        try:
-          study_node.trial_protos[t_resource.trial_id].ClearField('metadata')
-        except KeyError as e:
-          raise NotFoundError(f'No such trial ({metadata.trial_id}):',
-                              t_resource.name) from e
-      study_node.trial_protos[t_resource.trial_id].metadata.append(
-          metadata.metadatum)
+    merge_study_metadata(study_node.study_proto.study_spec, study_metadata)
+    # Split the trial-related metadata by Trial.
+    split_metadata: DefaultDict[
+        str, List[_UnitMetadataUpdate]] = collections.defaultdict(list)
+    for md in trial_metadata:
+      split_metadata[md.trial_id].append(md)
+    # Now, we update one Trial at a time:
+    for trial_id, md_list in split_metadata.items():
+      t_resource = s_resource.trial_resource(trial_id)
+      trial_proto = study_node.trial_protos[t_resource.trial_id]
+      merge_trial_metadata(trial_proto, md_list)
