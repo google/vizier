@@ -21,13 +21,13 @@ class DesignerPolicy(pythia.Policy):
     self._supporter = supporter
     self._designer_factory = designer_factory
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     self._designer = self._designer_factory(request.study_config)
     new_trials = self._supporter.GetTrials(
         status_matches=vz.TrialStatus.COMPLETED)
     self._designer.update(vza.CompletedTrials(new_trials))
 
-    return pythia.SuggestDecisionX(
+    return pythia.SuggestDecision(
         self._designer.suggest(request.count), metadata=vz.MetadataDelta())
 
 
@@ -174,7 +174,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         max_trial_id)
     return trials
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     # Note that we can avoid O(Num trials) dependency in the standard scenario,
     # by storing only the last element in a consecutive sequence, e.g.,
     # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
@@ -191,7 +191,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     metadata_delta = vz.MetadataDelta()
     metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
 
-    return pythia.SuggestDecisionX(
+    return pythia.SuggestDecision(
         self.designer.suggest(request.count), metadata=metadata_delta)
 
 

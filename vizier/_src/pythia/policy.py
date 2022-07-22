@@ -91,7 +91,7 @@ class EarlyStopRequest:
 
 
 @attr.define(init=True)
-class SuggestDecisionX:
+class SuggestDecision:
   """This is the output of the Pythia suggestion method.
 
   Attributes:
@@ -156,7 +156,7 @@ class Policy(abc.ABC):
   """
 
   @abc.abstractmethod
-  def suggest(self, request: SuggestRequest) -> SuggestDecisionX:
+  def suggest(self, request: SuggestRequest) -> SuggestDecision:
     """Compute suggestions that Vizier will eventually hand to the user.
 
     Args:

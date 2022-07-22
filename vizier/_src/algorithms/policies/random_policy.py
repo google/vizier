@@ -51,14 +51,14 @@ class RandomPolicy(pythia.Policy):
   def __init__(self, policy_supporter: pythia.PolicySupporter):
     self._policy_supporter = policy_supporter
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     """Gets number of Trials to propose, and produces random Trials."""
     suggest_decision_list = []
     for _ in range(request.count):
       parameters = make_random_parameters(request.study_config)
       suggest_decision_list.append(
           pyvizier.TrialSuggestion(parameters=parameters))
-    return pythia.SuggestDecisionX(
+    return pythia.SuggestDecision(
         suggestions=suggest_decision_list, metadata=pyvizier.MetadataDelta())
 
   def early_stop(

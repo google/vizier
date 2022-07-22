@@ -96,7 +96,7 @@ class GridSearchPolicy(pythia.Policy):
   def __init__(self, policy_supporter: pythia.PolicySupporter):
     self._policy_supporter = policy_supporter
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecisionX:
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     """Gets number of Trials to propose, and produces random Trials."""
     all_trial_ids = [t.id for t in self._policy_supporter.GetTrials()]
     if all_trial_ids:
@@ -109,8 +109,8 @@ class GridSearchPolicy(pythia.Policy):
     suggest_decision_list = [
         pyvizier.TrialSuggestion(parameters=p_s) for p_s in parameter_dicts
     ]
-    return pythia.SuggestDecisionX(suggest_decision_list,
-                                   pyvizier.MetadataDelta())
+    return pythia.SuggestDecision(suggest_decision_list,
+                                  pyvizier.MetadataDelta())
 
   def early_stop(
       self, request: pythia.EarlyStopRequest) -> List[pythia.EarlyStopDecision]:
