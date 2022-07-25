@@ -46,9 +46,7 @@ def policy_creator(
     return grid_search_policy.GridSearchPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
     # TODO: See ValueError below.
-    raise ValueError(
-        'Currently NSGA2 is broken when using SQL datastore, due to needed metadata update changes.'
-    )
+    raise ValueError('Currently NSGA2 is broken.')
     return dp.PartiallySerializableDesignerPolicy(  # pylint:disable=unreachable
         policy_supporter, nsga2.create_nsga2)
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
@@ -699,13 +697,13 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
-    try:
-      with self._study_name_to_lock[request.name]:
+    with self._study_name_to_lock[request.name]:
+      try:
         self.datastore.update_metadata(
             request.name,
             [x.metadatum for x in request.delta if not x.HasField('trial_id')],
             [x for x in request.delta if x.HasField('trial_id')])
-    except KeyError as e:
-      return vizier_service_pb2.UpdateMetadataResponse(
-          error_details=';'.join(e.args))
+      except KeyError as e:
+        return vizier_service_pb2.UpdateMetadataResponse(
+            error_details=';'.join(e.args))
     return vizier_service_pb2.UpdateMetadataResponse()

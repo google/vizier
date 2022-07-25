@@ -416,7 +416,6 @@ class SQLDataStore(datastore.DataStore):
     self._connection.execute(query)
     return resource
 
-  # TODO: To be fixed after Pythia changes.
   def update_metadata(
       self,
       study_name: str,
@@ -462,6 +461,8 @@ class SQLDataStore(datastore.DataStore):
       ]).where(self._trials_table.c.trial_name == trial_name)
       trial_result = self._connection.execute(original_trial_query)
       row = trial_result.fetchone()
+      if not row:
+        raise datastore.NotFoundError('No such trial:', trial_name)
       original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
 
       # Update Trial.

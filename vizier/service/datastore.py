@@ -553,11 +553,12 @@ class NestedDictRAMDataStore(DataStore):
     except KeyError as e:
       raise NotFoundError('No such study:', s_resource.name) from e
     # Store Study-related metadata into the database.
-    merge_study_metadata(study_node.study_proto.study_spec, study_metadata)
+    merge_study_metadata(study_node.study_proto.study_spec,
+                         copy.deepcopy(study_metadata))
     # Split the trial-related metadata by Trial.
     split_metadata: DefaultDict[
         str, List[_UnitMetadataUpdate]] = collections.defaultdict(list)
-    for md in trial_metadata:
+    for md in copy.deepcopy(trial_metadata):
       split_metadata[md.trial_id].append(md)
     # Now, we update one Trial at a time:
     for trial_id, md_list in split_metadata.items():

@@ -248,3 +248,7 @@ class DataStoreTestCase(parameterized.TestCase):
             key_value_pb2.KeyValue(ns='t', key='e', value='E'),
             key_value_pb2.KeyValue(ns='t', key='f', value='Fnew')
         ])
+
+    study_not_exist_name = study.name + 'i_dont_exist'
+    with self.assertRaises(datastore.NotFoundError):
+      ds.update_metadata(study_not_exist_name, [], [])
