@@ -38,16 +38,6 @@ class VizierClientTest(client_abc_testing.TestCase):
   def test_e2e_tuning(self):
     self.assertPassesE2ETuning()
 
-  def test_study_update_metadata(self):
-    # This test defined in the parent class currently fails.
-    # TODO: Fix this test and remove this override.
-    pass
-
-  def test_trial_update_metadata(self):
-    # This test defined in the parent class currently fails.
-    # TODO: Fix this test and remove this override.
-    pass
-
   @classmethod
   def tearDownClass(cls):
     cls._service._server.stop(None)
