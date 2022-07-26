@@ -31,4 +31,4 @@ from vizier._src.pyvizier.shared.trial import TrialStatus
 from vizier._src.pyvizier.shared.trial import TrialSuggestion
 
 FlatSpace = SearchSpace
-StudyConfig = ProblemStatement  # To be deprecated.
+StudyConfig = ProblemStatement  # TODO: Deprecate
