@@ -12,6 +12,7 @@ from vizier._src.pyvizier.oss.proto_converters import ParameterType
 from vizier._src.pyvizier.oss.proto_converters import ParameterValueConverter
 from vizier._src.pyvizier.oss.proto_converters import ScaleType
 from vizier._src.pyvizier.oss.proto_converters import TrialConverter
+from vizier._src.pyvizier.oss.study import StudyWithTrials
 from vizier._src.pyvizier.oss.study_config import Algorithm
 from vizier._src.pyvizier.oss.study_config import ExternalType
 from vizier._src.pyvizier.oss.study_config import ObjectiveMetricGoal
