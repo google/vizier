@@ -7,8 +7,7 @@ Reference on benchmark noise and settings:
 
 """
 # pylint:disable=dangerous-default-value
-import copy
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, Optional, Sequence, Union
 
 from absl import logging
 from dopamine.discrete_domains import iteration_statistics
@@ -126,10 +125,8 @@ class Atari100kExperimenter(experimenter.Experimenter):
             goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
     return problem_statement
 
-  def evaluate(self,
-               suggestions: Sequence[pyvizier.Trial]) -> List[pyvizier.Trial]:
-    trials = list(copy.deepcopy(suggestions))
-    for trial in trials:
+  def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
+    for trial in suggestions:
       with gin.unlock_config():
         # Lock in initial values.
         gin.parse_config_file(self._gin_file)
@@ -165,4 +162,3 @@ class Atari100kExperimenter(experimenter.Experimenter):
 
       # Final Measurement.
       trial.complete(trial.measurements[-1])
-    return trials

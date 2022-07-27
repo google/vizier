@@ -1,6 +1,6 @@
 """Experimenter base class for problem statement and evaluation.
 
-Experimenters represent black-box optimization problems.
+Experimenters represent black-box optimization problems and/or users.
 Each experimenter defines a ProblemStatement, representing the search space and
 the metrics it returns in Evaluate (via CompletedTrials).
 
@@ -11,12 +11,12 @@ problem_statement = exp.problem_statement()
 designer = Designer(problem_statement)  # Configure the search algorithm
 for i in range(10):
   suggestions = designer.suggest(count=2)
-  completed_trials = exp.evaluate(suggestions)
-  designer.update(completed_trials)
+  exp.evaluate(suggestions) # Evaluate in-place, for maximum flexibility.
+  designer.update(suggestions)
 """
 
 import abc
-from typing import List, Sequence
+from typing import Sequence
 
 from vizier import pyvizier
 
@@ -24,17 +24,15 @@ from vizier import pyvizier
 class Experimenter(metaclass=abc.ABCMeta):
   """Abstract base class for Experimenters."""
 
-  # TODO: Use CompletedTrials as output type.
   @abc.abstractmethod
-  def evaluate(self,
-               suggestions: Sequence[pyvizier.Trial]) -> List[pyvizier.Trial]:
-    """Evaluates and completes the Trials.
+  def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
+    """Evaluates and mutates the Trials in-place.
+
+    NOTE: The Experimenter is expected to mutate and/or complete the Trials as
+    they wish, as to simulate users to maximum flexibility.
 
     Args:
       suggestions: Sequence of Trials to be evaluated.
-
-    Returns:
-      List of completed Trials.
     """
     pass
 

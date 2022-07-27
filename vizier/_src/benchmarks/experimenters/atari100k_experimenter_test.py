@@ -32,8 +32,8 @@ class Atari100KTest(parameterized.TestCase):
 
     suggestions = designer.suggest(2)
     trials = [suggestion.to_trial() for suggestion in suggestions]
-    evaluated_trials = experimenter.evaluate(trials)
-    for evaluated_trial in evaluated_trials:
+    experimenter.evaluate(trials)
+    for evaluated_trial in trials:
       self.assertEqual(evaluated_trial.status, pyvizier.TrialStatus.COMPLETED)
       logging.info('Evaluated Trial: %s', evaluated_trial)
       self.assertGreaterEqual(

@@ -3,7 +3,7 @@
 import copy
 import logging
 import math
-from typing import Callable, List, Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 from vizier import pyvizier
@@ -65,22 +65,19 @@ class NumpyExperimenter(experimenter.Experimenter):
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
 
-  def evaluate(self,
-               suggestions: Sequence[pyvizier.Trial]) -> List[pyvizier.Trial]:
-    completed_trials = list(copy.deepcopy(suggestions))
+  def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     # Features has shape (num_trials, num_features).
-    features = self._converter.to_features(completed_trials)
-    for idx, completed_trial in enumerate(completed_trials):
+    features = self._converter.to_features(suggestions)
+    for idx, suggestion in enumerate(suggestions):
       val = self.impl(features[idx])
       if math.isfinite(val):
-        completed_trial.complete(
+        suggestion.complete(
             pyvizier.Measurement(metrics={self._metric_name: val}))
       else:
-        # TODO: Add infeasibility to completed_trial.
-        completed_trial.complete(pyvizier.Measurement())
-      if not completed_trial.is_completed:
-        raise RuntimeError(f'Trial {completed_trial} not completed')
-    return completed_trials
+        # TODO: Add infeasibility to suggestion.
+        suggestion.complete(pyvizier.Measurement())
+      if not suggestion.is_completed:
+        raise RuntimeError(f'Trial {suggestion} not completed')
 
   def __repr__(self) -> str:
     return f'NumpyExperimenter {{name: {_get_name(self.impl)}'

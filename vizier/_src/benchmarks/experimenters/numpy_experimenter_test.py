@@ -37,12 +37,12 @@ class NumpyExperimenterTest(parameterized.TestCase):
         param.name: float(index) for index, param in enumerate(parameters)
     })
 
-    completed_trial = exptr.evaluate([t])[0]
+    exptr.evaluate([t])
     metric_name = exptr.problem_statement().metric_information.item().name
     self.assertAlmostEqual(
         func(np.array([0.0, 1.0])),
-        completed_trial.final_measurement.metrics[metric_name].value)
-    self.assertEqual(completed_trial.status, pyvizier.TrialStatus.COMPLETED)
+        t.final_measurement.metrics[metric_name].value)
+    self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 
   def testNonFinite(self):
     dim = 2
@@ -60,7 +60,8 @@ class NumpyExperimenterTest(parameterized.TestCase):
         param.name: -float(index) for index, param in enumerate(parameters)
     })
 
-    completed_trials = exptr.evaluate([t1, t2])
+    completed_trials = [t1, t2]
+    exptr.evaluate(completed_trials)
     for trial in completed_trials:
       self.assertEmpty(trial.final_measurement.metrics)
 

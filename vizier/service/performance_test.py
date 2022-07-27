@@ -46,8 +46,8 @@ class PerformanceTest(parameterized.TestCase):
 
       for _ in range(num_trials_per_client):
         suggestions = client.get_suggestions(suggestion_count=1)
-        completed_trials = experimenter.evaluate(suggestions)
-        for completed_trial in completed_trials:
+        experimenter.evaluate(suggestions)
+        for completed_trial in suggestions:
           client.complete_trial(completed_trial.id,
                                 completed_trial.final_measurement)
 
