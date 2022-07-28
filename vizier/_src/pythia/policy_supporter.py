@@ -102,3 +102,12 @@ class PolicySupporter(abc.ABC):
     InactivateStudyError (if not).
     """
     return datetime.timedelta(hours=1.0)
+
+  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
+    """Updates the Study's metadata in Vizier's database.
+
+    Args:
+      delta: Metadata to be uploaded to the Vizier database.
+    """
+    raise NotImplementedError(
+        f"Metadata update is not supported in {type(self)}")
