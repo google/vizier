@@ -16,7 +16,7 @@
 
 ## What is Open Source (OSS) Vizier?
 
-OSS Vizier is a Python-based interface for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
+OSS Vizier ([paper](https://arxiv.org/abs/2207.13676)) is a Python-based interface for blackbox optimization and research, based on Google Vizier ([paper](https://dl.acm.org/doi/10.1145/3097983.3098043)), one of the first hyperparameter tuning services designed to work at scale.
 
 It consists of two main APIs:
 
@@ -248,7 +248,7 @@ Includes a brief summary of important symbols and modules.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>
-If you found this code useful, please consider citing the [OSS Vizier paper](https://openreview.net/forum?id=SfIRlTSUxc) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
+If you found this code useful, please consider citing the [OSS Vizier paper](https://arxiv.org/abs/2207.13676) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
 
 ```
 @inproceedings{oss_vizier,
