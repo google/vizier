@@ -35,7 +35,7 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     # Metadata update is not immediate.
     self.assertEmpty(runner.GetStudyConfig().metadata.ns('ns'))
     self.assertEmpty(trial1.metadata)
-    runner._SendMetadata(mu)
+    runner.SendMetadata(mu)
 
     self.assertEqual(runner.GetStudyConfig().metadata.ns('ns').get('key'),
                      'value')

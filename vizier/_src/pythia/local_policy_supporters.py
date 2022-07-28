@@ -86,7 +86,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
   def TimeRemaining(self) -> datetime.timedelta:
     return datetime.timedelta(seconds=100.0)
 
-  def _SendMetadata(self, delta: vz.MetadataDelta) -> None:
+  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
     """Assign metadata to trials."""
     for ns in delta.on_study.namespaces():
       self.study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
@@ -163,7 +163,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
     """Suggest and add new trials."""
     decisions = algorithm.suggest(
         policy.SuggestRequest(self.study_descriptor(), count))
-    self._SendMetadata(decisions.metadata)
+    self.SendMetadata(decisions.metadata)
     return self.AddSuggestions([
         vz.TrialSuggestion(d.parameters, metadata=d.metadata)
         for d in decisions.suggestions
