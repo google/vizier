@@ -126,8 +126,8 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     # `policy` creates a new designer object by loading from metadata.
     # Delta should consist only of the newly completed trials.
     new_designer = policy.designer
-    self.assertSequenceEqual(new_designer._last_delta.completed, trials[::2])
-    self.assertEqual(new_designer._num_incorporated_trials, 13)
+    self.assertSequenceEqual(new_designer._last_delta.completed, trials[::2])  # pytype: disable=attribute-error
+    self.assertEqual(new_designer._num_incorporated_trials, 13)  # pytype: disable=attribute-error
     self.assertEqual(
         runner.study_descriptor().config.metadata.ns('test').ns('designer')
         ['num_incorporated_trials'], str(13))
