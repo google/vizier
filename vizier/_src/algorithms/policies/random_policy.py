@@ -5,7 +5,6 @@ API when suggesting trials, but we do for the early stopping in order to
 showcase how the policy supporter should be used.
 """
 import random
-from typing import List
 from vizier import pythia
 from vizier import pyvizier
 
@@ -61,10 +60,10 @@ class RandomPolicy(pythia.Policy):
     return pythia.SuggestDecision(
         suggestions=suggest_decision_list, metadata=pyvizier.MetadataDelta())
 
-  def early_stop(
-      self, request: pythia.EarlyStopRequest) -> List[pythia.EarlyStopDecision]:
+  def early_stop(self,
+                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
     """Selects a random ACTIVE/PENDING trial to stop from datastore."""
-    early_stop_decisions = []
+    decisions = []
 
     all_active_trials = self._policy_supporter.GetTrials(
         study_guid=request.study_guid,
@@ -72,15 +71,15 @@ class RandomPolicy(pythia.Policy):
     trial_to_stop_id = None
     if all_active_trials:
       trial_to_stop_id = random.choice(all_active_trials).id
-      early_stop_decisions.append(
+      decisions.append(
           pythia.EarlyStopDecision(
               id=trial_to_stop_id, reason='Random early stopping.'))
 
     for trial_id in list(request.trial_ids):
       if trial_id != trial_to_stop_id:
-        early_stop_decisions.append(
+        decisions.append(
             pythia.EarlyStopDecision(
                 id=trial_id, reason='Trial should not stop.',
                 should_stop=False))
 
-    return early_stop_decisions
+    return pythia.EarlyStopDecisions(decisions, pyvizier.MetadataDelta())

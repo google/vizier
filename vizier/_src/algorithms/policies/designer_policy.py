@@ -30,6 +30,11 @@ class DesignerPolicy(pythia.Policy):
     return pythia.SuggestDecision(
         self._designer.suggest(request.count), metadata=vz.MetadataDelta())
 
+  def early_stop(self,
+                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
+    raise NotImplementedError('DesignerPolicy does not support the early_stop()'
+                              ' method.')
+
 
 class _SerializableDesignerPolicyBase(pythia.Policy,
                                       serializable.PartiallySerializable,
@@ -193,6 +198,11 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
     return pythia.SuggestDecision(
         self.designer.suggest(request.count), metadata=metadata_delta)
+
+  def early_stop(self,
+                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
+    raise NotImplementedError('PartiallySerializableDesignerPolicy does not '
+                              'implement early_stop().')
 
 
 class PartiallySerializableDesignerPolicy(

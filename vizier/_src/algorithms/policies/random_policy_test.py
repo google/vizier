@@ -56,9 +56,10 @@ class RandomPolicyTest(absltest.TestCase):
           trial_ids=request_trial_ids)
       early_stop_decisions = self.policy.early_stop(request)
       self.assertContainsSubset(
-          request_trial_ids, [decision.id for decision in early_stop_decisions])
+          request_trial_ids,
+          [decision.id for decision in early_stop_decisions.decisions])
 
-      for decision in early_stop_decisions:
+      for decision in early_stop_decisions.decisions:
         if decision.should_stop:
           # Stop trials that need to be stopped.
           self.policy_supporter.trials[decision.id - 1].complete(

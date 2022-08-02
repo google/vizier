@@ -1,7 +1,7 @@
 """Base class for all PythiaPolicies."""
 
 import abc
-from typing import Any, FrozenSet, List, Optional
+from typing import Any, FrozenSet, Optional
 
 import attr
 from vizier import pyvizier as vz
@@ -43,17 +43,37 @@ class EarlyStopDecision:
       default=True,
       validator=[attr.validators.instance_of(bool)],
       on_setattr=attr.setters.validate)
-  metadata: vz.Metadata = attr.ib(
-      factory=vz.Metadata,
-      validator=[attr.validators.instance_of(vz.Metadata)],
-      on_setattr=attr.setters.validate)
 
   # TODO: Add a proper support for this in the service side.
+  # NOTE: As of 2022Q3, the standard deviation field of Metrics in this value
+  #   are ignored (i.e. $predicted_final_measurement.metrics[].std).
   predicted_final_measurement: Optional[vz.Measurement] = attr.ib(
       default=None,
       validator=attr.validators.optional(
           attr.validators.instance_of(vz.Measurement)),
       on_setattr=attr.setters.validate)
+
+
+@attr.define
+class EarlyStopDecisions:
+  """This is the output of the Policy.early_stop() method.
+
+  Attributes:
+    decisions: For some Trials, a decision as to whether it should be stopped.
+    metadata: Metadata that's associated with the Study or with already existing
+      Trials.
+  """
+
+  decisions: list[EarlyStopDecision] = attr.field(
+      init=True,
+      validator=attr.validators.deep_iterable(
+          attr.validators.instance_of(EarlyStopDecision)),
+      converter=list)
+
+  metadata: vz.MetadataDelta = attr.field(
+      init=True,
+      default=attr.Factory(vz.MetadataDelta),
+      validator=attr.validators.instance_of(vz.MetadataDelta))
 
 
 @attr.define
@@ -92,7 +112,7 @@ class EarlyStopRequest:
 
 @attr.define(init=True)
 class SuggestDecision:
-  """This is the output of the Pythia suggestion method.
+  """This is the output of the Policy.suggestion() method.
 
   Attributes:
     suggestions: Trials to be suggested to the user.
@@ -174,9 +194,9 @@ class Policy(abc.ABC):
         E.g. if this StudyConfig is somehow invalid.
         E.g. if this no more suggestions will ever be generated.
     """
-    pass
 
-  def early_stop(self, request: EarlyStopRequest) -> List[EarlyStopDecision]:
+  @abc.abstractmethod
+  def early_stop(self, request: EarlyStopRequest) -> EarlyStopDecisions:
     """Decide which Trials Vizier should stop.
 
     This returns a list of decisions on on-going Trials.
@@ -184,8 +204,8 @@ class Policy(abc.ABC):
       request:
 
     Returns:
-      List of length up to `len(request.trial_ids)`. No decision is treated
-      as "do not stop".
+      Decisions about stopping some Trials and metadata changes.  If no decision
+      is reported for a Trial, it's treated as "do not stop".
 
     Raises:
       TemporaryPythiaError:  Generic retryable error.
@@ -196,8 +216,6 @@ class Policy(abc.ABC):
         freshly constructed Policy instance.  It is incorrect to raise
         this on the first use of a Policy; the Study will be inactivated.
     """
-    del request
-    return []
 
   @property
   def should_be_cached(self) -> bool:

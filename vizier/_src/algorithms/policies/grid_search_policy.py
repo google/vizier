@@ -112,10 +112,10 @@ class GridSearchPolicy(pythia.Policy):
     return pythia.SuggestDecision(suggest_decision_list,
                                   pyvizier.MetadataDelta())
 
-  def early_stop(
-      self, request: pythia.EarlyStopRequest) -> List[pythia.EarlyStopDecision]:
+  def early_stop(self,
+                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
     """Selects ACTIVE/PENDING trial with lowest ID to stop from datastore."""
-    early_stop_decisions = []
+    decisions = []
 
     all_active_trials = self._policy_supporter.GetTrials(
         study_guid=request.study_guid,
@@ -123,15 +123,15 @@ class GridSearchPolicy(pythia.Policy):
     trial_to_stop_id = None
     if all_active_trials:
       trial_to_stop_id = min([t.id for t in all_active_trials])
-      early_stop_decisions.append(
+      decisions.append(
           pythia.EarlyStopDecision(
               id=trial_to_stop_id, reason='Grid Search early stopping.'))
 
     for trial_id in list(request.trial_ids):
       if trial_id != trial_to_stop_id:
-        early_stop_decisions.append(
+        decisions.append(
             pythia.EarlyStopDecision(
                 id=trial_id, reason='Trial should not stop.',
                 should_stop=False))
 
-    return early_stop_decisions
+    return pythia.EarlyStopDecisions(decisions, pyvizier.MetadataDelta())

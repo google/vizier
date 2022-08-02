@@ -322,6 +322,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           return output_op
 
         # Write the metadata update to the datastore.
+        # TODO: Need to sort out the locking.
         try:
           self.datastore.update_metadata(
               study_name,
@@ -335,6 +336,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           logging.exception('Failed to write metadata update to datastore: %s',
                             suggest_decisions.metadata)
           output_op.done = True
+          # TODO: Need to sort out the locking.
           self.datastore.update_suggestion_operation(output_op)
           return output_op
 
@@ -581,10 +583,13 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           study_descriptor=study_descriptor,
           trial_ids=[trial_resource.trial_id])
       early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
-
+      # TODO: SendMetadata() probably should be merged with
+      #   the datastore operations that update the Operation and store
+      #   decisions.
+      policy_supporter.SendMetadata(early_stopping_decisions.metadata)
       # Pythia does not guarantee that the output_operation's id
       # will be in the decisions.
-      for early_stopping_decision in early_stopping_decisions:
+      for early_stopping_decision in early_stopping_decisions.decisions:
         inner_op_name = resources.EarlyStoppingOperationResource(
             trial_resource.owner_id, trial_resource.study_id,
             early_stopping_decision.id).name
@@ -697,13 +702,13 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
-    with self._study_name_to_lock[request.name]:
-      try:
-        self.datastore.update_metadata(
-            request.name,
-            [x.metadatum for x in request.delta if not x.HasField('trial_id')],
-            [x for x in request.delta if x.HasField('trial_id')])
-      except KeyError as e:
-        return vizier_service_pb2.UpdateMetadataResponse(
-            error_details=';'.join(e.args))
+    # TODO: Need to sort out the locking.
+    try:
+      self.datastore.update_metadata(
+          request.name,
+          [x.metadatum for x in request.delta if not x.HasField('trial_id')],
+          [x for x in request.delta if x.HasField('trial_id')])
+    except KeyError as e:
+      return vizier_service_pb2.UpdateMetadataResponse(
+          error_details=';'.join(e.args))
     return vizier_service_pb2.UpdateMetadataResponse()
