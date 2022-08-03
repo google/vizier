@@ -65,13 +65,12 @@ class EarlyStopDecisions:
   """
 
   decisions: list[EarlyStopDecision] = attr.field(
-      init=True,
+      factory=list,
       validator=attr.validators.deep_iterable(
           attr.validators.instance_of(EarlyStopDecision)),
       converter=list)
 
   metadata: vz.MetadataDelta = attr.field(
-      init=True,
       default=attr.Factory(vz.MetadataDelta),
       validator=attr.validators.instance_of(vz.MetadataDelta))
 
