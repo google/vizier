@@ -365,7 +365,7 @@ class LinfMutation(templates.Mutation):
     """
     # Mutate and truncate to [-5, 1.5] range. Perturbations should generally
     # NOT generate values outside this range.
-    arr = population.xs
+    arr = population.xs.copy()
     arr += np.random.uniform(-self._norm, self._norm, arr.shape)
     arr = np.maximum(np.minimum(arr, 1.5), -.5)
 

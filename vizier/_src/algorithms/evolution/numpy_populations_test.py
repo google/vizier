@@ -1,4 +1,8 @@
+import copy
+
 from absl import logging
+import attr
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
 from vizier._src.algorithms.evolution import numpy_populations
@@ -39,6 +43,17 @@ class NumpyPopulationsTest(absltest.TestCase):
     dumped = self._population.dump()
     redumped = self._population.recover(dumped).dump()
     self.assertEqual(dumped, redumped)
+
+  def test_linf_mutation_no_state_modification(self):
+    population_copy = copy.deepcopy(self._population)
+
+    mutation = numpy_populations.LinfMutation()
+    mutation.mutate(self._population, 0)
+
+    population_copy_dict = attr.asdict(population_copy)
+    population_dict = attr.asdict(self._population)
+    for k, v in population_copy_dict.items():
+      np.testing.assert_array_equal(v, population_dict[k], err_msg=k)
 
   def test_convert_from_offspring(self):
     """TODO."""
