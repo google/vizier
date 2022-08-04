@@ -17,7 +17,7 @@ from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
-_UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
+UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
 
 
 class AlreadyExistsError(ValueError):
@@ -222,7 +222,7 @@ class DataStore(abc.ABC):
       self,
       study_name: str,
       study_metadata: Iterable[key_value_pb2.KeyValue],
-      trial_metadata: Iterable[_UnitMetadataUpdate],
+      trial_metadata: Iterable[UnitMetadataUpdate],
   ) -> None:
     """Store the supplied metadata in the database.
 
@@ -287,7 +287,7 @@ def merge_study_metadata(
 
 
 def merge_trial_metadata(trial_proto: study_pb2.Trial,
-                         new_metadata: Iterable[_UnitMetadataUpdate]) -> None:
+                         new_metadata: Iterable[UnitMetadataUpdate]) -> None:
   """Merges $new_metadata into a Trial's existing metadata.
 
   Args:
@@ -556,7 +556,7 @@ class NestedDictRAMDataStore(DataStore):
 
   def update_metadata(self, study_name: str,
                       study_metadata: Iterable[key_value_pb2.KeyValue],
-                      trial_metadata: Iterable[_UnitMetadataUpdate]) -> None:
+                      trial_metadata: Iterable[UnitMetadataUpdate]) -> None:
     # TODO:
     """Writes the supplied metadata to the database.
 
@@ -580,7 +580,7 @@ class NestedDictRAMDataStore(DataStore):
                            copy.deepcopy(study_metadata))
       # Split the trial-related metadata by Trial.
       split_metadata: DefaultDict[
-          str, List[_UnitMetadataUpdate]] = collections.defaultdict(list)
+          str, List[UnitMetadataUpdate]] = collections.defaultdict(list)
       for md in copy.deepcopy(trial_metadata):
         split_metadata[md.trial_id].append(md)
       # Now, we update one Trial at a time:

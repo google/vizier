@@ -45,8 +45,8 @@ def policy_creator(
   elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
     return grid_search_policy.GridSearchPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
-    return dp.PartiallySerializableDesignerPolicy(  # pylint:disable=unreachable
-        policy_supporter, nsga2.create_nsga2)
+    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
+                                                  nsga2.create_nsga2)
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   else:
@@ -60,10 +60,8 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
   now.GetCurrentTime()
   return now
 
-
 MAX_STUDY_ID = 2147483647  # Max int32 value.
-
-SQL_MEMORY_URL = 'sqlite:///:memory:'
+SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
 
 
 # TODO: remove context = None
@@ -227,7 +225,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     owner_id = study_resource.owner_id
     owner_name = study_resource.owner_resource.name
 
-    #  Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
+    # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.
     with self._operation_lock[request.parent]:
       study = self.datastore.load_study(request.parent)
@@ -526,7 +524,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         trial_resource.owner_id, trial_resource.study_id,
         trial_resource.trial_id).name
 
-    #  Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
+    # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.
     with self._operation_lock[study_name]:
       try:

@@ -16,7 +16,7 @@ from google.longrunning import operations_pb2
 from absl.testing import absltest
 from absl.testing import parameterized
 
-_UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
+UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
 
 
 class VizierServerTest(parameterized.TestCase):
@@ -297,9 +297,9 @@ class VizierServerTest(parameterized.TestCase):
       self.vs.datastore.create_trial(t)
 
     # Construct the request.
-    study_metadata = _UnitMetadataUpdate(
+    study_metadata = UnitMetadataUpdate(
         metadatum=key_value_pb2.KeyValue(key='a', ns='b', value='C'))
-    trial_metadata = _UnitMetadataUpdate(
+    trial_metadata = UnitMetadataUpdate(
         trial_id='1',
         metadatum=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
     request = vizier_service_pb2.UpdateMetadataRequest(

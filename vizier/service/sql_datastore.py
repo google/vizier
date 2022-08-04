@@ -440,7 +440,7 @@ class SQLDataStore(datastore.DataStore):
       self,
       study_name: str,
       study_metadata: Iterable[key_value_pb2.KeyValue],
-      trial_metadata: Iterable[datastore._UnitMetadataUpdate],  # pylint:disable=protected-access
+      trial_metadata: Iterable[datastore.UnitMetadataUpdate],
   ) -> None:
     """Store the supplied metadata into the SQL database."""
     s_resource = resources.StudyResource.from_name(study_name)
@@ -467,7 +467,7 @@ class SQLDataStore(datastore.DataStore):
       # Split the trial-related metadata by Trial.
       split_metadata: DefaultDict[
           str,
-          List[datastore._UnitMetadataUpdate]] = collections.defaultdict(list)
+          List[datastore.UnitMetadataUpdate]] = collections.defaultdict(list)
       for md in trial_metadata:
         split_metadata[md.trial_id].append(md)
 
