@@ -813,8 +813,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
                                np.ndarray]] = None) -> List[pyvizier.Trial]:
     """Inverse of `to_features` and optionally the inverse of `to_labels`.
 
-    We assume that label values are already shifted and their signs are flipped
-    if required.
+    We assume that label values are already normalized and their signs are
+    flipped if required.
 
     Args:
       features: A dictionary where keys correspond to parameter names in the
@@ -827,7 +827,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
     Returns:
       A list of pyvizier trials created with parameters corresponding to
       `features` and final measurements corresponding to `labels`.
-      NOTE: All final measurements have steps=1
+      NOTE: All final measurements have steps=1. If 'labels' is not passed, the
+      output trials include `final_measurement=None` and `measurements=[]`.
     """
     if labels is None:
       return [
