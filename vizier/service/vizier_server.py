@@ -104,6 +104,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self._owner_name_to_lock = collections.defaultdict(threading.Lock)
     # For database edits using study names.
     self._study_name_to_lock = collections.defaultdict(threading.Lock)
+    # For calls to Pythia (SuggestTrials and CheckTrialEarlyStoppingState).
+    self._operation_lock = collections.defaultdict(threading.Lock)
 
     self._early_stop_recycle_period = early_stop_recycle_period
 
@@ -182,10 +184,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.DeleteStudyRequest,
       context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
     """Deletes a Study."""
-    owner_name = resources.StudyResource.from_name(
-        request.name).owner_resource.name
-    with self._owner_name_to_lock[owner_name]:
-      self.datastore.delete_study(request.name)
+    self.datastore.delete_study(request.name)
     return empty_pb2.Empty()
 
   def SuggestTrials(
@@ -230,8 +229,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     owner_id = study_resource.owner_id
     owner_name = study_resource.owner_resource.name
 
-    # Lock the database for this study and load it.
-    with self._study_name_to_lock[request.parent]:
+    #  Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
+    # processed.
+    with self._operation_lock[request.parent]:
       study = self.datastore.load_study(request.parent)
 
       # Checks for a non-done operation in the database with this name.
@@ -322,7 +322,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           return output_op
 
         # Write the metadata update to the datastore.
-        # TODO: Need to sort out the locking.
         try:
           self.datastore.update_metadata(
               study_name,
@@ -336,7 +335,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           logging.exception('Failed to write metadata update to datastore: %s',
                             suggest_decisions.metadata)
           output_op.done = True
-          # TODO: Need to sort out the locking.
           self.datastore.update_suggestion_operation(output_op)
           return output_op
 
@@ -388,8 +386,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.CreateTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
+    trial = request.trial
     with self._study_name_to_lock[request.parent]:
-      trial = request.trial
       trial.id = str(self.datastore.max_trial_id(request.parent) + 1)
       trial.name = (resources.StudyResource.from_name(
           request.parent).trial_resource(trial_id=trial.id)).name
@@ -483,10 +481,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.DeleteTrialRequest,
       context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
     """Deletes a Trial."""
-    study_name = resources.TrialResource.from_name(
-        request.name).study_resource.name
-    with self._study_name_to_lock[study_name]:
-      self.datastore.delete_trial(request.name)
+    self.datastore.delete_trial(request.name)
     return empty_pb2.Empty()
 
   # TODO: This curerntly uses the same algorithm as suggestion.
@@ -533,7 +528,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         trial_resource.owner_id, trial_resource.study_id,
         trial_resource.trial_id).name
 
-    with self._study_name_to_lock[study_name]:
+    #  Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
+    # processed.
+    with self._operation_lock[study_name]:
       try:
         # Reuse any existing early stopping op, since the Pythia policy may have
         # already signaled this trial to stop.
@@ -702,7 +699,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
-    # TODO: Need to sort out the locking.
     try:
       self.datastore.update_metadata(
           request.name,

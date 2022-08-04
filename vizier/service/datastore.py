@@ -6,6 +6,7 @@ import abc
 import collections
 import copy
 import dataclasses
+import threading
 from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple
 from absl import logging
 
@@ -318,27 +319,31 @@ class NestedDictRAMDataStore(DataStore):
     # Key is `owner_id`, which corresponds to the (perhaps human) owner
     # of the Study.
     self._owners: Dict[str, OwnerNode] = {}
+    # TODO: Use more fine-grained (study/trial/etc.) locks.
+    self._lock = threading.Lock()
 
   def create_study(self, study: study_pb2.Study) -> resources.StudyResource:
     resource = resources.StudyResource.from_name(study.name)
     temp_dict = {resource.study_id: StudyNode(study_proto=copy.deepcopy(study))}
 
-    if resource.owner_id not in self._owners:
-      self._owners[resource.owner_id] = OwnerNode(studies=temp_dict)
-    else:
-      study_dict = self._owners[resource.owner_id].studies
-      if resource.study_id not in study_dict:
-        study_dict.update(temp_dict)
+    with self._lock:
+      if resource.owner_id not in self._owners:
+        self._owners[resource.owner_id] = OwnerNode(studies=temp_dict)
       else:
-        raise AlreadyExistsError('Study with that name already exists.',
-                                 study.name)
+        study_dict = self._owners[resource.owner_id].studies
+        if resource.study_id not in study_dict:
+          study_dict.update(temp_dict)
+        else:
+          raise AlreadyExistsError('Study with that name already exists.',
+                                   study.name)
     return resource
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     resource = resources.StudyResource.from_name(study_name)
     try:
-      return copy.deepcopy(self._owners[resource.owner_id].studies[
-          resource.study_id].study_proto)
+      with self._lock:
+        return copy.deepcopy(self._owners[resource.owner_id].studies[
+            resource.study_id].study_proto)
     except KeyError as err:
       raise NotFoundError('Could not get Study with name:',
                           resource.name) from err
@@ -346,34 +351,38 @@ class NestedDictRAMDataStore(DataStore):
   def delete_study(self, study_name: str) -> None:
     resource = resources.StudyResource.from_name(study_name)
     try:
-      del self._owners[resource.owner_id].studies[resource.study_id]
+      with self._lock:
+        del self._owners[resource.owner_id].studies[resource.study_id]
     except KeyError as err:
       raise NotFoundError('Study does not exist:', study_name) from err
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
     try:
-      study_nodes = list(self._owners[resource.owner_id].studies.values())
-      return copy.deepcopy(
-          [study_node.study_proto for study_node in study_nodes])
+      with self._lock:
+        study_nodes = list(self._owners[resource.owner_id].studies.values())
+        return copy.deepcopy(
+            [study_node.study_proto for study_node in study_nodes])
     except KeyError as err:
       raise NotFoundError('Owner does not exist:', owner_name) from err
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
-    trial_protos = self._owners[resource.owner_id].studies[
-        resource.study_id].trial_protos
-    if resource.trial_id in trial_protos:
-      raise AlreadyExistsError('Trial %s already exists' % trial.name)
-    else:
-      trial_protos[resource.trial_id] = copy.deepcopy(trial)
+    with self._lock:
+      trial_protos = self._owners[resource.owner_id].studies[
+          resource.study_id].trial_protos
+      if resource.trial_id in trial_protos:
+        raise AlreadyExistsError('Trial %s already exists' % trial.name)
+      else:
+        trial_protos[resource.trial_id] = copy.deepcopy(trial)
     return resource
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     resource = resources.TrialResource.from_name(trial_name)
     try:
-      return copy.deepcopy(self._owners[resource.owner_id].studies[
-          resource.study_id].trial_protos[resource.trial_id])
+      with self._lock:
+        return copy.deepcopy(self._owners[resource.owner_id].studies[
+            resource.study_id].trial_protos[resource.trial_id])
     except KeyError as err:
       raise NotFoundError('Could not get Trial with name:',
                           resource.name) from err
@@ -381,11 +390,12 @@ class NestedDictRAMDataStore(DataStore):
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
     try:
-      trial_protos = self._owners[resource.owner_id].studies[
-          resource.study_id].trial_protos
-      if resource.trial_id not in trial_protos:
-        raise NotFoundError('Trial %s does not exist.' % trial.name)
-      trial_protos[resource.trial_id] = copy.deepcopy(trial)
+      with self._lock:
+        trial_protos = self._owners[resource.owner_id].studies[
+            resource.study_id].trial_protos
+        if resource.trial_id not in trial_protos:
+          raise NotFoundError('Trial %s does not exist.' % trial.name)
+        trial_protos[resource.trial_id] = copy.deepcopy(trial)
       return resource
     except KeyError as err:
       raise NotFoundError('Could not update Trial with name:',
@@ -394,25 +404,29 @@ class NestedDictRAMDataStore(DataStore):
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     resource = resources.StudyResource.from_name(study_name)
     try:
-      return copy.deepcopy(
-          list(self._owners[resource.owner_id].studies[
-              resource.study_id].trial_protos.values()))
+      with self._lock:
+        return copy.deepcopy(
+            list(self._owners[resource.owner_id].studies[
+                resource.study_id].trial_protos.values()))
     except KeyError as err:
       raise NotFoundError('Study does not exist:', study_name) from err
 
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
     try:
-      del self._owners[resource.owner_id].studies[
-          resource.study_id].trial_protos[resource.trial_id]
+      with self._lock:
+        del self._owners[resource.owner_id].studies[
+            resource.study_id].trial_protos[resource.trial_id]
     except KeyError as err:
       raise NotFoundError('Trial does not exist:', trial_name) from err
 
   def max_trial_id(self, study_name: str) -> int:
     resource = resources.StudyResource.from_name(study_name)
     try:
-      trial_ids = list(self._owners[resource.owner_id].studies[
-          resource.study_id].trial_protos.keys())
+      with self._lock:
+        trial_ids = copy.deepcopy(
+            list(self._owners[resource.owner_id].studies[
+                resource.study_id].trial_protos.keys()))
     except KeyError as err:
       raise NotFoundError('Study does not exist:', study_name) from err
 
@@ -425,25 +439,27 @@ class NestedDictRAMDataStore(DataStore):
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
     resource = resources.SuggestionOperationResource.from_name(operation.name)
+    with self._lock:
+      if resource.client_id not in self._owners[resource.owner_id].clients:
+        self._owners[resource.owner_id].clients[
+            resource.client_id] = ClientNode()
+      suggestion_operations = self._owners[resource.owner_id].clients[
+          resource.client_id].suggestion_operations
 
-    if resource.client_id not in self._owners[resource.owner_id].clients:
-      self._owners[resource.owner_id].clients[resource.client_id] = ClientNode()
-    suggestion_operations = self._owners[resource.owner_id].clients[
-        resource.client_id].suggestion_operations
+      if resource.operation_id in suggestion_operations:
+        raise AlreadyExistsError('Operation already exists:',
+                                 resource.operation_id)
 
-    if resource.operation_id in suggestion_operations:
-      raise AlreadyExistsError('Operation already exists:',
-                               resource.operation_id)
-
-    suggestion_operations[resource.operation_id] = copy.deepcopy(operation)
+      suggestion_operations[resource.operation_id] = copy.deepcopy(operation)
     return resource
 
   def get_suggestion_operation(self,
                                operation_name: str) -> operations_pb2.Operation:
     resource = resources.SuggestionOperationResource.from_name(operation_name)
     try:
-      return copy.deepcopy(self._owners[resource.owner_id].clients[
-          resource.client_id].suggestion_operations[resource.operation_id])
+      with self._lock:
+        return copy.deepcopy(self._owners[resource.owner_id].clients[
+            resource.client_id].suggestion_operations[resource.operation_id])
 
     except KeyError as err:
       raise NotFoundError('Could not find SuggestionOperation with name:',
@@ -454,9 +470,10 @@ class NestedDictRAMDataStore(DataStore):
   ) -> resources.SuggestionOperationResource:
     resource = resources.SuggestionOperationResource.from_name(operation.name)
     try:
-      self._owners[resource.owner_id].clients[
-          resource.client_id].suggestion_operations[
-              resource.operation_id] = copy.deepcopy(operation)
+      with self._lock:
+        self._owners[resource.owner_id].clients[
+            resource.client_id].suggestion_operations[
+                resource.operation_id] = copy.deepcopy(operation)
       return resource
     except KeyError as err:
       raise NotFoundError('Could not update SuggestionOperation with name:',
@@ -470,8 +487,10 @@ class NestedDictRAMDataStore(DataStore):
   ) -> List[operations_pb2.Operation]:
     resource = resources.OwnerResource.from_name(owner_name)
     try:
-      operations_list = list(self._owners[
-          resource.owner_id].clients[client_id].suggestion_operations.values())
+      with self._lock:
+        operations_list = copy.deepcopy(
+            list(self._owners[resource.owner_id].clients[client_id]
+                 .suggestion_operations.values()))
     except KeyError as err:
       raise NotFoundError('(owner_name, client_id) does not exist:',
                           (owner_name, client_id)) from err
@@ -485,26 +504,27 @@ class NestedDictRAMDataStore(DataStore):
                                       client_id: str) -> int:
     resource = resources.OwnerResource.from_name(owner_name)
     try:
-      ops = self._owners[
-          resource.owner_id].clients[client_id].suggestion_operations
+      with self._lock:
+        ops = self._owners[
+            resource.owner_id].clients[client_id].suggestion_operations
+        return len(ops)
     except KeyError as err:
       raise NotFoundError('(owner_name, client_id) does not exist:',
                           (owner_name, client_id)) from err
-    return len(ops)
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation.name)
+    with self._lock:
+      early_stopping_ops = self._owners[resource.owner_id].studies[
+          resource.study_id].early_stopping_operations
+      if resource.operation_id in early_stopping_ops:
+        raise AlreadyExistsError('Operation already exists:',
+                                 resource.operation_id)
 
-    early_stopping_ops = self._owners[resource.owner_id].studies[
-        resource.study_id].early_stopping_operations
-    if resource.operation_id in early_stopping_ops:
-      raise AlreadyExistsError('Operation already exists:',
-                               resource.operation_id)
-
-    early_stopping_ops[resource.operation_id] = copy.deepcopy(operation)
+      early_stopping_ops[resource.operation_id] = copy.deepcopy(operation)
     return resource
 
   def get_early_stopping_operation(
@@ -512,8 +532,9 @@ class NestedDictRAMDataStore(DataStore):
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation_name)
     try:
-      return copy.deepcopy(self._owners[resource.owner_id].studies[
-          resource.study_id].early_stopping_operations[resource.operation_id])
+      with self._lock:
+        return copy.deepcopy(self._owners[resource.owner_id].studies[
+            resource.study_id].early_stopping_operations[resource.operation_id])
     except KeyError as err:
       raise NotFoundError('Could not find EarlyStoppingOperation with name:',
                           resource.name) from err
@@ -524,9 +545,10 @@ class NestedDictRAMDataStore(DataStore):
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation.name)
     try:
-      self._owners[resource.owner_id].studies[
-          resource.study_id].early_stopping_operations[
-              resource.operation_id] = copy.deepcopy(operation)
+      with self._lock:
+        self._owners[resource.owner_id].studies[
+            resource.study_id].early_stopping_operations[
+                resource.operation_id] = copy.deepcopy(operation)
       return resource
     except KeyError as err:
       raise NotFoundError('Could not update EarlyStoppingOperation with name:',
@@ -547,21 +569,22 @@ class NestedDictRAMDataStore(DataStore):
     s_resource = resources.StudyResource.from_name(study_name)
     logging.debug('database.update_metadata s_resource= %s', s_resource)
 
-    try:
-      study_node = self._owners[s_resource.owner_id].studies[
-          s_resource.study_id]
-    except KeyError as e:
-      raise NotFoundError('No such study:', s_resource.name) from e
-    # Store Study-related metadata into the database.
-    merge_study_metadata(study_node.study_proto.study_spec,
-                         copy.deepcopy(study_metadata))
-    # Split the trial-related metadata by Trial.
-    split_metadata: DefaultDict[
-        str, List[_UnitMetadataUpdate]] = collections.defaultdict(list)
-    for md in copy.deepcopy(trial_metadata):
-      split_metadata[md.trial_id].append(md)
-    # Now, we update one Trial at a time:
-    for trial_id, md_list in split_metadata.items():
-      t_resource = s_resource.trial_resource(trial_id)
-      trial_proto = study_node.trial_protos[t_resource.trial_id]
-      merge_trial_metadata(trial_proto, md_list)
+    with self._lock:
+      try:
+        study_node = self._owners[s_resource.owner_id].studies[
+            s_resource.study_id]
+      except KeyError as e:
+        raise NotFoundError('No such study:', s_resource.name) from e
+      # Store Study-related metadata into the database.
+      merge_study_metadata(study_node.study_proto.study_spec,
+                           copy.deepcopy(study_metadata))
+      # Split the trial-related metadata by Trial.
+      split_metadata: DefaultDict[
+          str, List[_UnitMetadataUpdate]] = collections.defaultdict(list)
+      for md in copy.deepcopy(trial_metadata):
+        split_metadata[md.trial_id].append(md)
+      # Now, we update one Trial at a time:
+      for trial_id, md_list in split_metadata.items():
+        t_resource = s_resource.trial_resource(trial_id)
+        trial_proto = study_node.trial_protos[t_resource.trial_id]
+        merge_trial_metadata(trial_proto, md_list)
