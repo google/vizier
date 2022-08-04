@@ -253,3 +253,9 @@ class StudyInterface(abc.ABC):
     Args:
       state: New state of the study.
     """
+
+  # TODO: Make this method purely abstract.
+  def materialize_state(self) -> vz.StudyState:
+    """#Materializes the study state."""
+    raise NotImplementedError(
+        f'materialize_state is not implemented in {type(self)}!')
