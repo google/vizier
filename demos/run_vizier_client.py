@@ -81,7 +81,7 @@ def main(argv: Sequence[str]) -> None:
             name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE))
 
   if FLAGS.multiobjective:
-    study_config.algorithm = vz.Algorithm.RANDOM_SEARCH
+    study_config.algorithm = vz.Algorithm.NSGA2
   else:
     study_config.algorithm = vz.Algorithm.EMUKIT_GP_EI
 

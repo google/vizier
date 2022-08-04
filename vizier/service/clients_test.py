@@ -29,7 +29,6 @@ class VizierClientTest(client_abc_testing.TestCase):
   def create_study(self, problem: vz.ProblemStatement,
                    study_id: str) -> clients.Study:
     config = vz.StudyConfig.from_problem(problem)
-    # TODO: NSGA2 fails w/ SQL datastore's UpdateMetadata.
     config.algorithm = vz.Algorithm.RANDOM_SEARCH
     study = clients.Study.from_study_config(
         config, owner='owner', study_id=study_id)

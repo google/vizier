@@ -35,7 +35,7 @@ class PerformanceTest(parameterized.TestCase):
           func, benchmarks.bbob.DefaultBBOBProblemStatement(dimension))
       problem_statement = experimenter.problem_statement()
       study_config = pyvizier.StudyConfig.from_problem(problem_statement)
-      study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
+      study_config.algorithm = pyvizier.Algorithm.NSGA2
 
       client = vizier_client.create_or_load_study(
           service_endpoint=self.service.endpoint,

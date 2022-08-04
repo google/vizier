@@ -184,12 +184,11 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  # TODO: NSGA2 fails w/ SQL datastore's UpdateMetadata.
   @parameterized.parameters(
       (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.GRID_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.EMUKIT_GP_EI, 7, 2, False),
-      # (pyvizier.Algorithm.NSGA2, 50, 1, True),
+      (pyvizier.Algorithm.NSGA2, 50, 1, True),
   )
   def test_e2e_tuning(self, algorithm, num_iterations: int, batch_size: int,
                       multi_objective: bool):
