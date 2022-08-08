@@ -257,6 +257,25 @@ class MetadataTest(absltest.TestCase):
     self.assertEqual(m3s, common.Namespace(tuple(m3s)))
     self.assertEqual(m3s, common.Namespace.decode(m3s.encode()))
 
+  def test_assign_proto(self):
+    m0 = common.Metadata()
+    m0['foo'] = duration_pb2.Duration(seconds=60)
+    dur_out = m0.get('foo', cls=duration_pb2.Duration)
+    logging.info('dur_out= %s', dur_out)
+    self.assertIsNotNone(dur_out)
+    self.assertIsInstance(dur_out, duration_pb2.Duration)
+    if dur_out is not None:
+      self.assertEqual(dur_out.seconds, 60)
+
+  def test_get_or_error(self):
+    m0 = common.Metadata({'foo': 33, 'bar': 'Z'})
+    m0['gleep'] = duration_pb2.Duration(seconds=60)
+    self.assertEqual(m0.get_or_error('foo', cls=int), 33)
+    self.assertEqual(m0.get_or_error('bar'), 'Z')
+    dur_out = m0.get_or_error('gleep', cls=duration_pb2.Duration)
+    self.assertIsInstance(dur_out, duration_pb2.Duration)
+    self.assertEqual(dur_out.seconds, 60)
+
   def test_startswith(self):
     m1 = common.Namespace(['aa', 'bb'])
     self.assertTrue(m1.startswith(common.Namespace(['aa'])))
