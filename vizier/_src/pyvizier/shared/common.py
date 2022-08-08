@@ -4,6 +4,8 @@ import collections
 from collections import abc
 from typing import DefaultDict, Dict, overload, Iterator
 from typing import Iterable, List, Optional, Tuple, TypeVar, Union, Type
+
+from absl import logging
 import attr
 
 from google.protobuf import any_pb2
@@ -11,6 +13,8 @@ from google.protobuf.message import Message
 
 M = TypeVar('M', bound=Message)
 T = TypeVar('T')
+T1 = TypeVar('T1')
+T2 = TypeVar('T2')
 MetadataValue = Union[str, any_pb2.Any, Message]
 
 # Namespace Encoding.
@@ -230,10 +234,11 @@ class Metadata(abc.MutableMapping):
     mm.abs_ns(Namespace.decode('a:b')).get('foo')  # Returns 'ab-foo'
 
   2. Values can be protobufs. If `metadata['foo']` is an instance of `MyProto`
-    proto message or `Any` proto that packs a `MyProto` message, then the proto
-    can be recovered by calling:
-      my_proto = metadata.get_proto('foo', cls=MyProto)
-      isinstance(my_proto, MyProto) # Returns `True`
+    proto message or an `Any` proto that packs a `MyProto` message, then the
+    proto can be recovered by calling:
+
+    my_proto = metadata.get('foo', cls=MyProto)
+    isinstance(my_proto, MyProto) # Returns `True`
 
   3. An iteration over a Metadata object only shows you the data in the current
     namespace.  So,
@@ -253,9 +258,8 @@ class Metadata(abc.MutableMapping):
     for ns, k, v in mm.all_items():
       # iteration will include ('gleep', 'x', 'X')
 
-  4.
-    Be aware that type(v) is MetadataValue, which includes protos in addition to
-    strings.
+  4. Be aware that type(v) is MetadataValue, which includes protos in addition
+    to strings.
   """
 
   def __init__(self, *args: Union[Dict[str, MetadataValue],
@@ -322,20 +326,7 @@ class Metadata(abc.MutableMapping):
     return 'namespace: {} items: {}'.format(str(self._namespace), self._store)
 
   def get_proto(self, key: str, *, cls: Type[M]) -> Optional[M]:
-    """Deprecated.
-
-    Use get() instead.
-
-    Gets the metadata as type `cls`, or None if not possible.
-
-    Args:
-      key:
-      cls: Pass in a proto ***class***, not a proto object.
-
-    Returns:
-      Proto message, if the value associated with the key exists and
-      can be parsed into cls; None otherwise.
-    """
+    """Deprecated: use get() instead."""
     value = self._store.get(key, None)
     if value is None:
       return None
@@ -344,42 +335,104 @@ class Metadata(abc.MutableMapping):
       # Starting from 3.10, pytype supports typeguard, which obsoletes
       # the need for the `pytype:disable` clause.
       return value  # pytype: disable=bad-return-type
-
     if isinstance(value, any_pb2.Any):
       # `value` is an Any proto potentially packing `cls`.
       message = cls()
       success = value.Unpack(message)
       return message if success else None
-
     return None
 
-  def get(self,
-          key: str,
-          default: Optional[T] = None,
-          *,
-          cls: Type[T] = str) -> Optional[T]:
-    """Gets the metadata as type `cls`, or None if not possible.
+  def get_or_error(self, key: str, *, cls: Type[T] = str) -> T:
+    """Gets the metadata as type `cls`, or raises a KeyError.
 
-    Given regular string values, this function behaves exactly like a
-    regular string-to-string dict (within its namespace).
+    Examples with string metadata:
       metadata = common.Metadata({'key': 'value'})
-      assert metadata.get('key') == 'value'
-      assert metadata.get('badkey', 'badvalue') == 'badvalue'
+      assert metadata.get_or_error('key') == 'value'
+      metadata.get_or_error('badkey')  # raises KeyError
 
-    Example with numeric string values:
+    Examples with numeric values:
       metadata = common.Metadata({'float': '1.2', 'int': '60'})
-      assert metadata.get('float', cls=float) == 1.2
-      assert metadata.get('badkey', 0.2, cls=float) == 0.2
-      assert metadata.get('int', cls=int) == 60
-      assert metadata.get('badkey', 1, cls=int) == 1
+      assert metadata.get_or_error('int', cls=int) == 60
+      assert metadata.get_or_error('float', cls=float) == 1.2
+      metadata.get_or_error('badkey', cls=float)      # raises KeyError
 
     Example with `Duration` and `Any` proto values:
       duration = Duration(seconds=60)
       anyproto = Any()
       anyproto.Pack(duration)
       metadata = common.Metadata({'duration': duration, 'any': anyproto})
-      assert metadata.get('duration', cls=Duration) == duration
-      assert metadata.get('any', cls=Duration) == duration
+      assert metadata.get_or_error('duration', cls=Duration) == duration
+      assert metadata.get_or_error('any', cls=Duration) == duration
+
+    Args:
+      key:
+      cls: Desired type of the value.
+
+    Returns:
+      The matching metadata value is parsed into type `cls`. For proto messages,
+      it involves unpacking an Any proto.
+
+    Raises:
+      KeyError if the metadata item is not present.
+      TypeError or other errors if the string can't be converted to $cls.
+    """
+    value = self._store[key]
+    if isinstance(value, cls):
+      # Starting from 3.10, pytype supports typeguard, which obsoletes
+      # the need for the `pytype:disable` clause.
+      return value  # pytype: disable=bad-return-type
+    elif isinstance(value, any_pb2.Any):
+      # `value` is an Any proto potentially packing `cls`.
+      message = cls()
+      if not value.Unpack(message):
+        logging.warning('Cannot unpack message to %s: %s', cls,
+                        str(value)[:100])
+        raise TypeError('Cannot unpack to %s' % cls)
+      return message
+    else:
+      return cls(value)
+
+  def get(self,
+          key: str,
+          default: T1 = None,
+          *,
+          cls: Type[T2] = str) -> Union[T1, T2]:
+    """Gets the metadata as type `cls`, or $default if not present.
+
+    This returns $default if the specified metadata item is not found.
+    Note that there's always a default value, and the $default defaults to None.
+
+    For string values, this function behaves exactly like a
+    regular string-to-string dict (within its namespace).
+      metadata = common.Metadata({'key': 'value'})
+      metadata.get('key')  # returns 'value'
+      metadata.get('badkey')  # returns None
+      assert metadata.get('badkey', 'badvalue') == 'badvalue'
+
+    Examples with numeric values:
+      metadata = common.Metadata({'float': '1.2', 'int': '60'})
+      value = metadata.get('int', cls=int)
+      if value is not None:
+        assert value == 60
+      #
+      metadata.get('float', cls=float)       # returns 1.2
+      metadata.get('badkey', cls=float)      # returns None
+      metadata.get('int', cls=int)           # returns 60
+      assert metadata.get('float', 0.0, cls=float) == 1.2
+      assert metadata.get('badkey', 1, cls=int) == 1
+      assert metadata.get('badkey', 0.2, cls=float) == 0.2
+
+    Example with `Duration` and `Any` proto values:
+      duration = Duration(seconds=60)
+      anyproto = Any()
+      anyproto.Pack(duration)
+      metadata = common.Metadata({'duration': duration, 'any': anyproto})
+      duration_out =  metadata.get('duration', cls=Duration)
+      if duration_out is not None:
+        assert duration_out == duration
+      any_out =  metadata.get('any', cls=Duration)
+      if any_out is not None:
+        assert any_out == duration
 
     Args:
       key:
@@ -387,24 +440,17 @@ class Metadata(abc.MutableMapping):
       cls: Desired type of the value.
 
     Returns:
-      Default if the key does not exist. Otherwise, the matching value is
-      parsed into type `cls`. For proto messages, it involves unpacking
+      $default if the key does not exist. Otherwise, the matching value is
+      parsed into type `cls`. For proto messages, it involves unpacking an
       Any proto.
+
+    Raises:
+      TypeError or other errors if the string can't be converted to $cls.
     """
     try:
-      value = self._store[key]
+      return self.get_or_error(key, cls=cls)
     except KeyError:
       return default
-    if isinstance(value, cls):
-      # Starting from 3.10, pytype supports typeguard, which obsoletes
-      # the need for the `pytype:disable` clause.
-      return value  # pytype: disable=bad-return-type
-    if isinstance(value, any_pb2.Any):
-      # `value` is an Any proto potentially packing `cls`.
-      message = cls()
-      success = value.Unpack(message)
-      return message if success else None
-    return cls(value)
 
   # TODO: Rename to `abs_namespaces`
   def namespaces(self) -> Tuple[Namespace, ...]:
