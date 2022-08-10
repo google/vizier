@@ -85,6 +85,11 @@ napolean_use_rtype = False
 
 # -- Options for HTML output -------------------------------------------------
 
+# The name of an image file (relative to this directory) to place at the top
+# of the sidebar.
+html_logo = './assets/vizier_logo.png'
+html_favicon = './assets/vizier_logo.png'
+
 # -- Extension configuration -------------------------------------------------
 
 # Tell sphinx-autodoc-typehints to generate stub parameter annotations including

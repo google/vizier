@@ -1,6 +1,4 @@
-.. currentmodule:: vizier
-
-Public API: vizier
+Guides
 ==================
 
 For Developers

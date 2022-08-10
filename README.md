@@ -1,5 +1,5 @@
 <figure>
-<img src="assets/vizier_logo.png" width=20% align="right" />
+<img src="docs/assets/vizier_logo.png" width=20% align="right" />
 </figure>
 
 # Open Source Vizier: Reliable and Flexible Blackbox Optimization.

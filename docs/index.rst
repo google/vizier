@@ -29,6 +29,6 @@ OSS Vizier is licensed under the Apache 2.0 License.
 
 .. toctree::
    :maxdepth: 2
-   :caption: API References
+   :caption: Guides
 
-   api/index
+   guides/index
