@@ -12,7 +12,7 @@ class RandomPolicyTest(absltest.TestCase):
     """Setups up search space."""
     self.study_config = pyvizier.StudyConfig()
     self.study_config.search_space.select_root().add_float_param(
-        'double', min_value=-1.0, max_value=1.0)
+        name='double', min_value=-1.0, max_value=1.0)
     self.study_config.search_space.select_root().add_categorical_param(
         name='categorical', feasible_values=['a', 'b', 'c'])
     self.study_config.search_space.select_root().add_discrete_param(
@@ -46,7 +46,7 @@ class RandomPolicyTest(absltest.TestCase):
   def test_make_early_stopping_decisions(self):
     """Checks if all ACTIVE/PENDING trials become completed in random order."""
     count = 10
-    _ = self.policy_supporter.SuggestTrials(self.policy, count=10)
+    _ = self.policy_supporter.SuggestTrials(self.policy, count=count)
 
     request_trial_ids = [1, 2]
     trial_ids_stopped = set()

@@ -17,3 +17,4 @@ For Users
     :maxdepth: 1
 
     user/running_vizier
+    user/search_spaces

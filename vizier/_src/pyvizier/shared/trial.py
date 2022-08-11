@@ -486,9 +486,9 @@ class Trial(TrialSuggestion):
 
     Args:
       measurement: Measurement to complete the trial with.
-      inplace: If True, Trial is modified in place. If False,  which is the
+      inplace: If True, Trial is modified in place. If False, which is the
         default, then the operation is performed and it returns a copy of the
-        object
+        object.
 
     Returns:
       Completed Trial.
