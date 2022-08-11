@@ -14,12 +14,13 @@
 
 ## What is Open Source (OSS) Vizier?
 
-OSS Vizier ([paper](https://arxiv.org/abs/2207.13676)) is a Python-based interface for blackbox optimization and research, based on Google Vizier ([paper](https://dl.acm.org/doi/10.1145/3097983.3098043)), one of the first hyperparameter tuning services designed to work at scale. Please see our [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for implementation details.
+[OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based interface for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale. Please see our [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
 
-It consists of two main APIs:
+It consists of three main APIs:
 
-* **User API:** Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
-* **Developer API:** Defines abstractions and utilities for implementing new optimization algorithms for research and benchmarking.
+* [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
+* [**Developer API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-developers) Defines abstractions and utilities for implementing new optimization algorithms for research and to be hosted in the service.
+* **Benchmarking API:** A wide collection of objective functions and methods to benchmark and compare algorithms.
 
 
 
