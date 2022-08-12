@@ -160,6 +160,7 @@ class SuggestRequest:
   def study_config(self) -> vz.StudyConfig:
     return self.study_descriptor.config
 
+  @property
   def study_guid(self) -> str:
     return f'{self.study_descriptor.guid}'
 
