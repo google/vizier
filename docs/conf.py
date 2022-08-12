@@ -90,6 +90,11 @@ napolean_use_rtype = False
 html_logo = './assets/vizier_logo.png'
 html_favicon = './assets/vizier_logo.png'
 
+# -- Options for myst --------------------------------------------------------
+
+# Enable LaTeX for HTML-generated docs.
+myst_enable_extensions = ['dollarmath']
+
 # -- Extension configuration -------------------------------------------------
 
 # Tell sphinx-autodoc-typehints to generate stub parameter annotations including
