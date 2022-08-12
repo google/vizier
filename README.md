@@ -14,11 +14,11 @@
 
 ## What is Open Source (OSS) Vizier?
 
-[OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based interface for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale. Please see our [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
+[OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale. Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
 
-It consists of three main APIs:
+OSS Vizier's interface consists of three main APIs:
 
-* [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup a main Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
+* [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup an OSS Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
 * [**Developer API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-developers) Defines abstractions and utilities for implementing new optimization algorithms for research and to be hosted in the service.
 * **Benchmarking API:** A wide collection of objective functions and methods to benchmark and compare algorithms.
 
@@ -42,20 +42,28 @@ which will download the code and launch the provided `install.sh`. This script i
 Includes a brief summary of important symbols and modules.
 
 #### Service users <a name="service_users"></a>
+
+If you write client code interacting with the OSS Vizier service, use these
+import targets:
+
 * `from vizier.service import pyvizier as vz`: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
 <!-- TODO(b/226560768): Update this entry after the clean up -->
 * `from vizier.service import ...`: Include binaries and internal utilities.
 
-#### Developer essentials
-* **`from vizier import pyvizier as vz`**: Pure python building blocks of Vizier. Cross-platform code including pythia policies must use this pyvizier instance.
-  * `Trial` and `StudyConfig` are most important classes.
+#### Algorithm Developers
+
+If you write algorithm code (Designers or Pythia policies) in OSS Vizier, use
+these import targets:
+
+* **`from vizier import pyvizier as vz`**: Pure python building blocks of OSS Vizier. Cross-platform code, including pythia policies, must use this pyvizier instance.
+  * `Trial` and `ProblemStatement` are important classes.
 * **`from vizier.pyvizier import converters`**: Convert between pyvizier objects and numpy arrays.
   * `TrialToNumpyDict`: Converts parameters (and metrics) into a dict of numpy arrays. Preferred conversion method if you intended to train an embedding of categorical/discrete parameters, or data includes missing parameters or metrics.
   * `TrialToArrayConverter`: Converts parameters (and metrics) into an array.
 * `from vizier.interfaces import serializable`
   * `PartiallySerializable`, `Serializable`
 
-#### Algorithm abstractions
+##### Algorithm abstractions
 * **`from vizier import pythia`**
   * `Policy`, `PolicySupporter`: Key abstractions
   * `LocalPolicyRunner`: Use it for running a `Policy` in RAM.
@@ -65,7 +73,7 @@ Includes a brief summary of important symbols and modules.
   * `GradientFreeMaximizer`: For optimizing acquisition functions.
   * `(Partially)SerializableDesigner`: Designers who wish to optimize performance by saving states.
 
-#### Tensorflow modules
+##### Tensorflow modules
 * **`from vizier import tfp`**: Tensorflow-probability utilities.
   * `acquisitions`: Acquisition functions module.
      * `AcquisitionFunction`: abstraction
