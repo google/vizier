@@ -31,6 +31,8 @@ class IsingExperimenter(experimenter.Experimenter):
     self._covariance, self._partition_original = common.spin_covariance(
         self._interaction, (self._ising_grid_h, self._ising_grid_w))
 
+    self._problem_statement = self.problem_statement()
+
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for suggestion in suggestions:
       # TODO: Switch to using StudyConfig.
@@ -53,7 +55,9 @@ class IsingExperimenter(experimenter.Experimenter):
       evaluation += self._lamda * float(np.sum(x))
 
       suggestion.complete(
-          pyvizier.Measurement(metrics={'main_objective': evaluation}))
+          pyvizier.Measurement(metrics={
+              self._problem_statement.single_objective_metric_name: evaluation
+          }))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
@@ -86,6 +90,7 @@ class ContaminationExperimenter(experimenter.Experimenter):
     self._contamination_n_stages = contamination_n_stages
     self._init_z, self._lambdas, self._gammas = self._generate_contamination_dynamics(
         random_seed)
+    self._problem_statement = self.problem_statement()
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for suggestion in suggestions:
@@ -104,7 +109,9 @@ class ContaminationExperimenter(experimenter.Experimenter):
           epsilon=0.05)
       evaluation += self._lamda * float(np.sum(x))
       suggestion.complete(
-          pyvizier.Measurement(metrics={'main_objective': evaluation}))
+          pyvizier.Measurement(metrics={
+              self._problem_statement.single_objective_metric_name: evaluation
+          }))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
@@ -187,6 +194,8 @@ class CentroidExperimenter(experimenter.Experimenter):
       self._covariance_list.append(covariance)
       self._partition_original_list.append(partition_original)
 
+    self._problem_statement = self.problem_statement()
+
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for suggestion in suggestions:
       # TODO: Switch to using StudyConfig.
@@ -212,7 +221,9 @@ class CentroidExperimenter(experimenter.Experimenter):
       evaluation = float(kld_sum / float(self._n_ising_models))
 
       suggestion.complete(
-          pyvizier.Measurement(metrics={'main_objective': evaluation}))
+          pyvizier.Measurement(metrics={
+              self._problem_statement.single_objective_metric_name: evaluation
+          }))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
@@ -251,6 +262,7 @@ class PestControlExperimenter(experimenter.Experimenter):
     self._pest_control_n_choice = pest_control_n_choice
     self._pest_control_n_stages = pest_control_n_stages
     self._random_seed = random_seed
+    self._problem_statement = self.problem_statement()
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for suggestion in suggestions:
@@ -261,7 +273,9 @@ class PestControlExperimenter(experimenter.Experimenter):
       ])
       evaluation = self._pest_control_score(x)
       suggestion.complete(
-          pyvizier.Measurement(metrics={'main_objective': evaluation}))
+          pyvizier.Measurement(metrics={
+              self._problem_statement.single_objective_metric_name: evaluation
+          }))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
@@ -371,6 +385,8 @@ class MAXSATExperimenter(experimenter.Experimenter):
               [int(elm) > 0 for elm in clause])
       self._clauses.append(pair)
 
+    self._problem_statement = self.problem_statement()
+
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for suggestion in suggestions:
       # TODO: Switch to using StudyConfig.
@@ -384,7 +400,9 @@ class MAXSATExperimenter(experimenter.Experimenter):
       ])
       evaluation = -np.sum(self._weights * satisfied)
       suggestion.complete(
-          pyvizier.Measurement(metrics={'main_objective': evaluation}))
+          pyvizier.Measurement(metrics={
+              self._problem_statement.single_objective_metric_name: evaluation
+          }))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
