@@ -1,4 +1,5 @@
 """Tests for combo_experimenter."""
+# pylint:disable=g-long-lambda
 import functools
 from absl import logging
 
@@ -21,6 +22,8 @@ class ComboExperimenterTest(parameterized.TestCase):
       ('ising',
        functools.partial(combo_experimenter.IsingExperimenter,
                          lamda=0.01), 0.0, 50.0),
+      ('centroid', combo_experimenter.CentroidExperimenter, 0.0, 150.0),
+      ('pest_control', combo_experimenter.PestControlExperimenter, 12.0, 25.0),
   )
   def test_experimenters(self, experimenter_class, objective_min,
                          objective_max):
