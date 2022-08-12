@@ -221,23 +221,6 @@ class StudyConfig(base_study_config.ProblemStatement):
         metadata_util.assign(proto, key=key, ns=ns_string, value=value)
     return proto
 
-  @property
-  def is_single_objective(self) -> bool:
-    """Returns True if only one objective metric is configured."""
-    return len(self.metric_information) == 1
-
-  @property
-  def single_objective_metric_name(self) -> Optional[str]:
-    """Returns the name of the single-objective metric, if set.
-
-    Returns:
-      String: name of the single-objective metric.
-      None: if this is not a single-objective study.
-    """
-    if len(self.metric_information) == 1:
-      return list(self.metric_information)[0].name
-    return None
-
   def _trial_to_external_values(
       self, pytrial: trial.Trial) -> Dict[str, Union[float, int, str, bool]]:
     """Returns the trial paremeter values cast to external types."""

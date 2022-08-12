@@ -1430,3 +1430,20 @@ class ProblemStatement:
         search_space=self.search_space,
         metric_information=self.metric_information,
         metadata=self.metadata)
+
+  @property
+  def is_single_objective(self) -> bool:
+    """Returns True if only one objective metric is configured."""
+    return self.metric_information.is_single_objective
+
+  @property
+  def single_objective_metric_name(self) -> Optional[str]:
+    """Returns the name of the single-objective metric, if set.
+
+    Returns:
+      String: name of the single-objective metric.
+      None: if this is not a single-objective study.
+    """
+    if self.is_single_objective:
+      return self.metric_information.of_type(MetricType.OBJECTIVE).item().name
+    return None
