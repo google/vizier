@@ -46,12 +46,12 @@ class TrialStatus(enum.Enum):
 class Metric:
   """Enhanced immutable wrapper for vizier_pb2.Metric proto.
 
-  It has an additional field "std" for internal usage. This field gets lost
+  It has an optional field "std" for internal usage. This field gets lost
   when the object is converted to proto.
   """
 
-  def _std_not_negative(self, _, stddev):
-    if stddev < 0:
+  def _std_not_negative(self, _, stddev: Optional[float]) -> bool:
+    if (stddev is not None) and (not stddev >= 0):
       raise ValueError(
           'Standard deviation must be a non-negative finite number.')
 
@@ -60,11 +60,14 @@ class Metric:
       init=True,
       validator=[attr.validators.instance_of(float)],
       kw_only=False)
-  std: float = attr.ib(
-      converter=float,
-      validator=[attr.validators.instance_of(float), _std_not_negative],
+  std: Optional[float] = attr.ib(
+      converter=lambda x: float(x) if x is not None else None,
+      validator=[
+          attr.validators.optional(attr.validators.instance_of(float)),
+          _std_not_negative
+      ],
       init=True,
-      default=0.0,
+      default=None,
       kw_only=True)
 
 

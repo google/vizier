@@ -19,8 +19,9 @@ class MetricTest(absltest.TestCase):
   def testMetricCreation(self):
     _ = Metric(value=0, std=0.5)
 
-  def testMetricCanHaveNaN(self):
-    _ = Metric(value=np.nan, std=-np.nan)
+  def testMetricCannotHaveNaN(self):
+    with self.assertRaises(ValueError):
+      _ = Metric(value=np.nan, std=-np.nan)
 
   def testMetricCannotHaveNegativeStd(self):
     with self.assertRaises(ValueError):
