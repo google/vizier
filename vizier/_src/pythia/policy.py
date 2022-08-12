@@ -87,6 +87,7 @@ class EarlyStopRequest:
     study_config:
     checkpoint_dir: If the policy wishes to use a checkpoint, then this is the
       path to find one.
+    max_trial_id: max(trial.id for all existing Trials in the Study)
   """
   _study_descriptor: vz.StudyDescriptor = attr.field(
       validator=attr.validators.instance_of(vz.StudyDescriptor))
@@ -107,6 +108,10 @@ class EarlyStopRequest:
   @property
   def study_config(self) -> vz.StudyConfig:
     return self._study_descriptor.config
+
+  @property
+  def max_trial_id(self) -> int:
+    return self._study_descriptor.max_trial_id
 
 
 @attr.define(init=True)
@@ -142,8 +147,9 @@ class SuggestRequest:
     study_config:
     checkpoint_dir: (If set) A system-provided directory where the policy can
       store a checkpoint.
+    max_trial_id: max(trial.id for all existing Trials in the Study)
   """
-  study_descriptor: vz.StudyDescriptor = attr.field(
+  _study_descriptor: vz.StudyDescriptor = attr.field(
       validator=attr.validators.instance_of(vz.StudyDescriptor),
       on_setattr=attr.setters.frozen)
 
@@ -158,11 +164,15 @@ class SuggestRequest:
 
   @property
   def study_config(self) -> vz.StudyConfig:
-    return self.study_descriptor.config
+    return self._study_descriptor.config
 
   @property
   def study_guid(self) -> str:
-    return f'{self.study_descriptor.guid}'
+    return f'{self._study_descriptor.guid}'
+
+  @property
+  def max_trial_id(self) -> int:
+    return self._study_descriptor.max_trial_id
 
 
 class Policy(abc.ABC):

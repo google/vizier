@@ -184,8 +184,8 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     # by storing only the last element in a consecutive sequence, e.g.,
     # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
     # we keep things simple in this pseudocode.
-    self._initialize_designer(request.study_descriptor.config)
-    new_trials = self._get_new_trials(request.study_descriptor.max_trial_id)
+    self._initialize_designer(request.study_config)
+    new_trials = self._get_new_trials(request.max_trial_id)
     self.designer.update(vza.CompletedTrials(new_trials))
     self._incorporated_trial_ids |= set(t.id for t in new_trials)
 
