@@ -32,3 +32,4 @@ OSS Vizier is licensed under the Apache 2.0 License.
    :caption: Guides
 
    guides/index
+   api_reference/index
