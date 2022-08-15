@@ -1,19 +1,19 @@
-## Code Structure <a name="code_structure"></a>
+# Code Structure <a name="code_structure"></a>
 
-### Frequently Used Import Targets <a name="freq_import_targets"></a>
+## Frequently Used Import Targets <a name="freq_import_targets"></a>
 
 Includes a brief summary of important symbols and modules.
 
-#### Service Users <a name="service_users"></a>
+### Service Users <a name="service_users"></a>
 
 If you write client code interacting with the OSS Vizier service, use these
 import targets:
 
-* `from vizier.service import pyvizier as vz`: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
+* **`from vizier.service import pyvizier as vz`**: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
 <!-- TODO(b/226560768): Update this entry after the clean up -->
-* `from vizier.service import ...`: Include binaries and internal utilities.
+* **`from vizier.service import ...`**: Include binaries and internal utilities.
 
-#### Algorithm Developers
+### Algorithm Developers
 
 If you write algorithm code (Designers or Pythia policies) in OSS Vizier, use
 these import targets:
@@ -26,7 +26,8 @@ these import targets:
 * `from vizier.interfaces import serializable`
   * `PartiallySerializable`, `Serializable`
 
-##### Algorithm Abstractions
+#### Algorithm Abstractions
+
 * **`from vizier import pythia`**
   * `Policy`, `PolicySupporter`: Key abstractions.
   * `LocalPolicyRunner`: Use it for running a `Policy` in RAM.
@@ -36,7 +37,8 @@ these import targets:
   * `GradientFreeMaximizer`: For optimizing acquisition functions.
   * `(Partially)SerializableDesigner`: Designers who wish to optimize performance by saving states.
 
-##### Tensorflow modules
+#### Tensorflow Modules
+
 * **`from vizier import tfp`**: Tensorflow-Probability utilities.
   * `acquisitions`: Acquisition functions module.
      * `AcquisitionFunction`: Abstraction.
