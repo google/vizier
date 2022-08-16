@@ -325,7 +325,7 @@ class TrialSuggestion:
   def to_trial(self, uid: int = 0) -> 'Trial':
     """Assign an id and make it a Trial object.
 
-    Usually SuggetedTrial objects are shorted-lived and not exposed to end
+    Usually SuggestedTrial objects are shorted-lived and not exposed to end
     users. This method is for non-service usage of trial suggestions in
     benchmarks, tests, colabs, etc.
 
@@ -335,7 +335,11 @@ class TrialSuggestion:
     Returns:
       Trial object.
     """
-    return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)
+    return Trial(
+        id=uid,
+        creation_time=None,
+        parameters=self.parameters,
+        metadata=self.metadata)
 
 
 @attr.define(auto_attribs=True, frozen=False, init=True, slots=True)

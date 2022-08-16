@@ -139,6 +139,8 @@ class Nsga2Test(absltest.TestCase):
                                              )  # fails with 25% probability
                     })))
         tid += 1
+      for t in trials:
+        self.assertIsNone(t.creation_time)
       tick = datetime.datetime.now()
       logging.info('Suggesitons evaluated: %s',
                    '\n'.join(repr(t) for t in trials))
