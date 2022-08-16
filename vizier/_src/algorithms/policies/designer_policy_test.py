@@ -69,7 +69,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     super().setUp()
     self.maxDiff = None  # pylint: disable=invalid-name
     designer = _FakeSerializableDesigner()
-    runner = pythia.LocalPolicyRunner(vz.StudyConfig())
+    runner = pythia.InRamPolicySupporter(vz.StudyConfig())
     runner.AddTrials([
         vz.Trial().complete(vz.Measurement())
         for _ in range(_NUM_INITIAL_COMPLETED_TRIALS)

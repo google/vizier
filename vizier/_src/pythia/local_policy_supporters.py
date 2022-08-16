@@ -13,14 +13,14 @@ from vizier.pyvizier import multimetric
 
 # TODO: Keep the Pareto frontier trials.
 @attr.s(frozen=True, init=True, slots=True)
-class LocalPolicyRunner(policy_supporter.PolicySupporter):
+class InRamPolicySupporter(policy_supporter.PolicySupporter):
   """Runs a fresh Study in RAM using a Policy.
 
-  LocalPolicyRunner acts as a limited vizier service + client that runs in RAM.
-  Trials can only be added and never removed.
+  InRamPolicySupporter acts as a limited vizier service + client that runs in
+  RAM. Trials can only be added and never removed.
 
   Example of using a policy to run a Study for 100 iterations, 1 trial each:
-    runner = LocalPolicyRunner(my_study_config)
+    runner = InRamPolicySupporter(my_study_config)
     policy = MyPolicy(runner)
     for _ in range(100):
       trials = runner.SuggestTrials(policy, count=1)
@@ -50,7 +50,7 @@ class LocalPolicyRunner(policy_supporter.PolicySupporter):
 
   def _check_study_guid(self, study_guid: Optional[str]) -> None:
     if study_guid is not None and self.study_guid != study_guid:
-      raise ValueError('LocalPolicyRunner does not support accessing '
+      raise ValueError('InRamPolicySupporter does not support accessing '
                        'other studies than the current one, which has '
                        'guid={self.study_guid}')
 

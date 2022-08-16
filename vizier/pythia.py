@@ -2,7 +2,7 @@
 # pylint: disable=unused-import
 
 # The API for a Pythia Policy -- i.e. the algorithm that Pythia serves.
-from vizier._src.pythia.local_policy_supporters import LocalPolicyRunner
+from vizier._src.pythia.local_policy_supporters import InRamPolicySupporter
 from vizier._src.pythia.policy import EarlyStopDecision
 from vizier._src.pythia.policy import EarlyStopDecisions
 from vizier._src.pythia.policy import EarlyStopRequest

@@ -1,4 +1,4 @@
-"""Tests for vizier.pythia.bsae.local_policy_supporters."""
+"""Tests for vizier.pythia.base.local_policy_supporters."""
 
 import numpy as np
 
@@ -7,12 +7,12 @@ from vizier._src.pythia import local_policy_supporters
 from absl.testing import absltest
 from absl.testing import parameterized
 
-LocalPolicyRunner = local_policy_supporters.LocalPolicyRunner
+InRamPolicySupporter = local_policy_supporters.InRamPolicySupporter
 
 
 def _runner_with_10trials():
-  runner = LocalPolicyRunner(vz.StudyConfig())
-  runner.AddTrials([vz.Trial() for _ in range(1, 11)])
+  runner = InRamPolicySupporter(vz.StudyConfig())
+  runner.AddTrials([vz.Trial() for _ in range(10)])
   return runner
 
 
@@ -54,7 +54,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
           0,
       ]))
   def test_get_best_trials_single_objective(self, goal, count, best_values):
-    runner = LocalPolicyRunner(
+    runner = InRamPolicySupporter(
         vz.ProblemStatement(
             vz.SearchSpace(),
             metric_information=vz.MetricsConfig(
@@ -82,7 +82,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
           cos_goal=vz.ObjectiveMetricGoal.MINIMIZE,
           best_r=1))
   def test_get_best_trials_multi_objective(self, sin_goal, cos_goal, best_r):
-    runner = LocalPolicyRunner(
+    runner = InRamPolicySupporter(
         vz.StudyConfig(
             vz.SearchSpace(),
             metric_information=vz.MetricsConfig([

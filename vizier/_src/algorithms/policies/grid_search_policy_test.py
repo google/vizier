@@ -20,7 +20,7 @@ class GridSearchPolicyTest(absltest.TestCase):
     self.study_config.search_space.select_root().add_int_param(
         name='int', min_value=1, max_value=5)
 
-    self.policy_supporter = pythia.LocalPolicyRunner(self.study_config)
+    self.policy_supporter = pythia.InRamPolicySupporter(self.study_config)
     self.policy = grid_search_policy.GridSearchPolicy(
         policy_supporter=self.policy_supporter)
     super().setUp()

@@ -7,3 +7,6 @@ from vizier._src.benchmarks.experimenters.combo_experimenter import PestControlE
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier._src.benchmarks.runners.runner_protocol import AlgorithmRunnerProtocol
+from vizier._src.benchmarks.runners.runner_protocol import DesignerRunnerProtocol
+from vizier._src.benchmarks.runners.runner_protocol import PolicyRunnerProtocol
