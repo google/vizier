@@ -23,7 +23,7 @@ these import targets:
 * **`from vizier.pyvizier import converters`**: Convert between `pyvizier` objects and numpy arrays.
   * `TrialToNumpyDict`: Converts parameters (and metrics) into a dict of numpy arrays. Preferred conversion method if you intended to train an embedding of categorical/discrete parameters, or data includes missing parameters or metrics.
   * `TrialToArrayConverter`: Converts parameters (and metrics) into an array.
-* `from vizier.interfaces import serializable`
+* **`from vizier.interfaces import serializable`**
   * `PartiallySerializable`, `Serializable`
 
 #### Algorithm Abstractions
