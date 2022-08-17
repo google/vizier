@@ -1,5 +1,14 @@
 Guides
-==================
+======
+
+For Users
+---------
+
+.. toctree::
+    :maxdepth: 1
+
+    user/running_vizier
+    user/search_spaces
 
 For Developers
 --------------
@@ -10,12 +19,10 @@ For Developers
     developer/writing_algorithms
     developer/metadata
 
-
-For Users
----------
+For Benchmarking
+----------------
 
 .. toctree::
     :maxdepth: 1
 
-    user/running_vizier
-    user/search_spaces
+    benchmarks/creating_benchmarks
