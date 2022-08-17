@@ -255,16 +255,19 @@ class Metadata(abc.MutableMapping):
     will not yield anything because there are no keys in the 'gleep' namespace.
     WARNING: Because of this behavior, if you iterate over Metadata(mm), you
       will quietly drop metadata from all but mm's current namespace.
+    NOTE also that the type of $v is MetadataValue, which can carry strings and
+      protos; you may want to use mm.get_or_error(key, cls=proto_class) to
+      unpack the contained proto.
 
+  4.
     To iterate over all the keys in all the namespaces use
 
     mm = Metadata()
     mm.ns('gleep')['x'] = 'X'
     for ns, k, v in mm.all_items():
       # iteration will include ('gleep', 'x', 'X')
-
-  4. Be aware that type(v) is MetadataValue, which includes protos in addition
-    to strings.
+      # Be aware that type(v) is MetadataValue, which can carry either strings
+      # or protos.
   """
 
   def __init__(self, *args: Union[Dict[str, MetadataValue],
