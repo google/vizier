@@ -194,7 +194,8 @@ class MetricsConfig(collections_abc.Collection):
 
   def item(self) -> MetricInformation:
     if len(self._metrics) != 1:
-      raise ValueError('Can be called only when there is exactly one metric!')
+      raise ValueError('item() may only be called when there is exactly one '
+                       'metric (there are %d).' % len(self._metrics))
     return self._metrics[0]
 
   def _assert_names_are_unique(self) -> None:
