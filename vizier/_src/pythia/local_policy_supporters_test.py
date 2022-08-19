@@ -11,7 +11,7 @@ InRamPolicySupporter = local_policy_supporters.InRamPolicySupporter
 
 
 def _runner_with_10trials():
-  runner = InRamPolicySupporter(vz.StudyConfig())
+  runner = InRamPolicySupporter(vz.ProblemStatement())
   runner.AddTrials([vz.Trial() for _ in range(10)])
   return runner
 
@@ -83,7 +83,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
           best_r=1))
   def test_get_best_trials_multi_objective(self, sin_goal, cos_goal, best_r):
     runner = InRamPolicySupporter(
-        vz.StudyConfig(
+        vz.ProblemStatement(
             vz.SearchSpace(),
             metric_information=vz.MetricsConfig([
                 vz.MetricInformation(name='sin', goal=sin_goal),

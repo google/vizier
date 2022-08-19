@@ -12,7 +12,8 @@ class PolicySupporter(abc.ABC):
 
   # TODO: Change to GetStudyDescriptor.
   @abc.abstractmethod
-  def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
+  def GetStudyConfig(self,
+                     study_guid: Optional[str] = None) -> vz.ProblemStatement:
     """Requests a StudyConfig from Vizier.
 
     This sends a PythiaToVizier.trial_selector packet and waits for the

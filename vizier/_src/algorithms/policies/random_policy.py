@@ -34,7 +34,7 @@ def sample_from_parameter_config(
 
 
 def make_random_parameters(
-    study_config: pyvizier.StudyConfig) -> pyvizier.ParameterDict:
+    study_config: pyvizier.ProblemStatement) -> pyvizier.ParameterDict:
   """Makes random parameters from study_spec."""
   # TODO: Add conditional sampling case.
   parameter_dict = pyvizier.ParameterDict()

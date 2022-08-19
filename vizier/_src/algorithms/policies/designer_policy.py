@@ -10,7 +10,7 @@ from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 
 _T = TypeVar('_T')
-Factory = Callable[[vz.StudyConfig], _T]
+Factory = Callable[[vz.ProblemStatement], _T]
 
 
 class DesignerPolicy(pythia.Policy):
@@ -45,7 +45,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
   def __init__(self,
                supporter: pythia.PolicySupporter,
-               designer_factory: Callable[[vz.StudyConfig], _T],
+               designer_factory: Callable[[vz.ProblemStatement], _T],
                *,
                ns_root: str = 'designer_policy_v0',
                verbose: int = 0):
@@ -111,7 +111,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     if level <= self._verbose:
       logging.info(*args)
 
-  def _initialize_designer(self, study_config: vz.StudyConfig) -> None:
+  def _initialize_designer(self, study_config: vz.ProblemStatement) -> None:
     """Populates `self._designer` with a new designer.
 
     This method catches all DecodeErrors and guarantees that `self.designer`

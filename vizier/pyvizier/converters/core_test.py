@@ -18,7 +18,7 @@ class TrialToArrayConverterTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self._study_config = pyvizier.StudyConfig(
+    self._study_config = pyvizier.ProblemStatement(
         search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
             pyvizier.MetricInformation(
@@ -119,7 +119,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     root.add_categorical_param('categorical', ['a', 'b'])
     root.add_discrete_param('discrete', [-1., 1.])
     study_configs.append(
-        pyvizier.StudyConfig(
+        pyvizier.ProblemStatement(
             metadata=pyvizier.Metadata({core.STUDY_ID_FIELD: 'study1'}),
             search_space=space1))
 
@@ -130,7 +130,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     root.add_categorical_param('categorical', ['b', 'c'])
     root.add_discrete_param('discrete', [-1., 1., 2.])
     study_configs.append(
-        pyvizier.StudyConfig(
+        pyvizier.ProblemStatement(
             metadata=pyvizier.Metadata({core.STUDY_ID_FIELD: 'study2'}),
             search_space=space2))
     return study_configs
@@ -182,7 +182,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
         converter.to_trials(expected)[0].parameters, expected_parameters)
 
   def test_parameters_and_labels(self):
-    study_config = pyvizier.StudyConfig()
+    study_config = pyvizier.ProblemStatement()
     root = study_config.search_space.select_root()
     root.add_float_param('x1', 0., 10.)
     root.add_float_param('x2', 0., 10.)

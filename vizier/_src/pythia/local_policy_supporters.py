@@ -35,8 +35,8 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     study_guid: Unique identifier for the study.
   """
 
-  study_config: vz.StudyConfig = attr.ib(
-      init=True, validator=attr.validators.instance_of(vz.StudyConfig))
+  study_config: vz.ProblemStatement = attr.ib(
+      init=True, validator=attr.validators.instance_of(vz.ProblemStatement))
   study_guid: str = attr.ib(init=True, kw_only=True, default='')
   _trials: List[vz.Trial] = attr.ib(init=False, factory=list)
 
@@ -54,7 +54,8 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
                        'other studies than the current one, which has '
                        'guid={self.study_guid}')
 
-  def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
+  def GetStudyConfig(self,
+                     study_guid: Optional[str] = None) -> vz.ProblemStatement:
     self._check_study_guid(study_guid)
     return self.study_config
 

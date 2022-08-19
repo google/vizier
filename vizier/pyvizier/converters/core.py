@@ -973,7 +973,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
   @classmethod
   def from_study_configs(
       cls,
-      study_configs: Sequence[pyvizier.StudyConfig],
+      study_configs: Sequence[pyvizier.ProblemStatement],
       metric_information: Collection[pyvizier.MetricInformation],
       *,
       use_study_id_feature: bool = True) -> 'DefaultTrialConverter':
@@ -1046,7 +1046,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
                [DefaultModelOutputConverter(m) for m in metric_information])
 
   @classmethod
-  def from_study_config(cls, study_config: pyvizier.StudyConfig):
+  def from_study_config(cls, study_config: pyvizier.ProblemStatement):
     return cls.from_study_configs([study_config],
                                   study_config.metric_information,
                                   use_study_id_feature=False)
@@ -1096,7 +1096,7 @@ class TrialToArrayConverter:
 
   @classmethod
   def from_study_config(cls,
-                        study_config: pyvizier.StudyConfig,
+                        study_config: pyvizier.ProblemStatement,
                         *,
                         scale: bool = True,
                         pad_oovs: bool = True,

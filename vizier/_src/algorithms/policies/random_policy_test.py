@@ -10,7 +10,7 @@ class RandomPolicyTest(absltest.TestCase):
 
   def setUp(self):
     """Setups up search space."""
-    self.study_config = pyvizier.StudyConfig()
+    self.study_config = pyvizier.ProblemStatement()
     self.study_config.search_space.select_root().add_float_param(
         name='double', min_value=-1.0, max_value=1.0)
     self.study_config.search_space.select_root().add_categorical_param(

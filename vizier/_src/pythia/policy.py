@@ -106,7 +106,7 @@ class EarlyStopRequest:
     return self._study_descriptor.guid
 
   @property
-  def study_config(self) -> vz.StudyConfig:
+  def study_config(self) -> vz.ProblemStatement:
     return self._study_descriptor.config
 
   @property
@@ -163,7 +163,7 @@ class SuggestRequest:
       on_setattr=attr.setters.validate)
 
   @property
-  def study_config(self) -> vz.StudyConfig:
+  def study_config(self) -> vz.ProblemStatement:
     return self._study_descriptor.config
 
   @property

@@ -35,7 +35,8 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     self._study_guid = study_guid
     self._vizier_service = vizier_service_instance
 
-  def GetStudyConfig(self, study_guid: Optional[str] = None) -> vz.StudyConfig:
+  def GetStudyConfig(self,
+                     study_guid: Optional[str] = None) -> vz.ProblemStatement:
     if study_guid is None:
       study_guid = self._study_guid
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)

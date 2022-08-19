@@ -106,7 +106,7 @@ class EmukitDesigner(vza.Designer):
   """Wraps emukit library as a Vizier designer."""
 
   def __init__(self,
-               study_config: vz.StudyConfig,
+               study_config: vz.ProblemStatement,
                *,
                version: Version = Version.DEFAULT_EI,
                num_random_samples: int = 10,

@@ -13,7 +13,7 @@ class EmukitTest(parameterized.TestCase):
 
   @parameterized.parameters(((v,) for v in emukit.Version))
   def test_on_flat_space(self, version):
-    config = vz.StudyConfig(
+    config = vz.ProblemStatement(
         search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
             vz.MetricInformation(

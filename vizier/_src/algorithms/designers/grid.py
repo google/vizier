@@ -144,6 +144,6 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
 
 
 def grid_search_factory(
-    study_config: pyvizier.StudyConfig) -> GridSearchDesigner:
+    problem: pyvizier.ProblemStatement) -> GridSearchDesigner:
   """To allow wrapping via DesignerPolicy."""
-  return GridSearchDesigner(study_config.search_space)
+  return GridSearchDesigner(problem.search_space)
