@@ -14,7 +14,7 @@ Factory = Callable[[vz.StudyConfig], _T]
 
 
 class DesignerPolicy(pythia.Policy):
-  """Wraps a Designer into pythia Policy."""
+  """Wraps a Designer into a Pythia Policy."""
 
   def __init__(self, supporter: pythia.PolicySupporter,
                designer_factory: Factory[vza.Designer]):
@@ -22,13 +22,13 @@ class DesignerPolicy(pythia.Policy):
     self._designer_factory = designer_factory
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
-    self._designer = self._designer_factory(request.study_config)
+    designer = self._designer_factory(request.study_config)
     new_trials = self._supporter.GetTrials(
         status_matches=vz.TrialStatus.COMPLETED)
-    self._designer.update(vza.CompletedTrials(new_trials))
-
+    designer.update(vza.CompletedTrials(new_trials))
+    self._designer = designer  # saved for debugging purposes only.
     return pythia.SuggestDecision(
-        self._designer.suggest(request.count), metadata=vz.MetadataDelta())
+        designer.suggest(request.count), metadata=vz.MetadataDelta())
 
   def early_stop(self,
                  request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
@@ -63,6 +63,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._incorporated_trial_ids = set()
     self._reference_study_config = supporter.GetStudyConfig()
     self._verbose = verbose
+    # SerializableDesignerPolicy keeps a designer in RAM, for the duration of
+    # time it's alive. So if you keep the policy in RAM, it will actually be
+    # faster to suggest the second time around.
     self._designer = None
 
   @property

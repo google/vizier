@@ -87,12 +87,12 @@ class Serializable(abc.ABC):
   # do something with foo
   ...
   md = foo.dump()
-  foo2 = Foo.load(md)
+  foo2 = Foo.recover(md)
 
   Then `foo` and `foo2` are indistinguishable using "public" methods of Foo.
   """
 
-  # NOTE: cannot declare it as an abstract method due to pytype limitations.
+  # NOTE: cannot declare it as an abstract method due to Pytype limitations.
   @classmethod
   def recover(cls: Type['_S'], metadata: vz.Metadata) -> '_S':
     """Creates a new Serializable object from metadata.

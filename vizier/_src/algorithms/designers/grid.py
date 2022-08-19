@@ -1,4 +1,4 @@
-"""Grid Search Pythia Policy which searches over a discretized grid of Trial parameter values."""
+"""Grid Search Designer which searches over a discretized grid of Trial parameter values."""
 from typing import List, Mapping, Optional, Sequence
 import numpy as np
 from vizier import algorithms
@@ -87,7 +87,7 @@ def _make_grid_search_parameters(
   return parameter_dicts
 
 
-class GridSearchDesigner(algorithms.Designer):
+class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   """Grid Search designer.
 
   This designer searches over a grid of hyper-parameter values.
