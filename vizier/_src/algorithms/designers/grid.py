@@ -1,13 +1,13 @@
 """Grid Search Pythia Policy which searches over a discretized grid of Trial parameter values."""
-from typing import List, Mapping, Sequence
+from typing import List, Mapping, Optional, Sequence
 import numpy as np
-from vizier import pythia
+from vizier import algorithms
 from vizier import pyvizier
 
 GRID_RESOLUTION = 100  # For double parameters.
 
 
-def grid_points_from_parameter_config(
+def _grid_points_from_parameter_config(
     parameter_config: pyvizier.ParameterConfig
 ) -> List[pyvizier.ParameterValue]:
   """Produces grid points from a parameter_config."""
@@ -45,20 +45,20 @@ def grid_points_from_parameter_config(
     )
 
 
-def make_grid_values(
-    study_config: pyvizier.StudyConfig
+def _make_grid_values(
+    search_space: pyvizier.SearchSpace
 ) -> Mapping[str, List[pyvizier.ParameterValue]]:
   """Makes the grid values for every parameter."""
   grid_values = {}
-  for parameter_config in study_config.search_space.parameters:
-    grid_values[parameter_config.name] = grid_points_from_parameter_config(
+  for parameter_config in search_space.parameters:
+    grid_values[parameter_config.name] = _grid_points_from_parameter_config(
         parameter_config)
   return grid_values
 
 
-def make_grid_search_parameters(
+def _make_grid_search_parameters(
     indices: Sequence[int],
-    study_config: pyvizier.StudyConfig) -> List[pyvizier.ParameterDict]:
+    search_space: pyvizier.SearchSpace) -> List[pyvizier.ParameterDict]:
   """Selects the specific parameters from an index and study_spec based on the natural ordering over a Cartesian Product.
 
   This is looped over a sequence of indices. For a given `index`, this is
@@ -66,17 +66,14 @@ def make_grid_search_parameters(
 
   Args:
     indices: Index over Cartesian Product.
-    study_config: StudyConfig to produce the Cartesian Product. Ordering decided
+    search_space: SearchSpace to produce the Cartesian Product. Ordering decided
       alphabetically over the parameter names.
 
   Returns:
     ParameterDict for a trial suggestion.
   """
   # TODO: Add conditional sampling case.
-  for index in indices:
-    if index < 0:
-      raise ValueError('Indices can only be non-negative.')
-  grid_values = make_grid_values(study_config)
+  grid_values = _make_grid_values(search_space)
   parameter_dicts = []
   for index in indices:
     parameter_dict = pyvizier.ParameterDict()
@@ -90,48 +87,63 @@ def make_grid_search_parameters(
   return parameter_dicts
 
 
-class GridSearchPolicy(pythia.Policy):
-  """A policy that searches over a grid of hyper-parameter values."""
+class GridSearchDesigner(algorithms.Designer):
+  """Grid Search designer.
 
-  def __init__(self, policy_supporter: pythia.PolicySupporter):
-    self._policy_supporter = policy_supporter
+  This designer searches over a grid of hyper-parameter values.
 
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
-    """Gets number of Trials to propose, and produces random Trials."""
-    all_trial_ids = [t.id for t in self._policy_supporter.GetTrials()]
-    if all_trial_ids:
-      next_index = max(all_trial_ids)
-    else:
-      next_index = 0
+  NOTE: The grid search index (i.e. which grid point to output) is calculated
+  according to the number of suggestions created so far (regardless of
+  completion or not). This means the class must be wrapped via
+  `PartiallySerializableDesignerPolicy` for use in Pythia, thus requiring
+  load/dump implementations.
+  """
 
-    parameter_dicts = make_grid_search_parameters(
-        range(next_index, next_index + request.count), request.study_config)
-    suggest_decision_list = [
-        pyvizier.TrialSuggestion(parameters=p_s) for p_s in parameter_dicts
-    ]
-    return pythia.SuggestDecision(suggest_decision_list,
-                                  pyvizier.MetadataDelta())
+  def __init__(self, search_space: pyvizier.SearchSpace):
+    """Init.
 
-  def early_stop(self,
-                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
-    """Selects ACTIVE/PENDING trial with lowest ID to stop from datastore."""
-    decisions = []
+    Args:
+      search_space: Must be a flat search space.
+    """
+    if search_space.is_conditional:
+      raise ValueError(
+          f'This designer {self} does not support conditional search.')
+    self._search_space = search_space
+    self._current_index = 0
 
-    all_active_trials = self._policy_supporter.GetTrials(
-        study_guid=request.study_guid,
-        status_matches=pyvizier.TrialStatus.ACTIVE)
-    trial_to_stop_id = None
-    if all_active_trials:
-      trial_to_stop_id = min([t.id for t in all_active_trials])
-      decisions.append(
-          pythia.EarlyStopDecision(
-              id=trial_to_stop_id, reason='Grid Search early stopping.'))
+  def update(self, _) -> None:
+    pass
 
-    for trial_id in list(request.trial_ids):
-      if trial_id != trial_to_stop_id:
-        decisions.append(
-            pythia.EarlyStopDecision(
-                id=trial_id, reason='Trial should not stop.',
-                should_stop=False))
+  def suggest(
+      self, count: Optional[int] = None) -> Sequence[pyvizier.TrialSuggestion]:
+    """Make new suggestions.
 
-    return pythia.EarlyStopDecisions(decisions, pyvizier.MetadataDelta())
+    Args:
+      count: Makes best effort to generate this many suggestions. If None,
+        suggests as many as the algorithm wants.
+
+    Returns:
+      New suggestions.
+    """
+    count = count or 1
+    parameter_dicts = _make_grid_search_parameters(
+        range(self._current_index, self._current_index + count),
+        self._search_space)
+    self._current_index += len(parameter_dicts)
+    return [pyvizier.TrialSuggestion(parameters=p) for p in parameter_dicts]
+
+  def load(self, metadata: pyvizier.Metadata) -> None:
+    """Load the current index."""
+    self._current_index = int(metadata.ns('grid')['current_index'])
+
+  def dump(self) -> pyvizier.Metadata:
+    """Dump the current index."""
+    metadata = pyvizier.Metadata()
+    metadata.ns('grid')['current_index'] = str(self._current_index)
+    return metadata
+
+
+def grid_search_factory(
+    study_config: pyvizier.StudyConfig) -> GridSearchDesigner:
+  """To allow wrapping via DesignerPolicy."""
+  return GridSearchDesigner(study_config.search_space)

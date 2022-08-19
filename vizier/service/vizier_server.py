@@ -12,9 +12,9 @@ import sqlalchemy as sqla
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.designers import emukit
+from vizier._src.algorithms.designers import grid
 from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
-from vizier._src.algorithms.policies import grid_search_policy
 from vizier._src.algorithms.policies import random_policy
 from vizier._src.pyvizier.oss import metadata_util
 from vizier.service import datastore
@@ -43,7 +43,8 @@ def policy_creator(
                    study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
     return random_policy.RandomPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
-    return grid_search_policy.GridSearchPolicy(policy_supporter)
+    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
+                                                  grid.grid_search_factory)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
     return dp.PartiallySerializableDesignerPolicy(policy_supporter,
                                                   nsga2.create_nsga2)
@@ -59,6 +60,7 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
   now = timestamp_pb2.Timestamp()
   now.GetCurrentTime()
   return now
+
 
 MAX_STUDY_ID = 2147483647  # Max int32 value.
 SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
@@ -80,8 +82,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     datastore input/output is assumed to always be pass-by-value.
 
     Args:
-      database_url: URL to the SQL database. If None, it connects to our
-        custom RAM Datastore.
+      database_url: URL to the SQL database. If None, it connects to our custom
+        RAM Datastore.
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
