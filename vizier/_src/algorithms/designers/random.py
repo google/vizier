@@ -15,17 +15,18 @@ class RandomDesigner(vza.Designer):
   """
 
   def __init__(self,
-               search_space: vz.SearchSpace,
+               study_config: vz.StudyConfig,
                *,
                dtype: Any = np.float64,
                seed: Any):
     """Init.
 
     Args:
-      search_space: Must be a flat search space.
+      study_config: Must use a flat search space.
       dtype:
       seed: Any valid seed for np.random.RandomState.
     """
+    search_space = study_config.search_space
     if search_space.is_conditional:
       raise ValueError(
           f'This designer {self} does not support conditional search.')

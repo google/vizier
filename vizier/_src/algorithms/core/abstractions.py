@@ -64,6 +64,11 @@ class Designer(_SuggestionAlgorithm):
   """
 
   @abc.abstractmethod
+  def __init__(self, study_config: vz.StudyConfig) -> None:
+    """Initialization requires first argument to be a StudyConfig."""
+    pass
+
+  @abc.abstractmethod
   def update(self, delta: CompletedTrials) -> None:
     """Reflect the delta in the designer's state."""
     pass
