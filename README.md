@@ -17,9 +17,10 @@
 [OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
 
 <figure>
-<p align="center">
-<img src="docs/assets/oss_vizier_service.gif" width=55%/>
-<figcaption align="center"><b>OSS Vizier's distributed client-server system. Animation credit to Tom Small.</b></figcaption>
+<p align="center" width=65%>
+<img src="docs/assets/oss_vizier_service.gif"/>
+  <br>
+  <em><b>OSS Vizier's distributed client-server system. Animation credit to Tom Small.</b></em>
 </p>
 </figure>
 
