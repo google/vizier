@@ -3,3 +3,6 @@
 # For Atari100K Experimenters.
 ale-py
 dopamine-rl
+
+# For NAS Benchmarks.
+nats_bench  # NASBench-201
