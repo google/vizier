@@ -10,6 +10,8 @@ hyperparameter tuning services designed to work at scale.
 .. _`Vizier`: https://dl.acm.org/doi/10.1145/3097983.3098043
 
 .. figure:: ./assets/oss_vizier_service.gif
+   :scale: 70%
+   :align: center
 
    **OSS Vizier's distributed client-server system. Animation credit to Tom Small.**
 
