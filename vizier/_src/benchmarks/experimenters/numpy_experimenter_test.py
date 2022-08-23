@@ -64,6 +64,7 @@ class NumpyExperimenterTest(parameterized.TestCase):
     exptr.evaluate(completed_trials)
     for trial in completed_trials:
       self.assertEmpty(trial.final_measurement.metrics)
+      self.assertTrue(trial.infeasible)
 
 
 if __name__ == '__main__':

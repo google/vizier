@@ -1,4 +1,3 @@
-# TODO(chansoo): remove optional packages
 attrs==21.4.0
 absl-py>=0.7,<1.0
 numpy==1.21.5
@@ -7,7 +6,6 @@ protobuf>=3.6,<4.0
 mock>=3.0,<=4.0.3
 pytype>=2022.3.8,<=2022.4.22
 typing  # version dependent on Python version.
-keras-tuner>=1.0,<2.0
 grpcio>=1.35.0,<=1.47.0
 portpicker==1.3.1
 pytest  # Use the latest version to match github workflow.
@@ -15,10 +13,6 @@ grpcio-tools>=1.35.0,<=1.47.0
 googleapis-common-protos==1.56.0
 google-api-python-client==1.12.8
 sqlalchemy==1.4
-
-# Optional Jax library.
-jax==0.3.16
-jaxlib==0.3.15
 
 # Optional BayesOpt library.
 emukit==0.4.9

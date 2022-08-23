@@ -74,8 +74,9 @@ class NumpyExperimenter(experimenter.Experimenter):
         suggestion.complete(
             pyvizier.Measurement(metrics={self._metric_name: val}))
       else:
-        # TODO: Add infeasibility to suggestion.
-        suggestion.complete(pyvizier.Measurement())
+        suggestion.complete(
+            pyvizier.Measurement(),
+            infeasibility_reason='Objective value is not finite: %f' % val)
       if not suggestion.is_completed:
         raise RuntimeError(f'Trial {suggestion} not completed')
 

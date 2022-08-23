@@ -5,4 +5,5 @@ ale-py
 dopamine-rl
 
 # For NAS Benchmarks.
+https://github.com/google-research/nasbench/archive/master.zip  # NASBench-101
 nats_bench  # NASBench-201
