@@ -111,6 +111,11 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     self._search_space = search_space
     self._current_index = 0
 
+  @classmethod
+  def from_problem(cls, problem: pyvizier.ProblemStatement):
+    """For wrapping via `PartiallySerializableDesignerPolicy`."""
+    return GridSearchDesigner(problem.search_space)
+
   def update(self, _) -> None:
     pass
 
@@ -141,9 +146,3 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     metadata = pyvizier.Metadata()
     metadata.ns('grid')['current_index'] = str(self._current_index)
     return metadata
-
-
-def grid_search_factory(
-    problem: pyvizier.ProblemStatement) -> GridSearchDesigner:
-  """To allow wrapping via DesignerPolicy."""
-  return GridSearchDesigner(problem.search_space)

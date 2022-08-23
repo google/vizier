@@ -186,6 +186,7 @@ class VizierClientTest(parameterized.TestCase):
 
   @parameterized.parameters(
       (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
+      (pyvizier.Algorithm.QUASI_RANDOM_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.GRID_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.EMUKIT_GP_EI, 7, 2, False),
       (pyvizier.Algorithm.NSGA2, 50, 1, True),

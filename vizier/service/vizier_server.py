@@ -13,6 +13,7 @@ from vizier import pythia
 from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.designers import grid
+from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
 from vizier._src.algorithms.policies import random_policy
@@ -42,9 +43,12 @@ def policy_creator(
   if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
                    study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
     return random_policy.RandomPolicy(policy_supporter)
+  elif algorithm == study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH:
+    return dp.PartiallySerializableDesignerPolicy(
+        policy_supporter, quasi_random.QuasiRandomDesigner.from_problem)
   elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
-    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
-                                                  grid.grid_search_factory)
+    return dp.PartiallySerializableDesignerPolicy(
+        policy_supporter, grid.GridSearchDesigner.from_problem)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
     return dp.PartiallySerializableDesignerPolicy(policy_supporter,
                                                   nsga2.create_nsga2)

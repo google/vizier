@@ -48,6 +48,7 @@ class Algorithm(enum.Enum):
   GAUSSIAN_PROCESS_BANDIT = study_pb2.StudySpec.Algorithm.GAUSSIAN_PROCESS_BANDIT
   GRID_SEARCH = study_pb2.StudySpec.Algorithm.GRID_SEARCH
   RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.RANDOM_SEARCH
+  QUASI_RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH
   NSGA2 = study_pb2.StudySpec.Algorithm.NSGA2
   EMUKIT_GP_EI = study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI
 

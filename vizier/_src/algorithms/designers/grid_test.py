@@ -53,11 +53,11 @@ class GridSearchPolicyTest(absltest.TestCase):
     self.assertLen(distinct_suggestions, self.search_space_size)
 
   def test_policy_wrapping(self):
-    study_config = pyvizier.ProblemStatement()
-    study_config.search_space = self.search_space
-    policy_supporter = pythia.InRamPolicySupporter(study_config)
+    problem = pyvizier.ProblemStatement()
+    problem.search_space = self.search_space
+    policy_supporter = pythia.InRamPolicySupporter(problem)
     policy = designer_policy.PartiallySerializableDesignerPolicy(
-        policy_supporter, grid.grid_search_factory)
+        policy_supporter, grid.GridSearchDesigner.from_problem)
 
     # Make sure we covered entire search space.
     all_suggestions = []
