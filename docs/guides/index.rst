@@ -17,6 +17,7 @@ For Developers
     :maxdepth: 1
 
     developer/writing_algorithms
+    developer/early_stopping
     developer/metadata
 
 For Benchmarking
