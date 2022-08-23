@@ -68,7 +68,8 @@ class VizierClient:
   from endpoint. See also `create_server_stub`.
   """
 
-  _server_stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field()
+  _server_stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field(
+      repr=False)
   _study_resource_name: str = attr.field(
       validator=attr.validators.instance_of(str))
   _client_id: str = attr.field(validator=[
