@@ -20,7 +20,7 @@
 <p align="center" width=65%>
 <img src="docs/assets/oss_vizier_service.gif"/>
   <br>
-  <em><b>OSS Vizier's distributed client-server system. Animation credit to Tom Small.</b></em>
+  <em><b>OSS Vizier's distributed client-server system. Animation by Tom Small.</b></em>
 </p>
 </figure>
 

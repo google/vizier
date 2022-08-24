@@ -43,18 +43,19 @@ from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.runners import runner_protocol
 
+DesignerFactory = Callable[[vz.ProblemStatement], vza.Designer]
+PolicyFactory = Callable[[vz.ProblemStatement], pythia.Policy]
+
 
 @attr.define
 class BenchmarkState:
-  """State of a benchmark run. It is altered via BenchmarkProtocols."""
+  """State of a benchmark run. It is altered via benchmark protocols."""
 
   experimenter: Experimenter
   algorithm: runner_protocol.AlgorithmRunnerProtocol
 
   @classmethod
-  def from_designer_factory(cls,
-                            designer_factory: Callable[[vz.ProblemStatement],
-                                                       vza.Designer],
+  def from_designer_factory(cls, designer_factory: DesignerFactory,
                             experimenter: Experimenter) -> 'BenchmarkState':
     problem = experimenter.problem_statement()
     return cls(
@@ -64,8 +65,7 @@ class BenchmarkState:
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
   @classmethod
-  def from_policy_factory(cls, policy_factory: Callable[[vz.ProblemStatement],
-                                                        pythia.Policy],
+  def from_policy_factory(cls, policy_factory: PolicyFactory,
                           experimenter: Experimenter) -> 'BenchmarkState':
     problem = experimenter.problem_statement()
     return cls(
@@ -78,7 +78,7 @@ class BenchmarkState:
 class BenchmarkSubroutine(Protocol):
   """Abstraction for core benchmark routines.
 
-  BenchmarkProtocols are modular alterations of BenchmarkState by reference.
+  Benchmark protocols are modular alterations of BenchmarkState by reference.
   """
 
   def run(self, state: BenchmarkState) -> None:

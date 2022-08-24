@@ -27,3 +27,4 @@ For Benchmarking
     :maxdepth: 1
 
     benchmarks/creating_benchmarks
+    benchmarks/running_benchmarks

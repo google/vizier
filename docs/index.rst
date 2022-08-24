@@ -12,7 +12,7 @@ hyperparameter tuning services designed to work at scale.
 .. figure:: ./assets/oss_vizier_service.gif
    :align: center
 
-   **OSS Vizier's distributed client-server system. Animation credit to Tom Small.**
+   **OSS Vizier's distributed client-server system. Animation by Tom Small.**
 
 Installation
 ------------
@@ -34,7 +34,7 @@ OSS Vizier is licensed under the Apache 2.0 License.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Guides
+   :caption: Documentation
 
    guides/index
    api_reference/index
