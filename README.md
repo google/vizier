@@ -4,11 +4,13 @@
 
 # Open Source Vizier: Reliable and Flexible Blackbox Optimization.
 
-![Continuous Integration](https://github.com/google/vizier/workflows/pytest/badge.svg)
+[![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
+![Continuous Integration (Core)](https://github.com/google/vizier/workflows/pytest_core/badge.svg)
+![Continuous Integration (Benchmarks)](https://github.com/google/vizier/workflows/pytest_benchmarks/badge.svg)
+![Continuous Integration (Docs)](https://github.com/google/vizier/workflows/docs/badge.svg)
 
 [**Documentation**](https://oss-vizier.readthedocs.io/)
 | [**Installation**](#installation)
-| [**Code Structure**](#code_structure)
 | [**Citing Vizier**](#citing_vizier)
 
 
