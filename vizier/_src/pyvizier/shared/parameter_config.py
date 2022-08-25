@@ -185,9 +185,8 @@ class ParameterConfig:
       feasible_values: REQUIRED for DISCRETE or CATEGORICAL type. The elements'
         type determines the created ParameterConfig's type.
       children: sequence of tuples formatted as: (matching_parent_values,
-        ParameterConfig). See
-        cs/learning_vizier.service.ParameterConfig.child_parameter_configs for
-        details. ONLY THE TYPES ARE VALIDATED. If the child ParameterConfig
+        ParameterConfig).
+        ONLY THE TYPES ARE VALIDATED. If the child ParameterConfig
         protos already have parent values set, they will be overridden by the
         provided matching_parent_values.
       scale_type: Scaling to be applied. NOT VALIDATED.
