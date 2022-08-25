@@ -2,7 +2,7 @@
 
 import abc
 import functools
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 
 from absl import logging
 from vizier import pyvizier as vz
@@ -69,7 +69,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     with self.assertRaises(Exception):
       study.from_resource_name(resource_name)
 
-  def _example_trials(self) -> list[vz.Trial]:
+  def _example_trials(self) -> List[vz.Trial]:
     trials = [
         vz.Trial().complete(vz.Measurement({'maximize_metric': 1.0})),
         vz.Trial().complete(vz.Measurement({'maximize_metric': 0.5})),
@@ -257,7 +257,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
 
     study: _StudyClient = study_factory(problem)
 
-    def learning_curve_simulator(learning_rate: float) -> list[float]:
+    def learning_curve_simulator(learning_rate: float) -> List[float]:
       return [learning_rate * step for step in range(10)]
 
     for _ in range(num_iterations):

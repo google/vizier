@@ -1,7 +1,7 @@
 """Base class for all PythiaPolicies."""
 
 import abc
-from typing import Any, FrozenSet, Optional
+from typing import Any, FrozenSet, List, Optional
 
 import attr
 from vizier import pyvizier as vz
@@ -64,7 +64,7 @@ class EarlyStopDecisions:
       Trials.
   """
 
-  decisions: list[EarlyStopDecision] = attr.field(
+  decisions: List[EarlyStopDecision] = attr.field(
       factory=list,
       validator=attr.validators.deep_iterable(
           attr.validators.instance_of(EarlyStopDecision)),
@@ -124,7 +124,7 @@ class SuggestDecision:
       Trials.
   """
 
-  suggestions: list[vz.TrialSuggestion] = attr.field(
+  suggestions: List[vz.TrialSuggestion] = attr.field(
       init=True,
       validator=attr.validators.deep_iterable(
           attr.validators.instance_of(vz.TrialSuggestion)),

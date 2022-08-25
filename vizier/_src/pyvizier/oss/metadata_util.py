@@ -1,6 +1,6 @@
-"""Utility functions for handling vizier metadata."""
+"""Utility functions for handling OSS vizier metadata."""
 
-from typing import Tuple, Union, Optional, TypeVar, Type, Literal
+from typing import Dict, List, Tuple, Union, Optional, TypeVar, Type, Literal
 
 from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import trial
@@ -116,7 +116,7 @@ def get_proto(container: Union[study_pb2.StudySpec, study_pb2.Trial], *,
 
 
 def make_key_value_list(
-    metadata: common.Metadata) -> list[key_value_pb2.KeyValue]:
+    metadata: common.Metadata) -> List[key_value_pb2.KeyValue]:
   """Convert $metadata to a list of KeyValue protobufs."""
   result = []
   for ns, k, v in metadata.all_items():
@@ -127,7 +127,7 @@ def make_key_value_list(
 
 
 def make_unit_metadata_update_list(
-    trial_metadata: dict[int, common.Metadata]
+    trial_metadata: Dict[int, common.Metadata]
 ) -> list[vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate]:
   """Convert a dictionary of Trial.id:Metadata to a list of UnitMetadataUpdate.
 
