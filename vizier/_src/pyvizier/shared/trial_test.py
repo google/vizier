@@ -156,6 +156,12 @@ class TrialTest(absltest.TestCase):
     self.assertGreaterEqual(test.completion_time, test.creation_time)
     self.assertGreaterEqual(test.duration.total_seconds(), 0)
 
+    self.assertEqual(completed.final_measurement, measurement)
+    self.assertLessEqual(completed.completion_time,
+                         datetime.datetime.now().astimezone())
+    self.assertGreaterEqual(completed.completion_time, completed.creation_time)
+    self.assertGreaterEqual(completed.duration.total_seconds(), 0)
+
     # completed is the same reference as test.
     self.assertEqual(test, completed)
 
@@ -187,6 +193,101 @@ class TrialTest(absltest.TestCase):
     self.assertIsNone(test.duration)
     self.assertEqual(test.status, trial.TrialStatus.ACTIVE)
     self.assertFalse(test.is_completed)
+
+  def testCompleteInfeasible(self):
+    test = trial.Trial()
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    completed = test.complete(
+        measurement, inplace=False, infeasibility_reason='reason')
+    # Test infeasibility.
+    self.assertTrue(completed.infeasible)
+    self.assertEqual(completed.infeasibility_reason, 'reason')
+
+  def testCompleteInfeasible2(self):
+    test = trial.Trial(infeasibility_reason='reason')
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    completed = test.complete(measurement, inplace=False)
+    # When infeasibility not provided, the trial shoud remain infeasible.
+    self.assertTrue(completed.infeasible)
+    self.assertEqual(completed.infeasibility_reason, 'reason')
+
+  def testCompleteInfeasible3(self):
+    test = trial.Trial(infeasibility_reason='reason')
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    completed = test.complete(
+        measurement, inplace=False, infeasibility_reason='other')
+    # Infeasibility reason should be updated.
+    self.assertTrue(completed.infeasible)
+    self.assertEqual(completed.infeasibility_reason, 'other')
+    # The original trial should retain the original reason.
+    self.assertTrue(test.infeasible)
+    self.assertEqual(test.infeasibility_reason, 'reason')
+
+  def testCompleteEmptyInfeasible(self):
+    test = trial.Trial()
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    completed = test.complete(
+        measurement, inplace=False, infeasibility_reason='')
+    # Test infeasibility.
+    self.assertTrue(completed.infeasible)
+    self.assertEqual(completed.infeasibility_reason, '')
+
+  def testCompleteInfeasibleInplace(self):
+    test = trial.Trial()
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    test.complete(measurement, inplace=True, infeasibility_reason='reason')
+    # Test infeasibility.
+    self.assertTrue(test.infeasible)
+    self.assertEqual(test.infeasibility_reason, 'reason')
+
+  def testCompleteInfeasibleInplace2(self):
+    test = trial.Trial(infeasibility_reason='reason')
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    test.complete(measurement, inplace=True)
+    # When infeasibility not provided, the trial shoud remain infeasible.
+    self.assertTrue(test.infeasible)
+    self.assertEqual(test.infeasibility_reason, 'reason')
+
+  def testCompleteInfeasibleInplace3(self):
+    test = trial.Trial(infeasibility_reason='reason')
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    test.complete(measurement, inplace=True, infeasibility_reason='other')
+    # Infeasibility reason should be updated.
+    self.assertTrue(test.infeasible)
+    self.assertEqual(test.infeasibility_reason, 'other')
+
+  def testCompleteEmptyInfeasibleInplace(self):
+    test = trial.Trial()
+    measurement = Measurement(metrics={
+        'pr-auc': Metric(value=0.8),
+        'latency': Metric(value=32)
+    })
+    completed = test.complete(
+        measurement, inplace=True, infeasibility_reason='')
+    # Test infeasibility.
+    self.assertTrue(completed.infeasible)
+    self.assertEqual(completed.infeasibility_reason, '')
 
   def testDefaultsNotShared(self):
     """Make sure default parameters are not shared between instances."""

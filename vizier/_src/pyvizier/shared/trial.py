@@ -340,7 +340,7 @@ class TrialSuggestion:
 
 @attr.define(auto_attribs=True, frozen=False, init=True, slots=True)
 class Trial(TrialSuggestion):
-  """Wrapper for learning_vizier.service.Trial proto."""
+  """A Vizier Trial."""
   id: int = attr.ib(
       init=True,
       kw_only=True,
@@ -484,11 +484,15 @@ class Trial(TrialSuggestion):
   def complete(self,
                measurement: Measurement,
                *,
+               infeasibility_reason: Optional[str] = None,
                inplace: bool = True) -> 'Trial':
     """Completes the trial and returns it.
 
     Args:
       measurement: Measurement to complete the trial with.
+      infeasibility_reason: If set, completes the trial as infeasible.
+        If the trial was already infeasible and infeasibility_reason is not
+        set, the trial remains infeasible.
       inplace: If True, Trial is modified in place. If False, which is the
         default, then the operation is performed and it returns a copy of the
         object.
@@ -501,11 +505,14 @@ class Trial(TrialSuggestion):
       # mechanisms think this line is where `final_measurement` property
       # is defined, instead of where we declare attr.ib.
       self.__setattr__('final_measurement', copy.deepcopy(measurement))
+      if infeasibility_reason is not None:
+        self.__setattr__('_infeasibility_reason', infeasibility_reason)
       self.completion_time = _to_local_time(datetime.datetime.now())
       return self
     else:
       clone = copy.deepcopy(self)
-      return clone.complete(measurement, inplace=True)
+      return clone.complete(
+          measurement, inplace=True, infeasibility_reason=infeasibility_reason)
 
 
 # Define aliases.
