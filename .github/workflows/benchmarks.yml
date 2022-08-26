@@ -30,6 +30,8 @@ jobs:
       - name: Install Vizier
         run: |
           bash ./install.sh
+          pip install -r requirements-jax.txt
+          pip install -r requirements-tf.txt
           pip install -r requirements-benchmarks.txt
       - name: Print installed dependencies
         run: |
