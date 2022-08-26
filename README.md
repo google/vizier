@@ -44,7 +44,7 @@ The simplest way is to run:
 pip install google-vizier
 ```
 
-which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.9+.
+which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.10+.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>
