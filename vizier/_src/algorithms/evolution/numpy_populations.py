@@ -288,8 +288,8 @@ class PopulationConverter(templates.PopulationConverter):
     self._empty_feature_dict = converters.DictOf2DArrays(
         self._trial_converter.to_features([]))
 
-  def to_suggestions(self,
-                     offsprings: Offspring) -> Collection[vz.TrialSuggestion]:
+  def to_suggestions(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
+      self, offsprings: Offspring) -> Collection[vz.TrialSuggestion]:
     parameters_list = self._trial_converter.to_parameters(
         self._empty_feature_dict.dict_like(offsprings.xs))
     suggestions = [vz.TrialSuggestion(p) for p in parameters_list]
