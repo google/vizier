@@ -12,7 +12,7 @@ OUTPUT_FOLDER=_build
 sudo apt-get install python3-sphinx
 
 # Installs relevant Sphinx packages.
-pip install -r requirements.txt --use-deprecated=legacy-resolver
+pip install -r requirements-docs.txt --use-deprecated=legacy-resolver
 
 # Build files (HTML, doctests, etc.) into `OUTPUT_FOLDER` directory.
 rm -rf ${OUTPUT_FOLDER}  # Clear out original folder

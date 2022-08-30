@@ -38,13 +38,20 @@ Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedo
 
 
 ## Installation <a name="installation"></a>
-The simplest way is to run:
+To install the **core API**, the simplest way is to run:
 
 ```
 pip install google-vizier
 ```
 
-which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.10+.
+which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies from `requirements.txt`, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.10+.
+
+For **full installation** (in particular to support **all algorithms and benchmarks**), you will need to install all dependencies via `install_extras.sh`. This will install the following:
+
+* `requirements-jax.txt`: Jax libraries shared by both algorithms and benchmarks.
+* `requirements-tf.txt`: Tensorflow libraries shared by both algorithms and benchmarks.
+* `requirements-algorithms.txt`: Additional repositories (e.g. Emukit) for algorithms.
+* `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>

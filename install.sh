@@ -14,6 +14,3 @@ pip install -e . # Installs Vizier
 
 # Builds all .proto files.
 ./build_protos.sh
-
-# For emukit library.
-sudo apt-get install python3-tk

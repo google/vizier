@@ -30,6 +30,7 @@ jobs:
       - name: Install Vizier
         run: |
           bash ./install.sh
+          pip install -r requirements-algorithms.txt
       - name: Print installed dependencies
         run: |
           pip freeze
