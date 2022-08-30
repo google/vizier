@@ -18,7 +18,7 @@ class RandomDesigner(vza.Designer):
                search_space: vz.SearchSpace,
                *,
                dtype: Any = np.float64,
-               seed: Any):
+               seed: Optional[int] = None):
     """Init.
 
     Args:

@@ -11,6 +11,7 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
+from vizier._src.algorithms.designers import bocs
 from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.designers import grid
 from vizier._src.algorithms.designers import quasi_random
@@ -54,6 +55,8 @@ def policy_creator(
                                                   nsga2.create_nsga2)
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
+  elif algorithm == study_pb2.StudySpec.Algorithm.BOCS:
+    return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
   else:
     raise ValueError(
         f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '

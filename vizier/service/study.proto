@@ -343,6 +343,9 @@ message StudySpec {
     NSGA2 = 5;
     // Emukit implementation of GP-EI (https://emukit.github.io/)
     EMUKIT_GP_EI = 6;
+    // BOCS (https://arxiv.org/abs/1806.08838) only applicable to boolean search
+    // spaces.
+    BOCS = 7;
   }
 
   // The search algorithm specified for the Study.
