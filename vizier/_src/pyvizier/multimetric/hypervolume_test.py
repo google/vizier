@@ -15,7 +15,7 @@ class HypervolumeTest(absltest.TestCase):
     self.assertAlmostEqual(
         pf.hypervolume(),
         max(2 * (x + 1) * (y + 1) - min(x + 1, y + 1)**2, 0.0),
-        delta=0.1)
+        delta=0.15)
 
   def testParetoHypervolumeCumulative(self):
     points = np.random.normal(size=(100, 4))
