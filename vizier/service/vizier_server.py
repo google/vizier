@@ -14,6 +14,7 @@ from vizier import pyvizier as base_pyvizier
 from vizier._src.algorithms.designers import bocs
 from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.designers import grid
+from vizier._src.algorithms.designers import harmonica
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
@@ -57,6 +58,8 @@ def policy_creator(
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   elif algorithm == study_pb2.StudySpec.Algorithm.BOCS:
     return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
+  elif algorithm == study_pb2.StudySpec.Algorithm.HARMONICA:
+    return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
   else:
     raise ValueError(
         f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '

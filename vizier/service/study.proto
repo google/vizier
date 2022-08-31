@@ -332,8 +332,7 @@ message StudySpec {
     ALGORITHM_UNSPECIFIED = 0;
     // Gaussian Process Bandit.
     GAUSSIAN_PROCESS_BANDIT = 1;
-    // Simple grid search within the feasible space. To use grid search,
-    // all parameters must be `INTEGER`, `CATEGORICAL`, or `DISCRETE`.
+    // Simple grid search within the feasible space.
     GRID_SEARCH = 2;
     // Simple random search within the feasible space.
     RANDOM_SEARCH = 3;
@@ -346,6 +345,9 @@ message StudySpec {
     // BOCS (https://arxiv.org/abs/1806.08838) only applicable to boolean search
     // spaces.
     BOCS = 7;
+    // Harmonica (https://arxiv.org/abs/1706.00764) only applicable to boolean
+    // search spaces.
+    HARMONICA = 8;
   }
 
   // The search algorithm specified for the Study.
