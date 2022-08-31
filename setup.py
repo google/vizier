@@ -38,7 +38,8 @@ setup(
     extras_require={
         'jax': _parse_requirements('requirements-jax.txt'),
         'tf': _parse_requirements('requirements-tf.txt'),
-        'misc': _parse_requirements('requirements-misc.txt')
+        'algorithms': _parse_requirements('requirements-algorithms.txt'),
+        'benchmarks': _parse_requirements('requirements-benchmarks.txt')
     },
     # tests_require=_parse_requirements('requirements-test.txt'),
     requires_python='>=3.9',
