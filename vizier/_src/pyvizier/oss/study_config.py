@@ -51,6 +51,7 @@ class Algorithm(enum.Enum):
   QUASI_RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH
   NSGA2 = study_pb2.StudySpec.Algorithm.NSGA2
   EMUKIT_GP_EI = study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI
+  BOCS = study_pb2.StudySpec.Algorithm.BOCS
 
 
 class ObservationNoise(enum.Enum):

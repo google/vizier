@@ -1,9 +1,10 @@
 """Bayesian Optimization of Combinatorial Structures (BOCS) from https://arxiv.org/abs/1806.08838.
 
-Code is a cleaned-up version from /BOCSpy/ in https://github.com/baptistar/BOCS.
+Code is a cleaned-up exact version from /BOCSpy/ in
+https://github.com/baptistar/BOCS.
 """
 # pylint:disable=invalid-name
-import enum
+import abc
 import itertools
 from typing import Callable, Optional, Sequence, Tuple, Union
 
@@ -21,7 +22,8 @@ FloatType = Union[float, np.float32, np.float64]
 class _BayesianHorseshoeLinearRegression:
   """Computes conditional poster parameter distributions from a sparsity-inducing prior."""
 
-  def _fastmvg(self, Phi: np.ndarray, alpha: np.ndarray, D: np.ndarray):
+  def _fastmvg(self, Phi: np.ndarray, alpha: np.ndarray,
+               D: np.ndarray) -> np.ndarray:
     """Fast sampler for multivariate Gaussian distributions (large p, p > n) of the form N(mu, S).
 
     We have:
@@ -82,7 +84,14 @@ class _BayesianHorseshoeLinearRegression:
     w = np.linalg.solve(L.T, np.random.randn(p))
     return m + w
 
-  def regress(self, X, y, nsamples: int = 1000, burnin: int = 0, thin: int = 1):
+  def regress(
+      self,
+      X: np.ndarray,
+      Y: np.ndarray,
+      nsamples: int = 1000,
+      burnin: int = 0,
+      thin: int = 1
+  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Implementation of the Bayesian horseshoe linear regression hierarchy.
 
     References:
@@ -93,7 +102,7 @@ class _BayesianHorseshoeLinearRegression:
 
     Args:
       X: regressor matrix [n x p]
-      y: response vector  [n x 1]
+      Y: response vector  [n x 1]
       nsamples: number of samples for the Gibbs sampler (nsamples > 0)
       burnin: number of burnin (burnin >= 0)
       thin: thinning (thin >= 1)
@@ -109,8 +118,8 @@ class _BayesianHorseshoeLinearRegression:
     n, p = X.shape
 
     # Standardize y's
-    muY = np.mean(y)
-    y = y - muY
+    muY = np.mean(Y)
+    Y = Y - muY
 
     # Return values
     beta = np.zeros((p, nsamples))
@@ -135,16 +144,16 @@ class _BayesianHorseshoeLinearRegression:
 
       # Sample from the conditional posterior distribution
       sigma = np.sqrt(sigma2)
-      Lambda_star = tau2 * np.diag(lambda2)
+      lambda_star = tau2 * np.diag(lambda2)
       # Determine best sampler for conditional posterior of beta's
       if (p > n) and (p > 200):
-        b = self._fastmvg(X / sigma, y / sigma, sigma2 * Lambda_star)
+        b = self._fastmvg(X / sigma, Y / sigma, sigma2 * lambda_star)
       else:
-        b = self._fastmvg_rue(X / sigma, XtX / sigma2, y / sigma,
-                              sigma2 * Lambda_star)
+        b = self._fastmvg_rue(X / sigma, XtX / sigma2, Y / sigma,
+                              sigma2 * lambda_star)
 
       # Sample sigma2
-      e = y - np.dot(X, b)
+      e = Y - np.dot(X, b)
       shape = (n + p) / 2.
       scale = np.dot(e.T, e) / 2. + np.sum(b**2 / lambda2) / tau2 / 2.
       sigma2 = 1. / np.random.gamma(shape, 1. / scale)
@@ -182,34 +191,47 @@ class _BayesianHorseshoeLinearRegression:
 
 
 class _GibbsLinearRegressor:
-  """Uses Gibbs sampling to produce an alpha."""
+  """Stateful Gibbs sampler."""
 
   def __init__(self, order: int, num_gibbs_retries: int = 10):
     self._order = order
     self._num_gibbs_retries = num_gibbs_retries
 
-  def _preprocess(self,
-                  X: np.ndarray,
-                  y: np.ndarray,
-                  inf_threshold: float = 1e6):
+    # Below are stateful attributes calulated after `regress()`.
+    self._alpha: Optional[np.ndarray] = None
+    self._num_vars: Optional[int] = None
+    self._X_inf: Optional[np.ndarray] = None
+    self._y_inf: Optional[np.ndarray] = None
+
+  def _preprocess(
+      self,
+      X: np.ndarray,
+      Y: np.ndarray,
+      inf_threshold: float = 1e6
+  ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Preprocess data to ensure unique points and remove outliers."""
     # Limit data to unique points.
-    unique_X, x_idx = np.unique(X, axis=0, return_index=True)
-    unique_y = y[x_idx]
+    unique_X, X_idx = np.unique(X, axis=0, return_index=True)
+    unique_Y = Y[X_idx]
 
     # separate samples based on Inf output
-    y_Infidx = np.where(np.abs(unique_y) > inf_threshold)[0]
-    y_nInfidx = np.setdiff1d(np.arange(len(unique_y)), y_Infidx)
+    Y_Infidx = np.where(np.abs(unique_Y) > inf_threshold)[0]
+    Y_nInfidx = np.setdiff1d(np.arange(len(unique_Y)), Y_Infidx)
 
-    X_train = unique_X[y_nInfidx, :]
-    y_train = unique_y[y_nInfidx]
+    X_train = unique_X[Y_nInfidx, :]
+    Y_train = unique_Y[Y_nInfidx]
 
-    return X_train, y_train
+    # Large-value outliers.
+    X_inf = X[Y_Infidx, :]
+    Y_inf = Y[Y_Infidx]
 
-  def regress(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Samples alpha from the data."""
-    # Preprocess data for training
-    X_train, y_train = self._preprocess(X, y)
+    return X_train, Y_train, X_inf, Y_inf
+
+  def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
+    """Computes and saves alpha (regressor coefficients from the data."""
+    # Preprocess data for training and store relevant data.
+    X_train, Y_train, self._X_inf, self._Y_inf = self._preprocess(X, Y)
+    self._num_vars = X_train.shape[1]
 
     # Create matrix with all covariates based on order.
     X_train = self._order_effects(X_train)
@@ -231,7 +253,7 @@ class _GibbsLinearRegressor:
       # re-run if there is an error during sampling
       counter += 1
       try:
-        alphaGibbs, a0, _, _, _ = bhs.regress(X_train, y_train)
+        alphaGibbs, a0, _, _, _ = bhs.regress(X_train, Y_train)
         # run until alpha matrix does not contain any NaNs
         if not np.isnan(alphaGibbs).any():
           break
@@ -246,14 +268,25 @@ class _GibbsLinearRegressor:
     # append zeros back - note alpha(1,:) is linear intercept
     alpha_pad = np.zeros(nCoeffs)
     alpha_pad[idx_nnzero] = alphaGibbs[:, -1]
-    return np.append(a0, alpha_pad)
+    self._alpha = np.append(a0, alpha_pad)
 
-  def surrogate_model(self, x: np.ndarray, alpha: np.ndarray) -> FloatType:
+  @property
+  def alpha(self) -> np.ndarray:
+    if self._alpha is None:
+      raise ValueError('You first need to call `regress()` on the data.')
+    return self._alpha
+
+  @property
+  def num_vars(self) -> int:
+    if self._num_vars is None:
+      raise ValueError('You first need to call `regress()` on the data.')
+    return self._num_vars
+
+  def surrogate_model(self, x: np.ndarray) -> FloatType:
     """Surrogate model.
 
     Args:
       x: Should only contain one row.
-      alpha: Coefficients on for the monomial terms.
 
     Returns:
       Surrogate objective.
@@ -261,7 +294,13 @@ class _GibbsLinearRegressor:
 
     # Generate x_all (all basis vectors) based on model order.
     x_all = np.append(1, self._order_effects(x))
-    return np.dot(x_all, alpha)
+
+    # check if previous x led to Inf output (if so, barrier=Inf)
+    barrier = 0.
+    if self._X_inf.shape[0] != 0 and np.equal(x, self._X_inf).all(axis=1).any():
+      barrier = np.inf
+
+    return np.dot(x_all, self._alpha) + barrier
 
   def _order_effects(self, X: np.ndarray) -> np.ndarray:
     """Function computes data matrix for all coupling."""
@@ -287,31 +326,46 @@ class _GibbsLinearRegressor:
     return x_allpairs
 
 
-Objective = Callable[[np.ndarray], FloatType]
+class AcquisitionOptimizer(abc.ABC):
+  """Base class for BOCS acquisition optimizers."""
+
+  def __init__(self, lin_reg: _GibbsLinearRegressor, lamda: float = 1e-4):
+    self._lin_reg = lin_reg
+    self._num_vars = self._lin_reg.num_vars
+    self._lamda = lamda
+
+  @abc.abstractmethod
+  def argmin(self) -> np.ndarray:
+    """Computes argmin using the regressor."""
+    pass
 
 
-class _SimulatedAnnealing:
-  """Simulated Annealing solver for acquisition functions."""
+class _SimulatedAnnealing(AcquisitionOptimizer):
+  """Simulated Annealing solver."""
 
   def __init__(self,
-               num_vars: int,
+               lin_reg: _GibbsLinearRegressor,
+               lamda: float = 1e-4,
                num_iters: int = 10,
                num_reruns: int = 5,
                initial_temp: float = 1.0,
                annealing_factor: float = 0.8):
-    self._num_vars = num_vars
+    super().__init__(lin_reg=lin_reg, lamda=lamda)
     self._num_iters = num_iters
     self._num_reruns = num_reruns
     self._initial_temp = initial_temp
     self._annealing_factor = annealing_factor
 
-  def argmin(self, objective: Objective) -> np.ndarray:
+  def argmin(self) -> np.ndarray:
     """Computes argmin via multiple rounds of Simulated Annealing."""
     SA_model = np.zeros((self._num_reruns, self._num_vars))
     SA_obj = np.zeros(self._num_reruns)
 
+    penalty = lambda x: self._lamda * np.sum(x, axis=1)
+    acquisition_fn = lambda x: self._lin_reg.surrogate_model(x) + penalty(x)
+
     for j in range(self._num_reruns):
-      optModel, objVals = self._optimization_loop(objective)
+      optModel, objVals = self._optimization_loop(acquisition_fn)
       SA_model[j, :] = optModel[-1, :]
       SA_obj[j] = objVals[-1]
 
@@ -320,8 +374,9 @@ class _SimulatedAnnealing:
     x_new = SA_model[min_idx, :]
     return x_new
 
-  def _optimization_loop(self,
-                         objective: Objective) -> Tuple[np.ndarray, np.ndarray]:
+  def _optimization_loop(
+      self, objective: Callable[[np.ndarray], FloatType]
+  ) -> Tuple[np.ndarray, np.ndarray]:
     """Single optimization round of Simulated Annealing."""
 
     # Declare vectors to save solutions
@@ -372,28 +427,25 @@ class _SimulatedAnnealing:
     return model_iter, obj_iter
 
 
-class _SemiDefiniteProgramming:
+class _SemiDefiniteProgramming(AcquisitionOptimizer):
   """SDP solver for quadratic acquisition functions."""
 
   def __init__(self,
-               num_vars: int,
+               lin_reg: _GibbsLinearRegressor,
                lamda: float = 1e-4,
                num_repeats: int = 100):
-    self._num_vars = num_vars
-    self._lamda = lamda
+    super().__init__(lin_reg=lin_reg, lamda=lamda)
     self._num_repeats = num_repeats
 
-  def argmin(self, alpha: np.ndarray) -> np.ndarray:
+  def argmin(self) -> np.ndarray:
     """Perform SDP over the quadratic xt*A*x + bt*x.
 
     (A,b) is recovered from alpha.
 
-    Args:
-      alpha: Obtained from linear regression.
-
     Returns:
       Argmin of the SDP problem.
     """
+    alpha = self._lin_reg.alpha
 
     # Extract vector of coefficients
     b = alpha[1:self._num_vars + 1] + self._lamda
@@ -454,11 +506,8 @@ class _SemiDefiniteProgramming:
     return suggest_vect[:, opt_idx]
 
 
-@enum.unique
-class AcqusitionOptimizer(enum.Enum):
-  """Type of acquisition optimizer."""
-  SA = 'Simulated Annealing'
-  SDP = 'Semidefinite Programming'
+AcqusitionOptimizerFactory = Callable[[_GibbsLinearRegressor, float],
+                                      AcquisitionOptimizer]
 
 
 class BOCSDesigner(vza.Designer):
@@ -467,7 +516,8 @@ class BOCSDesigner(vza.Designer):
   def __init__(self,
                problem_statement: vz.ProblemStatement,
                order: int = 2,
-               acquisition_mode: AcqusitionOptimizer = AcqusitionOptimizer.SDP,
+               acquisition_optimizer_factory:
+               AcqusitionOptimizerFactory = _SemiDefiniteProgramming,
                lamda: float = 1e-4,
                num_initial_randoms: int = 10):
     """Init.
@@ -475,7 +525,7 @@ class BOCSDesigner(vza.Designer):
     Args:
       problem_statement: Must use a boolean search space.
       order: Statistical model order.
-      acquisition_mode: Which acquisition optimizer to use.
+      acquisition_optimizer_factory: Which acquisition optimizer to use.
       lamda: Sparsity regularization coefficient.
       num_initial_randoms: Number of initial random suggestions for seeding the
         model.
@@ -494,9 +544,8 @@ class BOCSDesigner(vza.Designer):
     self._current_index = 0
 
     self._order = order
-    self._acquisition_mode = acquisition_mode
+    self._acquisition_optimizer_factory = acquisition_optimizer_factory
     self._lamda = lamda
-    self._num_vars = len(self._search_space.parameters)
     self._num_initial_randoms = num_initial_randoms
 
     self._trials = []
@@ -521,45 +570,36 @@ class BOCSDesigner(vza.Designer):
     """
     count = count or 1
     if count > 1:
-      raise ValueError('This optimizer does not support batched suggestions.')
+      raise ValueError('This designer does not support batched suggestions.')
 
     if len(self._trials) < self._num_initial_randoms:
       random_designer = random.RandomDesigner(self._search_space)
       return random_designer.suggest(count)
 
     X = []
-    y = []
+    Y = []
     for t in self._trials:
-      single_X = [(t.parameters.get_value(p.name) == 'True')
-                  for p in self._search_space.parameters]
+      single_x = [
+          float(t.parameters.get_value(p.name) == 'True')
+          for p in self._search_space.parameters
+      ]
       single_y = t.final_measurement.metrics[self._metric_name].value
-      X.append(single_X)
-      y.append(single_y)
+      X.append(single_x)
+      Y.append(single_y)
     X = np.array(X)
-    y = np.array(y)
+    Y = np.array(Y)
 
     if self._problem_statement.metric_information.item(
     ).goal == vz.ObjectiveMetricGoal.MAXIMIZE:
-      y = -y
+      Y = -Y
 
     # Train initial statistical model
     lin_reg = _GibbsLinearRegressor(self._order)
-    alpha = lin_reg.regress(X, y)
+    lin_reg.regress(X, Y)
 
-    # Run SA optimization
-    if self._acquisition_mode == AcqusitionOptimizer.SA:
-      # Setup acquisition function objective for SA.
-      penalty = lambda x: self._lamda * np.sum(x, axis=1)
-      acquisition_fn = lambda x: lin_reg.surrogate_model(x, alpha) + penalty(x)
-      SA = _SimulatedAnnealing(self._num_vars)
-      x_new = SA.argmin(acquisition_fn)
-
-    # Run semidefinite relaxation for order 2 model with l1 loss
-    elif self._acquisition_mode == AcqusitionOptimizer.SDP:
-      if self._order != 2:
-        raise ValueError('SDPs only use order=2.')
-      sdp = _SemiDefiniteProgramming(self._num_vars, self._lamda)
-      x_new = sdp.argmin(alpha)
+    # Run acquisition optimization.
+    optimizer = self._acquisition_optimizer_factory(lin_reg, self._lamda)
+    x_new = optimizer.argmin()
 
     parameters = vz.ParameterDict()
     for i, p in enumerate(self._search_space.parameters):

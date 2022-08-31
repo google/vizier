@@ -184,7 +184,7 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  # TODO: Move emukit to a separate algorithms test.
+  # TODO: Move algorithms tests to a separate file.
   @parameterized.parameters(
       (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.QUASI_RANDOM_SEARCH, 50, 1, False),
