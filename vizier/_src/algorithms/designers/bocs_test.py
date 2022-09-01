@@ -9,8 +9,8 @@ from absl.testing import parameterized
 
 class BocsTest(parameterized.TestCase):
 
-  @parameterized.parameters((bocs._SemiDefiniteProgramming,),
-                            (bocs._SimulatedAnnealing,))
+  @parameterized.parameters((bocs.SemiDefiniteProgramming,),
+                            (bocs.SimulatedAnnealing,))
   def test_make_suggestions(self, acquisition_optimizer_factory):
     experimenter = combo_experimenter.IsingExperimenter(lamda=0.01)
     designer = bocs.BOCSDesigner(

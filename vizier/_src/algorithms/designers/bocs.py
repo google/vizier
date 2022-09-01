@@ -340,7 +340,7 @@ class AcquisitionOptimizer(abc.ABC):
     pass
 
 
-class _SimulatedAnnealing(AcquisitionOptimizer):
+class SimulatedAnnealing(AcquisitionOptimizer):
   """Simulated Annealing solver."""
 
   def __init__(self,
@@ -427,7 +427,7 @@ class _SimulatedAnnealing(AcquisitionOptimizer):
     return model_iter, obj_iter
 
 
-class _SemiDefiniteProgramming(AcquisitionOptimizer):
+class SemiDefiniteProgramming(AcquisitionOptimizer):
   """SDP solver for quadratic acquisition functions."""
 
   def __init__(self,
@@ -517,7 +517,7 @@ class BOCSDesigner(vza.Designer):
                problem_statement: vz.ProblemStatement,
                order: int = 2,
                acquisition_optimizer_factory:
-               AcqusitionOptimizerFactory = _SemiDefiniteProgramming,
+               AcqusitionOptimizerFactory = SemiDefiniteProgramming,
                lamda: float = 1e-4,
                num_initial_randoms: int = 10):
     """Init.
