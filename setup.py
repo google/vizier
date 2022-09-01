@@ -14,10 +14,23 @@ def _get_version():
     raise ValueError('`__version__` not defined in `vizier/__init__.py`')
 
 
-def _parse_requirements(requirements_txt_path):
-  with open(requirements_txt_path) as fp:
-    return fp.read().splitlines()
+def _strip_comments_fron_line(s: str) -> str:
+  """Parses a line of a requirements.txt file."""
+  requirement, *_ = s.split('#')
+  return requirement.strip()
 
+
+def _parse_requirements(requirements_txt_path: str) -> list[str]:
+  """Returns a list of dependencies for setup() from requirements.txt."""
+
+  # Currently a requirements.txt is being used to specify dependencies. In order
+  # to avoid specifying it in two places, we're going to use that file as the
+  # source of truth.
+  with open(requirements_txt_path) as fp:
+    # Parse comments.
+    lines = [_strip_comments_fron_line(line) for line in fp.read().splitlines()]
+    # Remove empty lines.
+    return [l for l in lines if l]
 
 _VERSION = _get_version()
 
