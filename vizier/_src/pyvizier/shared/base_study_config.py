@@ -1341,6 +1341,12 @@ class SearchSpace:
     return copy.deepcopy(self._parameter_configs)
 
   def select_root(self) -> SearchSpaceSelector:
+    # Deprecated function.
+    # TODO: Remove this from downstream user code.
+    return self.root
+
+  @property
+  def root(self) -> SearchSpaceSelector:
     """Returns a selector for the root of the search space.
 
     Parameters can be added to the search space using the returned

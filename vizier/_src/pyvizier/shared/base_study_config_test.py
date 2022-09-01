@@ -96,7 +96,22 @@ class MetricsConfigTest(parameterized.TestCase):
 
 class SearchSpaceTest(parameterized.TestCase):
 
+  def testRootAndSelectRootEqual(self):
+    space = base_study_config.SearchSpace()
+    space.root.add_float_param('f', 0.0, 1.0)
+    space.root.add_int_param('i', 0, 1)
+    space.root.add_discrete_param('d', [0.0, 0.5, 1.0])
+    space.root.add_categorical_param('c', ['a', 'b', 'c'])
+
+    select_root = space.select_root()
+    shortcut_root = space.root
+    self.assertEqual(select_root.parameter_name, shortcut_root.parameter_name)
+    self.assertEqual(select_root.parameter_values,
+                     shortcut_root.parameter_values)
+    self.assertEqual(select_root.path_string, shortcut_root.path_string)
+
   def testAddFloatParamMinimal(self):
+    # Remove this test once we deprecate select_root().
     space = base_study_config.SearchSpace()
     self.assertEmpty(space.parameters)
     selector = space.select_root().add_float_param('f1', 1.0, 15.0)
@@ -117,6 +132,36 @@ class SearchSpaceTest(parameterized.TestCase):
     self.assertIsNone(space.parameters[0].default_value)
 
     _ = space.select_root().add_float_param('f2', 2.0, 16.0)
+    self.assertLen(space.parameters, 2)
+    self.assertEqual(space.parameters[0].name, 'f1')
+    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
+    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
+    self.assertEqual(space.parameters[1].name, 'f2')
+    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
+    self.assertEqual(space.parameters[1].bounds, (2.0, 16.0))
+
+  def testAddFloatParamMinimalFromRoot(self):
+    """Same test as above, but using `space.root` property."""
+    space = base_study_config.SearchSpace()
+    self.assertEmpty(space.parameters)
+    selector = space.root.add_float_param('f1', 1.0, 15.0)
+    # Test the returned selector.
+    self.assertEqual(selector.path_string, '')
+    self.assertEqual(selector.parameter_name, 'f1')
+    self.assertEqual(selector.parameter_values, [])
+    # Test the search space.
+    self.assertLen(space.parameters, 1)
+    self.assertEqual(space.parameters[0].name, 'f1')
+    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
+    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
+    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LINEAR)
+    self.assertEmpty(space.parameters[0].matching_parent_values)
+    self.assertEmpty(space.parameters[0].child_parameter_configs)
+    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
+      _ = space.parameters[0].feasible_values
+    self.assertIsNone(space.parameters[0].default_value)
+
+    _ = space.root.add_float_param('f2', 2.0, 16.0)
     self.assertLen(space.parameters, 2)
     self.assertEqual(space.parameters[0].name, 'f1')
     self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
