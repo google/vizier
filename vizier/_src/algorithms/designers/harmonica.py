@@ -102,9 +102,10 @@ def _restricted_surrogate(x: np.ndarray, X_restrictors: np.ndarray,
                           psr: PolynomialSparseRecovery):
   """New surrogate with input x's positions replaced from X_restrictor values."""
   objectives = []
-  for i in range(X_restrictors.shape[0]):
-    x[replacement_indices] = X_restrictors[i, replacement_indices]
-    objectives.append(psr.surrogate(x))
+  for x_restrictor in X_restrictors:
+    x_copy = np.copy(x)
+    x_copy[replacement_indices] = x_restrictor[replacement_indices]
+    objectives.append(psr.surrogate(x_copy))
   return np.mean(objectives)
 
 
@@ -123,7 +124,7 @@ class HarmonicaQ:
   def __init__(self,
                psr: Optional[PolynomialSparseRecovery] = None,
                q: int = 10,
-               t: int = 10,
+               t: int = 1,
                T: int = 300):
     """Init.
 
