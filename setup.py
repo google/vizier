@@ -14,7 +14,7 @@ def _get_version():
     raise ValueError('`__version__` not defined in `vizier/__init__.py`')
 
 
-def _strip_comments_fron_line(s: str) -> str:
+def _strip_comments_from_line(s: str) -> str:
   """Parses a line of a requirements.txt file."""
   requirement, *_ = s.split('#')
   return requirement.strip()
@@ -28,9 +28,10 @@ def _parse_requirements(requirements_txt_path: str) -> list[str]:
   # source of truth.
   with open(requirements_txt_path) as fp:
     # Parse comments.
-    lines = [_strip_comments_fron_line(line) for line in fp.read().splitlines()]
-    # Remove empty lines.
-    return [l for l in lines if l]
+    lines = [_strip_comments_from_line(line) for line in fp.read().splitlines()]
+    # Remove empty lines and direct github repos (not allowed in PyPI setups)
+    return [l for l in lines if (l and 'github.com' not in l)]
+
 
 _VERSION = _get_version()
 

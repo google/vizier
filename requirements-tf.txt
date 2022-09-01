@@ -1,2 +1,2 @@
 tensorflow>=2.9.1
-tensorflow-probability >= 0.16
+tensorflow-probability>=0.16
