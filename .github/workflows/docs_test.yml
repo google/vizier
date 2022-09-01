@@ -1,4 +1,4 @@
-name: docs
+name: docs_test
 
 on:
   pull_request:

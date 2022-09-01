@@ -184,12 +184,12 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(suggestions_list, suggestion_count)
     logging.info('Suggestions List: %s', suggestions_list)
 
-  # TODO: Move algorithms tests to a separate file.
+  # Only test algorithms which don't depend on external libraries (except for
+  # numpy).
   @parameterized.parameters(
       (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.QUASI_RANDOM_SEARCH, 50, 1, False),
       (pyvizier.Algorithm.GRID_SEARCH, 50, 1, False),
-      (pyvizier.Algorithm.EMUKIT_GP_EI, 7, 2, False),
       (pyvizier.Algorithm.NSGA2, 50, 1, True),
   )
   def test_e2e_tuning(self, algorithm, num_iterations: int, batch_size: int,

@@ -6,6 +6,7 @@
 
 [![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
 ![Continuous Integration (Core)](https://github.com/google/vizier/workflows/pytest_core/badge.svg)
+![Continuous Integration (Algorithms)](https://github.com/google/vizier/workflows/pytest_algorithms/badge.svg)
 ![Continuous Integration (Benchmarks)](https://github.com/google/vizier/workflows/pytest_benchmarks/badge.svg)
 ![Continuous Integration (Docs)](https://github.com/google/vizier/workflows/docs/badge.svg)
 
@@ -44,7 +45,7 @@ To install the **core API**, the simplest way is to run:
 pip install google-vizier
 ```
 
-which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies from `requirements.txt`, and builds the relevant protobuf libraries needed for the service. Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.10+.
+which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies from `requirements.txt`, and builds the relevant protobuf libraries needed for the service. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
 
 For **full installation** (in particular to support **all algorithms and benchmarks**), you will need to install all dependencies via `install_extras.sh`. This will install the following:
 
@@ -52,6 +53,8 @@ For **full installation** (in particular to support **all algorithms and benchma
 * `requirements-tf.txt`: Tensorflow libraries shared by both algorithms and benchmarks.
 * `requirements-algorithms.txt`: Additional repositories (e.g. Emukit) for algorithms.
 * `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
+
+Check if all unit tests work by running `run_tests.sh`.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>
