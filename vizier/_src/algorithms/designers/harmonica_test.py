@@ -13,14 +13,15 @@ class HarmonicaTest(absltest.TestCase):
     designer = harmonica.HarmonicaDesigner(
         experimenter.problem_statement(), num_init_samples=1)
 
+    num_trials = 10
     trials = test_runners.run_with_random_metrics(
         designer,
         experimenter.problem_statement(),
-        iters=5,
+        iters=num_trials,
         batch_size=1,
         verbose=1,
         validate_parameters=True)
-    self.assertLen(trials, 5)
+    self.assertLen(trials, num_trials)
 
 
 if __name__ == '__main__':

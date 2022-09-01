@@ -4,8 +4,9 @@ This is a faithful re-implementation based off
 https://github.com/callowbird/Harmonica.
 """
 # pylint:disable=invalid-name
+import functools
 import itertools
-from typing import Optional, Sequence, Set
+from typing import Callable, Optional, Sequence, Set
 import numpy as np
 from sklearn import linear_model
 from sklearn import preprocessing
@@ -27,18 +28,31 @@ def _binary_subset_enumeration(dim: int,
   return output
 
 
+# TODO: Implement __repr__ via `attr`.
 class PolynomialSparseRecovery:
   """Performs LASSO regression over low (d) degree polynomial coefficients."""
 
-  def __init__(self, d: int, num_top_monomials: int, alpha: float):
+  def __init__(self,
+               d: int = 3,
+               num_top_monomials: int = 5,
+               alpha: float = 3.0):
+    """Init.
+
+    Args:
+      d: Maximum degree of monomials to use during polynomial regression.
+      num_top_monomials: Number of top monomial coefficients to use.
+      alpha: LASSO regularization coefficient.
+    """
     self._d = d
     self._num_top_monomials = num_top_monomials
     self._alpha = alpha
+    self.reset()
 
+  def reset(self):
     self._poly_transformer = preprocessing.PolynomialFeatures(
         self._d, interaction_only=True)
-
     self._top_poly_indices: Optional[np.ndarray] = None
+    self._top_poly_coefficients: Optional[np.ndarray] = None
 
   def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
     """Performs LASSO regression to obtain top monomial coefficients."""
@@ -83,12 +97,85 @@ class PolynomialSparseRecovery:
     return index_set
 
 
-# TODO: Finish the q-stage variant.
-class HarmonicaQ:
+def _restricted_surrogate(x: np.ndarray, X_restrictors: np.ndarray,
+                          replacement_indices: Sequence[int],
+                          psr: PolynomialSparseRecovery):
+  """New surrogate with input x's positions replaced from X_restrictor values."""
+  objectives = []
+  for i in range(X_restrictors.shape[0]):
+    x[replacement_indices] = X_restrictors[i, replacement_indices]
+    objectives.append(psr.surrogate(x))
+  return np.mean(objectives)
 
-  def __init__(self, q: int = 10, t: int = 10):
+
+# TODO: Implement __repr__ via `attr`.
+class HarmonicaQ:
+  """Q-stage Harmonica.
+
+  At each stage:
+  1. Invoke PSR on the previous data (X,Y).
+  2. Obtain t maximizers of the surrogate of the PSR.
+  3. Redefine a 'restricted surrogate' using the t maximizers.
+  4. Produce a new (X', Y') dataset via random search on this 'restricted
+  surrogate'.
+  """
+
+  def __init__(self,
+               psr: Optional[PolynomialSparseRecovery] = None,
+               q: int = 10,
+               t: int = 10,
+               T: int = 300):
+    """Init.
+
+    Args:
+      psr: PolynomialSparseRecovery class. If None, will be constructed with
+        default arguments.
+      q: Number of stages.
+      t: Number of maximizers on the surrogate to use.
+      T: Number of data samples to collect on the restricted surrogate.
+    """
+    self._psr = psr
+    self._psr = psr or PolynomialSparseRecovery()
     self._q = q
     self._t = t
+    self._T = T
+    self.reset()
+
+  def reset(self):
+    self._restricted_surrogate: Optional[Callable[[np.ndarray], float]] = None
+    self._psr.reset()
+
+  def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
+    """Performs q-stage Harmonica."""
+    num_vars = X.shape[-1]
+
+    X_temp = X
+    Y_temp = Y
+    for _ in range(self._q):
+      # Invoke PSR on data.
+      self._psr.reset()
+      self._psr.regress(X_temp, Y_temp)
+      J = self._psr.index_set()
+
+      # Perform brute force maximization to optain top t optimizers.
+      all_X_in_J = _binary_subset_enumeration(num_vars, list(J))
+      all_Y_in_J = np.array([self._psr.surrogate(x) for x in all_X_in_J])
+      maximizer_idxs = np.argsort(all_Y_in_J)[-self._t:]
+      X_maximizers = all_X_in_J[maximizer_idxs]
+
+      # Define restricted surrogate and obtain data from it.
+      self._restricted_surrogate = functools.partial(
+          _restricted_surrogate,
+          X_restrictors=X_maximizers,
+          replacement_indices=list(J),
+          psr=self._psr)
+      X_temp = np.random.choice([-1.0, 1.0], size=(self._T, num_vars))
+      Y_temp = np.array([self._restricted_surrogate(x) for x in X_temp])
+
+  def surrogate(self, x: np.ndarray) -> float:
+    if self._restricted_surrogate is None:
+      raise ValueError('You must call regress() first.')
+    return self._restricted_surrogate(x)
 
 
 class HarmonicaDesigner(vza.Designer):
@@ -107,17 +194,17 @@ class HarmonicaDesigner(vza.Designer):
 
   def __init__(self,
                problem_statement: vz.ProblemStatement,
-               d: int = 3,
-               num_top_monomials: int = 5,
-               alpha: float = 1.0,
+               harmonica_q: Optional[HarmonicaQ] = None,
+               acquisition_samples: int = 100,
                num_init_samples: int = 10):
     """Init.
 
     Args:
       problem_statement: Must use a boolean search space.
-      d: Maximum degree of monomials to use during polynomial regression.
-      num_top_monomials: Number of top monomial coefficients to use.
-      alpha: LASSO regularization coefficient.
+      harmonica_q: HarmonicaQ class. If None, will use default class with
+        default kwargs.
+      acquisition_samples: Number of trial samples to optimize final acquisition
+        function.
       num_init_samples: Number of initial random suggestions for seeding the
         model.
     """
@@ -133,10 +220,11 @@ class HarmonicaDesigner(vza.Designer):
     self._metric_name = self._problem_statement.metric_information.item().name
     self._search_space = problem_statement.search_space
     self._num_vars = len(self._search_space.parameters)
-    self._d = d
-    self._num_top_monomials = num_top_monomials
-    self._alpha = alpha
+
+    self._harmonica_q = harmonica_q or HarmonicaQ()
+    self._acquisition_samples = acquisition_samples
     self._num_init_samples = num_init_samples
+
     self._trials = []
 
   def update(self, trials: vza.CompletedTrials) -> None:
@@ -144,7 +232,7 @@ class HarmonicaDesigner(vza.Designer):
 
   def suggest(self,
               count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
-    """Harmonica.
+    """Performs entire q-stage Harmonica using previous trials for regression data.
 
     Args:
       count: Makes best effort to generate this many suggestions. If None,
@@ -161,6 +249,7 @@ class HarmonicaDesigner(vza.Designer):
       random_designer = random.RandomDesigner(self._search_space)
       return random_designer.suggest(count)
 
+    # Convert previous trial data into regression data.
     X = []
     Y = []
     for t in self._trials:
@@ -178,16 +267,16 @@ class HarmonicaDesigner(vza.Designer):
     ).goal == vz.ObjectiveMetricGoal.MINIMIZE:
       Y = -Y
 
-    psr = PolynomialSparseRecovery(
-        d=self._d, num_top_monomials=self._num_top_monomials, alpha=self._alpha)
-    psr.regress(X, Y)
-    J = psr.index_set()
+    # Perform q-stage Harmonica.
+    self._harmonica_q.reset()
+    self._harmonica_q.regress(X, Y)
 
-    # TODO: Swap brute force optimization with any designer.
-    all_X_in_J = _binary_subset_enumeration(self._num_vars, list(J))
-    all_Y_in_J = np.array([psr.surrogate(x) for x in all_X_in_J])
-    opt_idx = np.argmax(all_Y_in_J)
-    x_new = all_X_in_J[opt_idx]
+    # Optimize final acquisition function.
+    # TODO: Allow any designer instead of just random search.
+    X_temp = np.random.choice([-1.0, 1.0],
+                              size=(self._acquisition_samples, self._num_vars))
+    Y_temp = np.array([self._harmonica_q.surrogate(x) for x in X_temp])
+    x_new = X_temp[np.argmax(Y_temp)]
 
     parameters = vz.ParameterDict()
     for i, p in enumerate(self._search_space.parameters):
