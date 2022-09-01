@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install wheel
           pip install pytest pytest-xdist
-      - name: Install Vizier (TODO: Remove algorithm dependencies)
+      - name: Install Vizier # (TODO: Remove algorithm dependencies)
         run: |
           bash ./install.sh
           pip install -r requirements-jax.txt
