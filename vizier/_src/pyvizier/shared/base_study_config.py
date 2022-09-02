@@ -246,6 +246,11 @@ class MetricsConfig(collections_abc.Collection):
     """Returns True if only one objective metric is configured."""
     return len(self.of_type(MetricType.OBJECTIVE)) == 1
 
+  @property
+  def is_safety_metric(self) -> bool:
+    """Returns True if at least one safety metric is configured."""
+    return True if self.of_type(MetricType.SAFETY) else False
+
 
 @attr.s(frozen=True, init=True, slots=True, kw_only=True)
 class _PathSegment:
@@ -1492,3 +1497,8 @@ class ProblemStatement:
     if self.is_single_objective:
       return self.metric_information.of_type(MetricType.OBJECTIVE).item().name
     return None
+
+  @property
+  def is_safety_metric(self) -> bool:
+    """Returns True if at least one safety metric is configured."""
+    return self.metric_information.is_safety_metric
