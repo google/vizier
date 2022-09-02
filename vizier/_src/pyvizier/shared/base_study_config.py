@@ -1,3 +1,8 @@
+"""Essential classes for defining a blackbox optimization problem.
+
+Contains `ProblemStatement` and its components that are cross platform
+compatible.
+"""
 import collections
 from collections import abc as collections_abc
 import copy
@@ -1401,7 +1406,18 @@ class SearchSpace:
 ################### Main Class ###################
 @attr.define(frozen=False, init=True, slots=True)
 class ProblemStatement:
-  """A builder and wrapper for core StudyConfig functionality."""
+  """Defines a blackbox optimization problem.
+
+  `ProblemStatement` contains the minimal information that defines the search
+  problem. It is inherited by platform-specific classes that carry additional
+  platform-specific configurations including which algorithm to use.
+
+  Each of OSS, Vertex, and Google Vizier has their own implementations of
+  `StudyConfig` that inherit from `ProblemStatement`.
+
+  Pythia `Policy` interface uses `ProblemStatement` as opposed to `StudyConfig`
+  so that the same algorithm code can be used across platforms.
+  """
 
   search_space: SearchSpace = attr.ib(
       init=True,
@@ -1427,12 +1443,34 @@ class ProblemStatement:
 
   @classmethod
   def from_problem(cls: Type[_T], problem: 'ProblemStatement') -> _T:
+    """Converts a ProblemStatement to a subclass instance.
+
+    Note that this method is useful in subclasses but not so much in
+    `ProblemStatement` itself. `ProblemStatement.from_problem` simply generates
+    a (shallow) copy of `problem`.
+
+    Args:
+      problem:
+
+    Returns:
+      A subclass instance filled with shallow copies of `ProblemStatement`
+      fields.
+    """
     return cls(
         search_space=problem.search_space,
         metric_information=problem.metric_information,
         metadata=problem.metadata)
 
   def to_problem(self) -> 'ProblemStatement':
+    """Converts to a ProblemStatement which is the parent class of `self`.
+
+    Note that this method is useful in subclasses but not so much in
+    `ProblemStatement` itself. `ProblemStatement.to_problem` simply generates
+    a (shallow) copy of `problem`.
+
+    Returns:
+      `ProblemStatement` filled with shallow copies of `self.
+    """
     return ProblemStatement(
         search_space=self.search_space,
         metric_information=self.metric_information,
