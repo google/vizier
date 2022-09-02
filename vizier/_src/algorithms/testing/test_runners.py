@@ -88,7 +88,7 @@ class RandomMetricsRunner:
         if self.verbose:
           logging.info('At iteration %s, trials suggested and evaluated:\n%s',
                        it, trials)
-        algorithm.post_completion_callback(vza.CompletedTrials(trials))
+      algorithm.post_completion_callback(vza.CompletedTrials(trials))
       all_trials.extend(trials)
     return all_trials
 
