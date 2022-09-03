@@ -3,9 +3,9 @@
 Contains `ProblemStatement` and its components that are cross platform
 compatible.
 """
+
 import collections
 from collections import abc as collections_abc
-import copy
 import enum
 import math
 import re
@@ -1353,8 +1353,8 @@ class SearchSpace:
 
   @property
   def parameters(self) -> List[parameter_config.ParameterConfig]:
-    """Returns COPIES of the parameter configs in this Space."""
-    return copy.deepcopy(self._parameter_configs)
+    """Returns the parameter configs in this Space."""
+    return self._parameter_configs
 
   def select_root(self) -> SearchSpaceSelector:
     # Deprecated function.

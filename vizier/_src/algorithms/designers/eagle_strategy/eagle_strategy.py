@@ -46,38 +46,22 @@ unique id.
 
 import codecs
 import copy
+import json
 import logging
 import pickle
 import time
-from typing import Dict, List, Optional, Sequence, Tuple, Any
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import attr
 from jax import random
-import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
-from vizier._src.algorithms.designers.eagle_strategy import utils
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 from vizier._src.algorithms.random import random_sample
 
 PRNGKey = Any
-
-
-@attr.define
-class FireflyAlgorithmConfig:
-  """Configuration hyperparameters for Eagle Strategy / Firefly Algorithm."""
-  perturbation: float = 1e-2
-  categorical_perturbation_factor: float = 25
-  pure_categorical_perturbation: float = 0.1
-  discrete_perturbation_factor: float = 10.0
-  perturbation_lower_bound: float = 1e-3
-  gravity: float = 1.0
-  visibility: float = 1.0
-  categorical_visibility: float = 0.2
-  discrete_visibility: float = 1.0
-  negative_gravity: float = 0.02
-  firefly_pool_size_factor: float = 1.2
-  explore_rate: float = 1.0
-  max_perturbation: float = 0.5
+EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
+FireflyAlgorithmConfig = eagle_strategy_utils.FireflyAlgorithmConfig
 
 
 @attr.define
@@ -108,9 +92,10 @@ class _FireflyPool:
   """The class maintains the Firefly pool and relevent operations.
 
   Attributes:
-    _problem_statement: A description of the optimization problem.
-    _config: A firefly algorithm configuration hyperparameters.
-    _capacity: The maximum number of flies that the pool could store.
+    problem_statement: A description of the optimization problem.
+    config: A firefly algorithm configuration hyperparameters.
+    capacity: The maximum number of flies that the pool could store.
+    utils: Eagle Strategy utils class.
     _pool: A dictionary of Firefly objects organized by firefly id.
     _last_id: The last firefly id used to generate a suggestion. It's persistent
       across calls to ensure we don't use the same fly repeatedly.
@@ -119,13 +104,16 @@ class _FireflyPool:
     size: The current number of flies in the pool.
     capacity: The maximum number of flies that the pool could store.
   """
-  _problem_statement: vz.ProblemStatement = attr.field(
+  problem_statement: vz.ProblemStatement = attr.field(
       validator=attr.validators.instance_of(vz.ProblemStatement))
 
-  _config: FireflyAlgorithmConfig = attr.field(
+  config: FireflyAlgorithmConfig = attr.field(
       validator=attr.validators.instance_of(FireflyAlgorithmConfig))
 
-  _capacity: int = attr.field(validator=attr.validators.instance_of(int))
+  capacity: int = attr.field(validator=attr.validators.instance_of(int))
+
+  utils: EagleStrategyUtils = attr.field(
+      validator=attr.validators.instance_of(EagleStrategyUtils))
 
   _pool: Dict[int, _Firefly] = attr.field(
       init=False, default=attr.Factory(dict))
@@ -137,10 +125,6 @@ class _FireflyPool:
   @property
   def size(self) -> int:
     return len(self._pool)
-
-  @property
-  def capacity(self) -> int:
-    return self._capacity
 
   def remove_fly(self, fly: _Firefly):
     """Removes a fly from the pool."""
@@ -180,13 +164,14 @@ class _FireflyPool:
       current_fly_id += 1
 
     logging.info("Couldn't find another fly in the pool to move.")
+    # TODO: For optimization purpose, return the parameters instead.
     return copy.deepcopy(self._pool[self._last_id])
 
   def is_best_fly(self, fly: _Firefly) -> bool:
     """Checks if the 'fly' has the best final measurement in the pool."""
     for other_fly_id, other_fly in self._pool.items():
-      if other_fly_id != fly.id_ and utils.better_than(
-          self._problem_statement, other_fly.trial, fly.trial):
+      if other_fly_id != fly.id_ and self.utils.better_than(
+          other_fly.trial, fly.trial):
         return False
     return True
 
@@ -213,9 +198,8 @@ class _FireflyPool:
 
     min_dist, closest_parent = float('inf'), next(iter(self._pool.values()))
     for other_fly in self._pool.values():
-      curr_dist = utils.compute_cononical_distance(
-          other_fly.trial.parameters, trial.parameters,
-          self._problem_statement.search_space)
+      curr_dist = self.utils.compute_cononical_distance(
+          other_fly.trial.parameters, trial.parameters)
       if curr_dist < min_dist:
         min_dist = curr_dist
         closest_parent = other_fly
@@ -245,15 +229,16 @@ class _FireflyPool:
     parent_fly_id = trial.metadata.ns('eagle').get('parent_fly_id', cls=int)
     if parent_fly_id in self._pool:
       # Parent fly id already in pool. Update trial if there was improvement.
-      if utils.better_than(self._problem_statement, trial,
-                           self._pool[parent_fly_id].trial):
+      logging.info('Parent fly ID (%s) is already in the pool.', parent_fly_id)
+      if self.utils.better_than(trial, self._pool[parent_fly_id].trial):
         self._pool[parent_fly_id].trial = trial
     else:
       # Create a new Firefly in pool.
+      logging.info('Create a fly in pool. Parent fly ID: %s.', parent_fly_id)
       new_fly = _Firefly(
           id_=parent_fly_id,
           generation=1,
-          perturbation_factor=self._config.perturbation,
+          perturbation_factor=self.config.perturbation_factor,
           trial=trial)
       self._pool[parent_fly_id] = new_fly
 
@@ -295,9 +280,16 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
 
     self.problem = problem_statement
     self.config = config or FireflyAlgorithmConfig()
-    pool_capacity = utils.compute_pool_capacity(
-        self.n_parameters, self.config.firefly_pool_size_factor)
-    self._firefly_pool = _FireflyPool(self.problem, self.config, pool_capacity)
+    self.utils = EagleStrategyUtils(
+        search_space=problem_statement.search_space,
+        config=self.config,
+        metric_name=problem_statement.single_objective_metric_name,
+        goal=problem_statement.metric_information.item().goal)
+    self._firefly_pool = _FireflyPool(
+        problem_statement=self.problem,
+        config=self.config,
+        capacity=self.utils.compute_pool_capacity(),
+        utils=self.utils)
     # Jax key to generate samples from random distributions.
     if key is None:
       key = random.PRNGKey(int(time.time()))
@@ -306,13 +298,13 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
           'Setting the key to %s', str(key))
     self._key = key
 
-  @property
-  def n_parameters(self) -> int:
-    return len(self.problem.search_space.parameters)
-
-  @property
-  def search_space(self) -> vz.SearchSpace:
-    return self.problem.search_space
+    logging.info(
+        'Eagle Strategy designer initialized. Pool capacity: %s. '
+        'Eagle config:\n%s\nProblem statement:\n%s',
+        self.utils.compute_pool_capacity(),
+        json.dumps(attr.asdict(self.config), indent=2),
+        self.problem,
+    )
 
   def dump(self) -> vz.Metadata:
     """Dumps the current state of the algorithm run.
@@ -371,9 +363,9 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     suggested_trial = vz.TrialSuggestion()
     if self._firefly_pool.size < self._firefly_pool.capacity:
       # If the pool is underpopulated attempt to randomize a trial.
-      # TODO: Use random policy/designer to generate parameters.
+      # (b/243518714): Use random policy/designer to generate parameters.
       self._key, explore = random_sample.sample_bernoulli(
-          self._key, self.config.explore_rate)
+          self._key, self.config.explore_rate, True, False)
       if self._firefly_pool.size == 0 or explore:
         self._key, suggested_trial.parameters = random_sample.sample_input_parameters(
             self._key, self.problem.search_space)
@@ -381,6 +373,8 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
         # used during Update to match the trial to its parent fly in the pool.
         suggested_trial.metadata.ns('eagle')['parent_fly_id'] = str(
             self._firefly_pool.generate_new_fly_id())
+        logging.info('Suggested a random trial. %s',
+                     self.utils.display_trial(suggested_trial.to_trial(-1)))
         return suggested_trial
     # The pool is full. Use a copy of the next fly in line to be moved.
     moving_fly = self._firefly_pool.get_next_moving_fly_copy()
@@ -391,8 +385,11 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     self._mutate_fly(moving_fly)
     self._perturb_fly(moving_fly)
     suggested_trial.parameters = moving_fly.trial.parameters
-    # TODO: Add more detailed logging for debugging purposes.
-    suggested_trial.metadata.ns('eagle')['description'] = str(moving_fly_id)
+    # Add trial description for debugging purposes.
+    suggested_trial.metadata.ns(
+        'eagle')['description'] = self.utils.display_trial(moving_fly.trial)
+    logging.info('Suggested a trial from moving fly ID: %s. %s', moving_fly_id,
+                 self.utils.display_trial(suggested_trial.to_trial(-1)))
     return suggested_trial
 
   def _mutate_fly(self, moving_fly: _Firefly) -> None:
@@ -418,14 +415,11 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     # in random order every time. Creates a deep copy of the pool members.
     self._key, shuffled_flies = self._firefly_pool.get_shuffled_flies(self._key)
     for other_fly in shuffled_flies:
-      is_other_fly_better = utils.better_than(self.problem, other_fly.trial,
-                                              moving_fly.trial)
+      is_other_fly_better = self.utils.better_than(other_fly.trial,
+                                                   moving_fly.trial)
       # Compute the pull weights by parameter type of 'other_fly'. In the paper
       # this is called "attractivness" and is denoted by beta(r).
-      pull_weights = utils.compute_pull_weight_by_type(
-          self.config.gravity, self.config.negative_gravity,
-          self.config.visibility, self.config.categorical_visibility,
-          self.config.discrete_visibility, self.problem.search_space,
+      pull_weights = self.utils.compute_pull_weight_by_type(
           other_fly.trial.parameters, mutated_parameters, is_other_fly_better)
 
       for param_type, type_pull_weight in pull_weights.items():
@@ -443,7 +437,7 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
           explore_pull_rate = self.config.explore_rate * type_pull_weight
         # Update the parameters using 'other_fly' and 'explore_pull_rate'.
         self._key, mutated_parameters[
-            param_config.name] = utils.combine_two_parameters(
+            param_config.name] = self.utils.combine_two_parameters(
                 self._key, param_config, other_fly.trial.parameters,
                 mutated_parameters, explore_pull_rate)
 
@@ -459,40 +453,14 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     # Access the moving fly's trial parameters to be modified.
     suggested_parameters = moving_fly.trial.parameters
     # Generate array of parameter perturbations in [-1,1]^D.
-    perturbations = self._create_perturbations(moving_fly.perturbation_factor)
+    self._key, perturbations = self.utils.create_perturbations(
+        self._key, moving_fly.perturbation_factor)
     # Iterate over parameters and add perturbations.
     for i, param_config in enumerate(self.problem.search_space.parameters):
-      if param_config.type == vz.ParameterType.CATEGORICAL:
-        # For CATEGORICAL parameters, multiply the perturbation by the
-        # pre-configured factor. This perturbation is interpreted as a
-        # probability of replacing the value with a uniformly random category.
-        if utils.is_pure_categorical(self.problem.search_space):
-          perturbations[i] = self.config.pure_categorical_perturbation
-        else:
-          perturbations[i] *= self.config.categorical_perturbation_factor
-
-      if param_config.type == vz.ParameterType.DISCRETE:
-        # For DISCRETE parameters, multiply the perturbation by the
-        # pre-configured factor divided by the number of feasible points.
-        perturbations[i] *= self.config.discrete_perturbation_factor / (
-            param_config.num_feasible_values * self.config.perturbation)
-
       self._key, suggested_parameters[
-          param_config.name] = utils.perturb_parameter(
+          param_config.name] = self.utils.perturb_parameter(
               self._key, param_config,
               suggested_parameters[param_config.name].value, perturbations[i])
-
-  def _create_perturbations(self, perturbation_factor: float) -> List[float]:
-    """"Creates perturbations vector."""
-    # Sample vector from Laplace distribution.
-    self._key, subkey = random.split(self._key)
-    perturbations = [
-        float(x) for x in random.laplace(subkey, (self.n_parameters,))
-    ]
-    # Normalize pertubations and scale by `perturbation_factor`.
-    perturbation_direction = perturbations / np.max(np.abs(perturbations))
-    perturbations = perturbation_direction * perturbation_factor
-    return list(perturbations)
 
   def update(self, delta: vza.CompletedTrials) -> None:
     """Constructs the pool.
@@ -519,9 +487,12 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     if parent_fly is None:
       if trial.infeasible:
         # Ignore infeasible trials without parent fly.
-        logging.info('Got infeasible trial without a parent fly in the pool.')
+        logging.info('\nGot infeasible trial without a parent fly in the pool.')
       elif self._firefly_pool.size < self._firefly_pool.capacity:
         # Pool is below capacity. Create a new firefly or update existing one.
+        logging.info(
+            'Pool is below capacity (size=%s). Invoke create or update pool.',
+            self._firefly_pool.size)
         self._firefly_pool.create_or_update_fly(trial)
       else:
         # Pool is at capacity. Try to assign a parent to utilize the trial.
@@ -529,19 +500,22 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
 
     if parent_fly is None:
       # Parent fly wasn't established. No need to continue.
+      logging.info('Parent fly not established.')
       return
 
-    elif utils.better_than(self.problem, trial, parent_fly.trial):
+    elif self.utils.better_than(trial, parent_fly.trial):
       # If there's an improvement, we update the parent with the new trial.
-      logging.info('Good step.\nParent trial: %s\nChild trial: %s',
-                   str(parent_fly.trial), str(trial))
+      logging.info('\nGood step.\nParent trial: %s\nChild trial: %s',
+                   self.utils.display_trial(parent_fly.trial),
+                   self.utils.display_trial(trial))
       parent_fly.trial = trial
       parent_fly.generation += 1
     else:
       # If there's no improvement, we penalize the parent by decreasing its
       # exploration capability and potenitally remove it from the pool.
-      logging.info('Bad step.\nParent trial: %s\nChild trial: %s',
-                   str(parent_fly.trial), str(trial))
+      logging.info('\nBad step.\nParent trial: %s\nChild trial: %s',
+                   self.utils.display_trial(parent_fly.trial),
+                   self.utils.display_trial(trial))
       self._penalize_parent_fly(parent_fly, trial)
 
   def _assign_closest_parent(self, trial: vz.Trial) -> Optional[_Firefly]:
@@ -565,7 +539,7 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
       None or a fly from the pool that is closest to the trial.
     """
     closest_parent_fly = self._firefly_pool.find_closest_parent(trial)
-    if utils.better_than(self.problem, trial, closest_parent_fly.trial):
+    if self.utils.better_than(trial, closest_parent_fly.trial):
       # Only returns the closest fly if there's improvement. Otherwise, we don't
       # return it to not count it as a failure, as the closest parent is not
       # reponsible for it.
@@ -600,3 +574,4 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
         if not self._firefly_pool.is_best_fly(parent_fly):
           # Check that the fly is not the best one we have thus far.
           self._firefly_pool.remove_fly(parent_fly)
+          logging.info('\nRemoved fly ID: %s from pool.', parent_fly.id_)

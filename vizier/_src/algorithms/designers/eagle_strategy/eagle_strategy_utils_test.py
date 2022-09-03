@@ -1,20 +1,15 @@
 """Tests for Eagle Strategy utils."""
 
+import copy
 from typing import Optional
+
+from jax import numpy as jnp
 from jax import random
 from vizier import pyvizier as vz
-from vizier._src.algorithms.designers.eagle_strategy import utils
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 
 from absl.testing import absltest
 from absl.testing import parameterized
-
-
-def _get_parameter_config(search_space: vz.SearchSpace,
-                          param_name: str) -> Optional[vz.ParameterConfig]:
-  """Iterates over the search space parameters to find parameter by name."""
-  for param_config in search_space.parameters:
-    if param_config.name == param_name:
-      return param_config
 
 
 class UtilsTest(parameterized.TestCase):
@@ -22,14 +17,22 @@ class UtilsTest(parameterized.TestCase):
   def setUp(self):
     super(UtilsTest, self).setUp()
     self.key = random.PRNGKey(0)
-    self.search_space = vz.SearchSpace()
-    root = self.search_space.root
+    search_space = vz.SearchSpace()
+    root = search_space.root
     root.add_bool_param('b1')
     root.add_discrete_param('d1', [1.0, 2.0, 9.0, 10.0])
     root.add_float_param('f1', 0.0, 15.0, scale_type=vz.ScaleType.LINEAR)
     root.add_float_param('f2', 0.0, 10.0, scale_type=vz.ScaleType.LINEAR)
     root.add_int_param('i1', 0, 10, scale_type=vz.ScaleType.LINEAR)
     root.add_categorical_param('c1', ['a', 'b', 'c'])
+
+    self.search_space = search_space
+    # Create the main EagleStrategyUtils object to be tested
+    self.utils = eagle_strategy_utils.EagleStrategyUtils(
+        search_space=search_space,
+        config=eagle_strategy_utils.FireflyAlgorithmConfig(),
+        metric_name='obj',
+        goal=vz.ObjectiveMetricGoal.MINIMIZE)
 
     self.param_dict1 = vz.ParameterDict()
     self.param_dict1['f1'] = 5.0
@@ -47,27 +50,22 @@ class UtilsTest(parameterized.TestCase):
     self.param_dict2['i1'] = 1
     self.param_dict2['b1'] = 'True'
 
-    metric_information_max = vz.MetricInformation(
-        name='obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
-    metric_information_min = vz.MetricInformation(
-        name='obj', goal=vz.ObjectiveMetricGoal.MINIMIZE)
-
-    self.problem_max = vz.ProblemStatement(
-        search_space=self.search_space,
-        metric_information=[metric_information_max])
-    self.problem_min = vz.ProblemStatement(
-        search_space=self.search_space,
-        metric_information=[metric_information_min])
+  def _get_parameter_config(self,
+                            param_name: str) -> Optional[vz.ParameterConfig]:
+    """Iterates over the search space parameters to find parameter by name."""
+    for param_config in self.search_space.parameters:
+      if param_config.name == param_name:
+        return param_config
 
   def test_compute_cononical_distance(self):
-    dist = utils.compute_cononical_distance(self.param_dict1, self.param_dict2,
-                                            self.search_space)
+    dist = self.utils.compute_cononical_distance(self.param_dict1,
+                                                 self.param_dict2)
     self.assertIsInstance(dist, float)
     self.assertAlmostEqual(dist, 2.57)
 
   def test_compute_canonical_distance_squared_by_type(self):
-    dists = utils.compute_canonical_distance_squared_by_type(
-        self.param_dict1, self.param_dict2, self.search_space)
+    dists = self.utils.compute_canonical_distance_squared_by_type(
+        self.param_dict1, self.param_dict2)
     self.assertEqual(dists[vz.ParameterType.CATEGORICAL], 1.0 + 0.0)
     self.assertEqual(dists[vz.ParameterType.INTEGER], ((3 - 1) / 10)**2)
     self.assertEqual(dists[vz.ParameterType.DOUBLE],
@@ -81,12 +79,14 @@ class UtilsTest(parameterized.TestCase):
     trial2 = vz.Trial(parameters=self.param_dict2)
     trial2.complete(
         vz.Measurement(metrics={'obj': vz.Metric(value=1.5)}), inplace=True)
-    # Test for maximization problem
-    self.assertTrue(utils.better_than(self.problem_max, trial1, trial2))
-    self.assertFalse(utils.better_than(self.problem_max, trial2, trial1))
     # Test for minimization problem
-    self.assertFalse(utils.better_than(self.problem_min, trial1, trial2))
-    self.assertTrue(utils.better_than(self.problem_min, trial2, trial1))
+    self.assertFalse(self.utils.better_than(trial1, trial2))
+    self.assertTrue(self.utils.better_than(trial2, trial1))
+    # Test for maximization problem
+    utils_max = copy.deepcopy(self.utils)
+    utils_max.goal = vz.ObjectiveMetricGoal.MAXIMIZE
+    self.assertTrue(utils_max.better_than(trial1, trial2))
+    self.assertFalse(utils_max.better_than(trial2, trial1))
 
   def test_better_than_infeasible(self):
     trial1 = vz.Trial(parameters=self.param_dict1)
@@ -97,37 +97,43 @@ class UtilsTest(parameterized.TestCase):
     trial2.complete(
         vz.Measurement(metrics={'obj': vz.Metric(value=1.5)}), inplace=True)
 
-    self.assertFalse(utils.better_than(self.problem_max, trial1, trial2))
-    self.assertFalse(utils.better_than(self.problem_min, trial2, trial1))
+    self.assertFalse(self.utils.better_than(trial1, trial2))
+    self.assertFalse(self.utils.better_than(trial2, trial1))
 
   def test_is_pure_categorical(self):
+    # Validate the the current search space is not pure categorical
+    self.assertFalse(self.utils.is_pure_categorical())
+    # Create pure categorical search space and validate
     pure_categorical_space = vz.SearchSpace()
     pure_categorical_space.root.add_bool_param('b1')
     pure_categorical_space.root.add_bool_param('b2')
     pure_categorical_space.root.add_categorical_param('c1', ['a', 'b'])
     pure_categorical_space.root.add_categorical_param('c2', ['a', 'b'])
-    self.assertTrue(utils.is_pure_categorical(pure_categorical_space))
-    self.assertFalse(utils.is_pure_categorical(self.search_space))
+    utils_pure_categorical = copy.deepcopy(self.utils)
+    utils_pure_categorical.search_space = pure_categorical_space
+    self.assertTrue(utils_pure_categorical.is_pure_categorical())
 
   def test_combine_two_parameters_integer(self):
-    int_param_config = _get_parameter_config(self.search_space, 'i1')
-    _, new_value = utils.combine_two_parameters(self.key, int_param_config,
-                                                self.param_dict1,
-                                                self.param_dict2, 0.1)
+    int_param_config = self._get_parameter_config('i1')
+    _, new_value = self.utils.combine_two_parameters(self.key, int_param_config,
+                                                     self.param_dict1,
+                                                     self.param_dict2, 0.1)
     self.assertEqual(new_value, round(3 * 0.1 + 1 * 0.9))
 
   def test_combine_two_parameters_float(self):
-    float_param_config = _get_parameter_config(self.search_space, 'f1')
-    _, new_value = utils.combine_two_parameters(self.key, float_param_config,
-                                                self.param_dict1,
-                                                self.param_dict2, 0.1)
+    float_param_config = self._get_parameter_config('f1')
+    _, new_value = self.utils.combine_two_parameters(self.key,
+                                                     float_param_config,
+                                                     self.param_dict1,
+                                                     self.param_dict2, 0.1)
     self.assertEqual(new_value, 5.0 * 0.1 + 2.0 * 0.9)
 
   def test_combine_two_parameters_discrete(self):
-    float_param_config = _get_parameter_config(self.search_space, 'd1')
-    _, new_value = utils.combine_two_parameters(self.key, float_param_config,
-                                                self.param_dict1,
-                                                self.param_dict2, 0.1)
+    float_param_config = self._get_parameter_config('d1')
+    _, new_value = self.utils.combine_two_parameters(self.key,
+                                                     float_param_config,
+                                                     self.param_dict1,
+                                                     self.param_dict2, 0.1)
     self.assertEqual(new_value, 2.0)
 
   @parameterized.named_parameters(
@@ -137,19 +143,19 @@ class UtilsTest(parameterized.TestCase):
       dict(testcase_name='prob=-0.1', prob=-0.1, target='b'),
   )
   def test_combine_two_parameters_categorical1(self, prob, target):
-    categorical_param_config = _get_parameter_config(self.search_space, 'c1')
-    _, new_value = utils.combine_two_parameters(self.key,
-                                                categorical_param_config,
-                                                self.param_dict1,
-                                                self.param_dict2, prob)
+    categorical_param_config = self._get_parameter_config('c1')
+    _, new_value = self.utils.combine_two_parameters(self.key,
+                                                     categorical_param_config,
+                                                     self.param_dict1,
+                                                     self.param_dict2, prob)
     self.assertEqual(new_value, target)
 
   def test_combine_two_parameters_categorical2(self):
-    categorical_param_config = _get_parameter_config(self.search_space, 'c1')
-    _, new_value = utils.combine_two_parameters(self.key,
-                                                categorical_param_config,
-                                                self.param_dict1,
-                                                self.param_dict2, 0.5)
+    categorical_param_config = self._get_parameter_config('c1')
+    _, new_value = self.utils.combine_two_parameters(self.key,
+                                                     categorical_param_config,
+                                                     self.param_dict1,
+                                                     self.param_dict2, 0.5)
     self.assertIn(new_value, ['a', 'b'])
 
   @parameterized.named_parameters(
@@ -163,16 +169,18 @@ class UtilsTest(parameterized.TestCase):
   )
   def test_perturb_parameter_float(self, value, prob, target):
     decimal = vz.ParameterConfig.factory('f1', bounds=(0.0, 10.0))
-    _, new_value = utils.perturb_parameter(self.key, decimal, value, prob)
+    _, new_value = self.utils.perturb_parameter(self.key, decimal, value, prob)
     self.assertIsInstance(new_value, float)
     self.assertAlmostEqual(new_value, target)
 
   def test_perturb_parameter_categorical(self):
     categorical = vz.ParameterConfig.factory(
         'c1', feasible_values=['a', 'b', 'c'])
-    _, new_value1 = utils.perturb_parameter(self.key, categorical, 'b', 0.2)
+    _, new_value1 = self.utils.perturb_parameter(self.key, categorical, 'b',
+                                                 0.2)
     self.assertIn(new_value1, ['a', 'b', 'c'])
-    _, new_value2 = utils.perturb_parameter(self.key, categorical, 'b', 0.0)
+    _, new_value2 = self.utils.perturb_parameter(self.key, categorical, 'b',
+                                                 0.0)
     self.assertEqual(new_value2, 'b')
 
   @parameterized.named_parameters(
@@ -186,7 +194,7 @@ class UtilsTest(parameterized.TestCase):
   )
   def test_perturb_parameter_integer(self, value, prob, target):
     integer = vz.ParameterConfig.factory('i1', bounds=(0, 10))
-    _, new_value = utils.perturb_parameter(self.key, integer, value, prob)
+    _, new_value = self.utils.perturb_parameter(self.key, integer, value, prob)
     self.assertIsInstance(new_value, int)
     self.assertEqual(new_value, target)
 
@@ -201,9 +209,19 @@ class UtilsTest(parameterized.TestCase):
   def test_perturb_parameter_discrete(self, value, prob, target):
     discrete = vz.ParameterConfig.factory(
         'd1', feasible_values=[1.0, 2.0, 9.0, 10.0])
-    _, new_value = utils.perturb_parameter(self.key, discrete, value, prob)
+    _, new_value = self.utils.perturb_parameter(self.key, discrete, value, prob)
     self.assertIsInstance(new_value, float)
     self.assertEqual(new_value, target)
+
+  def test_create_perturbations(self):
+    key = random.PRNGKey(0)
+    key, perturbations = self.utils.create_perturbations(key, 0.0)
+    self.assertTrue(
+        jnp.allclose(
+            jnp.array(perturbations),
+            jnp.zeros(len(self.utils.search_space.parameters))))
+    key, perturbations = self.utils.create_perturbations(key, 0.5)
+    self.assertLen(perturbations, len(self.utils.search_space.parameters))
 
 
 if __name__ == '__main__':

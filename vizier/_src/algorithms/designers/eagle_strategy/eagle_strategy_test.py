@@ -1,13 +1,17 @@
 """Tests for eagle_strategy."""
 
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
 from jax import random
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 
 from absl.testing import absltest
 
 EagleStrategyDesiger = eagle_strategy.EagleStrategyDesiger
+EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
+FireflyAlgorithmConfig = eagle_strategy_utils.FireflyAlgorithmConfig
 PRNGKey = Any
 
 
@@ -50,7 +54,12 @@ def _create_dummy_empty_firefly_pool(
   """Create a dummy empty Firefly pool."""
   problem = _create_dummy_problem_statement()
   config = eagle_strategy.FireflyAlgorithmConfig()
-  return eagle_strategy._FireflyPool(problem, config, capacity)
+  utils = EagleStrategyUtils(
+      search_space=problem.search_space,
+      config=FireflyAlgorithmConfig(),
+      metric_name='obj',
+      goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+  return eagle_strategy._FireflyPool(problem, config, capacity, utils)
 
 
 def _create_dummy_populated_firefly_pool(
