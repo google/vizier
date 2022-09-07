@@ -147,28 +147,28 @@ class DataStore(abc.ABC):
   @abc.abstractmethod
   def list_suggestion_operations(
       self,
-      owner_name: str,
+      study_name: str,
       client_id: str,
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
     """Retrieve all suggestion op from client.
 
     Args:
-      owner_name: Associated owner for the suggest op.
+      study_name: Associated study for the suggest op.
       client_id: Associated client for the suggest op.
       filter_fn: Optional function to filter out the suggest ops.
 
     Raises:
-      NotFoundError: If owner or client is nonexistent.
+      NotFoundError: If study or client is nonexistent.
     """
 
   @abc.abstractmethod
-  def max_suggestion_operation_number(self, owner_name: str,
+  def max_suggestion_operation_number(self, study_name: str,
                                       client_id: str) -> int:
     """Maximal suggestion number for given client.
 
     Args:
-      owner_name: Name of associated owners.
+      study_name: Name of associated owners.
       client_id: ID of associated client.
 
     Returns:
@@ -237,6 +237,15 @@ class DataStore(abc.ABC):
     """
 
 
+@dataclasses.dataclass(frozen=True)
+class ClientNode:
+  """Only contains suggestion operations associated with this client."""
+  # Keys are `operation_id`.
+  suggestion_operations: Dict[str,
+                              operations_pb2.Operation] = dataclasses.field(
+                                  default_factory=dict)
+
+
 # Specific dataclasses used for NestedDictRAMDataStore.
 @dataclasses.dataclass(frozen=True)
 class StudyNode:
@@ -252,14 +261,9 @@ class StudyNode:
       str, vizier_oss_pb2.EarlyStoppingOperation] = dataclasses.field(
           default_factory=dict)
 
-
-@dataclasses.dataclass(frozen=True)
-class ClientNode:
-  """Only contains suggestion operations associated with this client."""
-  # Keys are `operation_id`.
-  suggestion_operations: Dict[str,
-                              operations_pb2.Operation] = dataclasses.field(
-                                  default_factory=dict)
+  # Key is `client_id`, which distinguishes clients, so you can have several
+  # clients interacting with the same Vizier server.
+  clients: Dict[str, ClientNode] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -267,9 +271,6 @@ class OwnerNode:
   """First level of the entire RAM Datastore."""
   # Key is a `study_id` that pick's out one of the owner's Studies.
   studies: Dict[str, StudyNode] = dataclasses.field(default_factory=dict)
-  # Key is `client_id`, which distinguishes clients, so you can have several
-  # clients interacting with the same Vizier server.
-  clients: Dict[str, ClientNode] = dataclasses.field(default_factory=dict)
 
 
 def merge_study_metadata(
@@ -440,11 +441,12 @@ class NestedDictRAMDataStore(DataStore):
   ) -> resources.SuggestionOperationResource:
     resource = resources.SuggestionOperationResource.from_name(operation.name)
     with self._lock:
-      if resource.client_id not in self._owners[resource.owner_id].clients:
-        self._owners[resource.owner_id].clients[
+      if resource.client_id not in self._owners[resource.owner_id].studies[
+          resource.study_id].clients:
+        self._owners[resource.owner_id].studies[resource.study_id].clients[
             resource.client_id] = ClientNode()
-      suggestion_operations = self._owners[resource.owner_id].clients[
-          resource.client_id].suggestion_operations
+      suggestion_operations = self._owners[resource.owner_id].studies[
+          resource.study_id].clients[resource.client_id].suggestion_operations
 
       if resource.operation_id in suggestion_operations:
         raise AlreadyExistsError('Operation already exists:',
@@ -458,8 +460,10 @@ class NestedDictRAMDataStore(DataStore):
     resource = resources.SuggestionOperationResource.from_name(operation_name)
     try:
       with self._lock:
-        return copy.deepcopy(self._owners[resource.owner_id].clients[
-            resource.client_id].suggestion_operations[resource.operation_id])
+        return copy.deepcopy(
+            self._owners[resource.owner_id].studies[resource.study_id].clients[
+                resource.client_id].suggestion_operations[
+                    resource.operation_id])
 
     except KeyError as err:
       raise NotFoundError('Could not find SuggestionOperation with name:',
@@ -471,7 +475,7 @@ class NestedDictRAMDataStore(DataStore):
     resource = resources.SuggestionOperationResource.from_name(operation.name)
     try:
       with self._lock:
-        self._owners[resource.owner_id].clients[
+        self._owners[resource.owner_id].studies[resource.study_id].clients[
             resource.client_id].suggestion_operations[
                 resource.operation_id] = copy.deepcopy(operation)
       return resource
@@ -481,36 +485,36 @@ class NestedDictRAMDataStore(DataStore):
 
   def list_suggestion_operations(
       self,
-      owner_name: str,
+      study_name: str,
       client_id: str,
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
-    resource = resources.OwnerResource.from_name(owner_name)
+    resource = resources.StudyResource.from_name(study_name)
     try:
       with self._lock:
         operations_list = copy.deepcopy(
-            list(self._owners[resource.owner_id].clients[client_id]
-                 .suggestion_operations.values()))
+            list(self._owners[resource.owner_id].studies[resource.study_id]
+                 .clients[client_id].suggestion_operations.values()))
     except KeyError as err:
-      raise NotFoundError('(owner_name, client_id) does not exist:',
-                          (owner_name, client_id)) from err
+      raise NotFoundError('(study_name, client_id) does not exist:',
+                          (study_name, client_id)) from err
 
     if filter_fn is not None:
       return copy.deepcopy([op for op in operations_list if filter_fn(op)])
     else:
       return copy.deepcopy(operations_list)
 
-  def max_suggestion_operation_number(self, owner_name: str,
+  def max_suggestion_operation_number(self, study_name: str,
                                       client_id: str) -> int:
-    resource = resources.OwnerResource.from_name(owner_name)
+    resource = resources.StudyResource.from_name(study_name)
     try:
       with self._lock:
-        ops = self._owners[
-            resource.owner_id].clients[client_id].suggestion_operations
+        ops = self._owners[resource.owner_id].studies[
+            resource.study_id].clients[client_id].suggestion_operations
         return len(ops)
     except KeyError as err:
-      raise NotFoundError('(owner_name, client_id) does not exist:',
-                          (owner_name, client_id)) from err
+      raise NotFoundError('(study_name, client_id) does not exist:',
+                          (study_name, client_id)) from err
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation

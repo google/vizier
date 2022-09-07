@@ -192,7 +192,7 @@ class VizierServerTest(parameterized.TestCase):
 
     # Check if operation was stored in database.
     get_operation_request = operations_pb2.GetOperationRequest(
-        name=resources.SuggestionOperationResource(self.owner_id,
+        name=resources.SuggestionOperationResource(self.owner_id, self.study_id,
                                                    self.client_id, 1).name)
     get_operation_output = self.vs.GetOperation(get_operation_request)
     self.assertEqual(operation, get_operation_output)
@@ -203,6 +203,19 @@ class VizierServerTest(parameterized.TestCase):
     self.assertLen(suggest_trials_response.trials, suggestion_count)
     for trial in suggest_trials_response.trials:
       self.assertLen(trial.parameters, 4)
+
+    # Make sure a different op is created on a different study, even with same
+    # client id.
+    another_study_id = self.study_id + 'another'
+    another_study = test_util.generate_study(
+        self.owner_id, another_study_id, study_spec=example_study_spec)
+    self.vs.datastore.create_study(another_study)
+    another_request = vizier_service_pb2.SuggestTrialsRequest(
+        parent=resources.StudyResource(self.owner_id, another_study_id).name,
+        suggestion_count=suggestion_count,
+        client_id=self.client_id)
+    another_operation = self.vs.SuggestTrials(another_request)
+    self.assertNotEqual(operation, another_operation)
 
   @parameterized.named_parameters(('IncludeFinalMeasurement', True),
                                   ('NoFinalMeasurement', False))

@@ -43,7 +43,7 @@ class UtilTest(parameterized.TestCase):
     self.assertEqual(early_stopping_op_resource.trial, trial_resource)
 
     suggestion_op_resource = resources.SuggestionOperationResource(
-        self.owner_id, self.client_id, self.operation_number)
+        self.owner_id, self.study_id, self.client_id, self.operation_number)
     same_suggestion_op_resource = resources.SuggestionOperationResource.from_name(
         suggestion_op_resource.name)
     self.assertEqual(same_suggestion_op_resource, same_suggestion_op_resource)
@@ -72,7 +72,7 @@ class UtilTest(parameterized.TestCase):
 
   def test_generate_suggestion_operations(self):
     basic_operations = test_util.generate_suggestion_operations(
-        range(4), self.owner_id, self.study_id)
+        range(4), self.owner_id, self.study_id, self.client_id)
     self.assertLen(basic_operations, 4)
 
 

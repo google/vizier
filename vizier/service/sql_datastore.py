@@ -49,6 +49,7 @@ class SQLDataStore(datastore.DataStore):
         self._root_metadata,
         sqla.Column('operation_name', sqla.String, primary_key=True),
         sqla.Column('owner_id', sqla.String),
+        sqla.Column('study_id', sqla.String),
         sqla.Column('client_id', sqla.String),
         sqla.Column('operation_number', sqla.INTEGER),
         sqla.Column('serialized_op', sqla.String),
@@ -260,6 +261,7 @@ class SQLDataStore(datastore.DataStore):
     query = self._suggestion_operations_table.insert().values(
         operation_name=operation.name,
         owner_id=resource.owner_id,
+        study_id=resource.study_id,
         client_id=resource.client_id,
         operation_number=resource.operation_number,
         serialized_op=operation.SerializeToString())
@@ -301,6 +303,7 @@ class SQLDataStore(datastore.DataStore):
         operation.name).values(
             operation_name=operation.name,
             owner_id=resource.owner_id,
+            study_id=resource.study_id,
             client_id=resource.client_id,
             operation_number=resource.operation_number,
             serialized_op=operation.SerializeToString())
@@ -315,14 +318,16 @@ class SQLDataStore(datastore.DataStore):
 
   def list_suggestion_operations(
       self,
-      owner_name: str,
+      study_name: str,
       client_id: str,
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
   ) -> List[operations_pb2.Operation]:
-    owner_resource = resources.OwnerResource.from_name(owner_name)
+    study_resource = resources.StudyResource.from_name(study_name)
     query = sqla.select([self._suggestion_operations_table])
     query = query.where(
-        self._suggestion_operations_table.c.owner_id == owner_resource.owner_id)
+        self._suggestion_operations_table.c.owner_id == study_resource.owner_id)
+    query = query.where(
+        self._suggestion_operations_table.c.study_id == study_resource.study_id)
     query = query.where(
         self._suggestion_operations_table.c.client_id == client_id)
 
@@ -330,8 +335,8 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Could not find (owner_name, client_id):',
-                                      (owner_name, client_id))
+        raise datastore.NotFoundError('Could not find (study_name, client_id):',
+                                      (study_resource.name, client_id))
       result = self._connection.execute(query)
 
     all_ops = [
@@ -347,28 +352,31 @@ class SQLDataStore(datastore.DataStore):
     else:
       return all_ops
 
-  def max_suggestion_operation_number(self, owner_name: str,
+  def max_suggestion_operation_number(self, study_name: str,
                                       client_id: str) -> int:
-    resource = resources.OwnerResource.from_name(owner_name)
+    resource = resources.StudyResource.from_name(study_name)
 
     exists_query = sqla.exists(
-        sqla.select([self._suggestion_operations_table
-                    ]).where(self._suggestion_operations_table.c.owner_id ==
-                             resource.owner_id).where(
-                                 self._suggestion_operations_table.c.client_id
-                                 == client_id)).select()
+        sqla.select([self._suggestion_operations_table]).where(
+            self._suggestion_operations_table.c.owner_id == resource.owner_id)
+        .where(self._suggestion_operations_table.c.study_id == resource.study_id
+              ).where(self._suggestion_operations_table.c.client_id ==
+                      client_id)).select()
     max_query = sqla.select([
         sqla.func.max(
             self._suggestion_operations_table.c.operation_number,
             type_=sqla.INT)
-    ]).where(self._suggestion_operations_table.c.owner_id == resource.owner_id
-            ).where(self._suggestion_operations_table.c.client_id == client_id)
+    ]).where(self._suggestion_operations_table.c.owner_id ==
+             resource.owner_id).where(
+                 self._suggestion_operations_table.c.study_id ==
+                 resource.study_id).where(
+                     self._suggestion_operations_table.c.client_id == client_id)
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Could not find (owner_name, client_id):',
-                                      (owner_name, client_id))
+        raise datastore.NotFoundError('Could not find (study_name, client_id):',
+                                      (study_name, client_id))
       return self._connection.execute(max_query).fetchone()[0]
 
   def create_early_stopping_operation(

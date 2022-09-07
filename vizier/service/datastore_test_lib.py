@@ -122,23 +122,28 @@ class DataStoreTestCase(parameterized.TestCase):
       with self.assertRaises(datastore.AlreadyExistsError):
         ds.create_suggestion_operation(operation)  # Already exists.
 
-    owner_name = resources.OwnerResource(study_resource.owner_id).name
-    self.assertLen(suggestion_ops,
-                   ds.max_suggestion_operation_number(owner_name, client_id))
+    self.assertLen(
+        suggestion_ops,
+        ds.max_suggestion_operation_number(study_resource.name, client_id))
 
     with self.assertRaises(datastore.NotFoundError):
       ds.max_suggestion_operation_number(
-          owner_name, client_id + 'does_not_exist')  # Client doesn't exist.
+          study_resource.name,
+          client_id + 'does_not_exist')  # Client doesn't exist.
 
-    list_of_operations = ds.list_suggestion_operations(owner_name, client_id)
+    list_of_operations = ds.list_suggestion_operations(study_resource.name,
+                                                       client_id)
     self.assertEqual(list_of_operations, suggestion_ops)
     with self.assertRaises(datastore.NotFoundError):
-      ds.list_suggestion_operations(owner_name, client_id +
+      ds.list_suggestion_operations(study_resource.name, client_id +
                                     'does_not_exist')  # Client doesn't exist.
 
     output_op = ds.get_suggestion_operation(
         resources.SuggestionOperationResource(
-            study_resource.owner_id, client_id, operation_number=1).name)
+            study_resource.owner_id,
+            study_resource.study_id,
+            client_id,
+            operation_number=1).name)
     self.assertEqual(output_op, suggestion_ops[0])
     self.assertIsNot(output_op, suggestion_ops[0])  # Check pass-by-value.
 
@@ -146,6 +151,7 @@ class DataStoreTestCase(parameterized.TestCase):
       ds.get_suggestion_operation(
           resources.SuggestionOperationResource(
               study_resource.owner_id,
+              study_resource.study_id,
               client_id + 'does_not_exist',  # Client doesn't exist.
               operation_number=1).name)
 
@@ -157,6 +163,7 @@ class DataStoreTestCase(parameterized.TestCase):
     wrong_output_op = copy.deepcopy(output_op)
     wrong_output_op.name = resources.SuggestionOperationResource(
         study_resource.owner_id,
+        study_resource.study_id,
         client_id + 'does_not_exist',  # Client doesn't exist.
         operation_number=1).name
     with self.assertRaises(datastore.NotFoundError):

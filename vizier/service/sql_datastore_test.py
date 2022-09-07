@@ -18,7 +18,7 @@ class SQLDataStoreTest(datastore_test_lib.DataStoreTestCase):
                                                     owner_id=self.owner_id,
                                                     study_id=self.study_id)
     self.example_suggestion_operations = test_util.generate_suggestion_operations(
-        [1, 2, 3, 4], self.owner_id, self.client_id)
+        [1, 2, 3, 4], self.owner_id, self.study_id, self.client_id)
     self.example_early_stopping_operations = test_util.generate_early_stopping_operations(
         [1, 2], self.owner_id, self.study_id)
 

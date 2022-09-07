@@ -157,8 +157,8 @@ class EarlyStoppingOperationResource:
 class SuggestionOperationResource:
   """Resource for Suggestion Operations."""
 
-  # TODO: study_id should be included here.
   owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
+  study_id: str = attr.ib(init=True, validator=_resource_component_validator)
   client_id: str = attr.ib(init=True, validator=_resource_component_validator)
   operation_number: int = attr.ib(
       init=True,
@@ -168,7 +168,7 @@ class SuggestionOperationResource:
 
   @property
   def operation_id(self) -> str:
-    return f'suggestion/{self.client_id}/{self.operation_number}'
+    return f'suggestion/{self.study_id}/{self.client_id}/{self.operation_number}'
 
   @property
   def name(self) -> str:
@@ -178,11 +178,12 @@ class SuggestionOperationResource:
   def from_name(cls, resource_name: str):
     """Creates SuggestionOperationResource from a name."""
     operation_match = re.match(
-        r'^owners\/(?P<owner_id>[^\/]+)/operations/suggestion/(?P<client_id>[^\/]+)/(?P<operation_number>[^\/]+)$',
+        r'^owners\/(?P<owner_id>[^\/]+)/operations/suggestion/(?P<study_id>[^\/]+)/(?P<client_id>[^\/]+)/(?P<operation_number>[^\/]+)$',
         resource_name)
     if operation_match:
       return SuggestionOperationResource(
-          operation_match.group('owner_id'), operation_match.group('client_id'),
+          operation_match.group('owner_id'), operation_match.group('study_id'),
+          operation_match.group('client_id'),
           int(operation_match.group('operation_number')))
     else:
       raise ValueError(f'Incorrect resource name sent: {resource_name}')

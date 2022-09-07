@@ -52,13 +52,15 @@ def generate_all_states_trials(start_trial_index: int,
 def generate_suggestion_operations(
     operation_numbers: Sequence[int],
     owner_id: str = 'my_username',
+    study_id: str = 'cifar10',
     client_id: str = 'client0',
     **operation_kwargs) -> List[operations_pb2.Operation]:
   """Generates arbitrary suggestion operations."""
   operations = []
   for operation_number in operation_numbers:
     operation = operations_pb2.Operation(
-        name=resources.SuggestionOperationResource(owner_id, client_id,
+        name=resources.SuggestionOperationResource(owner_id, study_id,
+                                                   client_id,
                                                    operation_number).name,
         **operation_kwargs)
     operations.append(operation)

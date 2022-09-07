@@ -235,7 +235,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     study_resource = resources.StudyResource.from_name(study_name)
     study_id = study_resource.study_id
     owner_id = study_resource.owner_id
-    owner_name = study_resource.owner_resource.name
 
     # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.
@@ -246,7 +245,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       active_op_filter_fn = lambda op: not op.done
       try:
         active_op_list = self.datastore.list_suggestion_operations(
-            owner_name, request.client_id, active_op_filter_fn)
+            study_name, request.client_id, active_op_filter_fn)
       except datastore.NotFoundError:
         active_op_list = []
       if active_op_list:
@@ -256,11 +255,11 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       # Create a new Op if there aren't any active (not done) ops.
       try:
         new_op_number = self.datastore.max_suggestion_operation_number(
-            owner_name, request.client_id) + 1
+            study_name, request.client_id) + 1
       except datastore.NotFoundError:
         new_op_number = 1
       new_op_name = resources.SuggestionOperationResource(
-          owner_id, request.client_id, new_op_number).name
+          owner_id, study_id, request.client_id, new_op_number).name
       output_op = operations_pb2.Operation(name=new_op_name, done=False)
       self.datastore.create_suggestion_operation(output_op)
 
