@@ -1,8 +1,7 @@
 """Base class for acquisition optimizers."""
 
 import abc
-import dataclasses
-from typing import Any, Callable, List, Optional, Sequence
+from typing import Any, Callable, Optional, Protocol, Sequence
 
 import attr
 from vizier import pyvizier as vz
@@ -14,6 +13,21 @@ def _is_positive(instance, attribute, value):
   del instance, attribute
   if value < 0:
     raise ValueError(f'value must be positive! given: {value}')
+
+
+class BatchTrialScoreFunction(Protocol):
+  """Protocol (https://peps.python.org/pep-0544/) for scoring trials."""
+
+  # TODO: Decide what to do with NaNs.
+  def __call__(self, trials: Sequence[vz.Trial]) -> dict[str, Array]:
+    """Evaluates the trials.
+
+    Args:
+      trials: A sequence of N trials
+
+    Returns:
+      A dict of shape (N, 1) arrays.
+    """
 
 
 @attr.s(frozen=False, init=True, slots=True)
@@ -43,55 +57,56 @@ class BranchSelection:
 class BranchSelector(abc.ABC):
 
   @abc.abstractmethod
-  def select_branches(self, num_suggestions: int) -> List[BranchSelection]:
+  def select_branches(self, num_suggestions: int) -> list[BranchSelection]:
     pass
 
 
-class GradientFreeMaximizer(abc.ABC):
+class GradientFreeOptimizer(abc.ABC):
   """Optimizes a function on Vizier search space.
 
   Typically used for optimizing acquisition functions.
   """
 
   @abc.abstractmethod
-  def maximize(self,
-               score_fn: Callable[[Sequence[vz.Trial]], Array],
-               search_space: vz.SearchSpace,
+  def optimize(self,
+               score_fn: BatchTrialScoreFunction,
+               problem: vz.ProblemStatement,
                *,
                count: int = 1,
                budget_factor: float = 1.0,
-               **kwargs) -> List[vz.Trial]:
-    """Maximize a function.
+               **kwargs) -> list[vz.Trial]:
+    """Optimizes a function.
 
     Args:
-      score_fn: A function that takes a sequence of N trials and returns a
-        numpy array of shape (N, 1).
-      search_space: Returned Trials must be contained in this search space.
+      score_fn: Should return a dict whose keys contain the metric names of
+        "problem.metric_information".
+      problem:
       count: Optimizer tries to return this many trials.
-      budget_factor: Every optimizer has a rough notion of "standard" budget.
-        Use this much fraction of the standard budget for the call.
+      budget_factor:  For optimizers with a notion of a budget, use this much
+        fraction of the standard budget for the call.
       **kwargs: For experimental keyword arguments.
 
     Returns:
       Trials, of length less than or equal to max_num_suggestions.
+      Trials are COMPLETED with score_fn results.
     """
     pass
 
 
-@dataclasses.dataclass(frozen=True)
-class BranchThenMaximizer(GradientFreeMaximizer):
-  """Maximizes a function by first choosing a branch and then apply maximizer.
+@attr.frozen
+class BranchThenOptimizer(GradientFreeOptimizer):
+  """Optimizes a function by first choosing a branch and then apply Optimizer.
 
   Attributes:
-    branch_selector: Selects all conditional parent values
-    maximizer_factory: Creates an optimizer in the flat (non-conditional) after
+    _branch_selector: Selects all conditional parent values
+    _optimizer_factory: Creates an optimizer in the flat (non-conditional) after
       branch selector fixing all conditional parent values.
     max_num_suggestions_per_branch: Limits the number of suggestions per branch.
       This is useful when acquisition function isn't well-suited for batch
       suggestions.
   """
-  branch_selector: BranchSelector
-  maximizer_factory: Callable[[], GradientFreeMaximizer]
+  _branch_selector: BranchSelector
+  _optimizer_factory: Callable[[], GradientFreeOptimizer]
   max_num_suggestions_per_branch: Optional[int] = None
 
   def _num_suggestions_for_branch(self, branch: BranchSelection) -> int:
@@ -100,23 +115,24 @@ class BranchThenMaximizer(GradientFreeMaximizer):
     else:
       return min(self.max_num_suggestions_per_branch, branch.num_suggestions)
 
-  def maximize(self,
-               score_fn: Callable[[Sequence[vz.Trial]], Array],
-               search_space: vz.SearchSpace,
+  def optimize(self,
+               score_fn: BatchTrialScoreFunction,
+               problem: vz.ProblemStatement,
                *,
                count: int = 1,
                budget_factor: float = 1.0,
-               **kwargs) -> List[vz.Trial]:
+               **kwargs) -> list[vz.Trial]:
     # If there are conditional branches, use Vizier's default branch
     # selection mechanism.
-    branches = self.branch_selector.select_branches(count)
+    branches = self._branch_selector.select_branches(count)
     suggestions = []
-    maximizer = self.maximizer_factory()
+    optimizer = self._optimizer_factory()
     for branch in branches:
+      subproblem = attr.evolve(problem, search_space=branch.search_space)
       suggestions.extend(
-          maximizer.maximize(
+          optimizer.optimize(
               score_fn,
-              branch.search_space,
+              subproblem,
               count=self._num_suggestions_for_branch(branch),
               budget_factor=budget_factor * (branch.num_suggestions / count)))
     return suggestions
