@@ -50,22 +50,28 @@ class _SuggestionAlgorithm(abc.ABC):
 class Designer(_SuggestionAlgorithm):
   """Suggestion algorithm for sequential usage.
 
-  `Designer` is the recommended interface for implementing commonly used
-  algorithms such as GP-UCB and evolutionary algorithms. A `Designer` can be
+  Designer is the recommended interface for implementing commonly used
+  algorithms such as GP-UCB and evolutionary algorithms. A Designer can be
   wrapped into a pythia `Policy` via `DesignerPolicy`. When run inside a service
-  binary, `Designer` instance is not guaranteed to persist during
-  the lifetime of a `Study`, and should be assumed to receive all trials from
-  the beginning of the study in `update()` calls.
+  binary, a Designer instance does not persist during the lifetime of a `Study`.
+  It receives all trials from the beginning of the study in `update()` calls.
+  This can be inefficient.
 
-  If your `Designer` can benefit from a persistent state, implement a
-  either `SerializableDesigner` or `PartiallySerializableDesigner`, and use
-  `SerializableDesignerPolicy` or `PartiallySerializableDesignerPolicy`,
-  respectively.
+  If your Designer can benefit from a persistent state, implement
+  `(Partially)SerializableDesigner` interface and use
+  `(Partially)SerializableDesignerPolicy` to wrap it.
+  Vizier service will serialize the Designer's state in DB, restore it for
+  the next usage, and update it with the newly completed trials since the last
+  suggestion.
+
+  > IMPORTANT: If your Designer changes its state inside `suggest()` (e.g. to
+  > incorporate its own suggestions before completion), then use
+  > (Partially)SerializableDesigner interface instead.
   """
 
   @abc.abstractmethod
   def update(self, delta: CompletedTrials) -> None:
-    """Reflect the delta in the designer's state."""
+    """Incorporates newly completed trials into the designer's state."""
     pass
 
 

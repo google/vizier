@@ -1,7 +1,7 @@
-"""Wraps Designer into Policy."""
+"""Wrappers for Designer into Policy."""
 import abc
 import json
-from typing import Callable, Generic, Sequence, Type, TypeVar
+from typing import Callable, Generic, Sequence, Type, TypeVar, Protocol
 
 from absl import logging
 from vizier import algorithms as vza
@@ -10,14 +10,36 @@ from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 
 _T = TypeVar('_T')
-Factory = Callable[[vz.ProblemStatement], _T]
+
+
+class DesignerFactory(Protocol[_T]):
+  """Protocol (PEP-544) for a designer factory."""
+
+  def __call__(self, problem: vz.ProblemStatement) -> _T:
+    pass
 
 
 class DesignerPolicy(pythia.Policy):
-  """Wraps a Designer into a Pythia Policy."""
+  """Wraps a Designer into a pythia Policy.
+
+  > IMPORTANT: If your Designer class is (partially) serializable, use
+  > (Partially)SerializableDesignerPolicy instead.
+
+  When a Designer cannot be (partially) serialized, we create a new Designer
+  instance at the start of each `suggest()` call. The most recently used
+  Designer instance can be saved in self._designer. However, it is for
+  interactive analysis/debugging purposes only and never used in
+  future `suggest()` calls.
+  """
 
   def __init__(self, supporter: pythia.PolicySupporter,
-               designer_factory: Factory[vza.Designer]):
+               designer_factory: DesignerFactory[vza.Designer]):
+    """Init.
+
+    Args:
+      supporter:
+      designer_factory:
+    """
     self._supporter = supporter
     self._designer_factory = designer_factory
 
@@ -39,7 +61,27 @@ class DesignerPolicy(pythia.Policy):
 class _SerializableDesignerPolicyBase(pythia.Policy,
                                       serializable.PartiallySerializable,
                                       Generic[_T], abc.ABC):
-  """Wraps a PartiallySerializable into pythia Policy."""
+  """Partially implemented class for wrapping a (Partially)SerializableDesigner.
+
+  Inherited by (Partially)SerializableDesignerPolicy which is fully implemented.
+
+  (Partially)SerializableDesignerPolicy maintains a synchronized state between
+  the set of trial ids that were passed to Designer via `update()` call, and
+  the Designer instance that was used for during last `suggest()` call.
+
+  The policy's `dump()` contains the trial ids passed to update() and the
+  result of `dump()` called on the wrapped Designer.
+
+  Unlike in the basic DesignerPolicy class, this class tries to minimize
+  the computation by following these steps in order:
+    * Re-use the saved Designer instance from the last `suggest()` call.
+    * `load()` the Designer state from the study-level metadata.
+    * If either of the first two steps succeedes, then we update the Designer
+    with newly completed trials only.
+    * Otherwise, we update the Designer with all trials.
+
+  > NOTE: This Policy itself is PartiallySerializable.
+  """
 
   _ns_designer = 'designer'
 
@@ -63,20 +105,41 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._incorporated_trial_ids = set()
     self._reference_study_config = supporter.GetStudyConfig()
     self._verbose = verbose
-    # SerializableDesignerPolicy keeps a designer in RAM, for the duration of
-    # time it's alive. So if you keep the policy in RAM, it will actually be
-    # faster to suggest the second time around.
     self._designer = None
+
+  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
+    # Note that we can avoid O(Num trials) dependency in the standard scenario,
+    # by storing only the last element in a consecutive sequence, e.g.,
+    # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
+    # we keep things simple in this pseudocode.
+    self._initialize_designer(request.study_config)
+    new_trials = self._get_new_trials(request.max_trial_id)
+    self.designer.update(vza.CompletedTrials(new_trials))
+    self._incorporated_trial_ids |= set(t.id for t in new_trials)
+
+    logging.info(
+        'Updated with %s trials. Designer has seen a total of %s trials.',
+        len(new_trials), len(self._incorporated_trial_ids))
+    metadata_delta = vz.MetadataDelta()
+    metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
+
+    return pythia.SuggestDecision(
+        self.designer.suggest(request.count), metadata=metadata_delta)
+
+  def early_stop(self,
+                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
+    raise NotImplementedError('PartiallySerializableDesignerPolicy does not '
+                              'implement early_stop().')
 
   @property
   def designer(self) -> _T:
     if self._designer is None:
       raise ValueError('`self._designer` has not been initialized!'
-                       'Use self._create_designer(..) to initialize it.')
+                       'Use self._restore_designer(..) to initialize it.')
     return self._designer
 
   @abc.abstractmethod
-  def _create_designer(self, designer_metadata: vz.Metadata) -> _T:
+  def _restore_designer(self, designer_metadata: vz.Metadata) -> _T:
     """Creates a new Designer by restoring the state from `designer_metadata`.
 
     Args:
@@ -89,7 +152,6 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       DecodeError: `designer_metadata` does not contain valid information
         to restore a Designer state.
     """
-    pass
 
   # TODO: Use timestamps to avoid metadata blowup.
   def load(self, md: vz.Metadata) -> None:
@@ -101,21 +163,17 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         raise serializable.HarmlessDecodeError from e
     else:
       raise serializable.HarmlessDecodeError()
-    self._log(
-        self._verbose,
+    logging.info(
         'Successfully recovered the policy state, which incorporated %s trials',
         len(self._incorporated_trial_ids))
-    self._designer = self._create_designer(md.ns(self._ns_designer))
-
-  def _log(self, level, *args):
-    if level <= self._verbose:
-      logging.info(*args)
+    self._designer = self._restore_designer(md.ns(self._ns_designer))
 
   def _initialize_designer(self, study_config: vz.ProblemStatement) -> None:
-    """Populates `self._designer` with a new designer.
+    """Guarantees that `self._designer` is populated.
 
-    This method catches all DecodeErrors and guarantees that `self.designer`
-    does not raise an Exception.
+    This method guarantees that after a successful call, `self.designer` does
+    not raise an Exception.
+    This method catches all DecodeErrors.
 
     Args:
       study_config:
@@ -128,10 +186,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       # When the same policy object is maintained in RAM, prefer keeping
       # the designer object over restoring the state from metadata.
       # TOCONSIDER: Adding a boolean knob to turn off this behavior.
-      self._log(
-          2,
-          "Policy already has a designer, and won't attempt to load from metadata"
-      )
+      logging.log_if(
+          logging.INFO, 'Policy already has a designer. '
+          'It will not attempt to load from metadata.', self._verbose >= 2)
       return
     elif self._reference_study_config != study_config:
       raise ValueError(
@@ -142,10 +199,11 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     metadata = study_config.metadata.ns(self._ns_root)
     try:
       self.load(metadata)
-      self._log(1, 'Succesfully decoded all states!',
-                len(self._incorporated_trial_ids))
+      logging.log_if(logging.INFO, 'Succesfully decoded all states!',
+                     self._verbose >= 1)
     except serializable.DecodeError as e:
-      self._log(1, 'Failed to decode state. %s', e)
+      logging.log_if(logging.INFO, 'Failed to decode state. %s',
+                     self._verbose >= 1, e)
       self._designer = self._designer_factory(study_config)
       self._incorporated_trial_ids = set()
 
@@ -158,7 +216,6 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         Namespace([self._ns_root, self._ns_designer]: contains the designer's
           state.
     """
-
     md = vz.Metadata()
     md.ns(self._ns_designer).attach(self.designer.dump())
     # TODO: Storing every id is inefficient. Optimize this.
@@ -176,43 +233,18 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
     trials = self._supporter.GetTrials(
         trial_ids=trial_ids_to_load, status_matches=vz.TrialStatus.COMPLETED)
-    self._log(
-        1, 'Loaded %s completed trials out of %s total unseen trials. '
+    logging.info(
+        'Loaded %s completed trials out of %s total unseen trials. '
         'Max trial id is %s.', len(trials), len(trial_ids_to_load),
         max_trial_id)
     return trials
-
-  def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
-    # Note that we can avoid O(Num trials) dependency in the standard scenario,
-    # by storing only the last element in a consecutive sequence, e.g.,
-    # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
-    # we keep things simple in this pseudocode.
-    self._initialize_designer(request.study_config)
-    new_trials = self._get_new_trials(request.max_trial_id)
-    self.designer.update(vza.CompletedTrials(new_trials))
-    self._incorporated_trial_ids |= set(t.id for t in new_trials)
-
-    self._log(
-        1, 'Updated with %s trials. Designer has seen a total of %s trials.',
-        len(new_trials), len(self._incorporated_trial_ids))
-
-    metadata_delta = vz.MetadataDelta()
-    metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
-
-    return pythia.SuggestDecision(
-        self.designer.suggest(request.count), metadata=metadata_delta)
-
-  def early_stop(self,
-                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
-    raise NotImplementedError('PartiallySerializableDesignerPolicy does not '
-                              'implement early_stop().')
 
 
 class PartiallySerializableDesignerPolicy(
     _SerializableDesignerPolicyBase[vza.PartiallySerializableDesigner]):
   """Wraps a PartiallySerializableDesigner."""
 
-  def _create_designer(
+  def _restore_designer(
       self,
       designer_metadata: vz.Metadata) -> vza.PartiallySerializableDesigner:
     designer = self._designer_factory(self._reference_study_config)
@@ -226,7 +258,7 @@ class SerializableDesignerPolicy(
 
   def __init__(self,
                supporter: pythia.PolicySupporter,
-               designer_factory: Factory[vza.SerializableDesigner],
+               designer_factory: DesignerFactory[vza.SerializableDesigner],
                designer_cls: Type[vza.SerializableDesigner],
                *,
                ns_root: str = 'designer_policy_v0',
@@ -245,6 +277,6 @@ class SerializableDesignerPolicy(
         supporter, designer_factory, ns_root=ns_root, verbose=verbose)
     self._designer_cls = designer_cls
 
-  def _create_designer(
+  def _restore_designer(
       self, designer_metadata: vz.Metadata) -> vza.SerializableDesigner:
     return self._designer_cls.recover(designer_metadata)
