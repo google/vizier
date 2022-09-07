@@ -14,7 +14,7 @@ from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 from absl.testing import parameterized
 
-UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
+UnitMetadataUpdate = vizier_service_pb2.UnitMetadataUpdate
 
 
 def make_random_string() -> str:

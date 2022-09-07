@@ -11,20 +11,13 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as base_pyvizier
-from vizier._src.algorithms.designers import bocs
-from vizier._src.algorithms.designers import emukit
-from vizier._src.algorithms.designers import grid
-from vizier._src.algorithms.designers import harmonica
-from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.evolution import nsga2
-from vizier._src.algorithms.policies import designer_policy as dp
-from vizier._src.algorithms.policies import random_policy
 from vizier._src.pyvizier.oss import metadata_util
 from vizier.service import datastore
+from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier
 from vizier.service import resources
-from vizier.service import service_policy_supporter
 from vizier.service import sql_datastore
+from vizier.service import stubs_util
 from vizier.service import study_pb2
 from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
@@ -35,35 +28,6 @@ from google.protobuf import empty_pb2
 from google.protobuf import timestamp_pb2
 from google.rpc import code_pb2
 from google.rpc import status_pb2
-
-
-def policy_creator(
-    algorithm: study_pb2.StudySpec.Algorithm,
-    policy_supporter: service_policy_supporter.ServicePolicySupporter
-) -> pythia.Policy:
-  """Creates a policy."""
-  if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
-                   study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
-    return random_policy.RandomPolicy(policy_supporter)
-  elif algorithm == study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH:
-    return dp.PartiallySerializableDesignerPolicy(
-        policy_supporter, quasi_random.QuasiRandomDesigner.from_problem)
-  elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
-    return dp.PartiallySerializableDesignerPolicy(
-        policy_supporter, grid.GridSearchDesigner.from_problem)
-  elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
-    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
-                                                  nsga2.create_nsga2)
-  elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
-    return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
-  elif algorithm == study_pb2.StudySpec.Algorithm.BOCS:
-    return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
-  elif algorithm == study_pb2.StudySpec.Algorithm.HARMONICA:
-    return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
-  else:
-    raise ValueError(
-        f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '
-        'is not registered.')
 
 
 def _get_current_time() -> timestamp_pb2.Timestamp:
@@ -98,6 +62,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
     """
+    self._pythia_service_stub: Optional[
+        pythia_service_pb2_grpc.PythiaServiceStub] = None
+
     if database_url is None:
       self.datastore = datastore.NestedDictRAMDataStore()
     else:
@@ -116,6 +83,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self._operation_lock = collections.defaultdict(threading.Lock)
 
     self._early_stop_recycle_period = early_stop_recycle_period
+
+  def connect_to_pythia(self, pythia_endpoint: str) -> None:
+    self._pythia_service_stub = stubs_util.create_pythia_server_stub(
+        pythia_endpoint)
 
   def CreateStudy(
       self,
@@ -276,108 +247,115 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
-      else:
-        output_trials = active_trials
 
-        # Get suggestions from the pool of requested trials.
-        requested_trials = [
-            t for t in all_trials if t.state == study_pb2.Trial.State.REQUESTED
-        ]
-        while request.suggestion_count - len(
-            output_trials) > 0 and requested_trials:
-          assigned_trial = requested_trials.pop()
-          assigned_trial.state = study_pb2.Trial.State.ACTIVE
-          assigned_trial.client_id = request.client_id
-          assigned_trial.start_time.CopyFrom(start_time)
-          self.datastore.update_trial(assigned_trial)
-          output_trials.append(assigned_trial)
+      # Get suggestions from the pool of requested trials.
+      output_trials = active_trials
+      requested_trials = [
+          t for t in all_trials if t.state == study_pb2.Trial.State.REQUESTED
+      ]
+      while requested_trials and request.suggestion_count > len(output_trials):
+        assigned_trial = requested_trials.pop()
+        assigned_trial.state = study_pb2.Trial.State.ACTIVE
+        assigned_trial.client_id = request.client_id
+        assigned_trial.start_time.CopyFrom(start_time)
+        self.datastore.update_trial(assigned_trial)
+        output_trials.append(assigned_trial)
 
-        if len(output_trials) == request.suggestion_count:
-          # We've finished collecting enough trials from the REQUESTED pool.
-          output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-              trials=output_trials, start_time=start_time).SerializeToString()
-          output_op.done = True
-          self.datastore.update_suggestion_operation(output_op)
-          return output_op
-
-        # Still need more suggestions. Pythia begins computing missing amount.
-        policy_supporter = service_policy_supporter.ServicePolicySupporter(
-            study_name, self)
-        pythia_policy = policy_creator(study.study_spec.algorithm,
-                                       policy_supporter)
-
-        pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
-        study_descriptor = base_pyvizier.StudyDescriptor(
-            config=pythia_sc,
-            guid=study_name,
-            max_trial_id=self.datastore.max_trial_id(study_name))
-        suggest_request = pythia.SuggestRequest(
-            study_descriptor=study_descriptor,
-            count=request.suggestion_count - len(output_trials))
-        try:
-          suggest_decisions = pythia_policy.suggest(suggest_request)
-          assert len(suggest_decisions.suggestions
-                    ) >= request.suggestion_count - len(output_trials)
-        # Leaving a broad catch for now since Pythia can raise any exception.
-        except Exception as e:  # pylint: disable=broad-except
-          output_op.error.CopyFrom(
-              status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
-          logging.exception(
-              'Failed to request trials from Pythia for request: %s', request)
-          output_op.done = True
-          self.datastore.update_suggestion_operation(output_op)
-          return output_op
-
-        # Write the metadata update to the datastore.
-        try:
-          self.datastore.update_metadata(
-              study_name,
-              metadata_util.make_key_value_list(
-                  suggest_decisions.metadata.on_study),
-              metadata_util.make_unit_metadata_update_list(
-                  suggest_decisions.metadata.on_trials))
-        except KeyError as e:
-          output_op.error.CopyFrom(
-              status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
-          logging.exception('Failed to write metadata update to datastore: %s',
-                            suggest_decisions.metadata)
-          output_op.done = True
-          self.datastore.update_suggestion_operation(output_op)
-          return output_op
-
-        new_py_trials = [
-            pyvizier.Trial(parameters=decision.parameters)
-            for decision in suggest_decisions.suggestions
-        ]
-        new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
-
-        while request.suggestion_count - len(output_trials) > 0:
-          new_trial = new_trials.pop()
-          trial_id = self.datastore.max_trial_id(request.parent) + 1
-          new_trial.id = str(trial_id)
-          new_trial.name = resources.TrialResource(owner_id, study_id,
-                                                   trial_id).name
-          new_trial.state = study_pb2.Trial.State.ACTIVE
-          new_trial.start_time.CopyFrom(start_time)
-          new_trial.client_id = request.client_id
-          self.datastore.create_trial(new_trial)
-          output_trials.append(new_trial)
-
+      if len(output_trials) == request.suggestion_count:
+        # We've finished collecting enough trials from the REQUESTED pool.
         output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
             trials=output_trials, start_time=start_time).SerializeToString()
-
-        # Store remaining trials as REQUESTED if Pythia over-delivered.
-        for remaining_trial in new_trials:
-          trial_id = self.datastore.max_trial_id(request.parent) + 1
-          remaining_trial.id = str(trial_id)
-          remaining_trial.name = resources.TrialResource(
-              owner_id, study_id, trial_id).name
-          remaining_trial.state = study_pb2.Trial.State.REQUESTED
-          self.datastore.create_trial(new_trial)
-
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
+
+      # Still need more suggestions. Pythia begins computing missing amount.
+      study_descriptor = base_pyvizier.StudyDescriptor(
+          config=pyvizier.StudyConfig.from_proto(study.study_spec),
+          guid=study_name,
+          max_trial_id=self.datastore.max_trial_id(study_name))
+      suggest_request = pythia.SuggestRequest(
+          study_descriptor=study_descriptor,
+          count=request.suggestion_count - len(output_trials))
+
+      # Convert request, send to Pythia, and obtain suggestions.
+      try:
+        suggest_request_proto = pyvizier.SuggestConverter.to_request_proto(
+            suggest_request)
+        suggest_request_proto.algorithm = study.study_spec.algorithm
+        suggest_decision_proto = self._pythia_service_stub.Suggest.future(
+            suggest_request_proto).result()
+        # Check if we received enough suggestions.
+        if len(suggest_decision_proto.suggestions
+              ) < request.suggestion_count - len(output_trials):
+          logging.warning(
+              'Requested at least %d suggestions but Pythia only produced %d.',
+              request.suggestion_count - len(output_trials),
+              len(suggest_decision_proto.suggestions))
+
+      # Pythia can raise any exception, captured inside grpc.RpcError.
+      except grpc.RpcError as e:
+        output_op.error.CopyFrom(
+            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
+        logging.exception(
+            'Failed to request trials from Pythia for request: %s', request)
+        output_op.done = True
+        self.datastore.update_suggestion_operation(output_op)
+        return output_op
+
+      suggest_decision = pyvizier.SuggestConverter.from_decision_proto(
+          suggest_decision_proto)
+
+      # Write the metadata update to the datastore.
+      try:
+        self.datastore.update_metadata(
+            study_name,
+            metadata_util.make_key_value_list(
+                suggest_decision.metadata.on_study),
+            metadata_util.trial_metadata_to_update_list(
+                suggest_decision.metadata.on_trials))
+      except KeyError as e:
+        output_op.error.CopyFrom(
+            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
+        logging.exception('Failed to write metadata update to datastore: %s',
+                          suggest_decision.metadata)
+        output_op.done = True
+        self.datastore.update_suggestion_operation(output_op)
+        return output_op
+
+      new_py_trials = [
+          pyvizier.Trial(parameters=decision.parameters)
+          for decision in suggest_decision.suggestions
+      ]
+      new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
+
+      while request.suggestion_count > len(output_trials):
+        new_trial = new_trials.pop()
+        trial_id = self.datastore.max_trial_id(request.parent) + 1
+        new_trial.id = str(trial_id)
+        new_trial.name = resources.TrialResource(owner_id, study_id,
+                                                 trial_id).name
+        new_trial.state = study_pb2.Trial.State.ACTIVE
+        new_trial.start_time.CopyFrom(start_time)
+        new_trial.client_id = request.client_id
+        self.datastore.create_trial(new_trial)
+        output_trials.append(new_trial)
+
+      output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
+          trials=output_trials, start_time=start_time).SerializeToString()
+
+      # Store remaining trials as REQUESTED if Pythia over-delivered.
+      for remaining_trial in new_trials:
+        trial_id = self.datastore.max_trial_id(request.parent) + 1
+        remaining_trial.id = str(trial_id)
+        remaining_trial.name = resources.TrialResource(owner_id, study_id,
+                                                       trial_id).name
+        remaining_trial.state = study_pb2.Trial.State.REQUESTED
+        self.datastore.create_trial(new_trial)
+
+      output_op.done = True
+      self.datastore.update_suggestion_operation(output_op)
+      return output_op
 
   def GetOperation(
       self,
@@ -554,30 +532,21 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
             should_stop=False)
         output_operation.creation_time.CopyFrom(_get_current_time())
         self.datastore.create_early_stopping_operation(output_operation)
-
       else:
-        if output_operation.status == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE:
-          # Operation is already active. Just return it.
-          return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
-              should_stop=output_operation.should_stop)
-        elif datetime.datetime.utcnow(
+        if output_operation.status == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE or datetime.datetime.utcnow(
         ) - output_operation.completion_time.ToDatetime(
         ) < self._early_stop_recycle_period:
-          # Operation is very recent. Just return it.
+          # Operation is already active or very recent. Just return it.
           return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
               should_stop=output_operation.should_stop)
-        else:
-          # Recycle the operation to ACTIVE again and start Pythia for
-          # recomputation.
-          output_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
-          output_operation.should_stop = False  # Defaulted back to False.
-          self.datastore.update_early_stopping_operation(output_operation)
+
+        # Recycle the operation to ACTIVE again and start Pythia for
+        # recomputation.
+        output_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
+        output_operation.should_stop = False  # Defaulted back to False.
+        self.datastore.update_early_stopping_operation(output_operation)
 
       study = self.datastore.load_study(study_name)
-      policy_supporter = service_policy_supporter.ServicePolicySupporter(
-          study_name, self)
-      pythia_policy = policy_creator(study.study_spec.algorithm,
-                                     policy_supporter)
       pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
       study_descriptor = base_pyvizier.StudyDescriptor(
           config=pythia_sc,
@@ -586,11 +555,24 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_request = pythia.EarlyStopRequest(
           study_descriptor=study_descriptor,
           trial_ids=[trial_resource.trial_id])
-      early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
-      # TODO: SendMetadata() probably should be merged with
-      #   the datastore operations that update the Operation and store
-      #   decisions.
-      policy_supporter.SendMetadata(early_stopping_decisions.metadata)
+      early_stop_request_proto = pyvizier.EarlyStopConverter.to_request_proto(
+          early_stop_request)
+      early_stop_request_proto.algorithm = study.study_spec.algorithm
+
+      # Send request to Pythia.
+      early_stopping_decisions_proto = self._pythia_service_stub.EarlyStop.future(
+          early_stop_request_proto).result()
+
+      early_stopping_decisions = pyvizier.EarlyStopConverter.from_decisions_proto(
+          early_stopping_decisions_proto)
+      # Update metadata from result.
+      self.datastore.update_metadata(
+          study_name,
+          metadata_util.make_key_value_list(
+              early_stopping_decisions.metadata.on_study),
+          metadata_util.trial_metadata_to_update_list(
+              early_stopping_decisions.metadata.on_trials))
+
       # Pythia does not guarantee that the output_operation's id
       # will be in the decisions.
       for early_stopping_decision in early_stopping_decisions.decisions:
@@ -654,7 +636,6 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       return vizier_service_pb2.ListOptimalTrialsResponse(optimal_trials=[])
 
     study_spec = self.datastore.load_study(request.parent).study_spec
-
     metric_id_to_goal = {m.metric_id: m.goal for m in study_spec.metrics}
     required_metric_ids = set(metric_id_to_goal.keys())
 

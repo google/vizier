@@ -403,21 +403,22 @@ message ListOptimalTrialsResponse {
   string next_page_token = 2;
 }
 
+// Equivalent to Pythia's MetadataDelta.
+message UnitMetadataUpdate {
+  // Which Trial should this metadata be attached to?
+  // Note that this should not be an arbitrary string; it should be derived
+  // from the TrialResource class.
+  // When $trial_id is unset, UnitMetadataUpdate carries StudyConfig.metadata.
+  optional string trial_id = 3;
+  // The metadata itself.
+  KeyValue metadatum = 2;
+}
+
 // This is bulk transport of metadata from Pythia to Vizier.
 message UpdateMetadataRequest {
   // The resource name of the Study to send the metadata to.
   // Format: `owners/{owner_id}/studies/{study_id}`
   string name = 4 [(google.api.field_behavior) = REQUIRED];
-
-  message UnitMetadataUpdate {
-    // Which Trial should this metadata be attached to?
-    // Note that this should not be an arbitrary string; it should be derived
-    // from the TrialResource class.
-    // When $trial_id is unset, UnitMetadataUpdate carries StudyConfig.metadata.
-    optional string trial_id = 3;
-    // The metadata itself.
-    KeyValue metadatum = 2;
-  }
 
   // A list of metadata items. Each item in this field becomes an "insert or
   // update" operation in the metadata table.

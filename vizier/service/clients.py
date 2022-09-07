@@ -7,6 +7,7 @@ from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optio
 import attr
 from vizier._src.pyvizier.client import client_abc
 from vizier.service import pyvizier as vz
+from vizier.service import stubs_util
 from vizier.service import vizier_client
 from vizier.service import vizier_service_pb2_grpc
 
@@ -23,7 +24,7 @@ _UNUSED_CLIENT_ID = 'Unused client id.'
 
 
 def _get_stub() -> vizier_service_pb2_grpc.VizierServiceStub:
-  return vizier_client.create_server_stub(
+  return stubs_util.create_vizier_server_stub(
       environment_variables.service_endpoint)
 
 

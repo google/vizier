@@ -1,12 +1,17 @@
 """Tests for vizier.service.service_policy_supporter."""
 
+from concurrent import futures
 import logging
+import grpc
+import portpicker
+
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2
 from vizier.service import test_util
 from vizier.service import vizier_server
+from vizier.service import vizier_service_pb2_grpc
 
 from absl.testing import absltest
 
@@ -34,8 +39,20 @@ class PythiaSupporterTest(absltest.TestCase):
     for trial in self.active_trials + [self.succeeded_trial]:
       self.vs.datastore.create_trial(trial)
 
+    # Setup local networking.
+    self.port = portpicker.pick_unused_port()
+    self.address = f'localhost:{self.port}'
+
+    # Setup server.
+    self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
+    vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
+        self.vs, self.server)
+    self.server.add_secure_port(self.address, grpc.local_server_credentials())
+    self.server.start()
+
     self.policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        self.study_name, self.vs)
+        self.study_name)
+    self.policy_supporter.connect_to_vizier(self.address)
 
     super().setUp()
 
@@ -77,10 +94,10 @@ class PythiaSupporterTest(absltest.TestCase):
         should_raise_value_error_fn()
 
   def test_get_study_config(self):
-    pythia_sc = self.policy_supporter.GetStudyConfig(self.study_name)
-    correct_pythia_sc = pyvizier.StudyConfig.from_proto(
-        self.example_study.study_spec)
-    self.assertEqual(pythia_sc, correct_pythia_sc)
+    pythia_problem = self.policy_supporter.GetStudyConfig(self.study_name)
+    correct_pythia_problem = pyvizier.StudyConfig.from_proto(
+        self.example_study.study_spec).to_problem()
+    self.assertEqual(pythia_problem, correct_pythia_problem)
 
   def test_update_metadata(self):
     on_study_metadata = pyvizier.Metadata()

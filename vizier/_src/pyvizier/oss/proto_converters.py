@@ -4,12 +4,16 @@ import logging
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
 from absl import logging
 
+from vizier._src.pythia import policy
 from vizier._src.pyvizier.oss import metadata_util
+from vizier._src.pyvizier.pythia import study
 from vizier._src.pyvizier.shared import base_study_config
 from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import parameter_config
 from vizier._src.pyvizier.shared import trial
+from vizier.service import pythia_service_pb2
 from vizier.service import study_pb2
+from vizier.service import vizier_service_pb2
 
 ScaleType = parameter_config.ScaleType
 _ScaleTypePb2 = study_pb2.StudySpec.ParameterSpec.ScaleType
@@ -366,7 +370,7 @@ class MetricsConfigConverter:
   """A wrapper for study_pb2.StudySpec.MetricSpec's."""
 
   @classmethod
-  def from_proto(
+  def from_protos(
       cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]
   ) -> base_study_config.MetricsConfig:
     return base_study_config.MetricsConfig(
@@ -484,12 +488,12 @@ class TrialConverter:
         metadata=metadata)  # pytype: disable=wrong-arg-types
 
   @classmethod
-  def from_protos(cls, protos: Sequence[study_pb2.Trial]) -> List[trial.Trial]:
+  def from_protos(cls, protos: Iterable[study_pb2.Trial]) -> List[trial.Trial]:
     """Convenience wrapper for from_proto."""
     return [TrialConverter.from_proto(proto) for proto in protos]
 
   @classmethod
-  def to_protos(cls, pytrials: Sequence[trial.Trial]) -> List[study_pb2.Trial]:
+  def to_protos(cls, pytrials: Iterable[trial.Trial]) -> List[study_pb2.Trial]:
     return [TrialConverter.to_proto(pytrial) for pytrial in pytrials]
 
   @classmethod
@@ -532,3 +536,267 @@ class TrialConverter:
         for key, value in ns_layer.items():
           metadata_util.assign(proto, key=key, ns=ns_string, value=value)
     return proto
+
+
+class TrialSuggestionConverter:
+  """Converts trial.TrialSuggestion <--> Pythia TrialSuggestion proto."""
+
+  @classmethod
+  def from_proto(
+      cls, proto: pythia_service_pb2.TrialSuggestion) -> trial.TrialSuggestion:
+    """Converts from TrialSuggestion proto to PyVizier TrialSuggestion."""
+    parameters = {}
+    for parameter in proto.parameters:
+      value = ParameterValueConverter.from_proto(parameter)
+      if value is None:
+        raise RuntimeError('Parameter %s exists without a value.' % parameter)
+      if parameter.parameter_id in parameters:
+        raise ValueError('Invalid trial proto contains duplicate parameter {}'
+                         ': {}'.format(parameter.parameter_id, proto))
+      parameters[parameter.parameter_id] = value
+
+    metadata = common.Metadata()
+    for kv in proto.metadata:
+      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
+          kv.proto if kv.HasField('proto') else kv.value)
+
+    return trial.TrialSuggestion(parameters=parameters, metadata=metadata)
+
+  @classmethod
+  def from_protos(
+      cls, protos: Iterable[pythia_service_pb2.TrialSuggestion]
+  ) -> List[trial.TrialSuggestion]:
+    """Convenience wrapper for from_proto."""
+    return [cls.from_proto(proto) for proto in protos]
+
+  @classmethod
+  def to_protos(
+      cls, pytrials: Iterable[trial.TrialSuggestion]
+  ) -> List[pythia_service_pb2.TrialSuggestion]:
+    return [cls.to_proto(pytrial) for pytrial in pytrials]
+
+  @classmethod
+  def to_proto(
+      cls,
+      suggestion: trial.TrialSuggestion) -> pythia_service_pb2.TrialSuggestion:
+    """Converts a pyvizier TrialSuggestion to the corresponding proto."""
+    proto = pythia_service_pb2.TrialSuggestion()
+
+    for name, value in suggestion.parameters.items():
+      proto.parameters.append(ParameterValueConverter.to_proto(value, name))
+
+    proto.metadata.extend(
+        metadata_util.make_key_value_list(suggestion.metadata))
+    return proto
+
+
+class MetadataDeltaConverter:
+  """Converts pyvizier.MetadataDelta <--> List of UnitMetadataUpdate protos."""
+
+  @classmethod
+  def to_protos(
+      cls, delta: trial.MetadataDelta
+  ) -> List[vizier_service_pb2.UnitMetadataUpdate]:
+    """Converts pyvizier.MetadataDelta to a List of UnitMetadataUpdate protos."""
+    unit_metadata_updates = metadata_util.study_metadata_to_update_list(
+        delta.on_study)
+    unit_metadata_updates.extend(
+        metadata_util.trial_metadata_to_update_list(delta.on_trials))
+    return unit_metadata_updates
+
+  @classmethod
+  def from_protos(
+      cls, protos: Iterable[vizier_service_pb2.UnitMetadataUpdate]
+  ) -> trial.MetadataDelta:
+    """Converts a list of UnitMetadataUpdate protos to pyvizier.MetadataDelta."""
+    mdd = trial.MetadataDelta()
+    for u_m_u in protos:
+      key_value = u_m_u.metadatum
+      namespace = common.Namespace.decode(key_value.ns)
+      value = (
+          key_value.proto if key_value.HasField('proto') else key_value.value)
+      if u_m_u.HasField('trial_id'):
+        mdd.on_trials[int(
+            u_m_u.trial_id)].abs_ns(namespace)[key_value.key] = value
+      else:
+        mdd.on_study.abs_ns(namespace)[key_value.key] = value
+    return mdd
+
+
+class ProblemStatementConverter:
+  """Converts pyvizier.ProblemStatement <-> Pythia ProblemStatement proto."""
+
+  @classmethod
+  def to_proto(
+      cls,
+      problem_statement: base_study_config.ProblemStatement,
+  ) -> pythia_service_pb2.ProblemStatement:
+    """Converts PyVizier ProblemStatement to Proto version."""
+    parameter_spec_protos = SearchSpaceConverter.parameter_protos(
+        problem_statement.search_space)
+    metric_information_proto = MetricsConfigConverter.to_proto(
+        problem_statement.metric_information)
+    keyvalue_protos = metadata_util.make_key_value_list(
+        problem_statement.metadata)
+    return pythia_service_pb2.ProblemStatement(
+        search_space=parameter_spec_protos,
+        metric_information=metric_information_proto,
+        metadata=keyvalue_protos)
+
+  @classmethod
+  def from_proto(
+      cls, proto: pythia_service_pb2.ProblemStatement
+  ) -> base_study_config.ProblemStatement:
+    """Converts ProblemStatement Proto to PyVizier version."""
+    study_spec = study_pb2.StudySpec(parameters=proto.search_space)
+    search_space = SearchSpaceConverter.from_proto(study_spec)
+    metric_information = MetricsConfigConverter.from_protos(
+        proto.metric_information)
+    metadata = metadata_util.from_key_value_list(proto.metadata)
+    return base_study_config.ProblemStatement(
+        search_space=search_space,
+        metric_information=metric_information,
+        metadata=metadata)
+
+
+class StudyDescriptorConverter:
+  """Converts Pythia StudyDescriptorConverter <-> Pythia StudyDescriptor proto."""
+
+  @classmethod
+  def to_proto(
+      cls,
+      study_descriptor: study.StudyDescriptor,
+  ) -> pythia_service_pb2.StudyDescriptor:
+    return pythia_service_pb2.StudyDescriptor(
+        config=ProblemStatementConverter.to_proto(study_descriptor.config),
+        guid=study_descriptor.guid,
+        max_trial_id=study_descriptor.max_trial_id)
+
+  @classmethod
+  def from_proto(
+      cls, proto: pythia_service_pb2.StudyDescriptor) -> study.StudyDescriptor:
+    return study.StudyDescriptor(
+        config=ProblemStatementConverter.from_proto(proto.config),
+        guid=proto.guid,
+        max_trial_id=proto.max_trial_id)
+
+
+class SuggestConverter:
+  """Converts a SuggestRequest class <--> a SuggestRequest proto."""
+
+  @classmethod
+  def to_request_proto(
+      cls,
+      request: policy.SuggestRequest,
+  ) -> pythia_service_pb2.SuggestRequest:
+    """Conversion from PyVizier to proto."""
+    study_descriptor_proto = StudyDescriptorConverter.to_proto(
+        request._study_descriptor)  # pylint:disable=protected-access
+    return pythia_service_pb2.SuggestRequest(
+        study_descriptor=study_descriptor_proto,
+        count=request.count,
+        checkpoint_dir=request.checkpoint_dir)
+
+  @classmethod
+  def from_request_proto(
+      cls,
+      proto: pythia_service_pb2.SuggestRequest,
+  ) -> policy.SuggestRequest:
+    """Conversion from proto to PyVizier."""
+    study_descriptor = StudyDescriptorConverter.from_proto(
+        proto.study_descriptor)
+    return policy.SuggestRequest(
+        study_descriptor=study_descriptor,
+        count=proto.count,
+        checkpoint_dir=proto.checkpoint_dir)
+
+  @classmethod
+  def to_decision_proto(
+      cls,
+      decision: policy.SuggestDecision,
+  ) -> pythia_service_pb2.SuggestDecision:
+    """Conversion from PyVizier to proto."""
+    trial_suggestion_protos = TrialSuggestionConverter.to_protos(
+        decision.suggestions)
+    metadelta_protos = MetadataDeltaConverter.to_protos(decision.metadata)
+    return pythia_service_pb2.SuggestDecision(
+        suggestions=trial_suggestion_protos, metadata=metadelta_protos)
+
+  @classmethod
+  def from_decision_proto(
+      cls,
+      proto: pythia_service_pb2.SuggestDecision,
+  ) -> policy.SuggestDecision:
+    """Conversion from proto to PyVizier."""
+    suggestions = TrialSuggestionConverter.from_protos(proto.suggestions)
+    metadata = MetadataDeltaConverter.from_protos(proto.metadata)
+    return policy.SuggestDecision(suggestions=suggestions, metadata=metadata)
+
+
+class EarlyStopConverter:
+  """Converts Pythia EarlyStopping <-> Pythia EarlyStopping protos."""
+
+  @classmethod
+  def to_request_proto(
+      cls,
+      request: policy.EarlyStopRequest,
+  ) -> pythia_service_pb2.EarlyStopRequest:
+    """Conversion from PyVizier to proto."""
+    return pythia_service_pb2.EarlyStopRequest(
+        study_descriptor=StudyDescriptorConverter.to_proto(
+            request._study_descriptor),  # pylint:disable=protected-access
+        trial_ids=request.trial_ids,
+        checkpoint_dir=request.checkpoint_dir)
+
+  @classmethod
+  def from_request_proto(
+      cls,
+      proto: pythia_service_pb2.EarlyStopRequest,
+  ) -> policy.EarlyStopRequest:
+    """Conversion from proto to PyVizier."""
+    study_descriptor = StudyDescriptorConverter.from_proto(
+        proto.study_descriptor)
+    return policy.EarlyStopRequest(
+        study_descriptor=study_descriptor,
+        trial_ids=proto.trial_ids,
+        checkpoint_dir=proto.checkpoint_dir)
+
+  @classmethod
+  def to_decisions_proto(
+      cls,
+      decisions: policy.EarlyStopDecisions,
+  ) -> pythia_service_pb2.EarlyStopDecisions:
+    """Conversion from PyVizier to proto."""
+    decision_protos = []
+    for decision in decisions.decisions:
+      predicted_final_measurement_proto = study_pb2.Measurement()
+      if decision.predicted_final_measurement:
+        predicted_final_measurement_proto = MeasurementConverter.to_proto(
+            decision.predicted_final_measurement)
+      decision_proto = pythia_service_pb2.EarlyStopDecision(
+          id=decision.id,
+          reason=decision.reason,
+          should_stop=decision.should_stop,
+          predicted_final_measurement=predicted_final_measurement_proto)
+      decision_protos.append(decision_proto)
+    key_value_protos = MetadataDeltaConverter.to_protos(decisions.metadata)
+    return pythia_service_pb2.EarlyStopDecisions(
+        decisions=decision_protos, metadata=key_value_protos)
+
+  @classmethod
+  def from_decisions_proto(
+      cls,
+      proto: pythia_service_pb2.EarlyStopDecisions,
+  ) -> policy.EarlyStopDecisions:
+    """Conversion from proto to PyVizier."""
+    decisions = []
+    for decision_proto in proto.decisions:
+      decision = policy.EarlyStopDecision(
+          id=decision_proto.id,
+          reason=decision_proto.reason,
+          should_stop=decision_proto.should_stop,
+          predicted_final_measurement=MeasurementConverter.from_proto(
+              decision_proto.predicted_final_measurement))
+      decisions.append(decision)
+    metadata = MetadataDeltaConverter.from_protos(proto.metadata)
+    return policy.EarlyStopDecisions(decisions=decisions, metadata=metadata)

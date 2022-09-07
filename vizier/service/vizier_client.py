@@ -4,17 +4,16 @@ This client can be used interchangeably with the Cloud Vizier client.
 """
 
 import datetime
-import functools
 import time
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from absl import flags
 from absl import logging
 import attr
-import grpc
 
 from vizier.service import pyvizier
 from vizier.service import resources
+from vizier.service import stubs_util
 from vizier.service import study_pb2
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
@@ -31,31 +30,6 @@ flags.DEFINE_integer(
     'are needed. (You may use zero for interactive demos, but it is only '
     'appropriate for very small Studies.)')
 FLAGS = flags.FLAGS
-
-
-@functools.lru_cache
-def create_server_stub(
-    service_endpoint: str) -> vizier_service_pb2_grpc.VizierServiceStub:
-  """Creates the GRPC stub.
-
-  This method uses LRU cache so we create a single stub per endpoint (which is
-  effectively one per binary). Stub and channel are both thread-safe and can
-  take a while to create. The LRU cache makes binaries run faster, especially
-  for unit tests.
-
-  Args:
-    service_endpoint:
-
-  Returns:
-    Vizier service stub at service_endpoint.
-  """
-  logging.info('Securing channel to %s.', service_endpoint)
-  channel = grpc.secure_channel(service_endpoint,
-                                grpc.local_channel_credentials())
-  grpc.channel_ready_future(channel).result()
-  logging.info('Secured channel to %s.', service_endpoint)
-  return vizier_service_pb2_grpc.VizierServiceStub(channel)
-
 
 Metadata = Mapping[Tuple[str, str], Any]
 
@@ -106,7 +80,8 @@ class VizierClient:
       Vizier client.
     """
     return cls(
-        create_server_stub(service_endpoint), study_resource_name, client_id)
+        stubs_util.create_vizier_server_stub(service_endpoint),
+        study_resource_name, client_id)
 
   @property
   def _owner_id(self) -> str:
@@ -399,7 +374,7 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = create_server_stub(service_endpoint)
+  vizier_stub = stubs_util.create_vizier_server_stub(service_endpoint)
   study = study_pb2.Study(
       display_name=study_id, study_spec=study_config.to_proto())
   request = vizier_service_pb2.CreateStudyRequest(

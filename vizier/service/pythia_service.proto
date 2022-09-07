@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package vizier;
+
+import "key_value.proto";
+import "study.proto";
+import "vizier_service.proto";
+
+service PythiaService {
+  // OSS Vizier Service asks Pythia to suggest new Trials.
+  rpc Suggest(SuggestRequest) returns (SuggestDecision) {}
+  // Vizier asks Pythia to decide which Trials should have their evaluation
+  // stopped.
+  rpc EarlyStop(EarlyStopRequest) returns (EarlyStopDecisions) {}
+}
+message TrialSuggestion {
+  repeated Trial.Parameter parameters = 1;
+  repeated KeyValue metadata = 2;
+}
+
+message ProblemStatement {
+  repeated StudySpec.ParameterSpec search_space = 1;
+  repeated StudySpec.MetricSpec metric_information = 2;
+  repeated KeyValue metadata = 3;
+}
+
+message StudyDescriptor {
+  ProblemStatement config = 1;
+  string guid = 2;
+  int32 max_trial_id = 3;
+}
+
+message SuggestRequest {
+  StudySpec.Algorithm algorithm = 1;
+  StudyDescriptor study_descriptor = 2;
+  int32 count = 3;
+  string checkpoint_dir = 4;
+}
+
+message SuggestDecision {
+  repeated TrialSuggestion suggestions = 1;
+  repeated UnitMetadataUpdate metadata = 2;
+}
+
+message EarlyStopRequest {
+  StudySpec.Algorithm algorithm = 1;
+  StudyDescriptor study_descriptor = 2;
+  repeated int32 trial_ids = 3;
+  string checkpoint_dir = 4;
+}
+
+message EarlyStopDecision {
+  int32 id = 1;
+  string reason = 2;
+  bool should_stop = 3;
+  optional Measurement predicted_final_measurement = 4;
+}
+
+message EarlyStopDecisions {
+  repeated EarlyStopDecision decisions = 1;
+  repeated UnitMetadataUpdate metadata = 2;
+}

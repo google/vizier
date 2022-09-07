@@ -5,20 +5,14 @@
 # TODO: Cover delete_trial, delete_study, get_study_config, and
 # add_trial, OR turn it into a private module
 
-from concurrent import futures
-import datetime
-import time
 from typing import List
 from absl import logging
-import grpc
-import portpicker
 
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_client
-from vizier.service import vizier_server
-from vizier.service import vizier_service_pb2_grpc
+from vizier.service.testing import local_service
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -30,20 +24,24 @@ class VizierClientTest(parameterized.TestCase):
     super().setUp()
 
     # Setup Vizier Service and some pre-stored data.
-    self.early_stop_recycle_period = datetime.timedelta(seconds=1)
-    self.servicer = vizier_server.VizierService(
-        early_stop_recycle_period=self.early_stop_recycle_period)
+    self.local_service = local_service.LocalVizierTestService()
+    self.servicer = self.local_service._servicer
     self.owner_id = 'my_username'
     self.study_id = '1231232'
     self.study_resource_name = resources.StudyResource(self.owner_id,
                                                        self.study_id).name
-    self.client_id = 'my_client'
 
+    # Setup connection to server.
+    self.client = vizier_client.VizierClient.from_endpoint(
+        service_endpoint=self.local_service.endpoint,
+        study_resource_name=self.study_resource_name,
+        client_id='my_client')
+
+    # Store initial data in the vizier service.
     double_value_spec = study_pb2.StudySpec.ParameterSpec.DoubleValueSpec(
         min_value=-1.0, max_value=1.0)
     double_parameter_spec = study_pb2.StudySpec.ParameterSpec(
         parameter_id='double', double_value_spec=double_value_spec)
-
     metric_spec = study_pb2.StudySpec.MetricSpec(
         metric_id='example_metric',
         goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
@@ -53,39 +51,19 @@ class VizierClientTest(parameterized.TestCase):
             algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH,
             parameters=[double_parameter_spec],
             metrics=[metric_spec]))
-
     self.active_trial = study_pb2.Trial(
         name=resources.TrialResource(self.owner_id, self.study_id, 1).name,
         id='1',
         state=study_pb2.Trial.State.ACTIVE)
-
     self.servicer.datastore.create_study(self.example_study)
     self.servicer.datastore.create_trial(self.active_trial)
-
-    # Setup local networking.
-    self.port = portpicker.pick_unused_port()
-    self.address = f'localhost:{self.port}'
-
-    # Setup server.
-    self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
-
-    vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
-        self.servicer, self.server)
-    self.server.add_secure_port(self.address, grpc.local_server_credentials())
-    self.server.start()
-
-    # Setup connection to server.
-    self.client = vizier_client.VizierClient.from_endpoint(
-        service_endpoint=self.address,
-        study_resource_name=self.study_resource_name,
-        client_id=self.client_id)
 
   def test_create_or_load_study(self):
     study_config = pyvizier.StudyConfig()
     study_id = 'example_display_name'
 
     client = vizier_client.create_or_load_study(
-        service_endpoint=self.address,
+        service_endpoint=self.local_service.endpoint,
         owner_id=self.owner_id,
         client_id='a_client',
         study_id=study_id,
@@ -95,7 +73,7 @@ class VizierClientTest(parameterized.TestCase):
     self.assertIsNotNone(study.name)
 
     another_client = vizier_client.create_or_load_study(
-        service_endpoint=self.address,
+        service_endpoint=self.local_service.endpoint,
         owner_id=self.owner_id,
         client_id='another_client',
         study_id=study_id,
@@ -164,7 +142,7 @@ class VizierClientTest(parameterized.TestCase):
     # The op will become recycled after the time period and early stopping will
     # be recomputed again. But RandomPolicy will consider the trial non-ACTIVE
     # and simply return False.
-    time.sleep(self.early_stop_recycle_period.total_seconds())
+    self.local_service.wait_for_early_stop_recycle_period()
     should_stop_again = self.client.should_trial_stop(trial_id=1)
     self.assertFalse(should_stop_again)
 
@@ -214,11 +192,11 @@ class VizierClientTest(parameterized.TestCase):
     study_config.algorithm = algorithm
 
     cifar10_client = vizier_client.create_or_load_study(
-        service_endpoint=self.address,
+        service_endpoint=self.local_service.endpoint,
         owner_id=self.owner_id,
         study_id='cifar10',
         study_config=study_config,
-        client_id=self.client_id)
+        client_id='cifar10_client')
 
     for _ in range(num_iterations):
       suggestions = cifar10_client.get_suggestions(suggestion_count=batch_size)

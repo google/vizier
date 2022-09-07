@@ -2,31 +2,28 @@
 # TODO: Change the test to create a vizier stub and call its
 # methods, instead of directly calling VizierService methods.
 
-import datetime
-import time
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import test_util
-from vizier.service import vizier_server
 from vizier.service import vizier_service_pb2
+from vizier.service.testing import local_service
 
 from google.longrunning import operations_pb2
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
-UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
+UnitMetadataUpdate = vizier_service_pb2.UnitMetadataUpdate
 
 
 class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
-    self.early_stop_recycle_period = datetime.timedelta(seconds=0.1)
     # TODO: Find a way to cleanly test both datastores.
-    self.vs = vizier_server.VizierService(
-        database_url=vizier_server.SQL_MEMORY_URL,
-        early_stop_recycle_period=self.early_stop_recycle_period)
+    self.local_service = local_service.LocalVizierTestService()
+    self.vs = self.local_service._servicer
+
     self.owner_id = 'my_username'
     self.study_id = '0123123'
     self.client_id = 'client_0'
@@ -288,7 +285,7 @@ class VizierServerTest(parameterized.TestCase):
     # After a while, the opeartion will be recycled, and `should_stop` is
     # defaulted to False. Since the trial is no longer active, RandomPolicy will
     # not consider it.
-    time.sleep(self.early_stop_recycle_period.total_seconds())
+    self.local_service.wait_for_early_stop_recycle_period()
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
         trial_name=active_trials[0].name)
     response = self.vs.CheckTrialEarlyStoppingState(request)

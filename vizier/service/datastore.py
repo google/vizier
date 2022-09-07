@@ -17,7 +17,7 @@ from vizier.service import vizier_oss_pb2
 from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
-UnitMetadataUpdate = vizier_service_pb2.UpdateMetadataRequest.UnitMetadataUpdate
+UnitMetadataUpdate = vizier_service_pb2.UnitMetadataUpdate
 
 
 class AlreadyExistsError(ValueError):
