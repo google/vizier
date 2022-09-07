@@ -380,8 +380,14 @@ class SearchSpaceSelector:
 
   @property
   def parameter_values(self) -> MonotypeParameterSequence:
-    """Returns the selected parameter values."""
-    return copy.deepcopy(self._selected_values)
+    """Returns the selected parameter values.
+
+    Callers should not mutate the returned values.
+
+    Returns:
+      Values for the parameter selected by this selector.
+    """
+    return self._selected_values
 
   def add_float_param(self,
                       name: str,
