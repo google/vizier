@@ -11,18 +11,14 @@ After running the command, the address of the server, formatted as:
 This address should be used as a command line argument to run_vizier_client.py
 """
 
-from concurrent import futures
 import time
 from typing import Sequence
 
 from absl import app
 from absl import flags
 from absl import logging
-import grpc
-import portpicker
 
-from vizier.service import vizier_server
-from vizier.service import vizier_service_pb2_grpc
+from vizier.service import vizier_service
 
 flags.DEFINE_string(
     'host', 'localhost',
@@ -37,26 +33,15 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  # Setup local networking.
-  port = portpicker.pick_unused_port()
-  address = f'{FLAGS.host}:{port}'
-  logging.info('Running Vizier server on: %s', address)
-
-  # Setup server.
-  server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
-
-  # Setup Vizier Service.
-  servicer = vizier_server.VizierService()
-  vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(servicer, server)
-  server.add_secure_port(address, grpc.local_server_credentials())
-  server.start()
+  service = vizier_service.DefaultVizierService(host=FLAGS.host)
+  logging.info('Address to Vizier Server is: %s', service.endpoint)
 
   # prevent the main thread from exiting
   try:
     while True:
       time.sleep(_ONE_DAY_IN_SECONDS)
   except KeyboardInterrupt:
-    server.stop(0)
+    del service
 
 
 if __name__ == '__main__':

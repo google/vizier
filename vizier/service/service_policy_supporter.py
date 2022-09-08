@@ -7,9 +7,9 @@ from typing import Iterable, List, Optional
 
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier.service import pythia_util
 from vizier.service import pyvizier
 from vizier.service import stubs_util
-from vizier.service import utils
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
 
@@ -99,7 +99,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     """Updates the metadata."""
     self.CheckCancelled('UpdateMetadata entry')
     request = pyvizier.metadata_util.to_request_proto(self._study_guid, delta)
-    waiter = utils.ResponseWaiter()
+    waiter = pythia_util.ResponseWaiter()
     # In a real server, this happens in another thread:
     response = self._vizier_service_stub.UpdateMetadata(request)
     waiter.Report(response)

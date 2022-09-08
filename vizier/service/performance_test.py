@@ -7,19 +7,19 @@ from absl import logging
 from vizier import benchmarks
 from vizier.service import pyvizier
 from vizier.service import vizier_client
-from vizier.service.testing import local_service
+from vizier.service import vizier_service
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 
 class PerformanceTest(parameterized.TestCase):
-  service: local_service.LocalVizierTestService
+  service: vizier_service.DefaultVizierService
 
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    cls.service = local_service.LocalVizierTestService()
+    cls.service = vizier_service.DefaultVizierService()
 
   @parameterized.parameters(
       (1, 10, 2),

@@ -3,7 +3,7 @@ import sqlalchemy as sqla
 
 from vizier.service import datastore_test_lib
 from vizier.service import sql_datastore
-from vizier.service import test_util
+from vizier.service.testing import util as test_util
 from absl.testing import absltest
 
 

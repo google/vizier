@@ -1,8 +1,8 @@
 """Tests for vizier.service.datastore."""
 from vizier.service import datastore
 from vizier.service import datastore_test_lib
-from vizier.service import test_util
 from vizier.service import vizier_service_pb2
+from vizier.service.testing import util as test_util
 
 from absl.testing import absltest
 

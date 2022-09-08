@@ -6,7 +6,7 @@ import grpc
 from vizier._src.pyvizier.client import client_abc_testing
 from vizier.service import clients
 from vizier.service import pyvizier as vz
-from vizier.service.testing import local_service
+from vizier.service import vizier_service
 
 from absl.testing import absltest
 
@@ -14,7 +14,7 @@ FLAGS = flags.FLAGS
 
 
 class VizierClientTest(client_abc_testing.TestCase):
-  _service: local_service.LocalVizierTestService
+  _service: vizier_service.DefaultVizierService
   _owner: str
   _channel: grpc.Channel
 
@@ -22,7 +22,7 @@ class VizierClientTest(client_abc_testing.TestCase):
   def setUpClass(cls):
     logging.info('Test setup started.')
     super().setUpClass()
-    cls._service = local_service.LocalVizierTestService()
+    cls._service = vizier_service.DefaultVizierService()
     clients.environment_variables.service_endpoint = cls._service.endpoint
     logging.info('Test setup finished.')
 

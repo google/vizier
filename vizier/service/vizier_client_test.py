@@ -12,7 +12,7 @@ from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
 from vizier.service import vizier_client
-from vizier.service.testing import local_service
+from vizier.service import vizier_service
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -24,7 +24,7 @@ class VizierClientTest(parameterized.TestCase):
     super().setUp()
 
     # Setup Vizier Service and some pre-stored data.
-    self.local_service = local_service.LocalVizierTestService()
+    self.local_service = vizier_service.DefaultVizierService()
     self.servicer = self.local_service._servicer
     self.owner_id = 'my_username'
     self.study_id = '1231232'

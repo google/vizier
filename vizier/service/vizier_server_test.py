@@ -1,13 +1,12 @@
 """Tests for vizier.service.vizier_server."""
 # TODO: Change the test to create a vizier stub and call its
 # methods, instead of directly calling VizierService methods.
-
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
-from vizier.service import test_util
+from vizier.service import vizier_service
 from vizier.service import vizier_service_pb2
-from vizier.service.testing import local_service
+from vizier.service.testing import util as test_util
 
 from google.longrunning import operations_pb2
 
@@ -21,7 +20,7 @@ class VizierServerTest(parameterized.TestCase):
 
   def setUp(self):
     # TODO: Find a way to cleanly test both datastores.
-    self.local_service = local_service.LocalVizierTestService()
+    self.local_service = vizier_service.DefaultVizierService()
     self.vs = self.local_service._servicer
 
     self.owner_id = 'my_username'

@@ -2,7 +2,7 @@
 
 from vizier.service import resources
 from vizier.service import study_pb2
-from vizier.service import test_util
+from vizier.service.testing import util as test_util
 
 from absl.testing import absltest
 from absl.testing import parameterized

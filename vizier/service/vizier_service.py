@@ -1,4 +1,4 @@
-"""Vizier Service with in-RAM data storage."""
+"""Classes for starting the Vizier Service."""
 
 from concurrent import futures
 import datetime
@@ -16,12 +16,16 @@ from vizier.service import vizier_service_pb2_grpc
 
 
 @attr.define
-class LocalVizierTestService:
-  """Local Vizier service with InRAM data storage."""
+class DefaultVizierService:
+  """Vizier service which runs Pythia and Vizier Server in the same process."""
+  _host: str = attr.field(init=True, default='localhost')
+  _database_url: str = attr.field(
+      init=True, default=vizier_server.SQL_MEMORY_URL, kw_only=True)
   _early_stop_recycle_period: datetime.timedelta = attr.field(
       init=False, default=datetime.timedelta(seconds=0.1))
-  _port = attr.field(init=False, factory=portpicker.pick_unused_port)
-  _pythia_port = attr.field(init=False, factory=portpicker.pick_unused_port)
+  _port: int = attr.field(init=False, factory=portpicker.pick_unused_port)
+  _pythia_port: int = attr.field(
+      init=False, factory=portpicker.pick_unused_port)
   _servicer: vizier_server.VizierService = attr.field(init=False)
   _pythia_servicer: pythia_server.PythiaService = attr.field(init=False)
   _server: grpc.Server = attr.field(init=False)
@@ -36,17 +40,18 @@ class LocalVizierTestService:
 
   @property
   def endpoint(self) -> str:
-    return f'localhost:{self._port}'
+    return f'{self._host}:{self._port}'
 
   @property
   def pythia_endpoint(self) -> str:
-    return f'localhost:{self._pythia_port}'
+    return f'{self._host}:{self._pythia_port}'
 
   def __init__(self):
     self.__attrs_init__()
 
     # Setup Vizier server.
     self._servicer = vizier_server.VizierService(
+        database_url=self._database_url,
         early_stop_recycle_period=self._early_stop_recycle_period)
     self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=30))
     vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
