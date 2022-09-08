@@ -23,7 +23,7 @@ class UtilsTest(parameterized.TestCase):
     super(UtilsTest, self).setUp()
     self.key = random.PRNGKey(0)
     self.search_space = vz.SearchSpace()
-    root = self.search_space.select_root()
+    root = self.search_space.root
     root.add_bool_param('b1')
     root.add_discrete_param('d1', [1.0, 2.0, 9.0, 10.0])
     root.add_float_param('f1', 0.0, 15.0, scale_type=vz.ScaleType.LINEAR)
@@ -102,10 +102,10 @@ class UtilsTest(parameterized.TestCase):
 
   def test_is_pure_categorical(self):
     pure_categorical_space = vz.SearchSpace()
-    pure_categorical_space.select_root().add_bool_param('b1')
-    pure_categorical_space.select_root().add_bool_param('b2')
-    pure_categorical_space.select_root().add_categorical_param('c1', ['a', 'b'])
-    pure_categorical_space.select_root().add_categorical_param('c2', ['a', 'b'])
+    pure_categorical_space.root.add_bool_param('b1')
+    pure_categorical_space.root.add_bool_param('b2')
+    pure_categorical_space.root.add_categorical_param('c1', ['a', 'b'])
+    pure_categorical_space.root.add_categorical_param('c2', ['a', 'b'])
     self.assertTrue(utils.is_pure_categorical(pure_categorical_space))
     self.assertFalse(utils.is_pure_categorical(self.search_space))
 

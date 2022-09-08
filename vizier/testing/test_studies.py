@@ -8,7 +8,7 @@ def flat_space_with_all_types() -> vz.SearchSpace:
   """Search space with all parameter types."""
 
   space = vz.SearchSpace()
-  root = space.select_root()
+  root = space.root
   root.add_float_param('lineardouble', -1., 2.)
   root.add_float_param('logdouble', 1e-4, 1e2, scale_type=vz.ScaleType.LOG)
   root.add_int_param('integer', -2, 2)

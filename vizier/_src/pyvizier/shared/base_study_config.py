@@ -686,7 +686,7 @@ class SearchSpaceSelector:
     `add_*_param` methods to create child parameters.
 
     Given a selector to the root of the search space:
-    root = pyvizier.SearchSpace().select_root()
+    root = pyvizier.SearchSpace().root
 
     1) To select a parameter at the root of the search space, with parent values
       for child parameters:
@@ -813,7 +813,7 @@ class SearchSpaceSelector:
     select_all() can be used to simultaneously add child parameters to both
     'optimizer_type` parameters:
 
-    root = pyvizier.SearchSpace().select_root()
+    root = pyvizier.SearchSpace().root
     model.select_values(['dnn']).add_categorical_param(
         'optimizer_type', ['adam', 'adagrad'])
     model.select_values(['linear']).add_categorical_param(
@@ -824,7 +824,7 @@ class SearchSpaceSelector:
 
     2) If there is *only one* parameter with the given name, then it is also
       possible to use select_all() to select it:
-      root = pyvizier.SearchSpace().select_root()
+      root = pyvizier.SearchSpace().root
       model.select_values(['dnn']).add_categorical_param('activation', ...)
       # Select the single parameter with the name 'activation':
       selectors = root.select_all('activation')

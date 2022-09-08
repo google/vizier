@@ -177,9 +177,9 @@ class VizierClientTest(parameterized.TestCase):
       return [learning_rate * step for step in range(10)]
 
     study_config = pyvizier.StudyConfig()
-    study_config.search_space.select_root().add_float_param(
+    study_config.search_space.root.add_float_param(
         'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5)
-    study_config.search_space.select_root().add_int_param(
+    study_config.search_space.root.add_int_param(
         'num_layers', min_value=1, max_value=5)
     study_config.metric_information = [
         pyvizier.MetricInformation(

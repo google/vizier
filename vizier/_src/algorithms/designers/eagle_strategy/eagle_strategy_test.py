@@ -28,7 +28,7 @@ def _create_dummy_trial(
 def _create_dummy_problem_statement() -> vz.ProblemStatement:
   """Create a dummy problem statement."""
   problem = vz.ProblemStatement()
-  problem.search_space.select_root().add_float_param('x', 0.0, 10.0)
+  problem.search_space.root.add_float_param('x', 0.0, 10.0)
   problem.metric_information.append(
       vz.MetricInformation(name='obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
   return problem

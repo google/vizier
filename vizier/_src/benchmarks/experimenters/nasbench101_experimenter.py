@@ -76,7 +76,7 @@ class NASBench101Experimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
 
     for y in range(self._num_vertices):
       for x in range(self._num_vertices):

@@ -93,7 +93,7 @@ class RandomSampleTest(parameterized.TestCase):
 
   def test_sample_input_parameters(self):
     space = vz.SearchSpace()
-    root = space.select_root()
+    root = space.root
     root.add_bool_param('b1')
     root.add_discrete_param('d1', [1.0, 2.0, 10.0])
     root.add_float_param('f1', 0.0, 15.0, scale_type=vz.ScaleType.LINEAR)

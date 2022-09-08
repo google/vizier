@@ -43,7 +43,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     """Creates a study."""
     logging.info('Creating study name=%s, testcasename=%s', name, self.id())
     problem = vz.ProblemStatement()
-    problem.search_space.select_root().add_float_param('float', 0.0, 1.0)
+    problem.search_space.root.add_float_param('float', 0.0, 1.0)
     problem.metric_information.append(
         vz.MetricInformation(
             name='maximize_metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
@@ -242,9 +242,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         self.create_study, study_id=self.id())
 
     problem = vz.ProblemStatement()
-    problem.search_space.select_root().add_float_param(
+    problem.search_space.root.add_float_param(
         'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5)
-    problem.search_space.select_root().add_int_param(
+    problem.search_space.root.add_int_param(
         'num_layers', min_value=1, max_value=5)
     problem.metric_information = [
         vz.MetricInformation(

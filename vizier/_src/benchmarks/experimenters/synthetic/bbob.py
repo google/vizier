@@ -19,7 +19,7 @@ def DefaultBBOBProblemStatement(
   problem_statement = pyvizier.ProblemStatement()
   space = problem_statement.search_space
   for dim in range(dimension):
-    space.select_root().add_float_param(
+    space.root.add_float_param(
         name=f"x{dim}", min_value=min_value, max_value=max_value)
   problem_statement.metric_information.append(
       pyvizier.MetricInformation(
@@ -111,7 +111,9 @@ def SIndex(dim: int, to_sz) -> float:
   Returns:
     float representing SIndex(i, d, to_sz).
   """
-  s = np.zeros([dim,])
+  s = np.zeros([
+      dim,
+  ])
   for i in range(dim):
     if dim > 1:
       s[i] = 10**(0.5 * (i / (dim - 1.0)))
@@ -166,8 +168,9 @@ def _R(dim: int, seed: int, *moreseeds: bytes) -> np.ndarray:
   h = 0 if seed == 0 else _Hash(*((seed, dim) + moreseeds))
   a = np.arange(dim * dim, dtype=np.int64)
   # We make a vector of (loosely speaking) random entries.
-  b = (_ToFloat(h + 17, a + 127) + _ToFloat(h + 61031, a + 197) +
-       _ToFloat(h + 503, a + 293))
+  b = (
+      _ToFloat(h + 17, a + 127) + _ToFloat(h + 61031, a + 197) +
+      _ToFloat(h + 503, a + 293))
 
   # The "Q" part of a Q-R decomposition is orthonormal, so $result is a pure
   # rotation matrix.  If elements of $b are independent normal, then the
@@ -266,9 +269,11 @@ def RosenbrockRotated(arr: np.ndarray, seed: int = 0) -> float:
   dim = len(arr)
   r_x = np.matmul(_R(dim, seed, b"R"), arr)
   z = max(1.0, (dim**0.5) / 8.0) * r_x + 0.5 * np.ones((dim,))
-  return float(sum(
-      [100.0 * (z[i]**2 - z[i + 1])**2 + (z[i] - 1)**2
-       for i in range(dim - 1)]))
+  return float(
+      sum([
+          100.0 * (z[i]**2 - z[i + 1])**2 + (z[i] - 1)**2
+          for i in range(dim - 1)
+      ]))
 
 
 def Ellipsoidal(arr: np.ndarray, seed: int = 0) -> float:

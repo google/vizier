@@ -61,33 +61,32 @@ GinParameterType = Union[float, int, str]
 def default_search_space() -> pyvizier.SearchSpace:
   """Produces a reasonable SearchSpace for tuning the Rainbow training process."""
   ss = pyvizier.SearchSpace()
-  ss.select_root().add_float_param(
+  ss.root.add_float_param(
       'JaxDQNAgent.gamma',
       0.7,
       0.999999,
       scale_type=pyvizier.ScaleType.REVERSE_LOG)
-  ss.select_root().add_int_param('JaxDQNAgent.update_horizon', 1, 20)
-  ss.select_root().add_int_param('JaxDQNAgent.update_period', 1, 10)
-  ss.select_root().add_int_param('JaxDQNAgent.target_update_period', 1, 10000)
-  ss.select_root().add_int_param('JaxDQNAgent.min_replay_history', 100, 100000)
-  ss.select_root().add_float_param(
+  ss.root.add_int_param('JaxDQNAgent.update_horizon', 1, 20)
+  ss.root.add_int_param('JaxDQNAgent.update_period', 1, 10)
+  ss.root.add_int_param('JaxDQNAgent.target_update_period', 1, 10000)
+  ss.root.add_int_param('JaxDQNAgent.min_replay_history', 100, 100000)
+  ss.root.add_float_param(
       'JaxDQNAgent.epsilon_train',
       0.0000001,
       1.0,
       scale_type=pyvizier.ScaleType.LOG)
-  ss.select_root().add_int_param('JaxDQNAgent.epsilon_decay_period', 1000,
-                                 10000)
-  ss.select_root().add_bool_param('JaxFullRainbowAgent.noisy')
-  ss.select_root().add_bool_param('JaxFullRainbowAgent.dueling')
-  ss.select_root().add_bool_param('JaxFullRainbowAgent.double_dqn')
-  ss.select_root().add_int_param('JaxFullRainbowAgent.num_atoms', 1, 100)
-  ss.select_root().add_bool_param('Atari100kRainbowAgent.data_augmentation')
-  ss.select_root().add_float_param(
+  ss.root.add_int_param('JaxDQNAgent.epsilon_decay_period', 1000, 10000)
+  ss.root.add_bool_param('JaxFullRainbowAgent.noisy')
+  ss.root.add_bool_param('JaxFullRainbowAgent.dueling')
+  ss.root.add_bool_param('JaxFullRainbowAgent.double_dqn')
+  ss.root.add_int_param('JaxFullRainbowAgent.num_atoms', 1, 100)
+  ss.root.add_bool_param('Atari100kRainbowAgent.data_augmentation')
+  ss.root.add_float_param(
       'create_optimizer.learning_rate',
       0.0000001,
       1.0,
       scale_type=pyvizier.ScaleType.LOG)
-  ss.select_root().add_float_param(
+  ss.root.add_float_param(
       'create_optimizer.eps', 0.0000001, 1.0, scale_type=pyvizier.ScaleType.LOG)
 
   return ss

@@ -12,14 +12,13 @@ class GridSearchPolicyTest(absltest.TestCase):
   def setUp(self):
     """Setups up search space."""
     self.search_space = pyvizier.SearchSpace()
-    self.search_space.select_root().add_float_param(
+    self.search_space.root.add_float_param(
         'double', min_value=-1.0, max_value=1.0)
-    self.search_space.select_root().add_categorical_param(
+    self.search_space.root.add_categorical_param(
         name='categorical', feasible_values=['a', 'b', 'c'])
-    self.search_space.select_root().add_discrete_param(
+    self.search_space.root.add_discrete_param(
         name='discrete', feasible_values=[0.1, 0.3, 0.5])
-    self.search_space.select_root().add_int_param(
-        name='int', min_value=1, max_value=5)
+    self.search_space.root.add_int_param(name='int', min_value=1, max_value=5)
     self.search_space_size = grid.GRID_RESOLUTION * 3 * 3 * 5
 
     self.designer = grid.GridSearchDesigner(self.search_space)

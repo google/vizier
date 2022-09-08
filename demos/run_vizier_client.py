@@ -60,7 +60,7 @@ def main(argv: Sequence[str]) -> None:
     )
 
   study_config = vz.StudyConfig()  # Search space, metrics, and algorithm.
-  root = study_config.search_space.select_root()
+  root = study_config.search_space.root
   root.add_float_param(
       'learning_rate',
       min_value=1e-4,

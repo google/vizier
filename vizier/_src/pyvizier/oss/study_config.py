@@ -88,7 +88,7 @@ SearchSpaceSelector = base_study_config.SearchSpaceSelector
 #
 #     # Since building a search space is more involved, get a reference to the
 #     # search space, and add parameters to it.
-#     root = study_config.search_space.select_root()
+#     root = study_config.search_space.root
 #     root.add_float_param('learning_rate', 0.001, 1.0,
 #       scale_type=pyvizier.ScaleType.LOG)
 #

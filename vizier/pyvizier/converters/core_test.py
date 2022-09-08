@@ -113,7 +113,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
   def _study_configs(self):
     study_configs = []
     space1 = pyvizier.SearchSpace()
-    root = space1.select_root()
+    root = space1.root
     root.add_float_param('double', -1., 1.)
     root.add_int_param('integer', -1, 1)
     root.add_categorical_param('categorical', ['a', 'b'])
@@ -124,7 +124,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
             search_space=space1))
 
     space2 = pyvizier.SearchSpace()
-    root = space2.select_root()
+    root = space2.root
     root.add_float_param('double', -1., 2.)
     root.add_int_param('integer', -2, 1)
     root.add_categorical_param('categorical', ['b', 'c'])
@@ -183,7 +183,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
 
   def test_parameters_and_labels(self):
     study_config = pyvizier.ProblemStatement()
-    root = study_config.search_space.select_root()
+    root = study_config.search_space.root
     root.add_float_param('x1', 0., 10.)
     root.add_float_param('x2', 0., 10.)
 

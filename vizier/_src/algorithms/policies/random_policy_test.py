@@ -11,13 +11,13 @@ class RandomPolicyTest(absltest.TestCase):
   def setUp(self):
     """Setups up search space."""
     self.study_config = pyvizier.ProblemStatement()
-    self.study_config.search_space.select_root().add_float_param(
+    self.study_config.search_space.root.add_float_param(
         name='double', min_value=-1.0, max_value=1.0)
-    self.study_config.search_space.select_root().add_categorical_param(
+    self.study_config.search_space.root.add_categorical_param(
         name='categorical', feasible_values=['a', 'b', 'c'])
-    self.study_config.search_space.select_root().add_discrete_param(
+    self.study_config.search_space.root.add_discrete_param(
         name='discrete', feasible_values=[0.1, 0.3, 0.5])
-    self.study_config.search_space.select_root().add_int_param(
+    self.study_config.search_space.root.add_int_param(
         name='int', min_value=1, max_value=5)
 
     self.policy_supporter = pythia.InRamPolicySupporter(self.study_config)

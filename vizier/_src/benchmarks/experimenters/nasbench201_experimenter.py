@@ -67,7 +67,7 @@ class NASBench201Experimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._op_spots):
       root.add_categorical_param(
           name='op_{}'.format(i), feasible_values=self._allowed_ops)

@@ -127,7 +127,7 @@ class StudyConfigTest(absltest.TestCase):
     sc.metric_information.append(
         pyvizier.MetricInformation(
             name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
-    root = sc.search_space.select_root()
+    root = sc.search_space.root
     root.add_float_param(
         'learning_rate', 0.00001, 1.0, scale_type=pyvizier.ScaleType.LINEAR)
     root.add_categorical_param('optimizer', ['adagrad', 'adam', 'experimental'])
@@ -166,7 +166,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
     root.add_int_param('units', 10, 1000, scale_type=pyvizier.ScaleType.LOG)
     root.add_discrete_param('batch_size', [8, 16, 32])
@@ -208,7 +208,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
     root.add_int_param('units', 10, 1000, scale_type=pyvizier.ScaleType.LOG)
     root.add_discrete_param('batch_size', [8, 16, 32])
@@ -292,7 +292,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     for index in (0, 1):
       root.add_float_param('learning_rate', 0.01, 3.0, index=index)
       root.add_int_param(
@@ -350,7 +350,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     for index in (0, 1):
       root.add_float_param('learning_rate', 0.01, 3.0, index=index)
       root.add_int_param(
@@ -391,7 +391,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     block_categories = [
         'block_3x3', 'block_4x4', 'block_1x3_3x1', 'block_1x3_3x1_dw',
         'block_identity'
@@ -435,7 +435,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
 
     model_type = root.add_categorical_param('model_type', ['dnn', 'linear'])
     dnn = model_type.select_values(['dnn'])
@@ -473,7 +473,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
 
     model_type = root.add_categorical_param('model_type', ['dnn', 'linear'])
     dnn = model_type.select_values(['dnn'])
@@ -524,7 +524,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     trial_proto = study_pb2.Trial()
@@ -541,7 +541,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     trial_proto = study_pb2.Trial()
@@ -567,7 +567,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = pyvizier.Trial(
@@ -598,7 +598,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     trial_proto = study_pb2.Trial()
@@ -621,7 +621,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     trial_proto = study_pb2.Trial()
@@ -645,7 +645,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = pyvizier.Trial(
@@ -674,7 +674,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     trial_proto = study_pb2.Trial(id=str(1))
@@ -708,7 +708,7 @@ class StudyConfigTest(absltest.TestCase):
         pyvizier.MetricInformation(
             name='objective2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
     ])
-    root = py_study_config.search_space.select_root()
+    root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = pyvizier.Trial(
@@ -738,20 +738,20 @@ class StudyConfigTest(absltest.TestCase):
 
   def testSearchSpacesNotShared(self):
     sc1 = pyvizier.StudyConfig()
-    sc1.search_space.select_root().add_float_param('x', 1, 2)
+    sc1.search_space.root.add_float_param('x', 1, 2)
     sc2 = pyvizier.StudyConfig()
-    sc2.search_space.select_root().add_float_param('x', 1, 2)
+    sc2.search_space.root.add_float_param('x', 1, 2)
     self.assertLen(sc1.search_space.parameters, 1)
     self.assertLen(sc2.search_space.parameters, 1)
 
   def testHasConditionalParametersFlatSpace(self):
     sc = pyvizier.StudyConfig()
-    sc.search_space.select_root().add_float_param('x', 1, 2)
+    sc.search_space.root.add_float_param('x', 1, 2)
     self.assertFalse(sc.search_space.is_conditional)
 
   def testHasConditionalParameters(self):
     sc = pyvizier.StudyConfig()
-    root = sc.search_space.select_root()
+    root = sc.search_space.root
     model_type = root.add_categorical_param('model_type', ['linear', 'dnn'])
     _ = model_type.select_values(['dnn']).add_float_param(
         'learning_rate',

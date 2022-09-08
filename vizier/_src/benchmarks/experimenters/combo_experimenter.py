@@ -61,7 +61,7 @@ class IsingExperimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._ising_n_edges):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
@@ -115,7 +115,7 @@ class ContaminationExperimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._contamination_n_stages):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
@@ -227,7 +227,7 @@ class CentroidExperimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._centroid_n_edges):
       root.add_categorical_param(
           name='x_{}'.format(i),
@@ -279,7 +279,7 @@ class PestControlExperimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._pest_control_n_stages):
       root.add_categorical_param(
           name='x_{}'.format(i),
@@ -406,7 +406,7 @@ class MAXSATExperimenter(experimenter.Experimenter):
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     problem_statement = pyvizier.ProblemStatement()
-    root = problem_statement.search_space.select_root()
+    root = problem_statement.search_space.root
     for i in range(self._n_variables):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
