@@ -86,6 +86,30 @@ class BenchmarkSubroutine(Protocol):
 
 
 @attr.define
+class GenerateAndEvaluate(BenchmarkSubroutine):
+  """Generate a fixed number of Suggestions and Evaluate them immediately.
+
+  Use this Subroutine for simple benchmarks as it is computationally efficient.
+  For benchmarks with complicated evaluation procedures, use a combination
+  of other Subroutines.
+  """
+
+  # Number of total suggestions as a batch.
+  num_suggestions: int = attr.field(
+      default=1, validator=attr.validators.instance_of(int))
+
+  def run(self, state: BenchmarkState) -> None:
+    suggestions = state.algorithm.suggest(self.num_suggestions)
+    if not suggestions:
+      logging.info(
+          'Algorithm did not generate %d suggestions'
+          'because it returned nothing.', self.num_suggestions)
+    state.experimenter.evaluate(list(suggestions))
+    # Only needed for Designers.
+    state.algorithm.post_completion_callback(vza.CompletedTrials(suggestions))
+
+
+@attr.define
 class GenerateSuggestions(BenchmarkSubroutine):
   """Generate a fixed number of Suggestions as Active Trials."""
 

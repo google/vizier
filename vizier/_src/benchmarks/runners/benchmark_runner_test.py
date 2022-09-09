@@ -37,6 +37,35 @@ class BaseRunnerTest(absltest.TestCase):
     self.assertLen(all_trials, 7)
     self.assertEqual(all_trials[0].status, vz.TrialStatus.COMPLETED)
 
+  def testGenerateAndEvaluate(self):
+    num_suggestions = 3
+    num_iterations = 7
+    runner = benchmark_runner.BenchmarkRunner(
+        benchmark_subroutines=[
+            benchmark_runner.GenerateAndEvaluate(
+                num_suggestions=num_suggestions)
+        ],
+        num_repeats=num_iterations)
+
+    dim = 10
+    experimenter = numpy_experimenter.NumpyExperimenter(
+        bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim))
+
+    def designer_factory(config: vz.ProblemStatement):
+      return random.RandomDesigner(config.search_space, seed=5)
+
+    benchmark_state = benchmark_runner.BenchmarkState.from_designer_factory(
+        designer_factory=designer_factory, experimenter=experimenter)
+
+    runner.run(benchmark_state)
+    self.assertEmpty(
+        benchmark_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.ACTIVE))
+    all_trials = benchmark_state.algorithm.supporter.GetTrials()
+    self.assertLen(all_trials, num_suggestions * num_iterations)
+    for trial in all_trials:
+      self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
+
 
 if __name__ == '__main__':
   absltest.main()

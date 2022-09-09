@@ -43,6 +43,7 @@ class NumpyExperimenter(experimenter.Experimenter):
                  _get_name(impl), dimension)
     if dimension <= 0:
       raise ValueError(f'Invalid dimension: {dimension}')
+    self._dimension = dimension
     self.impl = impl
 
     if not problem_statement.metric_information.is_single_objective:
@@ -69,6 +70,9 @@ class NumpyExperimenter(experimenter.Experimenter):
     # Features has shape (num_trials, num_features).
     features = self._converter.to_features(suggestions)
     for idx, suggestion in enumerate(suggestions):
+      if len(features[idx]) != self._dimension:
+        raise ValueError(
+            f'Features {features[idx]} should have length {self._dimension}')
       val = self.impl(features[idx])
       if math.isfinite(val):
         suggestion.complete(
