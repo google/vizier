@@ -16,12 +16,13 @@ from vizier._src.algorithms.policies import random_policy
 
 from vizier.service import pythia_service_pb2
 from vizier.service import pythia_service_pb2_grpc
-from vizier.service import pyvizier
+from vizier.service import pyvizier as vz
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2
 
 
 def policy_creator(
+    problem_statement: vz.ProblemStatement,
     algorithm: study_pb2.StudySpec.Algorithm,
     policy_supporter: service_policy_supporter.ServicePolicySupporter
 ) -> pythia.Policy:
@@ -31,12 +32,15 @@ def policy_creator(
     return random_policy.RandomPolicy(policy_supporter)
   elif algorithm == study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH:
     return dp.PartiallySerializableDesignerPolicy(
-        policy_supporter, quasi_random.QuasiRandomDesigner.from_problem)
+        problem_statement, policy_supporter,
+        quasi_random.QuasiRandomDesigner.from_problem)
   elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
     return dp.PartiallySerializableDesignerPolicy(
-        policy_supporter, grid.GridSearchDesigner.from_problem)
+        problem_statement, policy_supporter,
+        grid.GridSearchDesigner.from_problem)
   elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
-    return dp.PartiallySerializableDesignerPolicy(policy_supporter,
+    return dp.PartiallySerializableDesignerPolicy(problem_statement,
+                                                  policy_supporter,
                                                   nsga2.create_nsga2)
   elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
@@ -66,13 +70,15 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
   ) -> pythia_service_pb2.SuggestDecision:
     """Performs Suggest RPC call."""
     # Setup Policy Supporter.
+    study_config = vz.SuggestConverter.from_request_proto(request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
         request.study_descriptor.guid)
     policy_supporter.connect_to_vizier(self._vizier_service_endpoint)
-    pythia_policy = policy_creator(request.algorithm, policy_supporter)
+    pythia_policy = policy_creator(study_config, request.algorithm,
+                                   policy_supporter)
 
     # Perform algorithmic computation.
-    suggest_request = pyvizier.SuggestConverter.from_request_proto(request)
+    suggest_request = vz.SuggestConverter.from_request_proto(request)
     try:
       suggest_decision = pythia_policy.suggest(suggest_request)
     # Leaving a broad catch for now since Pythia can raise any exception.
@@ -83,7 +89,7 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
                     request)
       raise RuntimeError('Pythia has encountered an error: ' + str(e)) from e
 
-    return pyvizier.SuggestConverter.to_decision_proto(suggest_decision)
+    return vz.SuggestConverter.to_decision_proto(suggest_decision)
 
   def EarlyStop(
       self,
@@ -92,14 +98,16 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
   ) -> pythia_service_pb2.EarlyStopDecisions:
     """Performs EarlyStop RPC call."""
     # Setup Policy Supporter.
+    study_config = vz.EarlyStopConverter.from_request_proto(
+        request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
         request.study_descriptor.guid)
     policy_supporter.connect_to_vizier(self._vizier_service_endpoint)
-    pythia_policy = policy_creator(request.algorithm, policy_supporter)
+    pythia_policy = policy_creator(study_config, request.algorithm,
+                                   policy_supporter)
 
     # Perform algorithmic computation.
-    early_stop_request = pyvizier.EarlyStopConverter.from_request_proto(request)
+    early_stop_request = vz.EarlyStopConverter.from_request_proto(request)
     early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
 
-    return pyvizier.EarlyStopConverter.to_decisions_proto(
-        early_stopping_decisions)
+    return vz.EarlyStopConverter.to_decisions_proto(early_stopping_decisions)

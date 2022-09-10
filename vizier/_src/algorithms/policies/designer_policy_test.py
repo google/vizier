@@ -68,8 +68,9 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     self.maxDiff = None  # pylint: disable=invalid-name
+    problem_statement = vz.ProblemStatement()
     designer = _FakeSerializableDesigner()
-    runner = pythia.InRamPolicySupporter(vz.ProblemStatement())
+    runner = pythia.InRamPolicySupporter(problem_statement)
     runner.AddTrials([
         vz.Trial().complete(vz.Measurement())
         for _ in range(_NUM_INITIAL_COMPLETED_TRIALS)
@@ -77,7 +78,11 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
 
     # Run with a policy
     policy = dp.PartiallySerializableDesignerPolicy(
-        runner, lambda _: designer, ns_root='test', verbose=2)
+        problem_statement,
+        runner,
+        lambda _: designer,
+        ns_root='test',
+        verbose=2)
     trials = runner.SuggestTrials(policy, 5)
     self.assertLen(
         designer._last_delta.completed,  # pytype:disable=attribute-error
@@ -90,6 +95,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     for t in trials[::2]:
       t.complete(vz.Measurement())
 
+    self.problem_statement = problem_statement
     self.runner = runner
     self.designer = designer
     self.trials = trials
@@ -99,7 +105,11 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
 
     # Mimick the server environment by creating a new policy.
     policy = dp.PartiallySerializableDesignerPolicy(
-        runner, lambda _: designer, ns_root='test', verbose=2)
+        self.problem_statement,
+        runner,
+        lambda _: designer,
+        ns_root='test',
+        verbose=2)
     runner.SuggestTrials(policy, 1)
     # Delta should consist only of the newly completed trials.
     self.assertSequenceEqual(designer._last_delta.completed, trials[::2])
@@ -116,6 +126,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
       raise ValueError('This code should not be called')
 
     policy = dp.SerializableDesignerPolicy(
+        self.problem_statement,
         runner,
         designer_factory=raise_error,  # should not be used.
         designer_cls=_FakeSerializableDesigner,

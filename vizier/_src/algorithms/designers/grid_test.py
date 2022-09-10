@@ -56,7 +56,7 @@ class GridSearchPolicyTest(absltest.TestCase):
     problem.search_space = self.search_space
     policy_supporter = pythia.InRamPolicySupporter(problem)
     policy = designer_policy.PartiallySerializableDesignerPolicy(
-        policy_supporter, grid.GridSearchDesigner.from_problem)
+        problem, policy_supporter, grid.GridSearchDesigner.from_problem)
 
     # Make sure we covered entire search space.
     all_suggestions = []

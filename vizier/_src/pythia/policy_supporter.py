@@ -12,8 +12,7 @@ class PolicySupporter(abc.ABC):
 
   # TODO: Change to GetStudyDescriptor.
   @abc.abstractmethod
-  def GetStudyConfig(self,
-                     study_guid: Optional[str] = None) -> vz.ProblemStatement:
+  def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
     """Requests a StudyConfig from Vizier.
 
     This sends a PythiaToVizier.trial_selector packet and waits for the
@@ -22,7 +21,7 @@ class PolicySupporter(abc.ABC):
 
     Args:
       study_guid: The GUID of the study whose StudyConfig you want. Note that
-        access control applies. By default, use the current study's GUID.
+        access control applies.
 
     Returns:
       The requested StudyConfig proto.

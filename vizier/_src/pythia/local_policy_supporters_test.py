@@ -7,11 +7,13 @@ from vizier._src.pythia import local_policy_supporters
 from absl.testing import absltest
 from absl.testing import parameterized
 
+
 InRamPolicySupporter = local_policy_supporters.InRamPolicySupporter
+_GUID = '31'
 
 
 def _runner_with_10trials():
-  runner = InRamPolicySupporter(vz.ProblemStatement())
+  runner = InRamPolicySupporter(vz.ProblemStatement(), study_guid=_GUID)
   runner.AddTrials([vz.Trial() for _ in range(10)])
   return runner
 
@@ -33,12 +35,13 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     mu.assign('ns', 'key', 'value')
     mu.assign('ns', 'key', 'value', trial_id=1)
     # Metadata update is not immediate.
-    self.assertEmpty(runner.GetStudyConfig().metadata.ns('ns'))
+    self.assertEmpty(runner.GetStudyConfig(study_guid=_GUID).metadata.ns('ns'))
     self.assertEmpty(trial1.metadata)
     runner.SendMetadata(mu)
 
-    self.assertEqual(runner.GetStudyConfig().metadata.ns('ns').get('key'),
-                     'value')
+    self.assertEqual(
+        runner.GetStudyConfig(study_guid=_GUID).metadata.ns('ns').get('key'),
+        'value')
     trial0 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
     self.assertSequenceEqual(trial0.metadata.ns('ns'), {'key': 'value'})
 

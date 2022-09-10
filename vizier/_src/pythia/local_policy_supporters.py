@@ -37,7 +37,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
 
   study_config: vz.ProblemStatement = attr.ib(
       init=True, validator=attr.validators.instance_of(vz.ProblemStatement))
-  study_guid: str = attr.ib(init=True, kw_only=True, default='')
+  study_guid: str = attr.ib(init=True, kw_only=True, default='', converter=str)
   _trials: List[vz.Trial] = attr.ib(init=False, factory=list)
 
   @property
@@ -52,10 +52,9 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     if study_guid is not None and self.study_guid != study_guid:
       raise ValueError('InRamPolicySupporter does not support accessing '
                        'other studies than the current one, which has '
-                       'guid={self.study_guid}')
+                       f'guid="{self.study_guid}": guid="{study_guid}"')
 
-  def GetStudyConfig(self,
-                     study_guid: Optional[str] = None) -> vz.ProblemStatement:
+  def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
     self._check_study_guid(study_guid)
     return self.study_config
 

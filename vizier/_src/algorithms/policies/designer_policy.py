@@ -86,6 +86,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
   _ns_designer = 'designer'
 
   def __init__(self,
+               problem_statement: vz.ProblemStatement,
                supporter: pythia.PolicySupporter,
                designer_factory: Callable[[vz.ProblemStatement], _T],
                *,
@@ -94,6 +95,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     """Init.
 
     Args:
+      problem_statement:
       supporter:
       designer_factory:
       ns_root: Root of the namespace where policy state is stored.
@@ -103,7 +105,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._designer_factory = designer_factory
     self._ns_root = ns_root
     self._incorporated_trial_ids = set()
-    self._reference_study_config = supporter.GetStudyConfig()
+    self._problem_statement = problem_statement
     self._verbose = verbose
     self._designer = None
 
@@ -168,7 +170,8 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         len(self._incorporated_trial_ids))
     self._designer = self._restore_designer(md.ns(self._ns_designer))
 
-  def _initialize_designer(self, study_config: vz.ProblemStatement) -> None:
+  def _initialize_designer(self,
+                           problem_statement: vz.ProblemStatement) -> None:
     """Guarantees that `self._designer` is populated.
 
     This method guarantees that after a successful call, `self.designer` does
@@ -176,11 +179,11 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     This method catches all DecodeErrors.
 
     Args:
-      study_config:
+      problem_statement:
 
     Raises:
-      ValueError: If study_config is differerent from the initially
-        receieved study_config.
+      ValueError: If problem_statement is differerent from the initially
+        receieved problem_statement.
     """
     if self._designer is not None:
       # When the same policy object is maintained in RAM, prefer keeping
@@ -190,13 +193,13 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
           logging.INFO, 'Policy already has a designer. '
           'It will not attempt to load from metadata.', self._verbose >= 2)
       return
-    elif self._reference_study_config != study_config:
+    elif self._problem_statement != problem_statement:
       raise ValueError(
           f'{type(self)} cannot be re-used for different study configs!'
-          f'Policy: {self}, previous study: {self._reference_study_config} '
-          f'new study: {study_config}')
+          f'Policy: {self}, previous study: {self._problem_statement} '
+          f'new study: {problem_statement}')
 
-    metadata = study_config.metadata.ns(self._ns_root)
+    metadata = problem_statement.metadata.ns(self._ns_root)
     try:
       self.load(metadata)
       logging.log_if(logging.INFO, 'Succesfully decoded all states!',
@@ -204,7 +207,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     except serializable.DecodeError as e:
       logging.log_if(logging.INFO, 'Failed to decode state. %s',
                      self._verbose >= 1, e)
-      self._designer = self._designer_factory(study_config)
+      self._designer = self._designer_factory(problem_statement)
       self._incorporated_trial_ids = set()
 
   def dump(self) -> vz.Metadata:
@@ -247,7 +250,7 @@ class PartiallySerializableDesignerPolicy(
   def _restore_designer(
       self,
       designer_metadata: vz.Metadata) -> vza.PartiallySerializableDesigner:
-    designer = self._designer_factory(self._reference_study_config)
+    designer = self._designer_factory(self._problem_statement)
     designer.load(designer_metadata)
     return designer
 
@@ -257,6 +260,7 @@ class SerializableDesignerPolicy(
   """Wraps a SerializableDesigner."""
 
   def __init__(self,
+               problem_statement: vz.ProblemStatement,
                supporter: pythia.PolicySupporter,
                designer_factory: DesignerFactory[vza.SerializableDesigner],
                designer_cls: Type[vza.SerializableDesigner],
@@ -266,6 +270,7 @@ class SerializableDesignerPolicy(
     """Init.
 
     Args:
+      problem_statement:
       supporter:
       designer_factory: Used when designer state cannot be restored.
       designer_cls: Type name of the designer. Its load() classmethod is called
@@ -274,7 +279,11 @@ class SerializableDesignerPolicy(
       verbose: Logging verbosity.
     """
     super().__init__(
-        supporter, designer_factory, ns_root=ns_root, verbose=verbose)
+        problem_statement,
+        supporter,
+        designer_factory,
+        ns_root=ns_root,
+        verbose=verbose)
     self._designer_cls = designer_cls
 
   def _restore_designer(
