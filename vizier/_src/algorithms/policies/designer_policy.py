@@ -183,7 +183,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
     Raises:
       ValueError: If problem_statement is differerent from the initially
-        receieved problem_statement.
+        received problem_statement.
     """
     if self._designer is not None:
       # When the same policy object is maintained in RAM, prefer keeping
