@@ -26,8 +26,10 @@ class BaseRunnerTest(absltest.TestCase):
     def designer_factory(config: vz.ProblemStatement):
       return random.RandomDesigner(config.search_space, seed=5)
 
-    benchmark_state = benchmark_runner.BenchmarkState.from_designer_factory(
+    benchmark_state_factory = benchmark_runner.DesignerBenchmarkStateFactory(
         designer_factory=designer_factory, experimenter=experimenter)
+
+    benchmark_state = benchmark_state_factory.create()
 
     runner.run(benchmark_state)
     self.assertEmpty(
@@ -54,8 +56,10 @@ class BaseRunnerTest(absltest.TestCase):
     def designer_factory(config: vz.ProblemStatement):
       return random.RandomDesigner(config.search_space, seed=5)
 
-    benchmark_state = benchmark_runner.BenchmarkState.from_designer_factory(
-        designer_factory=designer_factory, experimenter=experimenter)
+    benchmark_state_factory = benchmark_runner.DesignerBenchmarkStateFactory(
+        experimenter=experimenter, designer_factory=designer_factory)
+
+    benchmark_state = benchmark_state_factory.create()
 
     runner.run(benchmark_state)
     self.assertEmpty(

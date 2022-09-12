@@ -33,6 +33,7 @@ one that simulates the stochasticity of natural evaluation processes.
   runner = benchmark_runner.BenchmarkRunner(benchmark_subroutines=subroutines)
 """
 
+import abc
 from typing import Callable, Optional, Protocol, Sequence
 
 from absl import logging
@@ -54,24 +55,47 @@ class BenchmarkState:
   experimenter: Experimenter
   algorithm: runner_protocol.AlgorithmRunnerProtocol
 
-  @classmethod
-  def from_designer_factory(cls, designer_factory: DesignerFactory,
-                            experimenter: Experimenter) -> 'BenchmarkState':
-    problem = experimenter.problem_statement()
-    return cls(
-        experimenter=experimenter,
+
+@attr.define(frozen=True)
+class BenchmarkStateFactory(abc.ABC):
+  """Factory class to generate new BenchmarkState."""
+
+  experimenter: Experimenter
+
+  @abc.abstractmethod
+  def create(self) -> BenchmarkState:
+    """Creates a new instance of BenchmarkFactory."""
+    pass
+
+
+@attr.define(frozen=True)
+class DesignerBenchmarkStateFactory(BenchmarkStateFactory):
+  """Factory class to generate new BenchmarkState from designer factory."""
+
+  designer_factory: DesignerFactory
+
+  def create(self) -> BenchmarkState:
+    """Create a BenchmarkState from designer factory."""
+    problem = self.experimenter.problem_statement()
+    return BenchmarkState(
+        experimenter=self.experimenter,
         algorithm=runner_protocol.DesignerRunnerProtocol(
-            designer=designer_factory(problem),
+            designer=self.designer_factory(problem),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
-  @classmethod
-  def from_policy_factory(cls, policy_factory: PolicyFactory,
-                          experimenter: Experimenter) -> 'BenchmarkState':
-    problem = experimenter.problem_statement()
-    return cls(
-        experimenter=experimenter,
+
+@attr.define(frozen=True)
+class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
+
+  policy_factory: PolicyFactory
+
+  def create(self) -> BenchmarkState:
+    """Create a BenchmarkState from policy factory."""
+    problem = self.experimenter.problem_statement()
+    return BenchmarkState(
+        experimenter=self.experimenter,
         algorithm=runner_protocol.PolicyRunnerProtocol(
-            policy=policy_factory(problem),
+            policy=self.policy_factory(problem),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
 
