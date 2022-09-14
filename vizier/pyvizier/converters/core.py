@@ -971,12 +971,18 @@ class DefaultTrialConverter(TrialToNumpyDict):
     }
 
   @classmethod
-  def from_study_configs(
-      cls,
-      study_configs: Sequence[pyvizier.ProblemStatement],
-      metric_information: Collection[pyvizier.MetricInformation],
-      *,
-      use_study_id_feature: bool = True) -> 'DefaultTrialConverter':
+  def from_study_configs(cls,
+                         study_configs: Sequence[pyvizier.ProblemStatement],
+                         metric_information: Collection[
+                             pyvizier.MetricInformation],
+                         *,
+                         use_study_id_feature: bool = True,
+                         float_dtype: np.dtype = np.float32,
+                         max_discrete_indices: int = 10,
+                         scale: bool = False,
+                         onehot_embed: bool = False,
+                         converts_to_parameter: bool = True,
+                         pad_oovs: bool = True) -> 'DefaultTrialConverter':
     """Creates a converter from a list of study configs.
 
     Args:
@@ -984,6 +990,12 @@ class DefaultTrialConverter(TrialToNumpyDict):
       metric_information: MetricInformation of metrics to be used as y-values.
       use_study_id_feature: If True, an extra parameter is added that
         corresponds to the STUDY_ID_FIELD inside metadata.
+      float_dtype:
+      max_discrete_indices:
+      scale:
+      onehot_embed:
+      converts_to_parameter:
+      pad_oovs:
 
     Returns:
       `DefaultTrialConverter`.
@@ -1007,7 +1019,15 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
     parameter_converters = []
     for pc in parameter_configs.values():
-      parameter_converters.append(DefaultModelInputConverter(pc))
+      parameter_converters.append(
+          DefaultModelInputConverter(
+              pc,
+              float_dtype=float_dtype,
+              max_discrete_indices=max_discrete_indices,
+              scale=scale,
+              onehot_embed=onehot_embed,
+              converts_to_parameter=converts_to_parameter,
+              pad_oovs=pad_oovs))
 
     # Append study id feature if configured to do so.
     if use_study_id_feature:
@@ -1046,10 +1066,25 @@ class DefaultTrialConverter(TrialToNumpyDict):
                [DefaultModelOutputConverter(m) for m in metric_information])
 
   @classmethod
-  def from_study_config(cls, study_config: pyvizier.ProblemStatement):
+  def from_study_config(cls,
+                        study_config: pyvizier.ProblemStatement,
+                        *,
+                        float_dtype: np.dtype = np.float32,
+                        max_discrete_indices: int = 10,
+                        scale: bool = False,
+                        onehot_embed: bool = False,
+                        converts_to_parameter: bool = True,
+                        pad_oovs: bool = True):
+    """Creates a converter from a single study config."""
     return cls.from_study_configs([study_config],
                                   study_config.metric_information,
-                                  use_study_id_feature=False)
+                                  use_study_id_feature=False,
+                                  float_dtype=float_dtype,
+                                  max_discrete_indices=max_discrete_indices,
+                                  scale=scale,
+                                  onehot_embed=onehot_embed,
+                                  converts_to_parameter=converts_to_parameter,
+                                  pad_oovs=pad_oovs)
 
 
 class TrialToArrayConverter:
