@@ -283,8 +283,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         suggest_request_proto = pyvizier.SuggestConverter.to_request_proto(
             suggest_request)
         suggest_request_proto.algorithm = study.study_spec.algorithm
-        suggest_decision_proto = self._pythia_service_stub.Suggest.future(
-            suggest_request_proto).result()
+        suggest_decision_proto = self._pythia_service_stub.Suggest(
+            suggest_request_proto)
         # Check if we received enough suggestions.
         if len(suggest_decision_proto.suggestions
               ) < request.suggestion_count - len(output_trials):
@@ -560,9 +560,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_request_proto.algorithm = study.study_spec.algorithm
 
       # Send request to Pythia.
-      early_stopping_decisions_proto = self._pythia_service_stub.EarlyStop.future(
-          early_stop_request_proto).result()
-
+      early_stopping_decisions_proto = self._pythia_service_stub.EarlyStop(
+          early_stop_request_proto)
       early_stopping_decisions = pyvizier.EarlyStopConverter.from_decisions_proto(
           early_stopping_decisions_proto)
       # Update metadata from result.
