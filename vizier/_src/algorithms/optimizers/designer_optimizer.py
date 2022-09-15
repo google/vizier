@@ -60,5 +60,7 @@ class DesignerAsOptimizer(base.GradientFreeOptimizer):
         trial.complete(
             vz.Measurement({k: v[i].item() for k, v in scores.items()}))
       self._designer.update(abstractions.CompletedTrials(trials))
-
+    logging.info(
+        'Finished running the optimization study. Extracting the best trials...'
+    )
     return study.GetBestTrials(count=count)

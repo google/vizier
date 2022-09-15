@@ -46,11 +46,11 @@ unique id.
 
 import codecs
 import copy
-import logging
 import pickle
 import time
-from typing import Dict, List, Optional, Sequence, Tuple, Any
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from absl import logging
 import attr
 from jax import random
 import numpy as np
@@ -265,7 +265,8 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
                problem_statement: vz.ProblemStatement,
                *,
                config: Optional[FireflyAlgorithmConfig] = None,
-               key: Optional[PRNGKey] = None):
+               key: Optional[PRNGKey] = None,
+               verbose: int = 0):
     """Initializes the Eagle Strategy desiger.
 
     When a key is not provided it will be set based on the current time to
@@ -275,6 +276,7 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
       problem_statement: A problem description including the search space.
       config: The Firefly algorithm hyperparameters.
       key: A key to deterministically generate samples from random variables.
+      verbose: Controls logging verbosity. Higher values mean more logging.
 
     Raises:
       Exception: if the problem statement includes condional search space,
@@ -305,6 +307,7 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
           'A key was not provided to Eagle Strategy designer constructor. '
           'Setting the key to %s', str(key))
     self._key = key
+    self._verbose = verbose
 
   @property
   def n_parameters(self) -> int:
@@ -519,7 +522,10 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
     if parent_fly is None:
       if trial.infeasible:
         # Ignore infeasible trials without parent fly.
-        logging.info('Got infeasible trial without a parent fly in the pool.')
+        logging.log_if(
+            logging.INFO,
+            'Got infeasible trial without a parent fly in the pool.',
+            self._verbose >= 1)
       elif self._firefly_pool.size < self._firefly_pool.capacity:
         # Pool is below capacity. Create a new firefly or update existing one.
         self._firefly_pool.create_or_update_fly(trial)
@@ -533,15 +539,17 @@ class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
 
     elif utils.better_than(self.problem, trial, parent_fly.trial):
       # If there's an improvement, we update the parent with the new trial.
-      logging.info('Good step.\nParent trial: %s\nChild trial: %s',
-                   str(parent_fly.trial), str(trial))
+      logging.log_if(logging.INFO,
+                     'Good step.\nParent trial: %s\nChild trial: %s',
+                     self._verbose >= 2, str(parent_fly.trial), str(trial))
       parent_fly.trial = trial
       parent_fly.generation += 1
     else:
       # If there's no improvement, we penalize the parent by decreasing its
       # exploration capability and potenitally remove it from the pool.
-      logging.info('Bad step.\nParent trial: %s\nChild trial: %s',
-                   str(parent_fly.trial), str(trial))
+      logging.log_if(logging.INFO,
+                     'Bad step.\nParent trial: %s\nChild trial: %s',
+                     self._verbose >= 2, str(parent_fly.trial), str(trial))
       self._penalize_parent_fly(parent_fly, trial)
 
   def _assign_closest_parent(self, trial: vz.Trial) -> Optional[_Firefly]:

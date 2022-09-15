@@ -85,9 +85,9 @@ class RandomMetricsRunner:
               mi.min_value_or(lambda: -10.), mi.max_value_or(lambda: 10.))
         trials.append(
             suggestion.to_trial(len(trials) + 1).complete(measurement))
-        if self.verbose:
-          logging.info('At iteration %s, trials suggested and evaluated:\n%s',
-                       it, trials)
+      if self.verbose:
+        logging.info('At iteration %s, trials suggested and evaluated:\n%s', it,
+                     trials)
       algorithm.post_completion_callback(vza.CompletedTrials(trials))
       all_trials.extend(trials)
     return all_trials
