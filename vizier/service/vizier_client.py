@@ -33,17 +33,21 @@ FLAGS = flags.FLAGS
 
 Metadata = Mapping[Tuple[str, str], Any]
 
+VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
+                      vizier_service_pb2_grpc.VizierServiceServicer]
+
 
 @attr.frozen(init=True)
 class VizierClient:
   """Client for communicating with the Vizer Service via GRPC.
 
-  It can be initialized directly with a Vizier service stub, or created
-  from endpoint. See also `create_server_stub`.
+  It can be initialized directly with a Vizier server class instance/stub, or
+  created from endpoint. See also `create_server_stub`.
   """
 
-  _server_stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field(
-      repr=False)
+  # Note that if we use a literal Vizier server class, only one client should
+  # interact with the server to prevent deadlocks.
+  _server: VizierService = attr.field(repr=False)
   _study_resource_name: str = attr.field(
       validator=attr.validators.instance_of(str))
   _client_id: str = attr.field(validator=[
@@ -126,8 +130,7 @@ class VizierClient:
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         suggestion_count=suggestion_count,
         client_id=client_id)
-    future = self._server_stub.SuggestTrials.future(request)
-    operation = future.result()
+    operation = self._server.SuggestTrials(request)
 
     num_attempts = 0
     while not operation.done:
@@ -138,7 +141,7 @@ class VizierClient:
                    operation.name)
       time.sleep(sleep_time.total_seconds())
 
-      operation = self._server_stub.GetOperation(
+      operation = self._server.GetOperation(
           operations_pb2.GetOperationRequest(name=operation.name))
 
     if operation.HasField('error'):
@@ -177,23 +180,21 @@ class VizierClient:
         trial_name=resources.TrialResource(self._owner_id, self._study_id,
                                            trial_id).name,
         measurement=measurement)
-    future = self._server_stub.AddTrialMeasurement.future(request)
-    trial = future.result()
+    trial = self._server.AddTrialMeasurement(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def should_trial_stop(self, trial_id: int) -> bool:
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
         trial_name=resources.TrialResource(self._owner_id, self._study_id,
                                            trial_id).name)
-    future = self._server_stub.CheckTrialEarlyStoppingState.future(request)
-    early_stopping_response = future.result()
+    early_stopping_response = self._server.CheckTrialEarlyStoppingState(request)
     return early_stopping_response.should_stop
 
   def stop_trial(self, trial_id: int) -> None:
     request = vizier_service_pb2.StopTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
                                      trial_id).name)
-    self._server_stub.StopTrial(request)
+    self._server.StopTrial(request)
     logging.info('Trial with id %s stopped.', trial_id)
 
   def complete_trial(
@@ -214,8 +215,7 @@ class VizierClient:
       request.final_measurement.CopyFrom(
           pyvizier.MeasurementConverter.to_proto(final_measurement))
 
-    future = self._server_stub.CompleteTrial.future(request)
-    trial = future.result()
+    trial = self._server.CompleteTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def get_trial(self, trial_id: int) -> pyvizier.Trial:
@@ -223,33 +223,28 @@ class VizierClient:
     request = vizier_service_pb2.GetTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
                                      trial_id).name)
-    future = self._server_stub.GetTrial.future(request)
-    trial = future.result()
+    trial = self._server.GetTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def list_trials(self) -> List[pyvizier.Trial]:
     """List all trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListTrialsRequest(parent=parent)
-    future = self._server_stub.ListTrials.future(request)
-
-    response = future.result()
+    response = self._server.ListTrials(request)
     return pyvizier.TrialConverter.from_protos(response.trials)
 
   def list_optimal_trials(self) -> List[pyvizier.Trial]:
     """List only the optimal completed trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListOptimalTrialsRequest(parent=parent)
-    future = self._server_stub.ListOptimalTrials.future(request)
-    response = future.result()
+    response = self._server.ListOptimalTrials(request)
     return pyvizier.TrialConverter.from_protos(response.optimal_trials)
 
   def list_studies(self) -> List[Dict[str, Any]]:
     """List all studies for the given owner."""
     request = vizier_service_pb2.ListStudiesRequest(
         parent=resources.OwnerResource(self._owner_id).name)
-    future = self._server_stub.ListStudies.future(request)
-    list_studies_response = future.result()
+    list_studies_response = self._server.ListStudies(request)
     # TODO: Use PyVizier StudyDescriptor instead.
     return [
         json_format.MessageToJson(study)
@@ -270,8 +265,7 @@ class VizierClient:
     request = vizier_service_pb2.CreateTrialRequest(
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         trial=pyvizier.TrialConverter.to_proto(trial))
-    future = self._server_stub.CreateTrial.future(request)
-    trial_proto = future.result()
+    trial_proto = self._server.CreateTrial(request)
     return pyvizier.TrialConverter.from_proto(trial_proto)
 
   def delete_trial(self, trial_id: int) -> None:
@@ -279,8 +273,7 @@ class VizierClient:
     request_trial_name = resources.TrialResource(self._owner_id, self._study_id,
                                                  trial_id).name
     request = vizier_service_pb2.DeleteTrialRequest(name=request_trial_name)
-    future = self._server_stub.DeleteTrial.future(request)
-    _ = future.result()
+    self._server.DeleteTrial(request)
     logging.info('Trial deleted: %s', trial_id)
 
   def delete_study(self, study_resource_name: Optional[str] = None, /) -> None:
@@ -288,8 +281,7 @@ class VizierClient:
     study_resource_name = study_resource_name or (resources.StudyResource(
         self._owner_id, self._study_id).name)
     request = vizier_service_pb2.DeleteStudyRequest(name=study_resource_name)
-    future = self._server_stub.DeleteStudy.future(request)
-    _ = future.result()
+    self._server.DeleteStudy(request)
     logging.info('Study deleted: %s', study_resource_name)
 
   def get_study_config(self,
@@ -299,9 +291,7 @@ class VizierClient:
     study_resource_name = study_resource_name or (resources.StudyResource(
         self._owner_id, self._study_id).name)
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
-    future = self._server_stub.GetStudy.future(request)
-    response = future.result()
-
+    response = self._server.GetStudy(request)
     return pyvizier.StudyConfig.from_proto(response.study_spec)
 
   def update_metadata(self,
@@ -326,8 +316,7 @@ class VizierClient:
         self._owner_id, self._study_id).name)
     request = pyvizier.metadata_util.to_request_proto(study_resource_name,
                                                       delta)
-    future = self._server_stub.UpdateMetadata.future(request)
-    response = future.result()
+    response = self._server.UpdateMetadata(request)
 
     if response.error_details:
       raise RuntimeError(response.error_details)
@@ -379,11 +368,9 @@ def create_or_load_study(
       display_name=study_id, study_spec=study_config.to_proto())
   request = vizier_service_pb2.CreateStudyRequest(
       parent=resources.OwnerResource(owner_id).name, study=study)
-  future = vizier_stub.CreateStudy.future(request)
-
   # The response study contains a service assigned `name`, and may have been
   # created by this RPC or a previous RPC from another client.
-  study = future.result()
+  study = vizier_stub.CreateStudy(request)
   return VizierClient(vizier_stub, study.name, client_id)
 
 
