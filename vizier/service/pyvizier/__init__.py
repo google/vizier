@@ -17,7 +17,6 @@ from vizier._src.pyvizier.oss.proto_converters import ScaleType
 from vizier._src.pyvizier.oss.proto_converters import SuggestConverter
 from vizier._src.pyvizier.oss.proto_converters import TrialConverter
 from vizier._src.pyvizier.oss.proto_converters import TrialSuggestionConverter
-from vizier._src.pyvizier.oss.study import StudyWithTrials
 from vizier._src.pyvizier.oss.study_config import Algorithm
 from vizier._src.pyvizier.oss.study_config import ExternalType
 from vizier._src.pyvizier.oss.study_config import ObjectiveMetricGoal
@@ -35,6 +34,7 @@ from vizier._src.pyvizier.shared.base_study_config import SearchSpace
 from vizier._src.pyvizier.shared.common import Metadata
 from vizier._src.pyvizier.shared.common import MetadataValue
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
+from vizier._src.pyvizier.shared.study import ProblemAndTrials
 from vizier._src.pyvizier.shared.trial import CompletedTrial
 from vizier._src.pyvizier.shared.trial import CompletedTrialWithMeasurements
 from vizier._src.pyvizier.shared.trial import Measurement
