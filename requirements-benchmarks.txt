@@ -7,3 +7,6 @@ dopamine-rl
 # For NAS Benchmarks.
 https://github.com/google-research/nasbench/archive/master.zip  # NASBench-101
 nats_bench  # NASBench-201
+
+# For HPOB.
+xgboost==1.5.1
