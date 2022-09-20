@@ -3,41 +3,40 @@
 The Policy can use these methods to communicate with Vizier.
 """
 import datetime
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Union
 
 from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.service import pythia_util
 from vizier.service import pyvizier
-from vizier.service import stubs_util
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
+
+VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
+                      vizier_service_pb2_grpc.VizierServiceServicer]
 
 
 # TODO: Consider replacing protos with Pyvizier clients.py.
 class ServicePolicySupporter(pythia.PolicySupporter):
   """Service version of the PolicySupporter."""
 
-  def __init__(self, study_guid: str):
+  def __init__(self, study_guid: str, vizier_service: VizierService):
     """Initalization.
 
     Args:
       study_guid: A default study_name; the name of this study.
+      vizier_service: Vizier Service, in the form of a GRPC stub or actual
+        class.
     """
     self._study_guid = study_guid
-    self._vizier_service_stub: Optional[
-        vizier_service_pb2_grpc.VizierServiceStub] = None
-
-  def connect_to_vizier(self, vizier_service_endpoint: str) -> None:
-    self._vizier_service_stub = stubs_util.create_vizier_server_stub(
-        vizier_service_endpoint)
+    self._vizier_service = vizier_service
 
   def GetStudyConfig(self,
                      study_guid: Optional[str] = None) -> vz.ProblemStatement:
     if study_guid is None:
       study_guid = self._study_guid
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
-    study = self._vizier_service_stub.GetStudy(request)
+    study = self._vizier_service.GetStudy(request)
     return pyvizier.StudyConfig.from_proto(study.study_spec).to_problem()
 
   # TODO: Use TrialsFilter instead.
@@ -55,7 +54,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     if study_guid is None:
       study_guid = self._study_guid
     request = vizier_service_pb2.ListTrialsRequest(parent=study_guid)
-    trials = self._vizier_service_stub.ListTrials(request).trials
+    trials = self._vizier_service.ListTrials(request).trials
     all_pytrials = pyvizier.TrialConverter.from_protos(trials)
 
     if trial_ids is not None:
@@ -101,7 +100,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     request = pyvizier.metadata_util.to_request_proto(self._study_guid, delta)
     waiter = pythia_util.ResponseWaiter()
     # In a real server, this happens in another thread:
-    response = self._vizier_service_stub.UpdateMetadata(request)
+    response = self._vizier_service.UpdateMetadata(request)
     waiter.Report(response)
     # Wait for Vizier to reply with a UpdateMetadataResponse packet.
     waiter.WaitForResponse()

@@ -2,7 +2,7 @@
 import collections
 import datetime
 import threading
-from typing import Optional
+from typing import Optional, Union
 
 from absl import logging
 import grpc
@@ -13,6 +13,7 @@ from vizier import pythia
 from vizier import pyvizier as base_pyvizier
 from vizier._src.pyvizier.oss import metadata_util
 from vizier.service import datastore
+from vizier.service import pythia_server
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier
 from vizier.service import resources
@@ -39,6 +40,9 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
 MAX_STUDY_ID = 2147483647  # Max int32 value.
 SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
 
+PythiaService = Union[pythia_service_pb2_grpc.PythiaServiceStub,
+                      pythia_service_pb2_grpc.PythiaServiceServicer]
+
 
 # TODO: remove context = None
 # TODO: remove context = None
@@ -62,8 +66,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
     """
-    self._pythia_service_stub: Optional[
-        pythia_service_pb2_grpc.PythiaServiceStub] = None
+    # By default, uses a local PythiaService instance.
+    self._pythia_service: PythiaService = pythia_server.PythiaService(
+        vizier_service=self)
 
     if database_url is None:
       self.datastore = datastore.NestedDictRAMDataStore()
@@ -85,8 +90,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self._early_stop_recycle_period = early_stop_recycle_period
 
   def connect_to_pythia(self, pythia_endpoint: str) -> None:
-    self._pythia_service_stub = stubs_util.create_pythia_server_stub(
-        pythia_endpoint)
+    # This replaces the local PythiaService.
+    logging.info('Connecting to Pythia endpoint: %s', pythia_endpoint)
+    self._pythia_service = stubs_util.create_pythia_server_stub(pythia_endpoint)
+    logging.info('Created Pythia server stub: %s', self._pythia_service)
 
   def CreateStudy(
       self,
@@ -283,7 +290,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         suggest_request_proto = pyvizier.SuggestConverter.to_request_proto(
             suggest_request)
         suggest_request_proto.algorithm = study.study_spec.algorithm
-        suggest_decision_proto = self._pythia_service_stub.Suggest(
+        suggest_decision_proto = self._pythia_service.Suggest(
             suggest_request_proto)
         # Check if we received enough suggestions.
         if len(suggest_decision_proto.suggestions
@@ -560,7 +567,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_request_proto.algorithm = study.study_spec.algorithm
 
       # Send request to Pythia.
-      early_stopping_decisions_proto = self._pythia_service_stub.EarlyStop(
+      early_stopping_decisions_proto = self._pythia_service.EarlyStop(
           early_stop_request_proto)
       early_stopping_decisions = pyvizier.EarlyStopConverter.from_decisions_proto(
           early_stopping_decisions_proto)

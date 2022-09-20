@@ -1,5 +1,5 @@
 """Separate Pythia service for handling algorithmic logic."""
-from typing import Optional
+from typing import Optional, Union
 from absl import logging
 import grpc
 
@@ -18,7 +18,9 @@ from vizier.service import pythia_service_pb2
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as vz
 from vizier.service import service_policy_supporter
+from vizier.service import stubs_util
 from vizier.service import study_pb2
+from vizier.service import vizier_service_pb2_grpc
 
 
 def policy_creator(
@@ -54,14 +56,29 @@ def policy_creator(
         'is not registered.')
 
 
+VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
+                      vizier_service_pb2_grpc.VizierServiceServicer]
+
+
 class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
   """Implements the GRPC functions outlined in pythia_service.proto."""
 
-  def __init__(self):
-    self._vizier_service_endpoint: Optional[str] = None
+  def __init__(self, vizier_service: Optional[VizierService] = None):
+    """Initialization.
+
+    Args:
+      vizier_service: Can be either an actual VizierService object or a stub. An
+        actual VizierService should be passed only for local testing/local
+        development.
+    """
+    self._vizier_service = vizier_service
 
   def connect_to_vizier(self, vizier_service_endpoint: str) -> None:
-    self._vizier_service_endpoint = vizier_service_endpoint
+    """Only needs to be called if VizierService wasn't passed in init."""
+    if self._vizier_service:
+      raise ValueError('Vizier Service was already set:', self._vizier_service)
+    self._vizier_service = stubs_util.create_vizier_server_stub(
+        vizier_service_endpoint)
 
   def Suggest(
       self,
@@ -72,8 +89,7 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
     # Setup Policy Supporter.
     study_config = vz.SuggestConverter.from_request_proto(request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        request.study_descriptor.guid)
-    policy_supporter.connect_to_vizier(self._vizier_service_endpoint)
+        request.study_descriptor.guid, self._vizier_service)
     pythia_policy = policy_creator(study_config, request.algorithm,
                                    policy_supporter)
 
@@ -101,8 +117,7 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
     study_config = vz.EarlyStopConverter.from_request_proto(
         request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        request.study_descriptor.guid)
-    policy_supporter.connect_to_vizier(self._vizier_service_endpoint)
+        request.study_descriptor.guid, self._vizier_service)
     pythia_policy = policy_creator(study_config, request.algorithm,
                                    policy_supporter)
 

@@ -17,22 +17,19 @@ from vizier.service import vizier_service_pb2_grpc
 
 @attr.define
 class DefaultVizierService:
-  """Vizier service which runs Pythia and Vizier Server in the same process."""
+  """Vizier service which runs Pythia and Vizier Server in the same process.
+
+  Both servers have access to the others' literal class instances.
+  """
   _host: str = attr.field(init=True, default='localhost')
   _database_url: str = attr.field(
       init=True, default=vizier_server.SQL_MEMORY_URL, kw_only=True)
   _early_stop_recycle_period: datetime.timedelta = attr.field(
       init=False, default=datetime.timedelta(seconds=0.1))
   _port: int = attr.field(init=False, factory=portpicker.pick_unused_port)
-  _pythia_port: int = attr.field(
-      init=False, factory=portpicker.pick_unused_port)
   _servicer: vizier_server.VizierService = attr.field(init=False)
-  _pythia_servicer: pythia_server.PythiaService = attr.field(init=False)
   _server: grpc.Server = attr.field(init=False)
-  _pythia_server: grpc.Server = attr.field(init=False)
   stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field(init=False)
-  pythia_stub: pythia_service_pb2_grpc.PythiaServiceStub = attr.field(
-      init=False)
 
   @property
   def datastore(self) -> datastore.DataStore:
@@ -42,13 +39,8 @@ class DefaultVizierService:
   def endpoint(self) -> str:
     return f'{self._host}:{self._port}'
 
-  @property
-  def pythia_endpoint(self) -> str:
-    return f'{self._host}:{self._pythia_port}'
-
   def __init__(self):
     self.__attrs_init__()
-
     # Setup Vizier server.
     self._servicer = vizier_server.VizierService(
         database_url=self._database_url,
@@ -59,6 +51,27 @@ class DefaultVizierService:
     self._server.add_secure_port(self.endpoint, grpc.local_server_credentials())
     self._server.start()
     self.stub = stubs_util.create_vizier_server_stub(self.endpoint)
+
+  def wait_for_early_stop_recycle_period(self) -> None:
+    time.sleep(self._early_stop_recycle_period.total_seconds())
+
+
+@attr.define
+class DistributedPythiaVizierService(DefaultVizierService):
+  """Separates Pythia from Vizier via over-the-wire distributed communication."""
+  _pythia_port: int = attr.field(
+      init=False, factory=portpicker.pick_unused_port)
+  _pythia_servicer: pythia_server.PythiaService = attr.field(init=False)
+  _pythia_server: grpc.Server = attr.field(init=False)
+  pythia_stub: pythia_service_pb2_grpc.PythiaServiceStub = attr.field(
+      init=False)
+
+  @property
+  def pythia_endpoint(self) -> str:
+    return f'{self._host}:{self._pythia_port}'
+
+  def __init__(self):
+    super().__init__()
 
     # Setup Pythia server.
     self._pythia_servicer = pythia_server.PythiaService()
@@ -75,6 +88,3 @@ class DefaultVizierService:
     # Connect Vizier and Pythia servers together.
     self._servicer.connect_to_pythia(self.pythia_endpoint)
     self._pythia_servicer.connect_to_vizier(self.endpoint)
-
-  def wait_for_early_stop_recycle_period(self) -> None:
-    time.sleep(self._early_stop_recycle_period.total_seconds())

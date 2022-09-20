@@ -19,7 +19,7 @@ class PerformanceTest(parameterized.TestCase):
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    cls.service = vizier_service.DefaultVizierService()
+    cls.service = vizier_service.DistributedPythiaVizierService()
 
   @parameterized.parameters(
       (1, 10, 2),

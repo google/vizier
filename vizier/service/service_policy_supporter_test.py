@@ -1,16 +1,10 @@
 """Tests for vizier.service.service_policy_supporter."""
-
-from concurrent import futures
 import logging
-import grpc
-import portpicker
-
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import service_policy_supporter
 from vizier.service import study_pb2
 from vizier.service import vizier_server
-from vizier.service import vizier_service_pb2_grpc
 from vizier.service.testing import util as test_util
 
 from absl.testing import absltest
@@ -39,20 +33,8 @@ class PythiaSupporterTest(absltest.TestCase):
     for trial in self.active_trials + [self.succeeded_trial]:
       self.vs.datastore.create_trial(trial)
 
-    # Setup local networking.
-    self.port = portpicker.pick_unused_port()
-    self.address = f'localhost:{self.port}'
-
-    # Setup server.
-    self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=100))
-    vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
-        self.vs, self.server)
-    self.server.add_secure_port(self.address, grpc.local_server_credentials())
-    self.server.start()
-
     self.policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        self.study_name)
-    self.policy_supporter.connect_to_vizier(self.address)
+        self.study_name, self.vs)
 
     super().setUp()
 
