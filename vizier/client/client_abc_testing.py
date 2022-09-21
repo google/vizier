@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 from absl import logging
 from vizier import pyvizier as vz
-from vizier._src.pyvizier.client import client_abc
+from vizier.client import client_abc
 
 from absl.testing import parameterized
 
