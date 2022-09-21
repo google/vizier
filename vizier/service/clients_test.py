@@ -3,7 +3,7 @@
 from absl import flags
 from absl import logging
 import grpc
-from vizier._src.pyvizier.client import client_abc_testing
+from vizier.client import client_abc_testing
 from vizier.service import clients
 from vizier.service import pyvizier as vz
 from vizier.service import vizier_service

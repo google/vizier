@@ -5,7 +5,7 @@
 from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optional, Type
 
 import attr
-from vizier._src.pyvizier.client import client_abc
+from vizier.client import client_abc
 from vizier.service import pyvizier as vz
 from vizier.service import stubs_util
 from vizier.service import vizier_client
