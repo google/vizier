@@ -54,9 +54,16 @@ class ShiftingExperimenterTest(parameterized.TestCase):
         t.final_measurement.metrics[metric_name].value)
     self.assertEqual(t.status, t_shifted.status)
 
+    # Check parameter bounds are shifted.
+    shifted_parameters = shifted_exptr.problem_statement(
+    ).search_space.parameters
+    for param, shifted_param in zip(parameters, shifted_parameters):
+      self.assertEqual(param.bounds[0], shifted_param.bounds[0])
+      self.assertEqual(param.bounds[1] - shift, shifted_param.bounds[1])
+
   def testVectorShift(self):
     dim = 2
-    shift = [1.2, 2.3]
+    shift = [1.2, -2.3]
     func = bbob.Sphere
     exptr = numpy_experimenter.NumpyExperimenter(
         func, bbob.DefaultBBOBProblemStatement(dim))
@@ -85,6 +92,16 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     self.assertEqual(t.status, t_shifted.status)
     self.assertNotEqual(t.parameters, t_shifted.parameters)
 
+  def testLargeShift(self):
+    dim = 2
+    shift = [10.2, 20.3]
+    func = bbob.Sphere
+    exptr = numpy_experimenter.NumpyExperimenter(
+        func, bbob.DefaultBBOBProblemStatement(dim))
+
+    with self.assertRaisesRegex(ValueError, 'is too large'):
+      shifting_experimenter.ShiftingExperimenter(
+          exptr=exptr, shift=np.asarray(shift))
 
 if __name__ == '__main__':
   absltest.main()
