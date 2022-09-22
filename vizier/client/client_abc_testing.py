@@ -152,6 +152,12 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     completed = study.trials(vz.TrialFilter(status={vz.TrialStatus.COMPLETED}))
     self.assertLen(list(completed), 2)
 
+  def test_parameters(self):
+    study = self.create_test_study_with_trials(self.id())
+    self.assertEqual(
+        study.get_trial(1).parameters,
+        study.get_trial(1).parameters)
+
   def test_study_update_metadata(self):
     """Checks for correct merge behavior."""
     study = self.create_test_study(self.id())
