@@ -91,23 +91,37 @@ class MetricInformation:
       on_setattr=[attr.setters.convert, attr.setters.validate],
       kw_only=True)
 
-  # The following are only valid for Safety metrics.
-  # safety_threshold should always be set to a float (default 0.0), for safety
+  # The following should be used to configure this as a safety metric.
+  # safety_threshold must always be set to a float (default 0.0), for safety
   # metrics.
   safety_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
       kw_only=True)
+  # Safety_std_threshold is deprecated and is here for backward compatibility.
+  # To configure how cautious the optimization should be, please defer to
+  # desired_min_safe_trials_fraction. This corresponds to the allowed
+  # probability threshold (as a function of the z-score) of
+  # violating the safety_threshold.
   safety_std_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
       kw_only=True)
-  percentage_unsafe_trials_threshold: Optional[float] = attr.field(
+  # Desired minimum fraction of safe trials (over total number of trials)
+  # that should be targeted by the algorithm during the entire duration of the
+  # study (best effort). A value of 0.0 is the same as None. If unset, or set
+  # to 0.0, then Vizier has no constraint on the number/fraction of unsafe
+  # trials it can suggest.
+  desired_min_safe_trials_fraction: Optional[float] = attr.field(
       init=True,
       default=None,
-      validator=attr.validators.optional(attr.validators.instance_of(float)),
+      validator=[
+          attr.validators.optional(attr.validators.instance_of(float)),
+          attr.validators.optional(attr.validators.le(1.0)),
+          attr.validators.optional(attr.validators.ge(0.0))
+      ],
       kw_only=True)
 
   # Minimum value of this metric can be optionally specified.
@@ -168,8 +182,7 @@ class MetricInformation:
 
   @property
   def type(self) -> MetricType:
-    if (self.safety_threshold is not None or
-        self.safety_std_threshold is not None):
+    if self.safety_threshold is not None:
       return MetricType.SAFETY
     else:
       return MetricType.OBJECTIVE

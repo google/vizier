@@ -329,7 +329,6 @@ class MetricInformationConverter:
         name=proto.metric_id,
         goal=proto.goal,
         safety_threshold=None,
-        safety_std_threshold=None,
         min_value=None,
         max_value=None)
 

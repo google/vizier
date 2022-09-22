@@ -77,7 +77,8 @@ class MetricsConfigTest(parameterized.TestCase):
         base_study_config.MetricInformation(
             name='min_safe2',
             goal=base_study_config.ObjectiveMetricGoal.MINIMIZE,
-            safety_threshold=0.0)
+            safety_threshold=0.0,
+            desired_min_safe_trials_fraction=0.1)
     ])
     self.assertLen(config, 5)
     self.assertLen(config.of_type(base_study_config.MetricType.OBJECTIVE), 3)
