@@ -12,7 +12,6 @@ Keywords:
 Modifying the returned object does not update the Vizier service.
 """
 
-# TODO: Add a dedicated .md file with more code examples.
 import abc
 from typing import Any, Collection, Iterator, Mapping, Optional, Type, TypeVar
 
@@ -21,6 +20,8 @@ from vizier import pyvizier as vz
 _T = TypeVar('_T')
 
 
+# TODO: Add more errors, and unit tests to ensure that
+# all vizier clients have the same error handling logic.
 class ResourceNotFoundError(LookupError):
   """Error raised by Vizier clients when resource is not found."""
   pass
