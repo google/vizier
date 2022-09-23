@@ -39,8 +39,7 @@ class DefaultVizierService:
   def endpoint(self) -> str:
     return f'{self._host}:{self._port}'
 
-  def __init__(self):
-    self.__attrs_init__()
+  def __attrs_post_init__(self):
     # Setup Vizier server.
     self._servicer = vizier_server.VizierService(
         database_url=self._database_url,
@@ -70,9 +69,8 @@ class DistributedPythiaVizierService(DefaultVizierService):
   def pythia_endpoint(self) -> str:
     return f'{self._host}:{self._pythia_port}'
 
-  def __init__(self):
-    super().__init__()
-
+  def __attrs_post_init__(self):
+    super().__attrs_post_init__()
     # Setup Pythia server.
     self._pythia_servicer = pythia_server.PythiaService()
     # `max_workers=1` is used since we can only run one Pythia thread at a time.
