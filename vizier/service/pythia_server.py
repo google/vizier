@@ -23,11 +23,9 @@ from vizier.service import study_pb2
 from vizier.service import vizier_service_pb2_grpc
 
 
-def policy_creator(
-    problem_statement: vz.ProblemStatement,
-    algorithm: study_pb2.StudySpec.Algorithm,
-    policy_supporter: service_policy_supporter.ServicePolicySupporter
-) -> pythia.Policy:
+def policy_creator(problem_statement: vz.ProblemStatement,
+                   algorithm: study_pb2.StudySpec.Algorithm,
+                   policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
   """Creates a policy."""
   if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
                    study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
