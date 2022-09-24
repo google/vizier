@@ -100,9 +100,10 @@ class FastParetoOptimalAlgorithm(BaseParetoOptimalAlgorithm):
     """Init.
 
     To use with XLA:
-      from vizier.jax.pyvizier import multimetric as multimetric_jax
+      from vizier.pyvizier.multimetric import xla_pareto
+
       algo =
-      FastParetoOptimalAlgorithm(multimetric_jax.JaxParetoOptimalAlgorithm())
+      FastParetoOptimalAlgorithm(xla_pareto.JaxParetoOptimalAlgorithm())
       algo.is_pareto_optimal(points)
 
     Args:

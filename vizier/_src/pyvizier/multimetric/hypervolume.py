@@ -62,6 +62,8 @@ class ParetoFrontier:
     """Takes a set of points and initializes approximating vectors.
 
     To use with XLA:
+      from vizier.pyvizier.multimetric import xla_pareto
+
       front = ParetoFrontier(points, origin,
         cum_hypervolume_base = xla_pareto.jax_cum_hypervolume_origin)
       front.hypervolume(is_cumulative=True)
@@ -145,4 +147,3 @@ class ParetoFrontier:
       return np.array(approx_hypervolume / num_shards)
     else:
       return np.array(np.max(approx_hypervolume / num_shards))
-
