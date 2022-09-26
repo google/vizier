@@ -17,8 +17,8 @@ from absl import app
 from absl import flags
 from absl import logging
 
+from vizier.service import clients
 from vizier.service import pyvizier as vz
-from vizier.service import vizier_client
 
 flags.DEFINE_string(
     'address', '',
@@ -58,6 +58,7 @@ def main(argv: Sequence[str]) -> None:
     logging.info(
         'You did not specify the server address. Please see the documentation on the `address` FLAGS.'
     )
+  clients.environment_variables.service_endpoint = FLAGS.address  # Set address.
 
   study_config = vz.StudyConfig()  # Search space, metrics, and algorithm.
   root = study_config.search_space.root
@@ -85,29 +86,23 @@ def main(argv: Sequence[str]) -> None:
   else:
     study_config.algorithm = vz.Algorithm.EMUKIT_GP_EI
 
-  client = vizier_client.create_or_load_study(
-      service_endpoint=FLAGS.address,
-      owner_id='my_name',
-      client_id='my_client_id',
-      study_id='cifar10',
-      study_config=study_config)
-  logging.info('Client created with study name: %s', client.study_resource_name)
+  study = clients.Study.from_study_config(
+      study_config, owner='my_name', study_id='cifar10')
+  logging.info('Client created with study name: %s', study.resource_name)
 
   for _ in range(FLAGS.max_num_iterations):
     # Evaluate the suggestion(s) and report the results to Vizier.
-    suggestions = client.get_suggestions(
-        suggestion_count=FLAGS.suggestion_count)
-    for trial in suggestions:
-      measurement = evaluate_trial(trial)
-      client.complete_trial(trial_id=trial.id, final_measurement=measurement)
+    trials = study.suggest(count=FLAGS.suggestion_count)
+    for trial in trials:
+      materialized_trial = trial.materialize()
+      measurement = evaluate_trial(materialized_trial)
+      trial.complete(measurement)
       logging.info('Trial %d completed with metrics: %s', trial.id,
                    measurement.metrics)
 
-  all_trials = client.list_trials()
-  logging.info('%d trials have been completed.', len(all_trials))
-
-  optimal_trials = client.list_optimal_trials()
+  optimal_trials = study.optimal_trials()
   for optimal_trial in optimal_trials:
+    optimal_trial = optimal_trial.materialize(include_all_measurements=True)
     logging.info(
         'Pareto-optimal trial found so far has parameters %s and metrics %s',
         optimal_trial.parameters, optimal_trial.final_measurement.metrics)
