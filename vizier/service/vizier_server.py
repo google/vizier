@@ -516,9 +516,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     """
     trial_resource = resources.TrialResource.from_name(request.trial_name)
     study_name = trial_resource.study_resource.name
-    outer_op_name = resources.EarlyStoppingOperationResource(
-        trial_resource.owner_id, trial_resource.study_id,
-        trial_resource.trial_id).name
+    outer_op_name = trial_resource.early_stopping_operation_resource.name
 
     # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.

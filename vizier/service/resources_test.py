@@ -40,7 +40,9 @@ class UtilTest(parameterized.TestCase):
         early_stopping_op_resource.name)
     self.assertEqual(early_stopping_op_resource,
                      same_early_stopping_op_resource)
-    self.assertEqual(early_stopping_op_resource.trial, trial_resource)
+    self.assertEqual(early_stopping_op_resource.trial_resource, trial_resource)
+    self.assertEqual(trial_resource.early_stopping_operation_resource,
+                     early_stopping_op_resource)
 
     suggestion_op_resource = resources.SuggestionOperationResource(
         self.owner_id, self.study_id, self.client_id, self.operation_number)

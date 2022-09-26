@@ -103,12 +103,15 @@ class TrialResource:
       raise ValueError(f'{repr(resource_name)} is not a valid name for a '
                        'Trial resource.')
 
-  def make_early_stopping_operation(self, operation_id: str = ''):
-    pass
-
   @property
   def study_resource(self) -> StudyResource:
     return StudyResource(owner_id=self.owner_id, study_id=self.study_id)
+
+  @property
+  def early_stopping_operation_resource(
+      self) -> 'EarlyStoppingOperationResource':
+    return EarlyStoppingOperationResource(
+        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id)
 
   @property
   def name(self) -> str:
@@ -148,7 +151,7 @@ class EarlyStoppingOperationResource:
       raise ValueError(f'Incorrect resource name sent: {resource_name}')
 
   @property
-  def trial(self) -> TrialResource:
+  def trial_resource(self) -> TrialResource:
     return TrialResource(
         owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id)
 
