@@ -6,7 +6,7 @@ from vizier._src.pyvizier.shared import base_study_config
 from vizier._src.pyvizier.shared import trial
 
 
-@attr.define(frozen=True, init=True, slots=True, kw_only=True)
+@attr.define(frozen=True, init=True, slots=True, kw_only=False)
 class ProblemAndTrials:
   """Container for problem statement and trials."""
   problem: base_study_config.ProblemStatement = attr.ib(init=True)
