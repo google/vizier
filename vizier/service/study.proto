@@ -348,6 +348,8 @@ message StudySpec {
     // Harmonica (https://arxiv.org/abs/1706.00764) only applicable to boolean
     // search spaces.
     HARMONICA = 8;
+    /// CMA-ES (https://arxiv.org/abs/1604.00772) for DOUBLE search spaces only.
+    CMA_ES = 9;
   }
 
   // The search algorithm specified for the Study.

@@ -53,6 +53,7 @@ class Algorithm(enum.Enum):
   EMUKIT_GP_EI = study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI
   BOCS = study_pb2.StudySpec.Algorithm.BOCS
   HARMONICA = study_pb2.StudySpec.Algorithm.HARMONICA
+  CMA_ES = study_pb2.StudySpec.Algorithm.CMA_ES
 
 
 class ObservationNoise(enum.Enum):

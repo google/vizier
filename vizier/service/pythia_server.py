@@ -6,6 +6,7 @@ import grpc
 from vizier import pythia
 
 from vizier._src.algorithms.designers import bocs
+from vizier._src.algorithms.designers import cmaes
 from vizier._src.algorithms.designers import emukit
 from vizier._src.algorithms.designers import grid
 from vizier._src.algorithms.designers import harmonica
@@ -48,6 +49,8 @@ def policy_creator(problem_statement: vz.ProblemStatement,
     return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
   elif algorithm == study_pb2.StudySpec.Algorithm.HARMONICA:
     return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
+  elif algorithm == study_pb2.StudySpec.Algorithm.CMA_ES:
+    return dp.DesignerPolicy(policy_supporter, cmaes.CMAESDesigner)
   else:
     raise ValueError(
         f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '
