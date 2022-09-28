@@ -48,6 +48,7 @@ setup(
     # Contained modules and scripts.
     packages=find_namespace_packages(
         include=['vizier*'], exclude=['*_test.py', 'examples']),
+    scripts=['install.sh'],
     install_requires=_parse_requirements('requirements.txt'),
     extras_require={
         'jax': _parse_requirements('requirements-jax.txt'),
@@ -55,7 +56,6 @@ setup(
         'algorithms': _parse_requirements('requirements-algorithms.txt'),
         'benchmarks': _parse_requirements('requirements-benchmarks.txt')
     },
-    # tests_require=_parse_requirements('requirements-test.txt'),
     requires_python='>=3.9',
     include_package_data=True,
     zip_safe=False,
