@@ -1,4 +1,6 @@
 #!/bin/bash
+sudo apt-get install -y libprotobuf-dev  # Needed for proto libraries.
+
 # Installs standard Google protos, then builds Vizier specific protos.
 set -x
 

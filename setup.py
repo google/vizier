@@ -1,5 +1,5 @@
 """Setup for pip package."""
-
+import subprocess
 from setuptools import find_namespace_packages
 from setuptools import setup
 
@@ -48,7 +48,6 @@ setup(
     # Contained modules and scripts.
     packages=find_namespace_packages(
         include=['vizier*'], exclude=['*_test.py', 'examples']),
-    scripts=['install.sh'],
     install_requires=_parse_requirements('requirements.txt'),
     extras_require={
         'jax': _parse_requirements('requirements-jax.txt'),
@@ -74,3 +73,5 @@ setup(
     ],
     keywords='ai machine learning hyperparameter blackbox optimization framework',
 )
+
+subprocess.call(['./build_protos.sh'])
