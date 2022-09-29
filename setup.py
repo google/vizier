@@ -15,9 +15,9 @@
 """Setup for pip package."""
 import os
 import sys
+from setuptools import Command
 from setuptools import find_namespace_packages
 from setuptools import setup
-from setuptools.command.build_ext import build_ext
 
 
 def _get_version():
@@ -49,16 +49,17 @@ def _parse_requirements(requirements_txt_path: str) -> list[str]:
     return [l for l in lines if (l and 'github.com' not in l)]
 
 
-class BuildCmd(build_ext):
+class BuildCmd(Command):
   """Custom installation script to build the protos."""
 
   def run(self):
     current_path = os.path.dirname(os.path.realpath(__file__))
-    sys.stdout.write('current_path: {}'.format(current_path))
+    print('current_path: {}'.format(current_path))
+    sys.stderr.write('current_path: {}'.format(current_path))
     with os.scandir('.') as it:
       for entry in it:
         if entry.name.startwith('build_protos.sh'):
-          sys.stdout.write('{}'.format(entry))
+          sys.stderr.write('{}'.format(entry))
     if os.system('sh build_protos.sh'):
       raise OSError('Failed to run build_protos.sh')
     super(BuildCmd, self).run()

@@ -30,7 +30,6 @@ jobs:
       - name: Install Vizier # (TODO: Remove algorithm dependencies)
         run: |
           pip install -e .
-          bash build_protos.sh  # TODO: Remove once setup.py scripting is fixed.
           pip install -r requirements-jax.txt
           pip install -r requirements-algorithms.txt
       - name: Print installed dependencies

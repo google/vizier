@@ -13,7 +13,9 @@
 # limitations under the License.
 
 #!/bin/bash
-sudo apt-get install -y libprotobuf-dev  # Needed for proto libraries.
+echo "BUILDING PROTOS"
+apt-get install -y libprotobuf-dev  # Needed for proto libraries.
+echo "INSTALLED LIBPROTOBUF"
 
 # Installs standard Google protos, then builds Vizier specific protos.
 set -x
@@ -23,7 +25,7 @@ DEPOT="$THIS_DIR/../../../.."
 
 cd "$THIS_DIR"
 
-
+echo "BEFORE DOWNLOAD"
 # Download the OSS shared protos from GitHub:
 # https://github.com/googleapis/googleapis
 TMPDIR=$(mktemp -d)
@@ -33,7 +35,7 @@ TMPDIR=$(mktemp -d)
   cp -r googleapis-master/google $THIS_DIR/vizier/service/
 )
 rm -rf "$TMPDIR"
-
+echo "AFTER DOWNLOAD"
 # No need to copy over well known types. They're linked into protoc.
 
 # Generates the *.py files from the protos.
@@ -46,3 +48,5 @@ do
     --experimental_allow_proto3_optional \
     vizier/service/$proto_name
 done
+
+echo "GENERATE PB2"

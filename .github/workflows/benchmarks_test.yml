@@ -30,7 +30,6 @@ jobs:
       - name: Install Vizier
         run: |
           pip install -e .
-          bash build_protos.sh  # TODO: Remove once setup.py scripting is fixed.
           pip install -r requirements-jax.txt
           pip install -r requirements-tf.txt
           pip install -r requirements-benchmarks.txt
