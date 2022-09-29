@@ -129,7 +129,7 @@ class _VariableDescriptor:
                 self.max_value_before_tf + _TF_OFFSET)
     else:
       bounds = (self.min_value, self.max_value)
-    return bounds
+    return bounds  # pytype: disable=bad-return-type
 
   def as_parameter_config(self) -> vz.ParameterConfig:
     """Return the Vizier parameter config."""
