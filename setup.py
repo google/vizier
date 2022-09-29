@@ -2,6 +2,7 @@
 import os
 from setuptools import find_namespace_packages
 from setuptools import setup
+from setuptools.command.build_ext import build_ext
 
 
 def _get_version():
@@ -33,6 +34,13 @@ def _parse_requirements(requirements_txt_path: str) -> list[str]:
     return [l for l in lines if (l and 'github.com' not in l)]
 
 
+class BuildCmd(build_ext):
+  """Custom installation script to build the protos."""
+
+  def run(self):
+    os.system('sh build_protos.sh')
+
+
 _VERSION = _get_version()
 
 setup(
@@ -58,6 +66,7 @@ setup(
     requires_python='>=3.9',
     include_package_data=True,
     zip_safe=False,
+    cmdclass={'build_protos': BuildCmd},
     # PyPI package information.
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -73,5 +82,3 @@ setup(
     ],
     keywords='ai machine learning hyperparameter blackbox optimization framework',
 )
-
-os.system('sh build_protos.sh')
