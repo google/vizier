@@ -1,5 +1,5 @@
 """Setup for pip package."""
-import subprocess
+import os
 from setuptools import find_namespace_packages
 from setuptools import setup
 
@@ -74,4 +74,4 @@ setup(
     keywords='ai machine learning hyperparameter blackbox optimization framework',
 )
 
-subprocess.call(['./build_protos.sh'])
+os.system('sh build_protos.sh')
