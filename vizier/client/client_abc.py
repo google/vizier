@@ -234,7 +234,9 @@ class StudyInterface(abc.ABC):
 
   @classmethod
   @abc.abstractmethod
-  def from_resource_name(cls: Type[_T], name: str, /) -> _T:
+  # TODO: Make the function have position only parameter
+  # once cloud vizier support python 3.8+ version.
+  def from_resource_name(cls: Type[_T], name: str) -> _T:
     """Fetches an existing study from the Vizier service.
 
     Args:
