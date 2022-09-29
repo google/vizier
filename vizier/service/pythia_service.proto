@@ -31,7 +31,7 @@ message StudyDescriptor {
 }
 
 message SuggestRequest {
-  StudySpec.Algorithm algorithm = 1;
+  string algorithm = 1;
   StudyDescriptor study_descriptor = 2;
   int32 count = 3;
   string checkpoint_dir = 4;
@@ -43,7 +43,7 @@ message SuggestDecision {
 }
 
 message EarlyStopRequest {
-  StudySpec.Algorithm algorithm = 1;
+  string algorithm = 1;
   StudyDescriptor study_descriptor = 2;
   repeated int32 trial_ids = 3;
   string checkpoint_dir = 4;

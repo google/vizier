@@ -326,34 +326,13 @@ message StudySpec {
   repeated ParameterSpec parameters = 2
       [(google.api.field_behavior) = REQUIRED];
 
-  // The available search algorithms for the Study.
-  enum Algorithm {
-    // Let Vizier choose the algorithm. Currently defaults to RANDOM_SEARCH.
-    ALGORITHM_UNSPECIFIED = 0;
-    // Gaussian Process Bandit.
-    GAUSSIAN_PROCESS_BANDIT = 1;
-    // Simple grid search within the feasible space.
-    GRID_SEARCH = 2;
-    // Simple random search within the feasible space.
-    RANDOM_SEARCH = 3;
-    // Quasi-random search using Halton sequences.
-    QUASI_RANDOM_SEARCH = 4;
-    // NSGA2 (https://ieeexplore.ieee.org/document/996017)
-    NSGA2 = 5;
-    // Emukit implementation of GP-EI (https://emukit.github.io/)
-    EMUKIT_GP_EI = 6;
-    // BOCS (https://arxiv.org/abs/1806.08838) only applicable to boolean search
-    // spaces.
-    BOCS = 7;
-    // Harmonica (https://arxiv.org/abs/1706.00764) only applicable to boolean
-    // search spaces.
-    HARMONICA = 8;
-    /// CMA-ES (https://arxiv.org/abs/1604.00772) for DOUBLE search spaces only.
-    CMA_ES = 9;
-  }
-
   // The search algorithm specified for the Study.
-  Algorithm algorithm = 3;
+  // See pyvizier.Algorithm for a list of native Vizier algorithms.
+  string algorithm = 3;
+
+  // The Pythia endpoint, for custom algorithms, or a Pythia service running
+  // as a separate binary.
+  optional string pythia_endpoint = 8;
 
   // The decay curve automated stopping rule builds a Gaussian Process
   // Regressor to predict the final objective value of a Trial based on the

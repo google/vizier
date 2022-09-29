@@ -175,7 +175,7 @@ class VizierServerTest(parameterized.TestCase):
     suggestion_count = 10
 
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH)
+        algorithm='RANDOM_SEARCH')
     example_study = test_util.generate_study(
         self.owner_id, self.study_id, study_spec=example_study_spec)
     self.vs.datastore.create_study(example_study)
@@ -249,7 +249,7 @@ class VizierServerTest(parameterized.TestCase):
 
   def test_early_stopping(self):
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH)
+        algorithm='RANDOM_SEARCH')
     example_study = test_util.generate_study(
         self.owner_id, self.study_id, study_spec=example_study_spec)
     self.vs.datastore.create_study(example_study)
@@ -293,7 +293,7 @@ class VizierServerTest(parameterized.TestCase):
   def test_update_metadata(self):
     # Construct a study.
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH)
+        algorithm='RANDOM_SEARCH')
     example_study = test_util.generate_study(
         self.owner_id, self.study_id, study_spec=example_study_spec)
     self.vs.datastore.create_study(example_study)

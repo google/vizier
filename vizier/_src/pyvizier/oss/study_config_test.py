@@ -1,5 +1,4 @@
 """Tests for vizier.pyvizier.oss.study_config."""
-
 import datetime
 
 from vizier.service import pyvizier
@@ -8,9 +7,10 @@ from vizier.service import study_pb2
 from google.protobuf import struct_pb2
 from vizier._src.pyvizier.oss import compare
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
-class StudyConfigTest(absltest.TestCase):
+class StudyConfigTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
@@ -32,6 +32,7 @@ class StudyConfigTest(absltest.TestCase):
         use_elapsed_duration=False)
 
     study_config_proto = study_pb2.StudySpec(
+        algorithm='QUASI_RANDOM_SEARCH',
         metrics=[
             study_pb2.StudySpec.MetricSpec(
                 metric_id='pr-auc',
@@ -47,11 +48,67 @@ class StudyConfigTest(absltest.TestCase):
             name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
     ])
     self.assertEqual(sc.metric_information, expected)
+    self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
+    self.assertIsNone(sc.pythia_endpoint)
     self.assertEqual(sc.single_objective_metric_name, 'pr-auc')
     self.assertTrue(sc.is_single_objective)
 
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
+    compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+
+  @parameterized.parameters([
+      ('my custom algorithm'),
+      ('QUASI_RANDOM_SEARCH'),
+  ])
+  def testCreationFromAndToProtoStudyStringAlgorithm(self, algorithm):
+    study_config_proto = study_pb2.StudySpec(
+        metrics=[
+            study_pb2.StudySpec.MetricSpec(
+                metric_id='pr-auc',
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
+        ],
+        algorithm=algorithm)
+    # Test the algorithm when pythia endpoint is not specified.
+    # This can be used when a pythia service is injected directly to the Vizier
+    # service class.
+    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    self.assertEqual(sc.algorithm, algorithm)
+    self.assertIsNone(sc.pythia_endpoint)
+
+    compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+
+  def testCreationFromAndToProtoStudyStringAlgorithmPythiaEndpoint(self):
+    study_config_proto = study_pb2.StudySpec(
+        metrics=[
+            study_pb2.StudySpec.MetricSpec(
+                metric_id='pr-auc',
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
+        ],
+        algorithm='my custom algorithm',
+        pythia_endpoint='localhost:8888')
+    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    self.assertEqual(sc.algorithm, 'my custom algorithm')
+    self.assertEqual(sc.pythia_endpoint, 'localhost:8888')
+
+    compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+
+  def testCreationFromAndToProtoStudyAlgorithmPythiaEndpoint(self):
+    study_config_proto = study_pb2.StudySpec(
+        metrics=[
+            study_pb2.StudySpec.MetricSpec(
+                metric_id='pr-auc',
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
+        ],
+        algorithm='QUASI_RANDOM_SEARCH',
+        pythia_endpoint='localhost:8888')
+    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
+    self.assertEqual(sc.pythia_endpoint, 'localhost:8888')
+
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
     _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
@@ -78,7 +135,9 @@ class StudyConfigTest(absltest.TestCase):
     self.assertEqual(sc.metric_information, expected)
     self.assertIsNone(sc.single_objective_metric_name)
     self.assertFalse(sc.is_single_objective)
-    compare.assertProto2SameElements(self, study_config_proto, sc.to_proto())
+
+    round_trip_proto = sc.to_proto()
+    compare.assertProto2SameElements(self, study_config_proto, round_trip_proto)
 
     _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
@@ -136,7 +195,7 @@ class StudyConfigTest(absltest.TestCase):
         use_steps=True)
 
     # Test all proprties.
-    self.assertEqual(sc.algorithm.value, study_pb2.StudySpec.RANDOM_SEARCH)
+    self.assertEqual(sc.algorithm, 'RANDOM_SEARCH')
     expected = pyvizier.MetricsConfig([
         pyvizier.MetricInformation(
             name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
@@ -146,7 +205,7 @@ class StudyConfigTest(absltest.TestCase):
     self.assertTrue(sc.is_single_objective)
 
     expected = study_pb2.StudySpec(
-        algorithm=study_pb2.StudySpec.RANDOM_SEARCH,
+        algorithm='RANDOM_SEARCH',
         metrics=[
             study_pb2.StudySpec.MetricSpec(
                 metric_id='pr-auc',

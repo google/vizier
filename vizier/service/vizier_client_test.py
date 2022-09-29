@@ -48,7 +48,7 @@ class VizierClientTest(parameterized.TestCase):
     self.example_study = study_pb2.Study(
         name=self.study_resource_name,
         study_spec=study_pb2.StudySpec(
-            algorithm=study_pb2.StudySpec.Algorithm.RANDOM_SEARCH,
+            algorithm='RANDOM_SEARCH',
             parameters=[double_parameter_spec],
             metrics=[metric_spec]))
     self.active_trial = study_pb2.Trial(

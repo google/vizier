@@ -44,16 +44,28 @@ ObjectiveMetricGoal = base_study_config.ObjectiveMetricGoal
 
 class Algorithm(enum.Enum):
   """Valid Values for StudyConfig.Algorithm."""
-  ALGORITHM_UNSPECIFIED = study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED
-  GAUSSIAN_PROCESS_BANDIT = study_pb2.StudySpec.Algorithm.GAUSSIAN_PROCESS_BANDIT
-  GRID_SEARCH = study_pb2.StudySpec.Algorithm.GRID_SEARCH
-  RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.RANDOM_SEARCH
-  QUASI_RANDOM_SEARCH = study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH
-  NSGA2 = study_pb2.StudySpec.Algorithm.NSGA2
-  EMUKIT_GP_EI = study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI
-  BOCS = study_pb2.StudySpec.Algorithm.BOCS
-  HARMONICA = study_pb2.StudySpec.Algorithm.HARMONICA
-  CMA_ES = study_pb2.StudySpec.Algorithm.CMA_ES
+  # Let Vizier choose the algorithm. Currently defaults to RANDOM_SEARCH.
+  ALGORITHM_UNSPECIFIED = 'ALGORITHM_UNSPECIFIED'
+  # Gaussian Process Bandit.
+  GAUSSIAN_PROCESS_BANDIT = 'GAUSSIAN_PROCESS_BANDIT'
+  # Grid search within the feasible space.
+  GRID_SEARCH = 'GRID_SEARCH'
+  # Random search within the feasible space.
+  RANDOM_SEARCH = 'RANDOM_SEARCH'
+  # Quasi-random search using Halton sequences.
+  QUASI_RANDOM_SEARCH = 'QUASI_RANDOM_SEARCH'
+  # NSGA2 (https://ieeexplore.ieee.org/document/996017).
+  NSGA2 = 'NSGA2'
+  # Emukit implementation of GP-EI (https://emukit.github.io/).
+  EMUKIT_GP_EI = 'EMUKIT_GP_EI'
+  # BOCS (https://arxiv.org/abs/1806.08838) only applicable to boolean search
+  # spaces.
+  BOCS = 'BOCS'
+  # Harmonica (https://arxiv.org/abs/1706.00764) only applicable to boolean
+  # search spaces.
+  HARMONICA = 'HARMONICA'
+  # CMA-ES (https://arxiv.org/abs/1604.00772) for DOUBLE search spaces only
+  CMA_ES = 'CMA_ES'
 
 
 class ObservationNoise(enum.Enum):
@@ -105,11 +117,19 @@ class StudyConfig(base_study_config.ProblemStatement):
       validator=attr.validators.instance_of(base_study_config.SearchSpace),
       on_setattr=attr.setters.validate)
 
-  algorithm: Algorithm = attr.field(
+  algorithm: str = attr.field(
       init=True,
-      validator=attr.validators.instance_of(Algorithm),
+      validator=attr.validators.instance_of((Algorithm, str)),
+      converter=lambda x: x.value if isinstance(x, enum.Enum) else x,
       on_setattr=[attr.setters.convert, attr.setters.validate],
-      default=Algorithm.GAUSSIAN_PROCESS_BANDIT,
+      default='GAUSSIAN_PROCESS_BANDIT',
+      kw_only=True)
+
+  pythia_endpoint: Optional[str] = attr.field(
+      init=True,
+      validator=attr.validators.optional(attr.validators.instance_of(str)),
+      on_setattr=[attr.setters.convert, attr.setters.validate],
+      default=None,
       kw_only=True)
 
   # TODO: This name/type combo is confusing.
@@ -165,6 +185,12 @@ class StudyConfig(base_study_config.ProblemStatement):
     Returns:
       A StudyConfig object.
     """
+    algorithm = proto.algorithm
+
+    pythia_endpoint = None
+    if proto.HasField('pythia_endpoint'):
+      pythia_endpoint = proto.pythia_endpoint
+
     metric_information = base_study_config.MetricsConfig(
         sorted([
             proto_converters.MetricInformationConverter.from_proto(m)
@@ -186,7 +212,8 @@ class StudyConfig(base_study_config.ProblemStatement):
 
     return cls(
         search_space=proto_converters.SearchSpaceConverter.from_proto(proto),
-        algorithm=Algorithm(proto.algorithm),
+        algorithm=algorithm,
+        pythia_endpoint=pythia_endpoint,
         metric_information=metric_information,
         observation_noise=ObservationNoise(proto.observation_noise),
         automated_stopping_config=automated_stopping_config,
@@ -196,7 +223,9 @@ class StudyConfig(base_study_config.ProblemStatement):
   def to_proto(self) -> study_pb2.StudySpec:
     """Serializes this object to a StudyConfig proto."""
     proto = copy.deepcopy(self._study_config)
-    proto.algorithm = self.algorithm.value
+    proto.algorithm = self.algorithm
+    if self.pythia_endpoint is not None:
+      proto.pythia_endpoint = self.pythia_endpoint
     proto.observation_noise = self.observation_noise.value
 
     del proto.metrics[:]

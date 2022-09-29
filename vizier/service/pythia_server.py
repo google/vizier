@@ -20,41 +20,36 @@ from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as vz
 from vizier.service import service_policy_supporter
 from vizier.service import stubs_util
-from vizier.service import study_pb2
 from vizier.service import vizier_service_pb2_grpc
 
 
-def policy_creator(problem_statement: vz.ProblemStatement,
-                   algorithm: study_pb2.StudySpec.Algorithm,
+def policy_creator(problem_statement: vz.ProblemStatement, algorithm: str,
                    policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
   """Creates a policy."""
-  if algorithm in (study_pb2.StudySpec.Algorithm.ALGORITHM_UNSPECIFIED,
-                   study_pb2.StudySpec.Algorithm.RANDOM_SEARCH):
+  if algorithm in ('ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
     return random_policy.RandomPolicy(policy_supporter)
-  elif algorithm == study_pb2.StudySpec.Algorithm.QUASI_RANDOM_SEARCH:
+  elif algorithm == 'QUASI_RANDOM_SEARCH':
     return dp.PartiallySerializableDesignerPolicy(
         problem_statement, policy_supporter,
         quasi_random.QuasiRandomDesigner.from_problem)
-  elif algorithm == study_pb2.StudySpec.Algorithm.GRID_SEARCH:
+  elif algorithm == 'GRID_SEARCH':
     return dp.PartiallySerializableDesignerPolicy(
         problem_statement, policy_supporter,
         grid.GridSearchDesigner.from_problem)
-  elif algorithm == study_pb2.StudySpec.Algorithm.NSGA2:
+  elif algorithm == 'NSGA2':
     return dp.PartiallySerializableDesignerPolicy(problem_statement,
                                                   policy_supporter,
                                                   nsga2.create_nsga2)
-  elif algorithm == study_pb2.StudySpec.Algorithm.EMUKIT_GP_EI:
+  elif algorithm == 'EMUKIT_GP_EI':
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
-  elif algorithm == study_pb2.StudySpec.Algorithm.BOCS:
+  elif algorithm == 'BOCS':
     return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
-  elif algorithm == study_pb2.StudySpec.Algorithm.HARMONICA:
+  elif algorithm == 'HARMONICA':
     return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
-  elif algorithm == study_pb2.StudySpec.Algorithm.CMA_ES:
+  elif algorithm == 'CMA_ES':
     return dp.DesignerPolicy(policy_supporter, cmaes.CMAESDesigner)
   else:
-    raise ValueError(
-        f'Algorithm {study_pb2.StudySpec.Algorithm.Name(algorithm)} '
-        'is not registered.')
+    raise ValueError(f'Algorithm {algorithm} is not registered.')
 
 
 VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
