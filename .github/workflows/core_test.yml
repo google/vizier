@@ -29,9 +29,11 @@ jobs:
           pip install pytest pytest-xdist
       - name: Install Vizier # (TODO: Remove algorithm dependencies)
         run: |
-          bash ./install.sh
+          pip install -r requirements.txt --use-deprecated=legacy-resolver
           pip install -r requirements-jax.txt
           pip install -r requirements-algorithms.txt
+          pip install -e .
+          bash build_protos.sh
       - name: Print installed dependencies
         run: |
           pip freeze

@@ -29,10 +29,12 @@ jobs:
           pip install pytest pytest-xdist
       - name: Install Vizier
         run: |
-          bash ./install.sh
+          pip install -r requirements.txt --use-deprecated=legacy-resolver # Installs dependencies
           pip install -r requirements-jax.txt
           pip install -r requirements-tf.txt
           pip install -r requirements-benchmarks.txt
+          pip install -e .
+          bash build_protos.sh
       - name: Print installed dependencies
         run: |
           pip freeze

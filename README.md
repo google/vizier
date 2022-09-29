@@ -45,9 +45,15 @@ To install the **core API**, the simplest way is to run:
 pip install google-vizier
 ```
 
-which will download the code and launch the provided `install.sh`. This script installs the necessary dependencies from `requirements.txt`, and builds the relevant protobuf libraries needed for the service. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
+which will install the necessary dependencies from `requirements.txt`, and builds the relevant protobuf libraries needed for the service. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
 
-For **full installation** (in particular to support **all algorithms and benchmarks**), you will need to install all dependencies via `install_extras.sh`. This will install the following:
+For **full installation** (in particular to support **all algorithms and benchmarks**), you will need to install all dependencies via
+
+```
+pip install google-vizier[extra]
+```
+
+This will install the following:
 
 * `requirements-jax.txt`: Jax libraries shared by both algorithms and benchmarks.
 * `requirements-tf.txt`: Tensorflow libraries shared by both algorithms and benchmarks.
