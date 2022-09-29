@@ -1076,6 +1076,8 @@ class TrialToArrayConverter:
 
   def __init__(self,
                impl: DefaultTrialConverter,
+               *,
+               auto_squeeze_y: bool = False,
                experimental_override: str = ''):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
 
@@ -1084,6 +1086,7 @@ class TrialToArrayConverter:
           'Set "experimental_override" if you want to call __init__ directly. '
           'Otherwise, use TrialToArrayConverter.from_study_config.')
     self._impl = impl
+    self._auto_squeeze_y = auto_squeeze_y
 
   def to_features(self, trials) -> np.ndarray:
     return dict_to_array(self._impl.to_features(trials))
@@ -1091,8 +1094,23 @@ class TrialToArrayConverter:
   def to_labels(self, trials) -> np.ndarray:
     return dict_to_array(self._impl.to_labels(trials))
 
-  def to_xy(self, trials) -> Tuple[np.ndarray, np.ndarray]:
-    return self.to_features(trials), self.to_labels(trials)
+  def to_xy(self,
+            trials,
+            *,
+            squeeze_y: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+    """Converts trials into numpy arrays.
+
+    Args:
+      trials:
+      squeeze_y: If True and the study is single-objective,
+
+    Returns:
+
+    """
+    labels = self.to_labels(trials)
+    if squeeze_y:
+      labels = labels.squeeze()
+    return self.to_features(trials), labels
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
@@ -1104,6 +1122,7 @@ class TrialToArrayConverter:
   def from_study_config(cls,
                         study_config: pyvizier.ProblemStatement,
                         *,
+                        auto_squeeze_y: bool = False,
                         scale: bool = True,
                         pad_oovs: bool = True,
                         max_discrete_indices: int = 0,
@@ -1113,6 +1132,8 @@ class TrialToArrayConverter:
 
     Args:
       study_config:
+      auto_squeeze_y: If True, automatically squeeze y values (aka labels)
+        if the study is single objective.
       scale: If True, scales the parameters to [0, 1] range.
       pad_oovs: If True, add an extra dimension for out-of-vocabulary values for
         non-CONTINUOUS parameters.
@@ -1147,7 +1168,10 @@ class TrialToArrayConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information])
 
-    return cls(converter, cls._experimental_override)
+    return cls(
+        converter,
+        experimental_override=cls._experimental_override,
+        auto_squeeze_y=auto_squeeze_y)
 
   @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:
