@@ -848,14 +848,20 @@ class DefaultTrialConverter(TrialToNumpyDict):
     if labels.size != features.size:
       raise ValueError(
           'The number of features and labels observations do not match.')
+    parameters = self.to_parameters(features)
     measurements = self._to_measurements(labels)
     for m in measurements:
       m.steps = 1
 
-    return [
-        pyvizier.Trial(parameters=p, final_measurement=m)
-        for p, m in zip(self.to_parameters(features), measurements)
-    ]
+    trials = []
+    for p, m in zip(parameters, measurements):
+      trial = pyvizier.Trial(parameters=p, final_measurement=m)
+      # _to_measurements returns an empty dict for NaN and non-finite metric
+      # values.
+      if not m.metrics:
+        trial.complete(m, infeasibility_reason='Metrics are empty')
+      trials.append(trial)
+    return trials
 
   def _to_measurements(
       self, labels: Mapping[str, np.ndarray]) -> List[pyvizier.Measurement]:

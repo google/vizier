@@ -10,6 +10,7 @@ from vizier.testing import test_studies
 from absl.testing import absltest
 from absl.testing import parameterized
 
+
 Trial = pyvizier.Trial
 
 
@@ -251,6 +252,23 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
         actual_labels,
         labels_,
         err_msg='roundtrip conversion for labels failed.')
+
+  def test_infeasible_trials(self):
+    labels = np.array([np.nan, np.nan, -100, -200, 1, 2, 3, 4])[:, np.newaxis]
+    features = np.arange(labels.shape[0])[:, np.newaxis]
+    study_config = pyvizier.ProblemStatement(metric_information=[
+        pyvizier.MetricInformation(
+            'y', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
+    ])
+    study_config.search_space.root.add_float_param('x', 0, 20)
+    converter = core.DefaultTrialConverter.from_study_config(study_config)
+    trials = converter.to_trials({'x': features}, {'y': labels})
+    for t in trials:
+      if not t.final_measurement.metrics:
+        self.assertTrue(t.infeasible)
+    for label, t in zip(labels.flatten(), trials):
+      if np.isnan(label):
+        self.assertEmpty(t.final_measurement.metrics)
 
   def test_metrics(self):
     converter = core.DefaultTrialConverter.from_study_configs(
