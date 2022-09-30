@@ -2,9 +2,10 @@
 
 import logging
 import math
-from typing import Union, Callable
+from typing import Callable, Union
 
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import vectorized_base
 
@@ -58,13 +59,23 @@ def sphere_objective_factory(
   return lambda x: -np.sum(np.square(x - shift), axis=-1)
 
 
+def create_problem(n_features: int, low_bound: float,
+                   high_bound: float) -> vz.ProblemStatement:
+  problem = vz.ProblemStatement()
+  root = problem.search_space.select_root()
+  for i in range(n_features):
+    root.add_float_param('x%d' % i, low_bound, high_bound)
+  return problem
+
+
 class EagleOptimizerConvegenceTest(parameterized.TestCase):
   """Test for optimizing acquisition functions using vectorized Eagle Strategy."""
 
   # TODO: Add BBOB functions once they can support 2D arrays.
+  # TODO: Add or replace with efficiency-curve convergence test.
   @parameterized.parameters(list(range(10, 21)))
   def test_converges(self, n_features):
-    logging.info('===== New Convergence Test (n_features: %s) ====', n_features)
+    logging.info('==== New Convergence Test (n_features: %s) ====', n_features)
     pool_size = 50
     batch_size = 10
     low_bound = -1.0
@@ -78,21 +89,22 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
     for _ in range(total_check):
       shift = np.random.uniform(
           low_bound * 0.8, high_bound * 0.8, size=(n_features,))
-
-      eagle = eagle_strategy.VectorizedEagleStrategy(
-          config=eagle_strategy.EagleStrategyConfig(),
-          n_features=n_features,
+      # Create eagle factory
+      eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory(
+          eagle_config=eagle_strategy.EagleStrategyConfig(),
           pool_size=pool_size,
           batch_size=batch_size,
           low_bound=low_bound,
           high_bound=high_bound,
       )
+      # Create the optimizer.
       optimizer = vectorized_base.VectorizedOptimizer(
-          strategy=eagle,
-          config=vectorized_base.VectorizedOptimizerConfiguration(
-              max_evaluations=evaluations))
-
-      optimizer.optimize(obj_func=sphere_objective_factory(shift))
+          strategy_factory=eagle_factory, max_evaluations=evaluations)
+      # Simluate a problem.
+      problem = create_problem(n_features, low_bound, high_bound)
+      # Optimize.
+      optimizer.optimize(problem, sphere_objective_factory(shift))
+      # Get best results.
       best_parameters = optimizer.best_results[0]
       best_reward = optimizer.best_results[1]
       p_value = compute_p_value(n_features, evaluations, best_parameters, shift)

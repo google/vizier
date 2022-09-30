@@ -39,22 +39,12 @@ fireflies to be mutated.
 
 Example
 =======
-# Construct the vectorizd eagle strategy.
-eagle_strategy = eagle_optimizer.VectorizedEagleStrategy(
-        config=eagle_optimizer.EagleStrategyConfig(),
-        n_features=n_features,
-        low_bound=0.0,
-        high_bound=1.0,
-        pool_size=50,
-        batch_size=10)
-
-# Construct the optimizer.
-optimizer = vectorized_base.NumpyOptimizer(
-    strategy=eagle_strategy,
-    config=vectorized_base.VectorizedOptimizerConfiguration()
+# Construct the optimizer with eagle strategy.
+optimizer = VectorizedOptimizer(
+    VectorizedEagleStrategyFactory(),
 )
 # Run the optimization.
-optimizer.optimize(objective_function)
+optimizer.optimize(problem_statement, objective_function)
 
 # Access the best features and reward.
 best_reward, best_parameters = optimizer.best_results
@@ -65,6 +55,7 @@ from typing import Optional, Tuple
 
 import attr
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base
 
 
@@ -87,6 +78,35 @@ class EagleStrategyConfig:
   perturbation: float = 0.01
   perturbation_lower_bound: float = 0.001
   penalize_factor: float = 0.9
+
+
+@attr.define(frozen=True)
+class VectorizedEagleStrategyFactory:
+  """Eagle strategy factory."""
+  eagle_config: EagleStrategyConfig = EagleStrategyConfig()
+  pool_size: int = 50
+  batch_size: int = 10
+  low_bound: float = 0.0
+  high_bound: float = 1.0
+  seed: int = 42
+
+  def __call__(self, problem: vz.ProblemStatement) -> "VectorizedEagleStrategy":
+    """Create a new vectorized eagle strategy based on the problem statement."""
+    if problem.search_space.is_conditional:
+      raise ValueError(
+          "VectorizedEagleStrategyFactory does not support conditional search space!"
+      )
+
+    n_features = len(problem.search_space.parameters)
+    return VectorizedEagleStrategy(
+        self.eagle_config,
+        n_features,
+        self.pool_size,
+        self.batch_size,
+        self.low_bound,
+        self.high_bound,
+        self.seed,
+    )
 
 
 # TODO: Create jit-compatible JAX version.
@@ -234,6 +254,12 @@ class VectorizedEagleStrategy(vectorized_base.VectorizedStrategy):
     """Compute the scaled direction for applying pull between two flies.
 
     scaled_directions[i,j] := direction of force applied by fly 'j' on fly 'i'.
+
+    Note that to compute 'directions' we might subtract with removed flies with
+    metric value of -np.inf, which will result in either np.inf/-np.inf.
+    Moreover, we might even subtract between two removed flies which will result
+    in np.nan. We handle all of those cases when we compute the actual feautre
+    changes by masking the contribution of those cases.
 
     Returns:
       scaled directions: (batch_size, pool_size)

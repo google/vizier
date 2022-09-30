@@ -1,6 +1,9 @@
 """Tests for eagle strategy."""
+
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
+from vizier._src.algorithms.optimizers import vectorized_base as vb
 
 from absl.testing import absltest
 
@@ -139,6 +142,28 @@ class VectorizedEagleStrategyTest(absltest.TestCase):
         self.eagle._perturbations,
         np.array([pc, pc, 0, pc], dtype=np.float64),
         err_msg='Perturbations are not equal.')
+
+  def test_create_strategy_from_factory(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 1.0)
+    root.add_float_param('x2', 0.0, 1.0)
+    root.add_float_param('x3', 0.0, 1.0)
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    eagle = eagle_factory(problem)
+    self.assertEqual(eagle.n_features, 3)
+
+  def test_optimize_with_eagle(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 1.0)
+    root.add_float_param('x2', 0.0, 1.0)
+    root.add_float_param('x3', 0.0, 1.0)
+
+    optimizer = vb.VectorizedOptimizer(
+        strategy_factory=eagle_strategy.VectorizedEagleStrategyFactory(),
+        max_evaluations=100)
+    optimizer.optimize(problem, lambda x: -np.sum(x, axis=1))
 
 
 if __name__ == '__main__':
