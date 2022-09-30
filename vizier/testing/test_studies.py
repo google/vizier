@@ -4,6 +4,16 @@ from typing import Collection
 from vizier import pyvizier as vz
 
 
+def flat_continuous_space_with_scaling() -> vz.SearchSpace:
+  """Search space with all parameter types."""
+
+  space = vz.SearchSpace()
+  root = space.root
+  root.add_float_param('lineardouble', -1., 2.)
+  root.add_float_param('logdouble', 1e-4, 1e2, scale_type=vz.ScaleType.LOG)
+  return space
+
+
 def flat_space_with_all_types() -> vz.SearchSpace:
   """Search space with all parameter types."""
 
