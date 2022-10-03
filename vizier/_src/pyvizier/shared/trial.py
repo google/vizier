@@ -490,9 +490,9 @@ class Trial(TrialSuggestion):
 
     Args:
       measurement: Measurement to complete the trial with.
-      infeasibility_reason: If set, completes the trial as infeasible.
-        If the trial was already infeasible and infeasibility_reason is not
-        set, the trial remains infeasible.
+      infeasibility_reason: If set, completes the trial as infeasible. If the
+        trial was already infeasible and infeasibility_reason is not set, the
+        trial remains infeasible.
       inplace: If True, Trial is modified in place. If False, which is the
         default, then the operation is performed and it returns a copy of the
         object.

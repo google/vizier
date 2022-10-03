@@ -122,7 +122,7 @@ class StudyConfig(base_study_config.ProblemStatement):
       validator=attr.validators.instance_of((Algorithm, str)),
       converter=lambda x: x.value if isinstance(x, enum.Enum) else x,
       on_setattr=[attr.setters.convert, attr.setters.validate],
-      default='GAUSSIAN_PROCESS_BANDIT',
+      default='RANDOM_SEARCH',
       kw_only=True)
 
   pythia_endpoint: Optional[str] = attr.field(
