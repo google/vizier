@@ -230,7 +230,7 @@ class StudyConfig(base_study_config.ProblemStatement):
 
     del proto.metrics[:]
     proto.metrics.extend(
-        proto_converters.MetricsConfigConverter.to_proto(
+        proto_converters.MetricsConfigConverter.to_protos(
             self.metric_information))
 
     del proto.parameters[:]

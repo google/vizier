@@ -376,7 +376,7 @@ class MetricsConfigConverter:
         [MetricInformationConverter.from_proto(m) for m in protos])
 
   @classmethod
-  def to_proto(
+  def to_protos(
       cls, obj: base_study_config.MetricsConfig
   ) -> List[study_pb2.StudySpec.MetricSpec]:
     return [
@@ -633,13 +633,13 @@ class ProblemStatementConverter:
     """Converts PyVizier ProblemStatement to Proto version."""
     parameter_spec_protos = SearchSpaceConverter.parameter_protos(
         problem_statement.search_space)
-    metric_information_proto = MetricsConfigConverter.to_proto(
+    metric_information_protos = MetricsConfigConverter.to_protos(
         problem_statement.metric_information)
     keyvalue_protos = metadata_util.make_key_value_list(
         problem_statement.metadata)
     return pythia_service_pb2.ProblemStatement(
         search_space=parameter_spec_protos,
-        metric_information=metric_information_proto,
+        metric_information=metric_information_protos,
         metadata=keyvalue_protos)
 
   @classmethod
