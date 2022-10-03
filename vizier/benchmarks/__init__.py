@@ -1,5 +1,8 @@
 """Lightweight benchmark classes for Vizier."""
 
+from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurve
+from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurveComparator
+from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurveConverter
 from vizier._src.benchmarks.experimenters.combo_experimenter import CentroidExperimenter
 from vizier._src.benchmarks.experimenters.combo_experimenter import ContaminationExperimenter
 from vizier._src.benchmarks.experimenters.combo_experimenter import IsingExperimenter
