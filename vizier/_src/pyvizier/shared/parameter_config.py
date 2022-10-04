@@ -24,6 +24,9 @@ class ParameterType(enum.Enum):
   def is_numeric(self) -> bool:
     return self in [self.DOUBLE, self.INTEGER, self.DISCRETE]
 
+  def is_continuous(self) -> bool:
+    return self == self.DOUBLE
+
 
 class ScaleType(enum.Enum):
   """Valid Values for ParameterConfig.scale_type."""
@@ -34,6 +37,7 @@ class ScaleType(enum.Enum):
 
   def is_nonlinear(self) -> bool:
     return self in [self.LOG, self.REVERSE_LOG]
+
 
 # A sequence of possible internal parameter values.
 MonotypeParameterSequence = Union[Sequence[Union[int, float]], Sequence[str]]
@@ -185,10 +189,9 @@ class ParameterConfig:
       feasible_values: REQUIRED for DISCRETE or CATEGORICAL type. The elements'
         type determines the created ParameterConfig's type.
       children: sequence of tuples formatted as: (matching_parent_values,
-        ParameterConfig).
-        ONLY THE TYPES ARE VALIDATED. If the child ParameterConfig
-        protos already have parent values set, they will be overridden by the
-        provided matching_parent_values.
+        ParameterConfig). ONLY THE TYPES ARE VALIDATED. If the child
+        ParameterConfig protos already have parent values set, they will be
+        overridden by the provided matching_parent_values.
       scale_type: Scaling to be applied. NOT VALIDATED.
       default_value: A default value for the Parameter.
       external_type: An annotation indicating the type this parameter should be
