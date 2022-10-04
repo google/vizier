@@ -4,6 +4,7 @@ import dataclasses
 import enum
 from typing import Callable, List, Optional, Sequence, Union
 
+import attr
 import numpy as np
 from vizier import pyvizier
 
@@ -72,7 +73,7 @@ class ConvergenceCurve:
     return cls(xs=xs, ys=np.stack(all_ys), ylabel=ylabel, trend=curves[0].trend)
 
 
-class ConvergenceCurveConverter:
+class TrialConvergenceCurveConverter:
   """Converter for Trial sequence to ConvergenceCurve."""
 
   def __init__(self,
@@ -86,8 +87,8 @@ class ConvergenceCurveConverter:
 
     Args:
       metric_information: Information of relevant metric.
-      flip_signs: If True, flips the signs of metric values to always
-      maximize. Useful when desiring all increasing curves.
+      flip_signs: If True, flips the signs of metric values to always maximize.
+        Useful when desiring all increasing curves.
       cost_fn: Cost of each Trial (to determine xs in ConvergenceCurve).
       measurements_type: ['final', 'intermediate', 'all']
     """
@@ -108,7 +109,7 @@ class ConvergenceCurveConverter:
                                         in trial.final_measurement.metrics):
           candidates.append(trial.final_measurement.metrics[
               self.metric_information.name].value)
-      if self.measurements_type in ('intermediate', 'all'):
+      elif self.measurements_type in ('intermediate', 'all'):
         for measurement in trial.measurements:
           if self.metric_information.name in measurement.metrics:
             candidates.append(
@@ -136,6 +137,35 @@ class ConvergenceCurveConverter:
     return np.nanmax if (
         self.metric_information.goal
         == pyvizier.ObjectiveMetricGoal.MAXIMIZE) else np.nanmin
+
+
+@attr.define
+class NumpyConvergenceCurveConverter:
+  """Convert numpy arrays to ConvergenceCurve.
+
+  Attributes:
+    maximize_goal: MAXIMIZE or MININIMIZE (flip signs accordingly).
+    metric_name: metric name for plotting.
+  """
+
+  maximize_goal: bool = True
+  metric_name: str = ''
+
+  def convert(self, values: np.ndarray) -> ConvergenceCurve:
+    """Convert numpy array to ConvergenceCurve."""
+    if self.maximize_goal:
+      ys = np.maximum.accumulate(values).reshape(1, -1)
+      trend = ConvergenceCurve.YTrend.INCREASING
+    else:
+      ys = np.minimum.accumulate(values).reshape(1, -1)
+      trend = ConvergenceCurve.YTrend.DECREASING
+
+    return ConvergenceCurve(
+        xs=np.arange(1,
+                     len(values) + 1),
+        ys=ys,
+        trend=trend,
+        ylabel=self.metric_name)
 
 
 class ConvergenceCurveComparator:
@@ -246,6 +276,8 @@ class ConvergenceCurveComparator:
     rel_efficiency = self.log_efficiency_curve(compared_curve,
                                                baseline_quantile,
                                                compared_quantile)
+    # Check if the 'compared_curve' best value is better than 'baseline_curve'
+    # best value.
     if np.isfinite(float(rel_efficiency.ys[:, -1])):
       # Return median relative efficiency.
       return np.nanmedian((rel_efficiency.ys))

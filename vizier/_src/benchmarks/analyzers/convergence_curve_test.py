@@ -64,17 +64,30 @@ class ConvergenceCurveTest(absltest.TestCase):
       convergence.ConvergenceCurve.align_xs([c1, c2])
 
 
-class ConvergenceCurveConverterTest(parameterized.TestCase):
+class TrialConvergenceCurveConverterTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[2, 2, 3]]),
       ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[2, 1, 1]]))
   def test_convert_basic(self, goal, expected):
     trials = _gen_trials([2, 1, 3])
-    generator = convergence.ConvergenceCurveConverter(
+    generator = convergence.TrialConvergenceCurveConverter(
         pyvizier.MetricInformation(name='', goal=goal))
     curve = generator.convert(trials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_equal(curve.ys, expected)
+
+
+class NumpyConvergenceCurveConverterTest(parameterized.TestCase):
+
+  @parameterized.named_parameters(('maximize', True, [[1, 2, 2, 2, 3]]),
+                                  ('minimize', False, [[1, 1, 0, 0, 0]]))
+  def test_convert_basic(self, maximize_goal, expected):
+    generator = convergence.NumpyConvergenceCurveConverter(
+        maximize_goal=maximize_goal)
+    values = np.array([1, 2, 0, 1, 3])
+    curve = generator.convert(values)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3, 4, 5])
     np.testing.assert_array_equal(curve.ys, expected)
 
 
@@ -95,16 +108,16 @@ class ConvergenceComparatorTest(absltest.TestCase):
         xs=xs,
         ys=np.exp(-0.5 * xs_t),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
-    self._better_curves = convergence.ConvergenceCurve(
+    self._better_curve = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(np.array([-1.5, -1.8, -2.0]).reshape(3, 1) * xs_t),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
 
   def testGetRelativeEfficiencyCurve(self):
     baseline_length = len(self._baseline_curve.xs)
-    rel_effiency = self._baseline.log_efficiency_curve(self._better_curves)
+    rel_effiency = self._baseline.log_efficiency_curve(self._better_curve)
     higher_quantile = self._baseline.log_efficiency_curve(
-        self._better_curves, compared_quantile=0.9)
+        self._better_curve, compared_quantile=0.9)
 
     self.assertEqual(rel_effiency.ys.shape, (1, baseline_length))
     self.assertEqual(higher_quantile.ys.shape, (1, baseline_length))
@@ -137,18 +150,18 @@ class ConvergenceComparatorTest(absltest.TestCase):
   def testGetEfficiencyScore(self):
     # Higher compared quantile should increase score. Higher baseline
     # quantile should decrease score.
-    median_score = self._baseline.get_log_efficiency_score(self._better_curves)
+    median_score = self._baseline.get_log_efficiency_score(self._better_curve)
     self.assertGreater(
         self._baseline.get_log_efficiency_score(
-            self._better_curves, compared_quantile=0.9), median_score)
+            self._better_curve, compared_quantile=0.9), median_score)
     self.assertLess(
         self._baseline.get_log_efficiency_score(
-            self._better_curves, baseline_quantile=0.9), median_score)
+            self._better_curve, baseline_quantile=0.9), median_score)
 
   def testEffiencyScoreSymmetry(self):
-    base_score = self._baseline.get_log_efficiency_score(self._better_curves)
+    base_score = self._baseline.get_log_efficiency_score(self._better_curve)
     reversed_score = convergence.ConvergenceCurveComparator(
-        self._better_curves).get_log_efficiency_score(self._baseline_curve)
+        self._better_curve).get_log_efficiency_score(self._baseline_curve)
     self.assertAlmostEqual(base_score, -reversed_score, delta=0.2)
 
   def testEfficiencyScoreValue(self):
