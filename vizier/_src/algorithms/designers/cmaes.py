@@ -1,5 +1,5 @@
 """CMA-ES designer."""
-
+import json
 import queue
 from typing import Optional, Sequence
 
@@ -10,11 +10,10 @@ import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier.pyvizier import converters
+from vizier.utils import json_utils
 
 
-# TODO: Use a Partially Serializable Designer instead to capture
-# CMA-ES _State, which contains all jnp.ndarray's.
-class CMAESDesigner(vza.Designer):
+class CMAESDesigner(vza.PartiallySerializableDesigner):
   """CMA-ES designer wrapping evo-jax.
 
   NOTE: Since the base version of CMA-ES expects the entire population size to
@@ -37,7 +36,7 @@ class CMAESDesigner(vza.Designer):
       raise ValueError(
           f'This designer {self} does not support conditional search.')
     for parameter_config in self._search_space.parameters:
-      if parameter_config.type != vz.ParameterType.DOUBLE:
+      if not parameter_config.type.is_continuous():
         raise ValueError(
             f'This designer {self} only supports continuous parameters.')
     self._num_params = len(self._search_space.parameters)
@@ -94,3 +93,15 @@ class CMAESDesigner(vza.Designer):
         vz.TrialSuggestion(params)
         for params in self._converter.to_parameters(cma_suggestions)
     ]
+
+  def load(self, metadata: vz.Metadata) -> None:
+    cma_state = json.loads(
+        metadata.ns('cma')['state'], object_hook=json_utils.numpy_hook)
+    self._cma_es_jax.load_state(cma_state)
+
+  def dump(self) -> vz.Metadata:
+    cma_state = self._cma_es_jax.save_state()
+    metadata = vz.Metadata()
+    metadata.ns('cma')['state'] = json.dumps(
+        cma_state, cls=json_utils.NumpyEncoder)
+    return metadata

@@ -1,5 +1,4 @@
 """Core population utilities."""
-
 import collections
 import json
 from typing import Any, Collection, Callable, List, Optional, Tuple, Type, Sequence
@@ -10,31 +9,10 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.evolution import templates
 from vizier.interfaces import serializable
 from vizier.pyvizier import converters
+from vizier.utils import json_utils
 
 
 # TODO: Use a byte encoding instead of JSON.
-class _NumpyArrayEncoder(json.JSONEncoder):
-  """Example: json.dumps(np.array(...), cls=_NumpyArrayEncoder)."""
-
-  def default(self, obj: Any) -> Any:
-    if isinstance(obj, np.ndarray):
-      # Shape must be dumped and restored, in case that the array has shape
-      # that includes 0-sized dimensions.
-      return {
-          'dtype': np.dtype(obj.dtype).name,
-          'value': obj.tolist(),
-          'shape': obj.shape
-      }
-    return json.JSONEncoder.default(self, obj)
-
-
-def _numpy_hook(obj: Any) -> Any:
-  """Example: json.loads(..., object_hook=_numpy_hook)."""
-  if 'dtype' not in obj:
-    return obj
-  if 'shape' not in obj:
-    return obj
-  return np.array(obj['value'], dtype=obj['dtype']).reshape(obj['shape'])
 
 
 def _filter_and_split(
@@ -146,13 +124,13 @@ class Offspring(serializable.Serializable):
   def load(cls: Type['Offspring'], metadata: vz.Metadata) -> 'Offspring':
     encoded = metadata.get('values', cls=str)
     try:
-      decoded = json.loads(encoded, object_hook=_numpy_hook)
+      decoded = json.loads(encoded, object_hook=json_utils.numpy_hook)
     except Exception as e:
       raise serializable.DecodeError('Failed to decode') from e
     return cls(**decoded)
 
   def dump(self) -> vz.Metadata:
-    encoded = json.dumps(attr.asdict(self), cls=_NumpyArrayEncoder)
+    encoded = json.dumps(attr.asdict(self), cls=json_utils.NumpyEncoder)
     return vz.Metadata({'values': encoded})
 
 
@@ -225,13 +203,13 @@ class Population(templates.Population):
   def recover(cls, metadata: vz.Metadata) -> 'Population':
     encoded = metadata.get('values', default='', cls=str)
     try:
-      decoded = json.loads(encoded, object_hook=_numpy_hook)
+      decoded = json.loads(encoded, object_hook=json_utils.numpy_hook)
     except json.JSONDecodeError as e:
       raise serializable.DecodeError('Failed to recover state.') from e
     return cls(**decoded)
 
   def dump(self) -> vz.Metadata:
-    encoded = json.dumps(attr.asdict(self), cls=_NumpyArrayEncoder)
+    encoded = json.dumps(attr.asdict(self), cls=json_utils.NumpyEncoder)
     return vz.Metadata({'values': encoded})
 
   def empty_like(self) -> 'Population':

@@ -47,7 +47,9 @@ def policy_creator(problem_statement: vz.ProblemStatement, algorithm: str,
   elif algorithm == 'HARMONICA':
     return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
   elif algorithm == 'CMA_ES':
-    return dp.DesignerPolicy(policy_supporter, cmaes.CMAESDesigner)
+    return dp.PartiallySerializableDesignerPolicy(problem_statement,
+                                                  policy_supporter,
+                                                  cmaes.CMAESDesigner)
   else:
     raise ValueError(f'Algorithm {algorithm} is not registered.')
 
