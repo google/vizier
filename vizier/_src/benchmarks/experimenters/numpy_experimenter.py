@@ -99,4 +99,4 @@ class NumpyExperimenter(experimenter.Experimenter):
         raise RuntimeError(f'Trial {suggestion} not completed')
 
   def __repr__(self) -> str:
-    return f'NumpyExperimenter {{name: {_get_name(self.impl)}'
+    return f'NumpyExperimenter {{name: {_get_name(self.impl)}}}'
