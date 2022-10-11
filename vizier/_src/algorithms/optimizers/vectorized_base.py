@@ -17,15 +17,26 @@
 import abc
 import datetime
 import logging
-from typing import Callable, Optional, Tuple, Union, Protocol
+from typing import Optional, Protocol, Union, List
 
 import attr
 import chex
 import numpy as np
 from vizier import pyvizier as vz
+from vizier.pyvizier import converters
 
 # Support for both JAX and Numpy arrays
 Array = Union[np.ndarray, chex.Array]
+
+
+@attr.define
+class VectorizedStrategyResult:
+  """Container for a vectorized strategy result."""
+  features: Array
+  reward: float
+
+  def __lt__(self, other):
+    return self.reward < other.reward
 
 
 class VectorizedStrategy(abc.ABC):
@@ -51,8 +62,14 @@ class VectorizedStrategy(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def best_results(self) -> Tuple[Array, float]:
-    """Returns the best features and reward the strategy seen thus far."""
+  def best_features_results(self) -> List[VectorizedStrategyResult]:
+    """The best features and rewards the strategy seen thus far.
+
+    Note that the result is in the *scaled* space, which is [0,1]^n.
+
+    Returns:
+      The best search results *before* converted backward to parameters.
+    """
 
   @abc.abstractmethod
   def update(self, rewards: Array) -> None:
@@ -66,13 +83,28 @@ class VectorizedStrategy(abc.ABC):
 class VectorizedStrategyFactory(Protocol):
   """Factory class to generate vectorized strategy.
 
-  The factory is used in VectorizedOptimizer so to create a new strategy every
-  'optimize' call.
+  It's used in VectorizedOptimizer to create a new strategy every 'optimize'
+  call.
   """
 
-  def __call__(self, problem: vz.ProblemStatement) -> VectorizedStrategy:
+  def __call__(self, converter: converters.TrialToArrayConverter,
+               count: int) -> VectorizedStrategy:
     """Create a new vectorized strategy."""
     ...
+
+
+class BatchArrayScoreFunction(Protocol):
+  """Protocol for scoring array of batched trials."""
+
+  def __call__(self, batched_array_trials: Array) -> Array:
+    """Evaluates the array of batched trials.
+
+    Args:
+      batched_array_trials: 2D Array of shape (batch_size, n_features).
+
+    Returns:
+      1D Array of shape (batch_size,).
+    """
 
 
 @attr.define(kw_only=True)
@@ -98,14 +130,19 @@ class VectorizedOptimizer:
     max_duration: The maximum duration of the optimization process.
   """
   strategy_factory: VectorizedStrategyFactory
+  converter: converters.TrialToArrayConverter
   max_evaluations: int = 15_000
   max_duration: Optional[datetime.timedelta] = None
   _start_time: datetime.datetime = attr.field(init=False)
-  _evaluated_count: int = attr.field(init=False)
-  _last_used_strategy: VectorizedStrategy = attr.field(init=False)
+  _evaluated_count: int = attr.field(init=False, default=0)
+  _strategy: VectorizedStrategy = attr.field(init=False)
 
-  def optimize(self, problem: vz.ProblemStatement,
-               obj_func: Callable[[Array], Array]) -> None:
+  def optimize(
+      self,
+      converter: converters.TrialToArrayConverter,
+      score_fn: BatchArrayScoreFunction,
+      count: int = 1,
+  ) -> None:
     """Optimize the objective function.
 
     The ask-evaluate-tell optimization procedure that runs until the allocated
@@ -114,35 +151,57 @@ class VectorizedOptimizer:
     The number of suggestions is determined by the strategy, which is the
     `suggestion_count` property.
 
+    The converter should be the same one used to convert trials to arrays in the
+    format that the objective function expects to receive. It's used to convert
+    backward the strategy's best array candidates to trial candidates.
+    In addition, the converter is passed to the strategy so it could be aware
+    of the type associated with each array index, and which indices are part of
+    the same CATEGORICAL parameter one-hot encoding.
+
     Arguments:
-      problem: The problem statement to optimize the objective function on.
-      obj_func: A callback that expects 2D Array with dimensions
-        (suggestion_count, features_count) and returns a 1D Array
-        (suggestion_count,)
+      converter: The converter used to convert Trials to arrays.
+      score_fn: A callback that expects 2D Array with dimensions (batch_size,
+        features_count) and returns a 1D Array (batch_size,).
+      count: The number of suggestions to generate.
     """
     # Create a new strategy using the factory.
-    strategy = self.strategy_factory(problem)
+    self._strategy = self.strategy_factory(converter, count)
     self._start_time = datetime.datetime.now()
     self._evaluated_count = 0
 
     while not self._should_stop():
-      new_features = strategy.suggest()
-      new_rewards = obj_func(new_features)
-      strategy.update(new_rewards)
+      new_features = self._strategy.suggest()
+      new_rewards = score_fn(new_features)
+      self._strategy.update(new_rewards)
       self._evaluated_count += len(new_rewards)
-    # Save the last strategy used to run the optimization.
-    self._last_used_strategy = strategy
     logging.info(
         'Optimization completed. Duration: %s. Evalutions: %s. Best Results: %s',
         datetime.datetime.now() - self._start_time, self._evaluated_count,
-        self.best_results)
+        self._strategy.best_features_results)
 
   @property
-  def best_results(self) -> Tuple[Array, float]:
-    """Returns the best reward and associated features."""
+  def strategy(self) -> VectorizedStrategy:
+    """Returns the strategy used for the optimization."""
     if not self._evaluated_count:
       raise Exception("Optimizer hasn't run yet. Call optimize first!")
-    return self._last_used_strategy.best_results
+    return self._strategy
+
+  @property
+  def best_candidates(self) -> List[vz.Trial]:
+    """Returns the best candidate trials in the original search space."""
+    if not self._evaluated_count:
+      raise Exception("Optimizer hasn't run yet. Call optimize first!")
+    # Convert the array features to trials.
+    best_results = self._strategy.best_features_results
+    trials = []
+    for best_result in best_results:
+      # Create trials and convert the strategy features back to parameters.
+      trial = vz.Trial(
+          parameters=self.converter.to_parameters(
+              np.expand_dims(best_result.features, axis=0))[0])
+      trial.complete(vz.Measurement({'acquisition': best_result.reward}))
+      trials.append(trial)
+    return trials
 
   def _should_stop(self) -> bool:
     """Determines if the optimizer has reached its optimization budget."""
