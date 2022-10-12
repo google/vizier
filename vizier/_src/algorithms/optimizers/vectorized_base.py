@@ -130,12 +130,12 @@ class VectorizedOptimizer:
     max_duration: The maximum duration of the optimization process.
   """
   strategy_factory: VectorizedStrategyFactory
-  converter: converters.TrialToArrayConverter
   max_evaluations: int = 15_000
   max_duration: Optional[datetime.timedelta] = None
   _start_time: datetime.datetime = attr.field(init=False)
   _evaluated_count: int = attr.field(init=False, default=0)
   _strategy: VectorizedStrategy = attr.field(init=False)
+  _converter: converters.TrialToArrayConverter = attr.field(init=False)
 
   def optimize(
       self,
@@ -164,8 +164,11 @@ class VectorizedOptimizer:
         features_count) and returns a 1D Array (batch_size,).
       count: The number of suggestions to generate.
     """
-    # Create a new strategy using the factory.
+    # Create a new strategy using the factory. The effective search space is
+    # included in the converter.
     self._strategy = self.strategy_factory(converter, count)
+    # Store the converter to generate best_cadidates trials.
+    self._converter = converter
     self._start_time = datetime.datetime.now()
     self._evaluated_count = 0
 
@@ -197,7 +200,7 @@ class VectorizedOptimizer:
     for best_result in best_results:
       # Create trials and convert the strategy features back to parameters.
       trial = vz.Trial(
-          parameters=self.converter.to_parameters(
+          parameters=self._converter.to_parameters(
               np.expand_dims(best_result.features, axis=0))[0])
       trial.complete(vz.Measurement({'acquisition': best_result.reward}))
       trials.append(trial)

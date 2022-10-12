@@ -86,9 +86,7 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
         batch_size=10,
         seed=1)
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=eagle_factory,
-        converter=converter,
-        max_evaluations=evaluations)
+        strategy_factory=eagle_factory, max_evaluations=evaluations)
     srcr.assert_converges(
         converter,
         optimizer,

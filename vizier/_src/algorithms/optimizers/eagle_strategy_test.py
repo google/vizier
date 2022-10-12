@@ -216,9 +216,7 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=eagle_factory,
-        converter=converter,
-        max_evaluations=100)
+        strategy_factory=eagle_factory, max_evaluations=100)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     optimizer.optimize(converter, lambda x: -np.sum(x, 1), 1)
 
