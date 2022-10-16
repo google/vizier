@@ -12,9 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Runner protocols encapsulate a stateful algorithm to be used in a runner."""
+"""Stateful algorithm suggesters to be used inside a runner.
 
-from typing import Collection, Optional, Protocol
+Definitions:
+------------
+- A 'suggester' generates suggestions and update its state based on the provided
+suggestion results.
+
+- A 'runner' uses a suggester to simulate a study. It calls the suggester
+multiple times, evaluate the suggestions and report back the results.
+"""
+
+import abc
+from typing import Collection, Optional
 
 import attr
 from vizier import algorithms as vza
@@ -22,32 +32,35 @@ from vizier import pythia
 from vizier import pyvizier as vz
 
 
-class AlgorithmRunnerProtocol(Protocol):
-  """Abstraction for core suggestion algorithm routines.
+class AlgorithmSuggester(abc.ABC):
+  """Abstraction for core suggestion algorithm.
 
   All runner methods will be extended from the following template:
 
-  def run(alg: AlgorithmRunnerProtocol):
+  def run(state: BenchmarkState):
     for _ in range(MAX_NUM_TRIALS):
-      trials = alg.suggest(...)
+      trials = state.alg.suggest(...)
       evaluate_and_complete_trials(trials)
-      alg.post_completion_callback(trials)
+      state.alg.post_completion_callback(trials)
   """
 
+  @abc.abstractmethod
   def suggest(self, batch_size: Optional[int]) -> Collection[vz.Trial]:
     """Method to generate suggestions and assign ids to them."""
 
+  @abc.abstractmethod
   def post_completion_callback(self, completed: vza.CompletedTrials) -> None:
     """Callback after the suggestions are completed, if needed."""
 
   @property
+  @abc.abstractmethod
   def supporter(self) -> pythia.InRamPolicySupporter:
     """Returns the InRamPolicySupporter, which acts as a local client."""
 
 
 @attr.define
-class DesignerRunnerProtocol(AlgorithmRunnerProtocol):
-  """Wraps a Designer into the RunnerProtocol.
+class DesignerSuggester(AlgorithmSuggester):
+  """Wraps a Designer into a AlgorithmSuggester.
 
   Designers return Suggestions which don't have ids assigned to them. We use
   InRamPolicySupporter to manage Trial ids.
@@ -72,8 +85,8 @@ class DesignerRunnerProtocol(AlgorithmRunnerProtocol):
 
 
 @attr.define
-class PolicyRunnerProtocol(AlgorithmRunnerProtocol):
-  """Wraps a Policy into the RunnerProtocol."""
+class PolicySuggester(AlgorithmSuggester):
+  """Wraps a Policy into a AlgorithmSuggester."""
   _policy: pythia.Policy = attr.field()
   _local_supporter: pythia.InRamPolicySupporter = attr.field()
 

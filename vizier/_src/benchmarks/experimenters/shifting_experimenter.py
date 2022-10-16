@@ -102,3 +102,13 @@ class ShiftingExperimenter(experimenter.Experimenter):
     self._exptr.evaluate(suggestions)
     for parameters, suggestion in zip(previous_parameters, suggestions):
       suggestion.parameters = parameters
+
+  def shift(self, trials: Sequence[pyvizier.Trial]):
+    """Shift trials to the newly shifted search space."""
+    for trial in trials:
+      features = self._converter.to_features([trial])
+      shifted_params = self._converter.to_parameters(features - self._shift)[0]
+      trial.parameters = shifted_params
+
+  def __repr__(self):
+    return f'ShiftingExperimenter({self._shift}) on {str(self._exptr)}'

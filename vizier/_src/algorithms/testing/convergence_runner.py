@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Convergence test for Pythia policies and deisngers.
+"""Perform simple-regret convergence test.
 
-The convergence test uses the BenchmarkRunner and essentially runs multiple
-loops of Suggest-Evaluate to gauge if the suggested values have converged to
-the expected optimum value. The decision of whether the convergence test has
-passed or failed is determined by the percentage of converged individual
-checks. To ensure that each check is isolated from other, the ConvergenceRunner
-uses BenchmarkStateFactory to generate a fresh BenchmarkState for each check.
+The test is based on comparing the results to a random search. It performs
+a statistical test to compute the probability (p-value) of observing the
+best result under the null hypothesis of running a random search and with the
+given amount of evaluations. The p-value is compared against a pre-determined
+significnce-level (alpha) to decide if the test has passed or not.
+
+To expedite the convergence test, instead of running an actual random search
+a theortical p-value is computed instead.
 
 Ex: Typical Convergence Test on Designer
 ----------------------------------------
@@ -33,158 +35,108 @@ class MyDesignerConvegenceTest(absltest.TestCase):
         designer_factory=designer_factory,
         experimenter=experimenter,
     )
-
-    # Define the convergence test.
-    convergence_test = convergence_runner.BenchmarkConvergenceRunner(
-      benchmark_state_factory=benchmark_state_factory,
-      trials_per_check=5000,
-      repeated_checks=5,
-      success_rate_threshold=0.6,
-      tolerance=1.0)
-
-    # Run the convergence test which will raise exception if fail.
-    convergence_test.assert_converges()
+    # Run the convergence test.
+    convergence_runner.assert_benchmark_state_converges(
+        benchmark_state_factory=benchmark_state_factory,
+        optimum_trial=optimum_trial,
+        evaluations=1000,
+        alpha=0.05,
+        num_repeats=5,
+        success_threshold=4,
+    )
 """
 
-import enum
 import logging
 from typing import Tuple
 
-import attr
+import numpy as np
 from vizier import benchmarks
 from vizier import pyvizier as vz
+from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.algorithms.testing import p_value as pv
+from vizier.pyvizier import converters
 
 
-class ConvergeStatus(enum.Enum):
-  FAILED = 'FAILED'
-  PASSED = 'PASSEd'
+class FailedSimpleRegretConvergenceTestError(Exception):
+  """Exception raised for simple-regret convergence test fails."""
 
 
-class FailedConvergenceTestError(Exception):
-  """Exception raised for convergence test fails."""
-
-
-def _generate_convergence_report(
-    test_status: ConvergeStatus,
-    trials_per_check: int,
-    repeated_checks: int,
-    success_rate: float,
-    success_rate_threshold: float,
-    best_metrics: list[float],
-    best_trials: list[vz.Trial],
-    check_statuses: list[ConvergeStatus],
-    tolerance: float,
-    experimenter: benchmarks.Experimenter,
-) -> str:
-  """Generates a convergence report."""
-  message = (
-      f'Convergence test {test_status}.\nPerformed {repeated_checks} repeated '
-      f'convergence checks with {trials_per_check} trials each.'
-      f'\nSuccess rate : {success_rate}. Success rate threshold: '
-      f'{success_rate_threshold}. Tolerance: {tolerance}. Experimenter: '
-      f'{str(experimenter)}')
-
-  for idx in range(repeated_checks):
-    trimmed_parameters = {
-        k: f'{v:.3f}' for k, v in best_trials[idx].parameters.as_dict().items()
-    }
-    test_desc = (
-        f'\nConvergence Check {idx} - {check_statuses[idx]}. Best trial '
-        f'metric: {best_metrics[idx]:.6f} .Best trial parameters: '
-        f'{trimmed_parameters}.')
-    message = message + test_desc
-  return message
-
-
-@attr.define
-class BenchmarkConvergenceRunner:
-  """Convergence test for designers.
-
-  Important note: the convergence test currently only support float parameters.
-  """
-  benchmark_state_factory: benchmarks.BenchmarkStateFactory
-  trials_per_check: int
-  repeated_checks: int
-  success_rate_threshold: float
-  tolerance: float
-
-  def assert_converges(self) -> None:
-    """Runs the full convergence test.
-
-    Performs the convergence test `repeated_checks` times and raises
-    `FailedConvergenceTestError` if the percentage of converged test is below
-    `success_rate_threshold`, otherwise logs the convergence results.
-
-    Raises:
-      FailedConvergenceTestError: if the convergence test failed.
-    """
-    num_converged_checks = 0
-    best_metrics, best_trials, convergence_check_statuses = [], [], []
-
-    for _ in range(self.repeated_checks):
-      check_status, best_metric, best_trial = self._run_one_convergence_check()
-      if check_status == ConvergeStatus.PASSED:
-        num_converged_checks += 1
-      best_metrics.append(best_metric)
-      best_trials.append(best_trial)
-      convergence_check_statuses.append(check_status)
-
-    success_rate = num_converged_checks / self.repeated_checks
-    if success_rate >= self.success_rate_threshold:
-      convergence_test_status = ConvergeStatus.PASSED
+def assert_optimizer_converges(
+    converter: converters.TrialToArrayConverter,
+    optimizer: vb.VectorizedOptimizer,
+    score_fn: vb.BatchArrayScoreFunction,
+    optimum_features: np.ndarray,
+    evaluations: int,
+    alpha: float = 0.05,
+    num_repeats: int = 3,
+    success_threshold: int = 2,
+) -> None:
+  """Runs simple-regret convergence test for vectorized optimizers."""
+  success_count = 0
+  for _ in range(num_repeats):
+    optimizer.optimize(converter, score_fn)
+    best_features = optimizer.strategy.best_features_results[0].features
+    best_reward = optimizer.strategy.best_features_results[0].reward
+    p_value_continuous, p_value_categorical = pv.compute_array_p_values(
+        converter, evaluations, best_features, optimum_features)
+    msg = (
+        f'P-value continuous: {p_value_continuous}. P-value categorical: {p_value_categorical}. '
+        f'Alpha={alpha}. Best reward: {best_reward}.\nOptimum features:\n{optimum_features}'
+        f'\nBest features:\n{best_features}.\nAbsolute diff:\n{np.abs(optimum_features - best_features)}'
+    )
+    if p_value_continuous <= alpha and p_value_categorical <= alpha:
+      success_count += 1
+      logging.info('Convergence test PASSED:\n %s', msg)
     else:
-      convergence_test_status = ConvergeStatus.FAILED
+      logging.warning('Convergence test FAILED:\n %s', msg)
 
-    message = _generate_convergence_report(
-        test_status=convergence_test_status,
-        trials_per_check=self.trials_per_check,
-        repeated_checks=self.repeated_checks,
-        success_rate=success_rate,
-        success_rate_threshold=self.success_rate_threshold,
-        best_metrics=best_metrics,
-        best_trials=best_trials,
-        check_statuses=convergence_check_statuses,
-        tolerance=self.tolerance,
-        experimenter=self.benchmark_state_factory.experimenter)
+  if success_count < success_threshold:
+    raise FailedSimpleRegretConvergenceTestError(
+        f'{success_count} of the {num_repeats} convergence checks passed which '
+        f'is below the threshold of {success_threshold}.')
 
-    if success_rate < self.success_rate_threshold:
-      raise FailedConvergenceTestError(message)
-    else:
-      logging.info(message)
 
-  def _run_one_convergence_check(
-      self) -> Tuple[ConvergeStatus, float, vz.Trial]:
-    """Runs a single convergence test.
-
-    Returns:
-      1. The convergence status (FAILED or PASSED).
-      2. The value of the best metric found during the benchmark run check.
-      3. The best trial (associated with 2.) found during the benchmark check.
-    """
-    benchmark_state = self.benchmark_state_factory.create()
-
+def assert_benchmark_state_converges(
+    benchmark_state_factory: benchmarks.BenchmarkStateFactory,
+    optimum_trial: vz.Trial,
+    evaluations: int,
+    alpha: float = 0.05,
+    num_repeats: int = 3,
+    success_threshold: int = 2,
+) -> None:
+  """Runs simple-regret convergence test for benchmark state."""
+  success_count = 0
+  for _ in range(num_repeats):
+    benchmark_state = benchmark_state_factory()
     runner = benchmarks.BenchmarkRunner(
         benchmark_subroutines=[benchmarks.GenerateAndEvaluate()],
-        num_repeats=self.trials_per_check)
-
+        num_repeats=evaluations)
     runner.run(benchmark_state)
-    best_metric, best_trial = self._get_best_metric_and_trial(benchmark_state)
-
-    # TODO: 1. Determine what is the "ideal" convergence criteria.
-    # TODO: 2. Should we get the optimum value from the experimenter
-    # to compare against? (currently it assumes 0.0).
-    if best_metric < self.tolerance:
-      check_status = ConvergeStatus.PASSED
+    best_trial, best_metric = _get_best_metric_and_trial(benchmark_state)
+    p_value_continuous, p_value_categorical = pv.compute_trial_p_values(
+        benchmark_state.experimenter.problem_statement().search_space,
+        evaluations, best_trial, optimum_trial)
+    msg = (
+        f'P-value continuous: {p_value_continuous}. P-value categorical: {p_value_categorical}. '
+        f'Alpha={alpha}.\nOptimum trial:\n{optimum_trial}.\nBest trial:\n{best_trial}.\nBest metric:\n{best_metric}'
+    )
+    if p_value_continuous <= alpha and p_value_categorical <= alpha:
+      success_count += 1
+      logging.info('Convergence test PASSED:\n %s', msg)
     else:
-      check_status = ConvergeStatus.FAILED
-    return check_status, best_metric, best_trial
+      logging.warning('Convergence test FAILED:\n %s', msg)
 
-  def _get_best_metric_and_trial(
-      self,
-      benchmark_state: benchmarks.BenchmarkState) -> Tuple[float, vz.Trial]:
-    """Returns the best trial and metric value after the benchmark has run."""
-    best_trial = benchmark_state.algorithm.supporter.GetBestTrials(count=1)[0]
-    metric_name = self.benchmark_state_factory.experimenter.problem_statement(
-    ).single_objective_metric_name
-    best_metric = best_trial.final_measurement.metrics[metric_name].value
-    return best_metric, best_trial
+  if success_count < success_threshold:
+    raise FailedSimpleRegretConvergenceTestError(
+        f'{success_count} (<{success_threshold}) of the {num_repeats} '
+        f'convergence checks passed.\n{msg}')
+
+
+def _get_best_metric_and_trial(
+    benchmark_state: benchmarks.BenchmarkState) -> Tuple[vz.Trial, float]:
+  """Returns the best trial and metric value after the benchmark has run."""
+  best_trial = benchmark_state.algorithm.supporter.GetBestTrials(count=1)[0]
+  metric_name = benchmark_state.experimenter.problem_statement(
+  ).single_objective_metric_name
+  best_metric = best_trial.final_measurement.metrics[metric_name].value
+  return best_trial, best_metric

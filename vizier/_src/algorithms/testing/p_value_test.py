@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for simple_regret_convergence_runner."""
+"""Tests for p-value."""
 
 import numpy as np
 from vizier import pyvizier as vz
-from vizier._src.algorithms.testing import simple_regret_convergence_runner as srcr
-from vizier.pyvizier import converters
+from vizier._src.algorithms.testing import p_value
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 
-class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
+class PValueTest(parameterized.TestCase):
 
   @parameterized.parameters((0.01, 5), (0.05, 7))
   def test_continuous_p_value(self, observed_squared_dist, n_features):
@@ -49,7 +48,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
     # 'observed_squared_distance'.
     opt_features = np.zeros(n_features)
     best_features = opt_features + np.sqrt(observed_squared_dist / n_features)
-    continuous_p_value = srcr.compute_continuous_p_value(
+    continuous_p_value = p_value.compute_array_continuous_p_value(
         n_features, evaluations, best_features, opt_features)
     # Check the theortical and empirical results agrees on at least 3 places.
     empirical_p_value = empirical_continuous_p_value(observed_squared_dist)
@@ -86,32 +85,37 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
     # Create 'best_features' with 'wrong' incorrect parameters.
     best_features = np.array([[1] + [0] * (dim)] * (n_features - wrongs) +
                              [[0, 1] + [0] * (dim - 1)] * (wrongs)).reshape(-1)
-    categorical_p_value = srcr.compute_categorical_p_value(
+    categorical_p_value = p_value.compute_array_categorical_p_value(
         n_features, dim, best_features, optimum_feautres, evaluations)
     # Check the theortical and empirical results agrees on at least 3 places.
     empirical_p_value = empirical_categorical_p_value(wrongs)
     self.assertLessEqual(abs(categorical_p_value - empirical_p_value), 1e-3)
 
-  def test_random_features_categorical(self):
+  def test_trial_p_value(self):
     problem = vz.ProblemStatement()
-    root = problem.search_space.select_root()
-    root.add_categorical_param('c1', ['a', 'b', 'c'])
-    root.add_categorical_param('c2', ['a', 'b'])
-    converter = converters.TrialToArrayConverter.from_study_config(
-        problem, pad_oovs=True, max_discrete_indices=0)
-    self.assertEqual(srcr.randomize_features(converter).shape, (7,))
+    problem.search_space.root.add_float_param('f1', 0.0, 1.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 1.0)
+    problem.search_space.root.add_categorical_param('c1', ['a', 'b', 'c'])
+    problem.search_space.root.add_categorical_param('c2', ['x', 'y', 'z'])
+    optimum_trial = vz.Trial({'f1': 0.05, 'f2': 0.05, 'c1': 'a', 'c2': 'x'})
+    best_trial = vz.Trial({'f1': 0.0, 'f2': 0.0, 'c1': 'b', 'c2': 'x'})
+    p_value_continuous, p_value_categorical = p_value.compute_trial_p_values(
+        problem.search_space, 10, best_trial, optimum_trial)
+    self.assertAlmostEqual(p_value_continuous, 0.14642887479936317)
+    self.assertAlmostEqual(p_value_categorical, 0.9996992713401783)
 
-  def test_random_features_mix(self):
+  def test_scaled_trial_p_value(self):
     problem = vz.ProblemStatement()
-    root = problem.search_space.select_root()
-    root.add_categorical_param('c1', ['a', 'b', 'c'])
-    root.add_float_param('f1', 0.0, 5.0)
-    root.add_float_param('f2', -1.0, 1.0)
-    root.add_categorical_param('c2', ['a', 'b'])
-    root.add_discrete_param('d1', [2.0, 3.0, 5.0, 11.0])
-    converter = converters.TrialToArrayConverter.from_study_config(
-        problem, pad_oovs=True, max_discrete_indices=0)
-    self.assertEqual(srcr.randomize_features(converter).shape, (10,))
+    problem.search_space.root.add_float_param('f1', -5.0, 5.0)
+    problem.search_space.root.add_float_param('f2', -5.0, 5.0)
+    problem.search_space.root.add_categorical_param('c1', ['a', 'b', 'c'])
+    problem.search_space.root.add_categorical_param('c2', ['x', 'y', 'z'])
+    optimum_trial = vz.Trial({'f1': 0.5, 'f2': 0.5, 'c1': 'a', 'c2': 'x'})
+    best_trial = vz.Trial({'f1': 0.0, 'f2': 0.0, 'c1': 'b', 'c2': 'x'})
+    p_value_continuous, p_value_categorical = p_value.compute_trial_p_values(
+        problem.search_space, 10, best_trial, optimum_trial)
+    self.assertAlmostEqual(p_value_continuous, 0.14642887479936317)
+    self.assertAlmostEqual(p_value_categorical, 0.9996992713401783)
 
 
 if __name__ == '__main__':

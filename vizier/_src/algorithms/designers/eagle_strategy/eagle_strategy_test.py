@@ -15,14 +15,16 @@
 """Tests for eagle_strategy."""
 
 from typing import List, Optional, Any
-from jax import random
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 
 from absl.testing import absltest
 
 EagleStrategyDesiger = eagle_strategy.EagleStrategyDesiger
-PRNGKey = Any
+EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
+PRNGKeyContainer = Any
 
 
 def _create_dummy_trial(
@@ -53,10 +55,10 @@ def _create_dummy_fly(
     x_value: float,
     obj_value: float,
 ) -> eagle_strategy._Firefly:
-  """"Create a dummy firefly with a dummy completed trial."""
+  """Create a dummy firefly with a dummy completed trial."""
   trial = _create_dummy_trial(parent_fly_id, x_value, obj_value)
   return eagle_strategy._Firefly(
-      id_=parent_fly_id, perturbation_factor=1.0, generation=1, trial=trial)
+      id_=parent_fly_id, perturbation=1.0, generation=1, trial=trial)
 
 
 def _create_dummy_empty_firefly_pool(
@@ -64,7 +66,9 @@ def _create_dummy_empty_firefly_pool(
   """Create a dummy empty Firefly pool."""
   problem = _create_dummy_problem_statement()
   config = eagle_strategy.FireflyAlgorithmConfig()
-  return eagle_strategy._FireflyPool(problem, config, capacity)
+  rng = np.random.default_rng(0)
+  utils = EagleStrategyUtils(problem_statement=problem, config=config, rng=rng)
+  return eagle_strategy._FireflyPool(utils, capacity)
 
 
 def _create_dummy_populated_firefly_pool(
@@ -75,16 +79,11 @@ def _create_dummy_populated_firefly_pool(
 ) -> eagle_strategy._FireflyPool:
   """Create a dummy populated Firefly pool with a given capacity."""
   firefly_pool = _create_dummy_empty_firefly_pool(capacity=capacity)
-  key = random.PRNGKey(0)
+  rng = np.random.default_rng(0)
   if not x_values:
-    x_values = [
-        float(x) for x in random.uniform(key, shape=(5,), minval=0, maxval=10)
-    ]
+    x_values = [float(x) for x in rng.uniform(low=0, high=10, size=(5,))]
   if not obj_values:
-    obj_values = [
-        float(o)
-        for o in random.uniform(key, shape=(5,), minval=-1.5, maxval=1.5)
-    ]
+    obj_values = [float(o) for o in rng.uniform(low=-1.5, high=1.5, size=(5,))]
   for parent_fly_id, (obj_val, x_val) in enumerate(zip(obj_values, x_values)):
     firefly_pool._pool[parent_fly_id] = _create_dummy_fly(
         parent_fly_id=parent_fly_id, x_value=x_val, obj_value=obj_val)
@@ -92,24 +91,19 @@ def _create_dummy_populated_firefly_pool(
   return firefly_pool
 
 
-def _create_dummy_empty_eagle_designer(*,
-                                       key: Optional[PRNGKey] = None
-                                      ) -> EagleStrategyDesiger:
-  """"Create a dummy empty eagle designer."""
+def _create_dummy_empty_eagle_designer() -> EagleStrategyDesiger:
+  """Create a dummy empty eagle designer."""
   problem = _create_dummy_problem_statement()
-  key = key or random.PRNGKey(0)
-  return EagleStrategyDesiger(problem_statement=problem, key=key)
+  return EagleStrategyDesiger(problem_statement=problem)
 
 
 def _create_dummy_populated_eagle_designer(
     *,
     x_values: Optional[List[float]] = None,
-    obj_values: Optional[List[float]] = None,
-    key: Optional[PRNGKey] = None) -> EagleStrategyDesiger:
+    obj_values: Optional[List[float]] = None) -> EagleStrategyDesiger:
   """Create a dummy populated eagle designer."""
   problem = _create_dummy_problem_statement()
-  key = key or random.PRNGKey(0)
-  eagle_designer = EagleStrategyDesiger(problem_statement=problem, key=key)
+  eagle_designer = EagleStrategyDesiger(problem_statement=problem)
   pool_capacity = eagle_designer._firefly_pool.capacity
   # Override the eagle designer's firefly pool with a populated firefly pool.
   eagle_designer._firefly_pool = _create_dummy_populated_firefly_pool(
@@ -123,13 +117,13 @@ class FireflyPoolTest(absltest.TestCase):
     # Test creating a new fly in the pool.
     firefly_pool = _create_dummy_empty_firefly_pool()
     trial = _create_dummy_trial(parent_fly_id=112, x_value=0, obj_value=0.8)
-    firefly_pool.create_or_update_fly(trial)
+    firefly_pool.create_or_update_fly(trial, 112)
     self.assertEqual(firefly_pool.size, 1)
     self.assertLen(firefly_pool._pool, 1)
     self.assertIs(firefly_pool._pool[112].trial, trial)
     # Test that another trial with the same parent id updates the fly.
     trial2 = _create_dummy_trial(parent_fly_id=112, x_value=1, obj_value=1.5)
-    firefly_pool.create_or_update_fly(trial2)
+    firefly_pool.create_or_update_fly(trial2, 112)
     self.assertEqual(firefly_pool.size, 1)
     self.assertLen(firefly_pool._pool, 1)
     self.assertIs(firefly_pool._pool[112].trial, trial2)

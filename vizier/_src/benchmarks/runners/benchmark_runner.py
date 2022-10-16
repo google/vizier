@@ -48,7 +48,7 @@ one that simulates the stochasticity of natural evaluation processes.
 """
 
 import abc
-from typing import Callable, Optional, Protocol, Sequence
+from typing import Callable, Optional, Sequence
 
 from absl import logging
 import attr
@@ -56,8 +56,9 @@ from vizier import algorithms as vza
 from vizier import pythia
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
-from vizier._src.benchmarks.runners import runner_protocol
+from vizier._src.benchmarks.runners import algorithm_suggester
 
+AlgorithmSuggester = algorithm_suggester.AlgorithmSuggester
 DesignerFactory = Callable[[vz.ProblemStatement], vza.Designer]
 PolicyFactory = Callable[[vz.ProblemStatement], pythia.Policy]
 
@@ -67,7 +68,7 @@ class BenchmarkState:
   """State of a benchmark run. It is altered via benchmark protocols."""
 
   experimenter: Experimenter
-  algorithm: runner_protocol.AlgorithmRunnerProtocol
+  algorithm: AlgorithmSuggester
 
 
 @attr.define(frozen=True)
@@ -77,7 +78,7 @@ class BenchmarkStateFactory(abc.ABC):
   experimenter: Experimenter
 
   @abc.abstractmethod
-  def create(self) -> BenchmarkState:
+  def __call__(self) -> BenchmarkState:
     """Creates a new instance of BenchmarkFactory."""
     pass
 
@@ -88,12 +89,12 @@ class DesignerBenchmarkStateFactory(BenchmarkStateFactory):
 
   designer_factory: DesignerFactory
 
-  def create(self) -> BenchmarkState:
+  def __call__(self) -> BenchmarkState:
     """Create a BenchmarkState from designer factory."""
     problem = self.experimenter.problem_statement()
     return BenchmarkState(
         experimenter=self.experimenter,
-        algorithm=runner_protocol.DesignerRunnerProtocol(
+        algorithm=algorithm_suggester.DesignerSuggester(
             designer=self.designer_factory(problem),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
@@ -103,22 +104,23 @@ class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
 
   policy_factory: PolicyFactory
 
-  def create(self) -> BenchmarkState:
+  def __call__(self) -> BenchmarkState:
     """Create a BenchmarkState from policy factory."""
     problem = self.experimenter.problem_statement()
     return BenchmarkState(
         experimenter=self.experimenter,
-        algorithm=runner_protocol.PolicyRunnerProtocol(
+        algorithm=algorithm_suggester.PolicySuggester(
             policy=self.policy_factory(problem),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
 
-class BenchmarkSubroutine(Protocol):
+class BenchmarkSubroutine(abc.ABC):
   """Abstraction for core benchmark routines.
 
   Benchmark protocols are modular alterations of BenchmarkState by reference.
   """
 
+  @abc.abstractmethod
   def run(self, state: BenchmarkState) -> None:
     """Abstraction to alter BenchmarkState by reference."""
 

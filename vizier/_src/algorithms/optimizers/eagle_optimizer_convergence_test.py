@@ -21,11 +21,26 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import vectorized_base as vb
-from vizier._src.algorithms.testing import simple_regret_convergence_runner as srcr
+from vizier._src.algorithms.testing import convergence_runner
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
 from absl.testing import parameterized
+
+
+def randomize_array(converter: converters.TrialToArrayConverter) -> np.ndarray:
+  """Generate a random array of features to be used as score_fn shift."""
+  features_arrays = []
+  for spec in converter.output_specs:
+    if spec.type == converters.NumpyArraySpecType.ONEHOT_EMBEDDING:
+      dim = spec.num_dimensions - spec.num_oovs
+      features_arrays.append(
+          np.eye(spec.num_dimensions)[np.random.randint(0, dim)])
+    elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
+      features_arrays.append(np.random.uniform(0.4, 0.6, size=(1,)))
+    else:
+      raise ValueError('The type %s is not supported!' % spec.type)
+  return np.hstack(features_arrays)
 
 
 def create_continuous_problem(
@@ -59,7 +74,7 @@ def create_mix_problem(n_features: int,
 
 
 # TODO: Change to bbob functions when they can support batching.
-def sphere_score_fn(x: np.ndarray) -> np.ndarray:
+def sphere(x: np.ndarray) -> np.ndarray:
   return -np.sum(np.square(x), axis=-1)
 
 
@@ -87,10 +102,13 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
         seed=1)
     optimizer = vb.VectorizedOptimizer(
         strategy_factory=eagle_factory, max_evaluations=evaluations)
-    srcr.assert_converges(
+    optimum_features = randomize_array(converter)
+    shifted_score_fn = lambda x, shift=optimum_features: sphere(x - shift)
+    convergence_runner.assert_optimizer_converges(
         converter,
         optimizer,
-        sphere_score_fn,
+        shifted_score_fn,
+        optimum_features,
         evaluations,
         num_repeats=1,
         success_threshold=1)
