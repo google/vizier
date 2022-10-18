@@ -19,7 +19,6 @@ compatible.
 """
 import collections
 from collections import abc as collections_abc
-import copy
 import enum
 import math
 import re
@@ -1053,13 +1052,19 @@ class SearchSpaceSelector:
       logging.info(
           'Adding child parameters to all matching parents with '
           'name "%s": %s', self._selected_name, parameters)
+      found_at_least_one_match = False
       for idx, root_param in enumerate(self._configs):
         updated_param, new_selectors = self._recursive_add_child_parameters(
             self._configs, _PathSelector(), root_param, self._selected_name,
             self._selected_values, parameters)
+        if new_selectors:
+          found_at_least_one_match = True
         # Update the root ParameterConfig in place.
         self._configs[idx] = updated_param
         selectors.extend(new_selectors)
+      if not found_at_least_one_match:
+        logging.warning('Failed to find a matching parent with name %s',
+                        self._selected_name)
     else:
       # If both _selected_path and _selected_name are specified, parameters will
       # be added as child parameters to the parameter specified by the path and
@@ -1380,8 +1385,8 @@ class SearchSpace:
 
   @property
   def parameters(self) -> List[parameter_config.ParameterConfig]:
-    """Returns COPIES of the parameter configs in this Space."""
-    return copy.deepcopy(self._parameter_configs)
+    """Returns the parameter configs in this search space."""
+    return self._parameter_configs
 
   def select_root(self) -> SearchSpaceSelector:
     # Deprecated function.
