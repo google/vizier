@@ -88,6 +88,7 @@ class GradientFreeOptimizer(abc.ABC):
                *,
                count: int = 1,
                budget_factor: float = 1.0,
+               seed_trials: Sequence[vz.Trial] = tuple(),
                **kwargs) -> list[vz.Trial]:
     """Optimizes a function.
 
@@ -98,6 +99,7 @@ class GradientFreeOptimizer(abc.ABC):
       count: Optimizer tries to return this many trials.
       budget_factor:  For optimizers with a notion of a budget, use this much
         fraction of the standard budget for the call.
+      seed_trials: Seed trials to be used as initial batch for optimization.
       **kwargs: For experimental keyword arguments.
 
     Returns:
