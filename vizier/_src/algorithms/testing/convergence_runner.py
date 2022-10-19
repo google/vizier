@@ -161,7 +161,7 @@ class BenchmarkConvergenceRunner:
       2. The value of the best metric found during the benchmark run check.
       3. The best trial (associated with 2.) found during the benchmark check.
     """
-    benchmark_state = self.benchmark_state_factory.create()
+    benchmark_state = self.benchmark_state_factory()
 
     runner = benchmarks.BenchmarkRunner(
         benchmark_subroutines=[benchmarks.GenerateAndEvaluate()],

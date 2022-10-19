@@ -60,8 +60,8 @@ class ComparisonTester:
     baseline_curves = []
     candidate_curves = []
     for _ in range(self.num_repeats):
-      baseline_state = baseline_state_factory.create()
-      candidate_state = candidate_state_factory.create()
+      baseline_state = baseline_state_factory()
+      candidate_state = candidate_state_factory()
 
       baseline_statement = baseline_state.experimenter.problem_statement()
       if len(baseline_statement.metric_information) > 1:

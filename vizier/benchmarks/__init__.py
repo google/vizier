@@ -25,6 +25,9 @@ from vizier._src.benchmarks.experimenters.combo_experimenter import PestControlE
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier._src.benchmarks.runners.algorithm_suggester import AlgorithmSuggester
+from vizier._src.benchmarks.runners.algorithm_suggester import DesignerSuggester
+from vizier._src.benchmarks.runners.algorithm_suggester import PolicySuggester
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkRunner
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkState
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkStateFactory
@@ -36,6 +39,3 @@ from vizier._src.benchmarks.runners.benchmark_runner import GenerateAndEvaluate
 from vizier._src.benchmarks.runners.benchmark_runner import GenerateSuggestions
 from vizier._src.benchmarks.runners.benchmark_runner import PolicyBenchmarkStateFactory
 from vizier._src.benchmarks.runners.benchmark_runner import PolicyFactory
-from vizier._src.benchmarks.runners.runner_protocol import AlgorithmRunnerProtocol
-from vizier._src.benchmarks.runners.runner_protocol import DesignerRunnerProtocol
-from vizier._src.benchmarks.runners.runner_protocol import PolicyRunnerProtocol
