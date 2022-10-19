@@ -17,7 +17,7 @@
 import abc
 import datetime
 import logging
-from typing import Optional, Protocol, Union, List
+from typing import Optional, Protocol, Union
 
 import attr
 import chex
@@ -62,7 +62,7 @@ class VectorizedStrategy(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def best_features_results(self) -> List[VectorizedStrategyResult]:
+  def best_features_results(self) -> list[VectorizedStrategyResult]:
     """The best features and rewards the strategy seen thus far.
 
     Note that the result is in the *scaled* space, which is [0,1]^n.
@@ -142,7 +142,7 @@ class VectorizedOptimizer:
       converter: converters.TrialToArrayConverter,
       score_fn: BatchArrayScoreFunction,
       count: int = 1,
-  ) -> None:
+  ) -> list[vz.Trial]:
     """Optimize the objective function.
 
     The ask-evaluate-tell optimization procedure that runs until the allocated
@@ -163,6 +163,9 @@ class VectorizedOptimizer:
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
         features_count) and returns a 1D Array (batch_size,).
       count: The number of suggestions to generate.
+
+    Returns:
+      The best trials found in the optimization.
     """
     # Create a new strategy using the factory. The effective search space is
     # included in the converter.
@@ -181,6 +184,7 @@ class VectorizedOptimizer:
         'Optimization completed. Duration: %s. Evalutions: %s. Best Results: %s',
         datetime.datetime.now() - self._start_time, self._evaluated_count,
         self._strategy.best_features_results)
+    return self.best_candidates
 
   @property
   def strategy(self) -> VectorizedStrategy:
@@ -190,7 +194,7 @@ class VectorizedOptimizer:
     return self._strategy
 
   @property
-  def best_candidates(self) -> List[vz.Trial]:
+  def best_candidates(self) -> list[vz.Trial]:
     """Returns the best candidate trials in the original search space."""
     if not self._evaluated_count:
       raise Exception("Optimizer hasn't run yet. Call optimize first!")
