@@ -97,7 +97,7 @@ class RandomMetricsRunner:
           measurement.metrics[mi.name] = rng.uniform(
               mi.min_value_or(lambda: -10.), mi.max_value_or(lambda: 10.))
         trials.append(
-            suggestion.to_trial(len(trials) + 1).complete(measurement))
+            suggestion.to_trial(len(all_trials) + 1).complete(measurement))
       if self.verbose:
         logging.info('At iteration %s, trials suggested and evaluated:\n%s', it,
                      trials)
