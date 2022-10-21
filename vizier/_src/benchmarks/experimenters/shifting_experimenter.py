@@ -92,13 +92,19 @@ class ShiftingExperimenter(experimenter.Experimenter):
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return self._problem_statement
 
-  def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
-    previous_parameters = []
+  def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
+    """Evaluate the trials after shifting their parameters by +shift."""
+    self._offset(suggestions, self._shift)
+    self._exptr.evaluate(suggestions)
+    self._offset(suggestions, -self._shift)
+
+  def _offset(self, suggestions: Sequence[pyvizier.Trial],
+              shift: np.ndarray) -> None:
+    """Offsets the suggestions parameter values in place."""
     for suggestion in suggestions:
       features = self._converter.to_features([suggestion])
-      parameters = self._converter.to_parameters(features + self._shift)
-      previous_parameters.append(suggestion.parameters)
-      suggestion.parameters = parameters[0]
-    self._exptr.evaluate(suggestions)
-    for parameters, suggestion in zip(previous_parameters, suggestions):
-      suggestion.parameters = parameters
+      new_parameters = self._converter.to_parameters(features + shift)[0]
+      suggestion.parameters = new_parameters
+
+  def __repr__(self):
+    return f'ShiftingExperimenter({self._shift}) on {str(self._exptr)}'

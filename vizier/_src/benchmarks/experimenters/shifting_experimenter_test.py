@@ -40,7 +40,7 @@ class ShiftingExperimenterTest(parameterized.TestCase):
       ('GriewankRosenbrock', bbob.GriewankRosenbrock),
       ('Schwefel', bbob.Schwefel), ('Katsuura', bbob.Katsuura),
       ('Lunacek', bbob.Lunacek), ('Gallagher101Me', bbob.Gallagher101Me))
-  def testNumpyExperimenter(self, func):
+  def test_numpy_experimenter(self, func):
     dim = 2
     shift = 1.2
     exptr = numpy_experimenter.NumpyExperimenter(
@@ -75,9 +75,9 @@ class ShiftingExperimenterTest(parameterized.TestCase):
       self.assertEqual(param.bounds[0], shifted_param.bounds[0])
       self.assertEqual(param.bounds[1] - shift, shifted_param.bounds[1])
 
-  def testVectorShift(self):
+  def test_evaluate_shift(self):
     dim = 2
-    shift = [1.2, -2.3]
+    shift = np.array([1.2, -2.3])
     func = bbob.Sphere
     exptr = numpy_experimenter.NumpyExperimenter(
         func, bbob.DefaultBBOBProblemStatement(dim))
@@ -106,9 +106,49 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     self.assertEqual(t.status, t_shifted.status)
     self.assertNotEqual(t.parameters, t_shifted.parameters)
 
-  def testLargeShift(self):
+  def test_shift_backward(self):
     dim = 2
-    shift = [10.2, 20.3]
+    shift = np.array([1.2, -2.3])
+    func = bbob.Sphere
+    exptr = numpy_experimenter.NumpyExperimenter(
+        func, bbob.DefaultBBOBProblemStatement(dim))
+    shifted_exptr = shifting_experimenter.ShiftingExperimenter(
+        exptr=exptr, shift=np.asarray(shift))
+    # Test shift within bounds
+    trial = pyvizier.Trial(parameters={'x0': 3.0, 'x1': 1.0})
+    shifted_exptr._offset([trial], shift=-shift)
+    self.assertEqual(trial.parameters.as_dict(), {
+        'x0': 3.0 - 1.2,
+        'x1': 1.0 + 2.3
+    })
+    # Test shift in out of bounds
+    trial = pyvizier.Trial(parameters={'x0': -5.0, 'x1': 5.0})
+    shifted_exptr._offset([trial], shift=-shift)
+    self.assertEqual(trial.parameters.as_dict(), {'x0': -5.0, 'x1': 5.0})
+
+  def test_shift_forward(self):
+    dim = 2
+    shift = np.array([1.2, -2.3])
+    func = bbob.Sphere
+    exptr = numpy_experimenter.NumpyExperimenter(
+        func, bbob.DefaultBBOBProblemStatement(dim))
+    shifted_exptr = shifting_experimenter.ShiftingExperimenter(
+        exptr=exptr, shift=np.asarray(shift))
+    # Test shift within bounds
+    trial = pyvizier.Trial(parameters={'x0': 3.0, 'x1': 1.0})
+    shifted_exptr._offset([trial], shift=shift)
+    self.assertEqual(trial.parameters.as_dict(), {
+        'x0': 3.0 + 1.2,
+        'x1': 1.0 - 2.3
+    })
+    # Test shift in out of bounds
+    trial = pyvizier.Trial(parameters={'x0': 5.0, 'x1': -5.0})
+    shifted_exptr._offset([trial], shift=shift)
+    self.assertEqual(trial.parameters.as_dict(), {'x0': 5.0, 'x1': -5.0})
+
+  def test_large_shift(self):
+    dim = 2
+    shift = np.array([10.2, 20.3])
     func = bbob.Sphere
     exptr = numpy_experimenter.NumpyExperimenter(
         func, bbob.DefaultBBOBProblemStatement(dim))
@@ -116,6 +156,7 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     with self.assertRaisesRegex(ValueError, 'is too large'):
       shifting_experimenter.ShiftingExperimenter(
           exptr=exptr, shift=np.asarray(shift))
+
 
 if __name__ == '__main__':
   absltest.main()
