@@ -334,36 +334,13 @@ message StudySpec {
   // as a separate binary.
   optional string pythia_endpoint = 8;
 
-  // The decay curve automated stopping rule builds a Gaussian Process
-  // Regressor to predict the final objective value of a Trial based on the
-  // already completed Trials and the intermediate measurements of the current
-  // Trial. Early stopping is requested for the current Trial if there is very
-  // low probability to exceed the optimal value found so far.
-  message DecayCurveAutomatedStoppingSpec {
-    // True if [Measurement.elapsed_duration][] is used as the x-axis of each
-    // Trials Decay Curve. Otherwise, [Measurement.step_count][] will be used
-    // as the x-axis.
-    bool use_elapsed_duration = 1;
-  }
-
-  // The median automated stopping rule stops a pending Trial if the Trial's
-  // best objective_value is strictly below the median 'performance' of all
-  // completed Trials reported up to the Trial's last measurement.
-  // Currently, 'performance' refers to the running average of the objective
-  // values reported by the Trial in each measurement.
-  message MedianAutomatedStoppingSpec {
-    // True if median automated stopping rule applies on
-    // [Measurement.elapsed_duration][]. It means that elapsed_duration
-    // field of latest measurement of current Trial is used to compute median
-    // objective value for each completed Trials.
-    bool use_elapsed_duration = 1;
+  // Use the deault early stopping policy.
+  reserved 4, 5;
+  message DefaultEarlyStoppingSpec {
   }
 
   oneof automated_stopping_spec {
-    // The automated early stopping spec using decay curve rule.
-    DecayCurveAutomatedStoppingSpec decay_curve_stopping_spec = 4;
-    // The automated early stopping spec using median rule.
-    MedianAutomatedStoppingSpec median_automated_stopping_spec = 5;
+    DefaultEarlyStoppingSpec default_stopping_spec = 9;
   }
 
   // Describes the noise level of the repeated observations.

@@ -255,11 +255,8 @@ class StudyConfig(base_study_config.ProblemStatement):
     if self.automated_stopping_config is not None:
       auto_stop_proto = self.automated_stopping_config.to_proto()
       if isinstance(auto_stop_proto,
-                    study_pb2.StudySpec.DecayCurveAutomatedStoppingSpec):
-        proto.decay_curve_stopping_spec.CopyFrom(auto_stop_proto)
-      elif isinstance(auto_stop_proto,
-                      study_pb2.StudySpec.DecayCurveAutomatedStoppingSpec):
-        proto.median_automated_stopping_spec.CopyFrom(auto_stop_proto)
+                    study_pb2.StudySpec.DefaultEarlyStoppingSpec):
+        proto.default_stopping_spec.CopyFrom(auto_stop_proto)
 
     for ns in self.metadata.namespaces():
       ns_string = ns.encode()

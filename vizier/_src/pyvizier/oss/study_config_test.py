@@ -42,8 +42,8 @@ class StudyConfigTest(parameterized.TestCase):
     ]
 
   def testCreationFromAndToProtoStudy(self):
-    expected_automated_stopping_config = study_pb2.StudySpec.DecayCurveAutomatedStoppingSpec(
-        use_elapsed_duration=False)
+    expected_automated_stopping_config = (
+        study_pb2.StudySpec.DefaultEarlyStoppingSpec())
 
     study_config_proto = study_pb2.StudySpec(
         algorithm='QUASI_RANDOM_SEARCH',
@@ -52,7 +52,7 @@ class StudyConfigTest(parameterized.TestCase):
                 metric_id='pr-auc',
                 goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
         ],
-        decay_curve_stopping_spec=expected_automated_stopping_config)
+        default_stopping_spec=expected_automated_stopping_config)
 
     study_config_proto.parameters.extend(self.pconfigs)
     # Test all proprties.
@@ -205,8 +205,8 @@ class StudyConfigTest(parameterized.TestCase):
         'learning_rate', 0.00001, 1.0, scale_type=pyvizier.ScaleType.LINEAR)
     root.add_categorical_param('optimizer', ['adagrad', 'adam', 'experimental'])
 
-    sc.automated_stopping_config = pyvizier.AutomatedStoppingConfig.decay_curve_stopping_config(
-        use_steps=True)
+    sc.automated_stopping_config = (
+        pyvizier.AutomatedStoppingConfig.default_stopping_spec())
 
     # Test all proprties.
     self.assertEqual(sc.algorithm, 'RANDOM_SEARCH')
@@ -225,8 +225,7 @@ class StudyConfigTest(parameterized.TestCase):
                 metric_id='pr-auc',
                 goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
         ],
-        decay_curve_stopping_spec=study_pb2.StudySpec
-        .DecayCurveAutomatedStoppingSpec(use_elapsed_duration=False),
+        default_stopping_spec=study_pb2.StudySpec.DefaultEarlyStoppingSpec(),
         observation_noise=study_pb2.StudySpec.ObservationNoise
         .OBSERVATION_NOISE_UNSPECIFIED,
     )
