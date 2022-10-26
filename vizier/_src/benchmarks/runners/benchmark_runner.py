@@ -135,15 +135,15 @@ class GenerateAndEvaluate(BenchmarkSubroutine):
   """
 
   # Number of total suggestions as a batch.
-  num_suggestions: int = attr.field(
+  batch_size: int = attr.field(
       default=1, validator=attr.validators.instance_of(int))
 
   def run(self, state: BenchmarkState) -> None:
-    suggestions = state.algorithm.suggest(self.num_suggestions)
+    suggestions = state.algorithm.suggest(self.batch_size)
     if not suggestions:
       logging.info(
           'Algorithm did not generate %d suggestions'
-          'because it returned nothing.', self.num_suggestions)
+          'because it returned nothing.', self.batch_size)
     state.experimenter.evaluate(list(suggestions))
     # Only needed for Designers.
     state.algorithm.post_completion_callback(vza.CompletedTrials(suggestions))
@@ -154,15 +154,15 @@ class GenerateSuggestions(BenchmarkSubroutine):
   """Generate a fixed number of Suggestions as Active Trials."""
 
   # Number of total suggestions as a batch.
-  num_suggestions: int = attr.field(
+  batch_size: int = attr.field(
       default=1, validator=attr.validators.instance_of(int))
 
   def run(self, state: BenchmarkState) -> None:
-    suggestions = state.algorithm.suggest(self.num_suggestions)
+    suggestions = state.algorithm.suggest(self.batch_size)
     if not suggestions:
       logging.info(
           'Suggestions did not generate %d suggestions'
-          'because designer returned nothing.', self.num_suggestions)
+          'because designer returned nothing.', self.batch_size)
 
 
 @attr.define
