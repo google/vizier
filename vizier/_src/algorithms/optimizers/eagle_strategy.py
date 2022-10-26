@@ -115,7 +115,7 @@ class VectorizedEagleStrategyFactory:
   """Eagle strategy factory."""
   eagle_config: EagleStrategyConfig = attr.field(factory=EagleStrategyConfig)
   pool_size: int = 50
-  batch_size: int = 10
+  batch_size: int = 5
   seed: int = 42
 
   def __call__(
