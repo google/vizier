@@ -34,12 +34,16 @@ from vizier._src.pyvizier.shared.parameter_config import ParameterType
 from vizier._src.pyvizier.shared.parameter_config import ScaleType
 from vizier._src.pyvizier.shared.study import ProblemAndTrials
 from vizier._src.pyvizier.shared.trial import CompletedTrial
+from vizier._src.pyvizier.shared.trial import CompletedTrialWithMeasurements
 from vizier._src.pyvizier.shared.trial import Measurement
 from vizier._src.pyvizier.shared.trial import MetadataDelta
 from vizier._src.pyvizier.shared.trial import Metric
+from vizier._src.pyvizier.shared.trial import NaNMetric
 from vizier._src.pyvizier.shared.trial import ParameterDict
 from vizier._src.pyvizier.shared.trial import ParameterValue
 from vizier._src.pyvizier.shared.trial import ParameterValueTypes
+from vizier._src.pyvizier.shared.trial import PendingTrial
+from vizier._src.pyvizier.shared.trial import PendingTrialWithMeasurements
 from vizier._src.pyvizier.shared.trial import Trial
 from vizier._src.pyvizier.shared.trial import TrialFilter
 from vizier._src.pyvizier.shared.trial import TrialStatus
