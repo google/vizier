@@ -15,7 +15,8 @@
 """Applies the noise function to each metric in final measurement."""
 
 import functools
-from typing import Callable, Sequence
+import logging
+from typing import Callable, Optional, Sequence
 
 import attr
 import numpy as np
@@ -23,16 +24,24 @@ from vizier import pyvizier
 from vizier._src.benchmarks.experimenters import experimenter
 
 
-@attr.define
+@attr.define(auto_attribs=True)
 class NoisyExperimenter(experimenter.Experimenter):
   """NoisyExperimenter applies noise to all metric(s) in final measurement.
 
   It stores the unnoised metric as metric_name + '_before_noise'. The noise
-  function is a callable that is applied to metrics (not added).
+  function is a callable that is applied to metrics.
   """
 
   exptr: experimenter.Experimenter = attr.field()
-  noise_fn: Callable[[float], float] = attr.field()
+  noise_fn: Optional[Callable[[float], float]] = attr.field(default=None)
+  noise_type: Optional[str] = attr.field(default=None)
+
+  def __attrs_post_init__(self):
+    """Updates noise_fn with noise given by noise_type."""
+    if self.noise_type is not None:
+      dim = len(self.exptr.problem_statement().search_space.parameters)
+      self.noise_fn = _create_noise_fn(self.noise_type, dimension=dim)
+      logging.info('Initializing %s', str(self))
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return self.exptr.problem_statement()
@@ -49,11 +58,14 @@ class NoisyExperimenter(experimenter.Experimenter):
         metric_dict_with_noise[name + '_before_noise'] = metric
       suggestion.final_measurement.metrics = metric_dict_with_noise
 
+  def __repr__(self):
+    return f'NoisyExperimenter({self.noise_type}) on {str(self.exptr)}'
 
-def create_noise_fn(noise: str,
-                    dimension: int,
-                    target_value: float = 1e-8,
-                    seed: int = 0) -> Callable[[float], float]:
+
+def _create_noise_fn(noise: str,
+                     dimension: int,
+                     target_value: float = 1e-8,
+                     seed: int = 0) -> Callable[[float], float]:
   """Creates a noise function via NumPy.
 
   See https://bee22.com/resources/bbob%20noisy%20functions.pdf

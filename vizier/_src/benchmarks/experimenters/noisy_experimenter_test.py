@@ -80,7 +80,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
     exptr = numpy_experimenter.NumpyExperimenter(
         bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim))
     noisy_exptr = noisy_experimenter.NoisyExperimenter(
-        exptr=exptr, noise_fn=noisy_experimenter.create_noise_fn(noise, dim))
+        exptr=exptr, noise_type=noise)
 
     parameters = exptr.problem_statement().search_space.parameters
     t = pyvizier.Trial(parameters={
