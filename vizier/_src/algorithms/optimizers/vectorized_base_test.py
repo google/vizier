@@ -14,6 +14,10 @@
 
 """Tests for vectorized_base."""
 
+import datetime
+import time
+
+import mock
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base as vb
@@ -35,7 +39,7 @@ class DummyVectorizedStrategy(vb.VectorizedStrategy):
     return 5
 
   @property
-  def best_features_results(self) -> list[vb.VectorizedStrategyResult]:
+  def best_results(self) -> list[vb.VectorizedStrategyResult]:
     return [vb.VectorizedStrategyResult(np.ones(2), 0.0)] * self._count
 
   def update(self, rewards: np.ndarray) -> None:
@@ -51,23 +55,55 @@ class VectorizedBaseTest(absltest.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: np.sum(x, axis=-1)
     strategy_factory = lambda converter, count: DummyVectorizedStrategy(count)
-    optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory, max_evaluations=100)
-    res = optimizer.optimize(converter=converter, score_fn=score_fn, count=5)
+    optimizer = vb.VectorizedOptimizer(strategy_factory=strategy_factory)
+    res = optimizer.optimize(
+        converter=converter, score_fn=score_fn, max_evaluations=100, count=5)
     self.assertLen(res, 5)
-    self.assertLen(optimizer.best_candidates, 5)
 
-  def test_should_stop(self):
+  def test_should_stop_max_evaluations(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: np.sum(x, axis=-1)
+    score_fn = mock.Mock()
+    score_fn.side_effect = lambda x: np.sum(x, axis=-1)
     strategy_factory = lambda converter, count: DummyVectorizedStrategy(count)
-    optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory, max_evaluations=100)
-    optimizer.optimize(converter=converter, score_fn=score_fn, count=5)
-    self.assertEqual(optimizer._evaluated_count, 100)
+    optimizer = vb.VectorizedOptimizer(strategy_factory=strategy_factory)
+    optimizer.optimize(
+        converter=converter, score_fn=score_fn, max_evaluations=100, count=3)
+    # The batch size is 5, so we expect 100/5 = 20 calls
+    self.assertEqual(score_fn.call_count, 20)
+    # Test with specified max duration
+    optimizer.optimize(
+        converter=converter,
+        score_fn=score_fn,
+        max_evaluations=100,
+        max_duration=datetime.timedelta(minutes=10),
+        count=3)
+    # The batch size is 5, so we expect additional 100/5 = 20 calls
+    self.assertEqual(score_fn.call_count, 40)
+
+  def test_should_stop_max_duration(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 10.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 10.0)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    score_fn = mock.Mock()
+
+    def slow_score_fn(x):
+      time.sleep(1)
+      return np.sum(x, axis=-1)
+
+    score_fn.side_effect = slow_score_fn
+    strategy_factory = lambda converter, count: DummyVectorizedStrategy(count)
+    optimizer = vb.VectorizedOptimizer(strategy_factory=strategy_factory)
+    optimizer.optimize(
+        converter=converter,
+        score_fn=score_fn,
+        max_evaluations=100,
+        max_duration=datetime.timedelta(seconds=3))
+    # Test the optimization stopped after ~3 seconds based on function calls.
+    self.assertLess(score_fn.call_count, 4)
 
 
 if __name__ == '__main__':

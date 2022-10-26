@@ -221,7 +221,7 @@ class VectorizedEagleStrategy(VectorizedStrategy):
     self._perturbation_factors = self._param_handler.perturbation_factors
 
   @property
-  def best_features_results(self) -> List[VectorizedStrategyResult]:
+  def best_results(self) -> List[VectorizedStrategyResult]:
     """Returns the best features and rewards the strategy seen thus far.
 
     Note that the returned features are normalized to [0,1], and so they'll need
