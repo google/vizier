@@ -362,7 +362,7 @@ class Trial(TrialSuggestion):
       validator=attr.validators.instance_of(int),
   )
 
-  _is_requested: bool = attr.ib(
+  is_requested: bool = attr.ib(
       init=True,
       kw_only=True,
       default=False,
@@ -465,7 +465,7 @@ class Trial(TrialSuggestion):
       return TrialStatus.COMPLETED
     elif self.stopping_reason is not None:
       return TrialStatus.STOPPING
-    elif self._is_requested:
+    elif self.is_requested:
       return TrialStatus.REQUESTED
     else:
       return TrialStatus.ACTIVE

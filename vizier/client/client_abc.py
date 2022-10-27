@@ -195,6 +195,18 @@ class StudyInterface(abc.ABC):
     """
 
   @abc.abstractmethod
+  def request(self, suggestion: vz.TrialSuggestion) -> None:
+    """Request a trial to be suggested in the future.
+
+    Requested trials are "queued" in the vizier database. Next time a client
+    requests for a new suggestion, it receives requested trials before any
+    algorithm-generated suggestions.
+
+    Args:
+      suggestion: Suggestion to be requested.
+    """
+
+  @abc.abstractmethod
   def delete(self) -> None:
     """Delete the Study in Vizier service.
 
