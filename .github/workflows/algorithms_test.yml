@@ -24,13 +24,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install essential dependencies
         run: |
-          python -m pip install --upgrade pip
+          sudo apt-get install -y libprotobuf-dev
+          python -m pip install --upgrade pip setuptools
           pip install wheel
+          pip install grpcio-tools
           pip install pytest pytest-xdist
       - name: Install Vizier
         run: |
+          pip wheel -e .
           pip install -e .
-          bash build_protos.sh  # TODO: Remove once setup.py scripting is fixed.
           pip install -r requirements-jax.txt
           pip install -r requirements-tf.txt
           pip install -r requirements-algorithms.txt

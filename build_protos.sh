@@ -13,7 +13,6 @@
 # limitations under the License.
 
 #!/bin/bash
-sudo apt-get install -y libprotobuf-dev  # Needed for proto libraries.
 
 # Installs standard Google protos, then builds Vizier specific protos.
 set -x
@@ -29,7 +28,7 @@ cd "$THIS_DIR"
 TMPDIR=$(mktemp -d)
 (cd "$TMPDIR"
   wget https://github.com/googleapis/googleapis/archive/master.tar.gz
-  tar xzvf master.tar.gz
+  tar xzf master.tar.gz
   cp -r googleapis-master/google $THIS_DIR/vizier/service/
 )
 rm -rf "$TMPDIR"
