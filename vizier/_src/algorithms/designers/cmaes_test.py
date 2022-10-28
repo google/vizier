@@ -16,7 +16,6 @@
 from vizier import benchmarks
 from vizier._src.algorithms.designers import cmaes
 from vizier._src.algorithms.testing import test_runners
-from vizier._src.benchmarks.experimenters.synthetic import bbob
 
 from absl.testing import absltest
 
@@ -24,8 +23,7 @@ from absl.testing import absltest
 class CmaesTest(absltest.TestCase):
 
   def setUp(self):
-    self.problem = bbob.DefaultBBOBProblemStatement(2)
-    self.experimenter = benchmarks.NumpyExperimenter(bbob.Sphere, self.problem)
+    self.experimenter = benchmarks.BBOBExperimenterFactory('Sphere', 2)()
     super().setUp()
 
   def test_e2e_and_serialization(self):

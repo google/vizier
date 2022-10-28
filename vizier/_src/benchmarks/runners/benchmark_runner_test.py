@@ -16,8 +16,7 @@
 
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
-from vizier._src.benchmarks.experimenters import numpy_experimenter
-from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier._src.benchmarks.experimenters import experimenter_factory
 from vizier._src.benchmarks.runners import benchmark_runner
 
 from absl.testing import absltest
@@ -47,10 +46,9 @@ class BaseRunnerTest(parameterized.TestCase):
           'expected_trials':
               50
       })
-  def test_bechmark_run(self, runner, expected_trials):
+  def test_benchmark_run(self, runner, expected_trials):
     dim = 10
-    experimenter = numpy_experimenter.NumpyExperimenter(
-        bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim))
+    experimenter = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)()
 
     def _designer_factory(config: vz.ProblemStatement):
       return random.RandomDesigner(config.search_space, seed=5)

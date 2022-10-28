@@ -44,9 +44,7 @@ class PerformanceTest(parameterized.TestCase):
                                   num_trials_per_client, dimension):
 
     def fn(client_id: int):
-      func = benchmarks.bbob.Sphere
-      experimenter = benchmarks.NumpyExperimenter(
-          func, benchmarks.bbob.DefaultBBOBProblemStatement(dimension))
+      experimenter = benchmarks.BBOBExperimenterFactory('Sphere', dimension)()
       problem_statement = experimenter.problem_statement()
       study_config = pyvizier.StudyConfig.from_problem(problem_statement)
       study_config.algorithm = pyvizier.Algorithm.NSGA2

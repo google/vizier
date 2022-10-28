@@ -23,6 +23,8 @@ from vizier._src.benchmarks.experimenters.combo_experimenter import IsingExperim
 from vizier._src.benchmarks.experimenters.combo_experimenter import MAXSATExperimenter
 from vizier._src.benchmarks.experimenters.combo_experimenter import PestControlExperimenter
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
+from vizier._src.benchmarks.experimenters.experimenter_factory import BBOBExperimenterFactory
+from vizier._src.benchmarks.experimenters.experimenter_factory import SingleObjectiveExperimenterFactory
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier._src.benchmarks.runners.algorithm_suggester import AlgorithmSuggester

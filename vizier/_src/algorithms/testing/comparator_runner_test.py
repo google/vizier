@@ -22,7 +22,6 @@ from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import comparator_runner
-from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -86,8 +85,7 @@ class DummyDesigner(vza.Designer):
 class EfficiencyConvergenceTest(absltest.TestCase):
 
   def test_comparison(self):
-    problem = bbob.DefaultBBOBProblemStatement(3)
-    experimenter = benchmarks.NumpyExperimenter(bbob.Sphere, problem)
+    experimenter = benchmarks.BBOBExperimenterFactory('Sphere', 3)()
 
     num_trials = 20
 
@@ -122,9 +120,9 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
 
   def setUp(self):
     super(SimpleRegretConvergenceRunnerTest, self).setUp()
-    problem = bbob.DefaultBBOBProblemStatement(3)
-    self.experimenter = benchmarks.NumpyExperimenter(bbob.Sphere, problem)
-    self.converter = converters.TrialToArrayConverter.from_study_config(problem)
+    self.experimenter = benchmarks.BBOBExperimenterFactory('Sphere', 3)()
+    self.converter = converters.TrialToArrayConverter.from_study_config(
+        self.experimenter.problem_statement())
 
   @parameterized.parameters(
       {
