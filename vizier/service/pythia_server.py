@@ -13,22 +13,13 @@
 # limitations under the License.
 
 """Separate Pythia service for handling algorithmic logic."""
+# pylint:disable=g-import-not-at-top
 from typing import Optional, Union
 from absl import logging
 import grpc
 
 from vizier import pythia
-
-from vizier._src.algorithms.designers import bocs
-from vizier._src.algorithms.designers import cmaes
-from vizier._src.algorithms.designers import emukit
-from vizier._src.algorithms.designers import grid
-from vizier._src.algorithms.designers import harmonica
-from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.evolution import nsga2
 from vizier._src.algorithms.policies import designer_policy as dp
-from vizier._src.algorithms.policies import random_policy
-
 from vizier.service import pythia_service_pb2
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as vz
@@ -41,26 +32,34 @@ def policy_creator(problem_statement: vz.ProblemStatement, algorithm: str,
                    policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
   """Creates a policy."""
   if algorithm in ('ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
+    from vizier._src.algorithms.policies import random_policy
     return random_policy.RandomPolicy(policy_supporter)
   elif algorithm == 'QUASI_RANDOM_SEARCH':
+    from vizier._src.algorithms.designers import quasi_random
     return dp.PartiallySerializableDesignerPolicy(
         problem_statement, policy_supporter,
         quasi_random.QuasiRandomDesigner.from_problem)
   elif algorithm == 'GRID_SEARCH':
+    from vizier._src.algorithms.designers import grid
     return dp.PartiallySerializableDesignerPolicy(
         problem_statement, policy_supporter,
         grid.GridSearchDesigner.from_problem)
   elif algorithm == 'NSGA2':
+    from vizier._src.algorithms.evolution import nsga2
     return dp.PartiallySerializableDesignerPolicy(problem_statement,
                                                   policy_supporter,
                                                   nsga2.create_nsga2)
   elif algorithm == 'EMUKIT_GP_EI':
+    from vizier._src.algorithms.designers import emukit
     return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
   elif algorithm == 'BOCS':
+    from vizier._src.algorithms.designers import bocs
     return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
   elif algorithm == 'HARMONICA':
+    from vizier._src.algorithms.designers import harmonica
     return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
   elif algorithm == 'CMA_ES':
+    from vizier._src.algorithms.designers import cmaes
     return dp.PartiallySerializableDesignerPolicy(problem_statement,
                                                   policy_supporter,
                                                   cmaes.CMAESDesigner)

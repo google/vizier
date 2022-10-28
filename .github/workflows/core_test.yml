@@ -29,12 +29,11 @@ jobs:
           pip install wheel
           pip install grpcio-tools
           pip install pytest pytest-xdist
-      - name: Install Vizier # (TODO: Remove algorithm dependencies)
+      - name: Install Vizier
         run: |
           pip wheel -e .
           pip install -e .
           pip install -r requirements-jax.txt
-          pip install -r requirements-algorithms.txt
       - name: Print installed dependencies
         run: |
           pip freeze
