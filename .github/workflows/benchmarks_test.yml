@@ -27,7 +27,7 @@ jobs:
           sudo apt-get install -y libprotobuf-dev
           python -m pip install --upgrade pip setuptools
           pip install wheel
-          pip install grpcio-tools
+          pip install grpcio-tools==1.48.2
           pip install pytest pytest-xdist
       - name: Install Vizier
         run: |
