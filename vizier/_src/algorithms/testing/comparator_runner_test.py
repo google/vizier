@@ -82,6 +82,7 @@ class DummyDesigner(vza.Designer):
     return [vz.TrialSuggestion(parameters)]
 
 
+@absltest.skip('b/255420693')
 class EfficiencyConvergenceTest(absltest.TestCase):
 
   def test_comparison(self):
@@ -116,6 +117,7 @@ class EfficiencyConvergenceTest(absltest.TestCase):
           score_threshold=0.1)
 
 
+@absltest.skip('b/255420693')
 class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
   """Test suite for convergence runner."""
 

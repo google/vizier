@@ -465,14 +465,18 @@ class SearchSpaceSelector:
       new_params.append(new_pc)
     return self._add_parameters(new_params)[0]
 
-  def add_int_param(self,
-                    name: str,
-                    min_value: int,
-                    max_value: int,
-                    *,
-                    default_value: Optional[int] = None,
-                    scale_type: Optional[ScaleType] = None,
-                    index: Optional[int] = None) -> 'SearchSpaceSelector':
+  def add_int_param(
+      self,
+      name: str,
+      min_value: int,
+      max_value: int,
+      *,
+      default_value: Optional[int] = None,
+      scale_type: Optional[ScaleType] = None,
+      index: Optional[int] = None,
+      experimental_fidelity_config: Optional[
+          parameter_config.FidelityConfig] = None,
+  ) -> 'SearchSpaceSelector':
     """Adds integer parameter config(s) to the search space.
 
     If select_all() was previously called for this selector, so it contains
@@ -493,6 +497,7 @@ class SearchSpaceSelector:
       index: Specifies the multi-dimensional index for this parameter. E.g. if
         name='hidden_units' and index=0, then a single ParameterConfig with name
         'hidden_units[0]' is added. `index` should be >= 0.
+      experimental_fidelity_config: EXPERIMENTAL. See FidelityConfig doc.
 
     Returns:
       SearchSpaceSelector for the newly added parameter.
@@ -519,6 +524,7 @@ class SearchSpaceSelector:
           name=param_name,
           bounds=bounds,
           scale_type=scale_type,
+          fidelity_config=experimental_fidelity_config,
           default_value=default_value)
       new_params.append(new_pc)
     return self._add_parameters(new_params)[0]
@@ -531,7 +537,10 @@ class SearchSpaceSelector:
       default_value: Optional[Union[float, int]] = None,
       scale_type: Optional[ScaleType] = ScaleType.LINEAR,
       index: Optional[int] = None,
-      auto_cast: Optional[bool] = True) -> 'SearchSpaceSelector':
+      auto_cast: Optional[bool] = True,
+      experimental_fidelity_config: Optional[
+          parameter_config.FidelityConfig] = None,
+  ) -> 'SearchSpaceSelector':
     """Adds ordered numeric parameter config(s) with a finite set of values.
 
     IMPORTANT: If a parameter is discrete, its values are assumed to have
@@ -559,6 +568,7 @@ class SearchSpaceSelector:
       auto_cast: If False, the external type will be set to INTEGER if all
         values are castable to an integer without losing precision. If True, the
         external type will be set to float.
+      experimental_fidelity_config: EXPERIMENTAL. See FidelityConfig doc.
 
     Returns:
       SearchSpaceSelector for the newly added parameter.
@@ -583,6 +593,7 @@ class SearchSpaceSelector:
           name=param_name,
           feasible_values=sorted(feasible_values),
           scale_type=scale_type,
+          fidelity_config=experimental_fidelity_config,
           default_value=default_value,
           external_type=external_type)
       new_params.append(new_pc)

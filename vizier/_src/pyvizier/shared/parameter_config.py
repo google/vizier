@@ -119,6 +119,46 @@ def _get_default_value(
                                              type(default_value)))
 
 
+#######################
+# Experimental features
+#######################
+class FidelityMode(enum.Enum):
+  """Decides how the fidelity config should be interpreated.
+
+  SEQUENTIAL: A high fidelity measurement can be "warm-started" from a lower
+    fidelity measurement. Currently, no algorithms can take advatange of it, and
+    Vizier behaves exactly like NON_SEQUENTIAL case. This is for tracking
+    purposes only.
+
+  NOT_SEQUENTIAL: Each fidelity is separately measured. Example: Fidelity
+    is the fraction of dataset to train on.
+
+  STEPS: Fidelity determines the maximum value for Measurement.steps reported
+    to Vizier. There is one-to-one correspondence between steps and fidelity.
+    A high fideltiy Trial's measurements contain lower fidelity evaluations.
+    When this is enabled, suggestion models do not use
+    Trials' final_measurement. Instead, it reads the measurements whose
+    "steps" exactly match one of the fidelities, and treats them as if they
+    were separate Trials. Example: Fidelity is the number of total epochs
+    to train on.
+  """
+  SEQUENTIAL = 'SEQUENTIAL'
+  NOT_SEQUENTIAL = 'NOT_SEQUENTIAL'
+  STEPS = 'STEPS'
+
+
+@attr.define
+class FidelityConfig:
+  mode: FidelityMode = attr.field(converter=FidelityMode)
+  cost_ratio: Sequence[float] = attr.field(
+      converter=tuple, default=tuple(), kw_only=True)
+
+
+########################
+# Experimental features end here
+########################
+
+
 @attr.s(auto_attribs=True, frozen=True, init=True, slots=True)
 class ParameterConfig:
   """A Vizier ParameterConfig.
@@ -178,6 +218,13 @@ class ParameterConfig:
   _child_parameter_configs: Optional[List['ParameterConfig']] = attr.ib(
       init=True, kw_only=True)
 
+  # Experimental feature.
+  fidelity_config: Optional[FidelityConfig] = attr.ib(
+      init=True,
+      default=None,
+      kw_only=True,
+  )
+
   # Pytype treats instances of EnumTypeWrapper as types, but they can't be
   # evaluated at runtime, so a Union[] of proto enums has to be a forward
   # reference below.
@@ -190,6 +237,7 @@ class ParameterConfig:
       feasible_values: Optional[MonotypeParameterSequence] = None,
       children: Optional[Sequence[Tuple[MonotypeParameterSequence,
                                         'ParameterConfig']]] = None,
+      fidelity_config: Optional[FidelityConfig] = None,
       scale_type: Optional[ScaleType] = None,
       default_value: Optional[Union[float, int, str]] = None,
       external_type: Optional[ExternalType] = ExternalType.INTERNAL
@@ -206,6 +254,7 @@ class ParameterConfig:
         ParameterConfig). ONLY THE TYPES ARE VALIDATED. If the child
         ParameterConfig protos already have parent values set, they will be
         overridden by the provided matching_parent_values.
+      fidelity_config: Fidelity config.  NOT VALIDATED.
       scale_type: Scaling to be applied. NOT VALIDATED.
       default_value: A default value for the Parameter.
       external_type: An annotation indicating the type this parameter should be
@@ -269,6 +318,7 @@ class ParameterConfig:
         feasible_values=feasible_values,
         scale_type=scale_type,
         default_value=default_value,
+        fidelity_config=fidelity_config,
         external_type=external_type,
         matching_parent_values=None,
         child_parameter_configs=None)
