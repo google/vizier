@@ -261,15 +261,13 @@ class ConvergenceCurveComparator:
                                                baseline_quantile,
                                                compared_quantile)
     if np.isfinite(float(rel_efficiency.ys[:, -1])):
-      # Return median relative efficiency.
-      return np.nanmedian((rel_efficiency.ys))
+      # Return last relative efficiency.
+      return float(rel_efficiency.ys[:, -1])
     else:
       reverse_baseline = ConvergenceCurveComparator(compared_curve)
       reverse_efficiency = reverse_baseline.log_efficiency_curve(
           self._baseline_curve, compared_quantile, baseline_quantile)
-      if np.isfinite(float(reverse_efficiency.ys[:, -1])):
-        return np.nanmedian((rel_efficiency.ys))
-      return -float('inf')
+      return -float(reverse_efficiency.ys[:, -1])
 
 
 def build_convergence_curve(baseline_curve: Sequence[float],

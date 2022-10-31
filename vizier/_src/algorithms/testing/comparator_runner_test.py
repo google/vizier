@@ -112,7 +112,8 @@ class EfficiencyConvergenceTest(absltest.TestCase):
           benchmarks.DesignerBenchmarkStateFactory(
               experimenter=experimenter, designer_factory=_baseline_designer),
           benchmarks.DesignerBenchmarkStateFactory(
-              experimenter=experimenter, designer_factory=_good_designer))
+              experimenter=experimenter, designer_factory=_good_designer),
+          score_threshold=0.1)
 
 
 class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
