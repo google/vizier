@@ -39,4 +39,4 @@ jobs:
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier --ignore=vizier/_src/integration/ --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/
+          pytest -n auto vizier --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/
