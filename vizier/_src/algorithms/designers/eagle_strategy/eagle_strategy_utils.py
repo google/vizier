@@ -15,13 +15,18 @@
 """Utils functions to support Eagle Strategy designer."""
 
 import collections
+import copy
+import logging
 import math
-from typing import DefaultDict, Dict, List
-
+from typing import Optional, Dict, DefaultDict
 import attr
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.random import random_sample
+
+# Standardize name used to assign for trials' metric name, which help simplify
+# serializing trials as part of the FireflyPool.
+OBJECTIVE_NAME = 'objective'
 
 
 @attr.define
@@ -45,6 +50,28 @@ class FireflyAlgorithmConfig:
   pool_size_factor: float = 1.2
   # Exploration rate (value > 1.0 encourages more exploration)
   explore_rate: float = 1.0
+
+
+@attr.define
+class Firefly:
+  """The Firefly class represents a single firefly in the pool.
+
+  Attributes:
+    id_: A unique firefly identifier. This is used to associate trials with
+      their parent fireflies.
+    perturbation: Controls the amount of exploration. Signifies the amount of
+      perturbation to add to the generated trial parameters. The value of
+      'perturbation' keeps decreasing if the suggested trial doesn't improve the
+      objective function until it reaches 'perturbation_lower_bound' in which
+      case we remove the firefly from the pool.
+    generation: The number of "successful" (better than the last trial) trials
+      suggested from the firefly.
+    trial: The best trial associated with the firefly.
+  """
+  id_: int = attr.field(validator=attr.validators.instance_of(int))
+  perturbation: float = attr.field(validator=attr.validators.instance_of(float))
+  generation: int = attr.field(validator=attr.validators.instance_of(int))
+  trial: vz.Trial = attr.field(validator=attr.validators.instance_of(vz.Trial))
 
 
 @attr.define
@@ -227,7 +254,7 @@ class EagleStrategyUtils:
       new_value = max(new_value, param_config.bounds[0])
     return new_value
 
-  def create_perturbations(self, perturbation: float) -> List[float]:
+  def create_perturbations(self, perturbation: float) -> list[float]:
     """Creates perturbations array."""
     if self.is_pure_categorical():
       return [
@@ -344,6 +371,14 @@ class EagleStrategyUtils:
         for p in self._search_space.parameters
     ])
 
+  def standardize_trial_metric_name(self, trial: vz.Trial) -> vz.Trial:
+    """Creates a new trial with canonical metric name."""
+    value = trial.final_measurement.metrics[self._metric_name].value
+    new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)
+    new_trial.complete(
+        measurement=vz.Measurement(metrics={OBJECTIVE_NAME: value}))
+    return new_trial
+
   def display_trial(self, trial: vz.Trial) -> str:
     """Construct a string to represent a completed trial."""
     parameters = {
@@ -355,3 +390,149 @@ class EagleStrategyUtils:
       return f'Value: {obj_value}, Parameters: {parameters}'
     else:
       return f'Parameters: {parameters}'
+
+
+@attr.define
+class FireflyPool:
+  """The class maintains the Firefly pool and relevent operations.
+
+  Attributes:
+    utils: Eagle Strategy utils class.
+    capacity: The maximum number of flies that the pool could store.
+    size: The current number of flies in the pool.
+    _pool: A dictionary of Firefly objects organized by firefly id.
+    _last_id: The last firefly id used to generate a suggestion. It's persistent
+      across calls to ensure we don't use the same fly repeatedly.
+    _max_fly_id: The maximum value of any fly id ever created. It's persistent
+      persistent accross calls to ensure unique ids even if trails were deleted.
+  """
+  utils: EagleStrategyUtils = attr.field(
+      validator=attr.validators.instance_of(EagleStrategyUtils))
+
+  capacity: int = attr.field(validator=attr.validators.instance_of(int))
+
+  _pool: Dict[int, Firefly] = attr.field(init=False, default=attr.Factory(dict))
+
+  _last_id: int = attr.field(init=False, default=0)
+
+  _max_fly_id: int = attr.field(init=False, default=0)
+
+  @property
+  def size(self) -> int:
+    return len(self._pool)
+
+  def remove_fly(self, fly: Firefly):
+    """Removes a fly from the pool."""
+    del self._pool[fly.id_]
+
+  def get_shuffled_flies(self, rng: np.random.Generator) -> list[Firefly]:
+    """Shuffles the fireflies and returns them as a list."""
+    return random_sample.shuffle_list(rng, list(self._pool.values()))
+
+  def generate_new_fly_id(self) -> int:
+    """Generates a unique fly id to identify a fly in the pool."""
+    self._max_fly_id += 1
+    logging.info('New fly id generated (%s).', self._max_fly_id - 1)
+    return self._max_fly_id - 1
+
+  def get_next_moving_fly_copy(self) -> Firefly:
+    """Finds the next fly, returns a copy of it and updates '_last_id'.
+
+    To find the next moving fly, we start from index of '_last_id'+1 and
+    incremently check whether the index exists in the pool. When the loop
+    reaches 'max_fly_id' it goes back to index 0. We return a copy of the
+    first fly we find an index for. Before returning we also set '_last_id'
+    to the next moving fly id.
+
+    Note that we don't assume the existance of '_last_id' in the pool, as the
+    fly with `_last_id` might be removed from the pool.
+
+    Returns:
+      A copy of the next moving fly.
+    """
+    current_fly_id = self._last_id + 1
+    while current_fly_id != self._last_id:
+      if current_fly_id > self._max_fly_id:
+        # Passed the maximum id. Start from the first one as ids are monotonic.
+        current_fly_id = next(iter(self._pool))
+      if current_fly_id in self._pool:
+        self._last_id = current_fly_id
+        return copy.deepcopy(self._pool[current_fly_id])
+      current_fly_id += 1
+
+    logging.info("Couldn't find another fly in the pool to move.")
+    return copy.deepcopy(self._pool[self._last_id])
+
+  def is_best_fly(self, fly: Firefly) -> bool:
+    """Checks if the 'fly' has the best final measurement in the pool."""
+    for other_fly_id, other_fly in self._pool.items():
+      if other_fly_id != fly.id_ and self.utils.is_better_than(
+          other_fly.trial, fly.trial):
+        return False
+    return True
+
+  def find_parent_fly(self, parent_fly_id: Optional[int]) -> Optional[Firefly]:
+    """Obtains the parent firefly associated with the trial.
+
+    Extract the associated parent id from the trial's metadata and attempt
+    to find the parent firefly in the pool. If it doesn't exist return None.
+
+    Args:
+      parent_fly_id:
+
+    Returns:
+      Firefly or None.
+    """
+    parent_fly = self._pool.get(parent_fly_id, None)
+    return parent_fly
+
+  def find_closest_parent(self, trial: vz.Trial) -> Firefly:
+    """Finds the closest fly in the pool to a given trial."""
+    if not self._pool:
+      raise Exception('Pool was empty when searching for closest parent.')
+
+    min_dist, closest_parent = float('inf'), next(iter(self._pool.values()))
+    for other_fly in self._pool.values():
+      curr_dist = self.utils.compute_cononical_distance(
+          other_fly.trial.parameters, trial.parameters)
+      if curr_dist < min_dist:
+        min_dist = curr_dist
+        closest_parent = other_fly
+
+    return closest_parent
+
+  def create_or_update_fly(self, trial: vz.Trial, parent_fly_id: int) -> None:
+    """Creates a new fly in the pool or update an existing one.
+
+    This method is called when the pool is below capacity.
+
+    The newly created fly is assigned with 'id_' equals 'parent_fly_id' which
+    is taken from the trial's metadata. The fly's id is determined during the
+    'Suggest' method and stored in the metadata.
+
+    Edge case: if the 'parent_fly_id' already exists in the pool (and the pool
+    is below capacity) we update the matching fly with the better trial. This
+    scenario could happen if for example a batch larger than the pool capacity
+    was suggested, and then trials associated with the same fly were reported
+    as COMPLETED sooner than the other trials, so when the pool is updated
+    during 'Update' we encounter trials from the same fly before the pool is at
+    capactiy.
+
+    Args:
+      trial:
+      parent_fly_id:
+    """
+    if parent_fly_id not in self._pool:
+      # Create a new Firefly in pool.
+      logging.info('Create a fly in pool. Parent fly ID: %s.', parent_fly_id)
+      new_fly = Firefly(
+          id_=parent_fly_id,
+          generation=1,
+          perturbation=self.utils.config.perturbation,
+          trial=trial)
+      self._pool[parent_fly_id] = new_fly
+    else:
+      # Parent fly id already in pool. Update trial if there was improvement.
+      logging.info('Parent fly ID (%s) is already in the pool.', parent_fly_id)
+      if self.utils.is_better_than(trial, self._pool[parent_fly_id].trial):
+        self._pool[parent_fly_id].trial = trial

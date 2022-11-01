@@ -20,12 +20,15 @@ from typing import Optional
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
-
+from vizier._src.algorithms.designers.eagle_strategy import testing
 from absl.testing import absltest
 from absl.testing import parameterized
 
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyAlgorithmConfig = eagle_strategy_utils.FireflyAlgorithmConfig
+EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
+FireflyPool = eagle_strategy_utils.FireflyPool
+Firefly = eagle_strategy_utils.Firefly
 
 
 def _get_parameter_config(search_space: vz.SearchSpace,
@@ -235,6 +238,106 @@ class UtilsTest(parameterized.TestCase):
     self.assertEqual(dof[vz.ParameterType.CATEGORICAL], 2)
     self.assertEqual(dof[vz.ParameterType.INTEGER], 1)
     self.assertEqual(dof[vz.ParameterType.DISCRETE], 1)
+
+  def test_replace_trial_metric_name(self):
+    search_space = vz.SearchSpace()
+    root = search_space.root
+    root.add_float_param('f1', 0.0, 15.0, scale_type=vz.ScaleType.LINEAR)
+    metric_information = vz.MetricInformation(
+        name='obj123', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+    problem = vz.ProblemStatement(
+        search_space=search_space, metric_information=[metric_information])
+
+    utils = EagleStrategyUtils(problem, FireflyAlgorithmConfig(), self.rng)
+    metadata = vz.Metadata()
+    metadata.ns('eagle')['parent_fly_id'] = '123'
+    trial = vz.Trial(parameters={'f1': 0.0}, metadata=metadata)
+    trial.complete(measurement=vz.Measurement(metrics={'obj123': 1123.3}))
+    new_trial = utils.standardize_trial_metric_name(trial)
+    self.assertEqual(new_trial.final_measurement.metrics['objective'].value,
+                     1123.3)
+    self.assertEqual(new_trial.parameters['f1'].value, 0.0)
+    self.assertEqual(new_trial.metadata.ns('eagle')['parent_fly_id'], '123')
+
+
+class FireflyPoolTest(absltest.TestCase):
+
+  def test_generate_new_fly_id(self):
+    firefly_pool = testing.create_fake_empty_firefly_pool(capacity=2)
+    self.assertEqual(firefly_pool.generate_new_fly_id(), 0)
+    self.assertEqual(firefly_pool.generate_new_fly_id(), 1)
+    self.assertEqual(firefly_pool.generate_new_fly_id(), 2)
+    self.assertEqual(firefly_pool.generate_new_fly_id(), 3)
+
+  def test_create_or_update_fly(self):
+    # Test creating a new fly in the pool.
+    firefly_pool = testing.create_fake_empty_firefly_pool()
+    trial = testing.create_fake_trial(
+        parent_fly_id=112, x_value=0, obj_value=0.8)
+    firefly_pool.create_or_update_fly(trial, 112)
+    self.assertEqual(firefly_pool.size, 1)
+    self.assertLen(firefly_pool._pool, 1)
+    self.assertIs(firefly_pool._pool[112].trial, trial)
+    # Test that another trial with the same parent id updates the fly.
+    trial2 = testing.create_fake_trial(
+        parent_fly_id=112, x_value=1, obj_value=1.5)
+    firefly_pool.create_or_update_fly(trial2, 112)
+    self.assertEqual(firefly_pool.size, 1)
+    self.assertLen(firefly_pool._pool, 1)
+    self.assertIs(firefly_pool._pool[112].trial, trial2)
+
+  def test_find_closest_parent(self):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=4)
+    trial = testing.create_fake_trial(
+        parent_fly_id=123, x_value=4.2, obj_value=8)
+    parent_fly = firefly_pool.find_closest_parent(trial)
+    self.assertEqual(parent_fly.id_, 2)
+
+  def test_is_best_fly(self):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=4)
+    self.assertTrue(firefly_pool.is_best_fly(firefly_pool._pool[1]))
+    self.assertFalse(firefly_pool.is_best_fly(firefly_pool._pool[0]))
+    self.assertFalse(firefly_pool.is_best_fly(firefly_pool._pool[2]))
+
+  def test_get_next_moving_fly_copy(self):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5)
+    firefly_pool._last_id = 1
+    moving_fly1 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly1.id_, 2)
+    moving_fly2 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly2.id_, 0)
+    moving_fly3 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly3.id_, 1)
+
+  def test_get_next_moving_fly_copy_after_removing_last_id_fly(self):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5)
+    firefly_pool._last_id = 1
+    # Remove the fly associated with `_last_id` from the pool.
+    del firefly_pool._pool[1]
+    moving_fly1 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly1.id_, 2)
+    moving_fly2 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly2.id_, 0)
+    moving_fly3 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly3.id_, 2)
+
+  def test_get_next_moving_fly_copy_after_removing_multiple_flies(self):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=[1, 2, 5, -1], obj_values=[2, 10, -2, 8], capacity=5)
+    firefly_pool._last_id = 3
+    # Remove the several flies
+    del firefly_pool._pool[0]
+    del firefly_pool._pool[2]
+    moving_fly1 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly1.id_, 1)
+    moving_fly2 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly2.id_, 3)
+    moving_fly3 = firefly_pool.get_next_moving_fly_copy()
+    self.assertEqual(moving_fly3.id_, 1)
 
 
 if __name__ == '__main__':
