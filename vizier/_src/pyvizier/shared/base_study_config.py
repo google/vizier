@@ -685,7 +685,8 @@ class SearchSpaceSelector:
       ValueError: If `index` is invalid (e.g. negative).
     """
     allowed_values = (None, (True, False), (False, True), (True,), (False,))
-    if feasible_values not in allowed_values:
+    if feasible_values is not None and tuple(
+        feasible_values) not in allowed_values:
       raise ValueError('feasible_values must be one of %s; got: %s.' %
                        (allowed_values, feasible_values))
     # Boolean parameters are represented as categorical parameters internally.
