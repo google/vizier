@@ -15,70 +15,87 @@
 """Tests for simple_regret_score."""
 
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.benchmarks.analyzers import simple_regret_score
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
-class SimpleRegretScoreTest(absltest.TestCase):
+class SimpleRegretScoreTest(parameterized.TestCase):
 
-  def test_one_sample_fail(self):
-    baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
-    candidate_simple_regrets = [0.9]
-    p_value = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-    # test that the p-value is high, which means the test would fail.
-    self.assertGreater(p_value, 0.95)
+  # @parameterized.product(
+  #       create_problem=[
+  #           create_continuous_problem,
+  #           create_categorical_problem,
+  #           create_mix_problem,
+  #       ],
+  #       n_features=list(range(10, 20)),
+  #   )
 
-  def test_one_sample_pass(self):
-    baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
-    candidate_simple_regrets = [1.2]
-    p_value = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-    # test that the p-value is low, which means the test would fail.
-    self.assertLess(p_value, 0.05)
-
-  def test_two_sample_fail(self):
-    baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
-    candidate_simple_regrets = 0.99 * np.ones(200)
-    p_value = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-    # test that the p-value is high, which means the test would fail.
-    self.assertGreater(p_value, 0.95)
-
-  def test_two_sample_pass(self):
-    baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
-    candidate_simple_regrets = 1.2 * np.ones(200)
-    p_value = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-    # test that the p-value is high, which means the test would fail.
-    self.assertLess(p_value, 0.05)
-
-  def test_score_decreases_with_samples_one_sample(self):
-    baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
-    candidate_simple_regrets = [1.2]
-    p_value500 = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-
-    baseline_simple_regrets = np.ones(20) + 0.1 * np.random.normal(size=(20,))
-    candidate_simple_regrets = [1.2]
-    p_value20 = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-
-    # test that the p-value decreases with the number of samples
-    self.assertLess(p_value500, p_value20)
+  @parameterized.parameters(
+      {
+          'candidate_mean_values': [0.9],
+          'goal': vz.ObjectiveMetricGoal.MAXIMIZE,
+          'should_pass': False
+      },
+      {
+          'candidate_mean_values': [1.2],
+          'goal': vz.ObjectiveMetricGoal.MAXIMIZE,
+          'should_pass': True
+      },
+      {
+          'candidate_mean_values': 0.9 * np.ones(200),
+          'goal': vz.ObjectiveMetricGoal.MAXIMIZE,
+          'should_pass': False
+      },
+      {
+          'candidate_mean_values': 1.2 * np.ones(200),
+          'goal': vz.ObjectiveMetricGoal.MAXIMIZE,
+          'should_pass': True
+      },
+      {
+          'candidate_mean_values': [0.9],
+          'goal': vz.ObjectiveMetricGoal.MINIMIZE,
+          'should_pass': True
+      },
+      {
+          'candidate_mean_values': [1.2],
+          'goal': vz.ObjectiveMetricGoal.MINIMIZE,
+          'should_pass': False
+      },
+      {
+          'candidate_mean_values': 0.9 * np.ones(200),
+          'goal': vz.ObjectiveMetricGoal.MINIMIZE,
+          'should_pass': True
+      },
+      {
+          'candidate_mean_values': 1.2 * np.ones(200),
+          'goal': vz.ObjectiveMetricGoal.MINIMIZE,
+          'should_pass': False
+      },
+  )
+  def test_mean_score(self, candidate_mean_values, goal, should_pass):
+    baseline_mean_values = np.ones(500) + 0.1 * np.random.normal(size=(500,))
+    p_value = simple_regret_score.t_test_mean_score(baseline_mean_values,
+                                                    candidate_mean_values, goal)
+    if should_pass:
+      self.assertLess(p_value, 0.05)
+    else:
+      self.assertGreater(p_value, 0.95)
 
   def test_score_decreases_with_samples_two_sample(self):
+    goal = vz.ObjectiveMetricGoal.MAXIMIZE
     baseline_simple_regrets = np.ones(500) + 0.1 * np.random.normal(size=(500,))
     candidate_simple_regrets = 1.2 * np.ones(200)
-    p_value500 = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
+    p_value500 = simple_regret_score.t_test_mean_score(
+        baseline_simple_regrets, candidate_simple_regrets, goal)
 
     baseline_simple_regrets = np.ones(20) + 0.1 * np.random.normal(size=(20,))
     candidate_simple_regrets = 1.2 * np.ones(200)
-    p_value20 = simple_regret_score.t_test_less_mean_score(
-        baseline_simple_regrets, candidate_simple_regrets)
-
+    p_value20 = simple_regret_score.t_test_mean_score(baseline_simple_regrets,
+                                                      candidate_simple_regrets,
+                                                      goal)
     # test that the p-value decreases with the number of samples
     self.assertLess(p_value500, p_value20)
 

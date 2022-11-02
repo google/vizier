@@ -47,9 +47,6 @@ perturbation factor otherwise.
 If the firefly's perturbation reaches the `perturbation_lower_bound` threshold
 it's removed and replaced with new random features.
 
-The best results are maintained in a heap, so to allow to efficiently maintain
-the top `best_suggestions_count` results the strategy has seen thus far.
-
 For performance consideration, the 'pool size' is a multiplier of the
 'batch size', and so each iteration the pool is sliced to obtain the current
 fireflies to be mutated.
@@ -69,19 +66,14 @@ optimizer.optimize(problem_statement, objective_function)
 best_reward, best_parameters = optimizer.best_results
 """
 
-import heapq
 import logging
-from typing import List, Tuple
+from typing import Tuple, Optional
 
 import attr
 import numpy as np
 from vizier._src.algorithms.optimizers import eagle_param_handler
-from vizier._src.algorithms.optimizers import vectorized_base
+from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier.pyvizier import converters
-
-VectorizedStrategyResult = vectorized_base.VectorizedStrategyResult
-VectorizedStrategyFactory = vectorized_base.VectorizedStrategyFactory
-VectorizedStrategy = vectorized_base.VectorizedStrategy
 
 
 @attr.define
@@ -108,20 +100,19 @@ class EagleStrategyConfig:
   # Penalty
   perturbation_lower_bound: float = 0.001
   penalize_factor: float = 0.9
+  pool_size: int = 50
 
 
 @attr.define(frozen=True)
-class VectorizedEagleStrategyFactory:
+class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
   """Eagle strategy factory."""
   eagle_config: EagleStrategyConfig = attr.field(factory=EagleStrategyConfig)
-  pool_size: int = 50
-  batch_size: int = 5
-  seed: int = 42
 
   def __call__(
       self,
       converter: converters.TrialToArrayConverter,
-      count: int,
+      suggestion_batch_size: int = 5,
+      seed: Optional[int] = None,
   ) -> "VectorizedEagleStrategy":
     """Create a new vectorized eagle strategy.
 
@@ -134,7 +125,8 @@ class VectorizedEagleStrategyFactory:
     Arguments:
       converter: TrialToArrayConverter that matches the converter used in
         computing the objective / acuisition function.
-      count: The number of best candidates to generate.
+      suggestion_batch_size: The batch_size of the returned suggestion array.
+      seed: The seed to input into the random generator.
 
     Returns:
       A new instance of VectorizedEagleStrategy.
@@ -142,26 +134,23 @@ class VectorizedEagleStrategyFactory:
     return VectorizedEagleStrategy(
         converter=converter,
         config=self.eagle_config,
-        pool_size=self.pool_size,
-        batch_size=self.batch_size,
-        best_suggestions_count=count,
-        seed=self.seed,
+        batch_size=suggestion_batch_size,
+        seed=seed,
     )
 
 
 # TODO: Create jit-compatible JAX version.
 @attr.define
-class VectorizedEagleStrategy(VectorizedStrategy):
-  """Eagle strategy implementation based on Numpy arrays.
+class VectorizedEagleStrategy(vb.VectorizedStrategy):
+  """Eagle strategy implementation for maximization problem based on Numpy.
 
   Attributes:
     converter: The converter used for the optimization problem.
     config: The Eagle strategy configuration.
     n_features: The number of features.
-    pool_size: The total number of flies in the pool.
     batch_size: The number of suggestions generated at each suggestion call.
     seed: The seed to generate random values.
-    best_suggestions_count: The number of best suggestions to maintain.
+    pool_size: The total number of flies in the pool.
     _features: Array with dimensions (suggestion_count, feature_count) storing
       the firefly features.
     _rewards: Array with dimensions (suggestion_count,) that for each firefly
@@ -177,10 +166,9 @@ class VectorizedEagleStrategy(VectorizedStrategy):
   """
   converter: converters.TrialToArrayConverter
   config: EagleStrategyConfig = attr.field(init=True, repr=False)
-  pool_size: int = attr.field(init=True)
   batch_size: int = attr.field(init=True)
-  seed: int = attr.field(init=True)
-  best_suggestions_count: int = attr.field(init=True, default=1)
+  seed: Optional[int] = attr.field(init=True)
+  pool_size: int = attr.field(init=False)
   # Attributes related to the strategy's state.
   _features: np.ndarray = attr.field(init=False, repr=False)
   _rewards: np.ndarray = attr.field(init=False, repr=False)
@@ -189,8 +177,7 @@ class VectorizedEagleStrategy(VectorizedStrategy):
   _batch_slice: slice = attr.field(init=False, repr=False)
   _iterations: int = attr.field(init=False)
   _last_suggested_features: np.ndarray = attr.field(init=False, repr=False)
-  _best_results: List[VectorizedStrategyResult] = attr.field(
-      init=False, factory=list)
+  _best_reward: float = attr.field(init=False)
   # Attributes related to computations.
   _num_removed_flies: int = attr.field(init=False, default=0)
   _n_features: int = attr.field(init=False)
@@ -213,29 +200,17 @@ class VectorizedEagleStrategy(VectorizedStrategy):
     self._batch_id = 0
     self._iterations = 0
     self._batch_slice = np.s_[0:self.batch_size]
+    self.pool_size = self.config.pool_size
     self._features = self._param_handler.random_features(
         self.pool_size, self._n_features)
     self._rewards = np.ones(self.pool_size,) * (-np.inf)
     self._perturbations = np.ones(self.pool_size,) * self.config.perturbation
     self._last_suggested_features = None
     self._perturbation_factors = self._param_handler.perturbation_factors
+    self._best_reward = -np.inf
 
   @property
-  def best_results(self) -> List[VectorizedStrategyResult]:
-    """Returns the best features and rewards the strategy seen thus far.
-
-    Note that the returned features are normalized to [0,1], and so they'll need
-    to be conveterted backward to Vizier Trials.
-
-    Raises:
-      Exception: If asks for best results before the strategy has run.
-    """
-    if not self._best_results:
-      raise RuntimeError("The strategy hasn't run yet!")
-    return sorted(self._best_results, reverse=True)
-
-  @property
-  def suggestion_count(self) -> int:
+  def suggestion_batch_size(self) -> int:
     """The number of suggestions returned at each call of 'suggest'."""
     return self.batch_size
 
@@ -373,7 +348,7 @@ class VectorizedEagleStrategy(VectorizedStrategy):
     Arguments:
       batch_rewards: (batch_size, )
     """
-    self._update_best_results(batch_rewards)
+    self._update_best_reward(batch_rewards)
     if self._iterations < self.pool_size // self.batch_size:
       # The strategy is still initializing. Assign rewards.
       self._features[self._batch_slice] = self._last_suggested_features
@@ -385,31 +360,9 @@ class VectorizedEagleStrategy(VectorizedStrategy):
     self._increment_batch()
     self._iterations += 1
 
-  def _update_best_results(self, batch_rewards: np.ndarray) -> None:
-    """Update the best results the strategy seen thus far.
-
-    For performance purposes, only the best result in each batch is considered.
-    As the strategy converges to the optimum points this shouldn't make big
-    difference on the final results. The diversity of results is not considered.
-
-    Arguments:
-      batch_rewards:
-    """
-    best_ind = np.argmax(batch_rewards)
-    if len(self._best_results) < self.best_suggestions_count:
-      # 'best_results' is below capacity, add the best result from the batch.
-      new_result = VectorizedStrategyResult(
-          reward=batch_rewards[best_ind],
-          features=self._last_suggested_features[best_ind])
-      heapq.heappush(self._best_results, new_result)
-
-    elif batch_rewards[best_ind] > self._best_results[0].reward:
-      # 'best_result' is at capacity and the best batch result is better than
-      # the worst item in 'best_results'.
-      new_result = VectorizedStrategyResult(
-          reward=batch_rewards[best_ind],
-          features=self._last_suggested_features[best_ind])
-      heapq.heapreplace(self._best_results, new_result)
+  def _update_best_reward(self, batch_rewards: np.ndarray) -> None:
+    """Store the best result seen thus far to be used in pool trimming."""
+    self._best_reward = np.max([self._best_reward, np.max(batch_rewards)])
 
   def _update_pool_features_and_rewards(
       self,
@@ -448,7 +401,7 @@ class VectorizedEagleStrategy(VectorizedStrategy):
       sliced_rewards = self._rewards[self._batch_slice]
       # Ensure the best firefly is never removed. For optimization purposes,
       # this logic is inside the if statement to be peformed only if needed.
-      indx = indx & (sliced_rewards != self._best_results[-1].reward)
+      indx = indx & (sliced_rewards != self._best_reward)
       n_remove = np.sum(indx)
       if n_remove == 0:
         return

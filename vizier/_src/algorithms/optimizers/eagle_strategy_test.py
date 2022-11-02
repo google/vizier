@@ -28,19 +28,15 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
 
   def setUp(self):
     super(VectorizedEagleStrategyContinuousTest, self).setUp()
-    self.config = eagle_strategy.EagleStrategyConfig(visibility=1, gravity=1)
+    self.config = eagle_strategy.EagleStrategyConfig(
+        visibility=1, gravity=1, pool_size=4)
     problem = vz.ProblemStatement()
     root = problem.search_space.select_root()
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     self.eagle = eagle_strategy.VectorizedEagleStrategy(
-        converter=converter,
-        config=self.config,
-        pool_size=4,
-        batch_size=2,
-        seed=1,
-        best_suggestions_count=1)
+        converter=converter, config=self.config, batch_size=2, seed=1)
     self.eagle._iterations = 2
 
   def test_compute_features_diffs_and_dists(self):
@@ -137,35 +133,16 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
         np.array([1, pc, 1, 1], dtype=np.float64),
         err_msg='Perturbations are not equal.')
 
-  def test_update_best_results(self):
-    self.eagle._features = np.array([[1, 2], [3, 4], [7, 7], [8, 8]],
-                                    dtype=np.float64)
+  def test_update_best_reward(self):
+    # Test replacing the best reward.
     self.eagle._rewards = np.array([2, 3, 4, 1], dtype=np.float64)
-    self.eagle._perturbations = np.array([1, 1, 1, 1], dtype=np.float64)
-    # Test the initial state when _best_restuls is empty.
-    self.eagle._last_suggested_features = np.array([[9, 9], [10, 10]],
-                                                   dtype=np.float64)
     batch_rewards = np.array([5, 0.5], dtype=np.float64)
-    self.eagle._update_best_results(batch_rewards)
-    self.assertEqual(self.eagle._best_results[0].reward, 5.0)
-    np.testing.assert_array_equal(self.eagle._best_results[0].features,
-                                  np.array([9.0, 9.0]))
-    # Test not replacing the best result.
-    self.eagle._last_suggested_features = np.array([[2, 2], [1, 1]],
-                                                   dtype=np.float64)
-    batch_rewards = np.array([3, 4], dtype=np.float64)
-    self.eagle._update_best_results(batch_rewards)
-    self.assertEqual(self.eagle._best_results[0].reward, 5.0)
-    np.testing.assert_array_equal(self.eagle._best_results[0].features,
-                                  np.array([9.0, 9.0]))
-    # Test replacing the best result.
-    self.eagle._last_suggested_features = np.array([[4, 2], [1, 1]],
-                                                   dtype=np.float64)
-    batch_rewards = np.array([3, 6], dtype=np.float64)
-    self.eagle._update_best_results(batch_rewards)
-    self.assertEqual(self.eagle._best_results[0].reward, 6.0)
-    np.testing.assert_array_equal(self.eagle._best_results[0].features,
-                                  np.array([1.0, 1.0]))
+    self.eagle._update_best_reward(batch_rewards)
+    self.assertEqual(self.eagle._best_reward, 5.0)
+    # Test not replacing the best reward.
+    batch_rewards = np.array([2, 4], dtype=np.float64)
+    self.eagle._update_best_reward(batch_rewards)
+    self.assertEqual(self.eagle._best_reward, 5.0)
 
   def test_trim_pool(self):
     pc = self.config.perturbation
@@ -204,7 +181,7 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
     root.add_float_param('x3', 0.0, 1.0)
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    eagle = eagle_factory(converter, 1)
+    eagle = eagle_factory(converter)
     self.assertEqual(eagle._n_features, 3)
 
   def test_optimize_with_eagle(self):
@@ -217,13 +194,13 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
     optimizer = vb.VectorizedOptimizer(strategy_factory=eagle_factory)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    optimizer.optimize(converter, lambda x: -np.sum(x, 1), count=1)
+    optimizer.optimize(converter, score_fn=lambda x: -np.sum(x, 1), count=1)
 
 
-class VectorizedEagleUtilsTest(absltest.TestCase):
+class EagleParamHandlerTest(absltest.TestCase):
 
   def setUp(self):
-    super(VectorizedEagleUtilsTest, self).setUp()
+    super(EagleParamHandlerTest, self).setUp()
     problem = vz.ProblemStatement()
     root = problem.search_space.select_root()
     root.add_categorical_param('c1', ['a', 'b'])

@@ -18,16 +18,19 @@ from typing import Union
 
 import numpy as np
 from scipy import stats
+from vizier import pyvizier as vz
 
 
-def t_test_less_mean_score(
-    baseline_simple_regrets: Union[list[float], np.ndarray],
-    candidate_simple_regrets: Union[list[float], np.ndarray]) -> float:
+def t_test_mean_score(baseline_mean_values: Union[list[float], np.ndarray],
+                      candidate_mean_values: Union[list[float], np.ndarray],
+                      objective_goal: vz.ObjectiveMetricGoal) -> float:
   """Computes the one-sided T-test score.
 
-  It scores the confidence that the mean of 'baseline_simple_regrets' is less
-  than the mean of 'candidate_simple_regrets'. The lower the score the higher
-  the confidence that it's the case.
+  In case of a maximization (minimizatoin) problem, it scores the confidence
+  that the mean of 'baseline_mean_values' is less (greater) than the mean of
+  'candidate_mean_values'.
+
+  The lower the score the higher the confidence that it's the case.
 
   One-sample
   ----------
@@ -44,21 +47,27 @@ def t_test_less_mean_score(
   'candidate' is indeed "better" than 'baseline'.
 
   Arguments:
-    baseline_simple_regrets: list of baseline simple regret values.
-    candidate_simple_regrets: list of candidate simple regret values.
+    baseline_mean_values: List of baseline simple regret values.
+    candidate_mean_values: List of candidate simple regret values.
+    objective_goal: The optimization problem type (MAXIMIZE or MINIMIZE).
 
   Returns:
     The p-value score of the one-sided T test.
   """
-  if len(candidate_simple_regrets) == 1:
+  if objective_goal == vz.ObjectiveMetricGoal.MAXIMIZE:
+    alternative = 'less'
+  else:
+    alternative = 'greater'
+
+  if len(candidate_mean_values) == 1:
     return stats.ttest_1samp(
-        a=baseline_simple_regrets,
-        popmean=candidate_simple_regrets[0],
-        alternative='less').pvalue
+        a=baseline_mean_values,
+        popmean=candidate_mean_values[0],
+        alternative=alternative).pvalue
   else:
     # use Welch’s t-test
     return stats.ttest_ind(
-        baseline_simple_regrets,
-        candidate_simple_regrets,
+        baseline_mean_values,
+        candidate_mean_values,
         equal_var=False,
-        alternative='less').pvalue
+        alternative=alternative).pvalue
