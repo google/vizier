@@ -48,6 +48,7 @@ extensions = [
     'sphinx.ext.graphviz',
     'sphinx_autodoc_typehints',
     'autodocsumm',
+    'myst_parser',
     'myst_nb',
 ]
 
@@ -67,10 +68,8 @@ suppress_warnings = [
 # templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
-# Note: important to list ipynb before md here: we have both md and ipynb
-# copies of each notebook, and myst will choose which to convert based on
-# the order in the source_suffix list. Notebooks which are not executed have
-# outputs stored in ipynb but not in md, so we must convert the ipynb.
+# NOTE: Ordering matters, as myst will choose which to convert based on
+# the order in the source_suffix list.
 source_suffix = ['.rst', '.ipynb', '.md']
 
 # The main toctree document.
