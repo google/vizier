@@ -48,7 +48,7 @@ extensions = [
     'sphinx.ext.graphviz',
     'sphinx_autodoc_typehints',
     'autodocsumm',
-    # 'myst_parser', TODO: 'myst_commonmark_only' flag conflict
+    'myst_parser',  # TODO: 'myst_commonmark_only' flag conflict
     'myst_nb',
 ]
 

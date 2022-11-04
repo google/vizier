@@ -1,5 +1,20 @@
 # Required Sphinx-related packages.
 
+sphinx==4.5.0
+sphinx-book-theme
+sphinx-design
+sphinx_rtd_theme==0.5.0
+sphinxcontrib-katex==0.8.6
+sphinx-autodoc-typehints==1.11.1
+
 autodocsumm
-sphinx_autodoc_typehints
+
 myst_nb
+myst-parser
+
+Pygments>=2.6.1
+recommonmark
+
+# Need to pin docutils to 0.16 to make bulleted lists appear correctly on
+# ReadTheDocs: https://stackoverflow.com/a/68008428
+docutils==0.16
