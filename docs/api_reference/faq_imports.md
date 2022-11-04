@@ -1,17 +1,16 @@
-# Frequently Used Import Targets <a name="freq_import_targets"></a>
+## Frequently Used Import Targets <a name="freq_import_targets"></a>
 
 Includes a brief summary of important symbols and modules.
 
-## Service Users <a name="service_users"></a>
+### Service Users <a name="service_users"></a>
 
 If you write client code interacting with the OSS Vizier service, use these
 import targets:
 
 * **`from vizier.service import pyvizier as vz`**: Exposes the same set of symbol names as `vizier.pyvizier`. `vizier.service.pyvizier.Foo` is a subclass or an alias of `vizier.pyvizier.Foo`, and can be converted into protobufs.
-<!-- TODO(b/226560768): Update this entry after the clean up -->
-* **`from vizier.service import ...`**: Include binaries and internal utilities.
+* **`from vizier.service import ...`**: Include binaries and internal utilities.  <!-- TODO(b/226560768): Update this entry after the clean up -->
 
-## Algorithm Developers
+### Algorithm Developers
 
 If you write algorithm code (Designers or Pythia policies) in OSS Vizier, use
 these import targets:
