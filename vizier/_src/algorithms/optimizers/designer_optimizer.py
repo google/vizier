@@ -14,7 +14,7 @@
 
 """Wraps Designer as a gradient-free optimizer."""
 
-from typing import Callable, List, TypeVar
+from typing import Callable, List, TypeVar, Sequence
 
 from absl import logging
 from vizier import pythia
@@ -46,13 +46,15 @@ class DesignerAsOptimizer(base.GradientFreeOptimizer):
     self._batch_size = batch_size
     self._num_evaluations = num_evaluations
 
-  def optimize(self,
-               score_fn: base.BatchTrialScoreFunction,
-               problem: vz.ProblemStatement,
-               *,
-               count: int = 1,
-               budget_factor: float = 1.0,
-               **kwargs) -> List[vz.Trial]:
+  def optimize(
+      self,
+      score_fn: base.BatchTrialScoreFunction,
+      problem: vz.ProblemStatement,
+      *,
+      count: int = 1,
+      budget_factor: float = 1.0,
+      seed_candidates: Sequence[vz.TrialSuggestion] = tuple(),
+  ) -> List[vz.Trial]:
     # Use the in-ram supporter as a pseudo-client for running a study in RAM.
     study = pythia.InRamPolicySupporter(problem)
 

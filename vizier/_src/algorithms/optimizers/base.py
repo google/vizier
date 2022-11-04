@@ -82,14 +82,15 @@ class GradientFreeOptimizer(abc.ABC):
   """
 
   @abc.abstractmethod
-  def optimize(self,
-               score_fn: BatchTrialScoreFunction,
-               problem: vz.ProblemStatement,
-               *,
-               count: int = 1,
-               budget_factor: float = 1.0,
-               seed_candidates: Sequence[vz.TrialSuggestion] = tuple(),
-               **kwargs) -> list[vz.Trial]:
+  def optimize(
+      self,
+      score_fn: BatchTrialScoreFunction,
+      problem: vz.ProblemStatement,
+      *,
+      count: int = 1,
+      budget_factor: float = 1.0,
+      seed_candidates: Sequence[vz.TrialSuggestion] = tuple()
+  ) -> list[vz.Trial]:
     """Optimizes a function.
 
     Args:
@@ -101,7 +102,6 @@ class GradientFreeOptimizer(abc.ABC):
         fraction of the standard budget for the call.
       seed_candidates: Seed suggestions to be used as initial batch for
         optimization.
-      **kwargs: For experimental keyword arguments.
 
     Returns:
       Trials, of length less than or equal to max_num_suggestions.
@@ -132,13 +132,15 @@ class BranchThenOptimizer(GradientFreeOptimizer):
     else:
       return min(self.max_num_suggestions_per_branch, branch.num_suggestions)
 
-  def optimize(self,
-               score_fn: BatchTrialScoreFunction,
-               problem: vz.ProblemStatement,
-               *,
-               count: int = 1,
-               budget_factor: float = 1.0,
-               **kwargs) -> list[vz.Trial]:
+  def optimize(
+      self,
+      score_fn: BatchTrialScoreFunction,
+      problem: vz.ProblemStatement,
+      *,
+      count: int = 1,
+      budget_factor: float = 1.0,
+      seed_candidates: Sequence[vz.TrialSuggestion] = tuple(),
+  ) -> list[vz.Trial]:
     # If there are conditional branches, use Vizier's default branch
     # selection mechanism.
     branches = self._branch_selector.select_branches(count)
