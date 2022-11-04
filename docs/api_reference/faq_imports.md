@@ -1,10 +1,8 @@
-# Code Structure <a name="code_structure"></a>
-
-## Frequently Used Import Targets <a name="freq_import_targets"></a>
+# Frequently Used Import Targets <a name="freq_import_targets"></a>
 
 Includes a brief summary of important symbols and modules.
 
-### Service Users <a name="service_users"></a>
+## Service Users <a name="service_users"></a>
 
 If you write client code interacting with the OSS Vizier service, use these
 import targets:
@@ -13,7 +11,7 @@ import targets:
 <!-- TODO(b/226560768): Update this entry after the clean up -->
 * **`from vizier.service import ...`**: Include binaries and internal utilities.
 
-### Algorithm Developers
+## Algorithm Developers
 
 If you write algorithm code (Designers or Pythia policies) in OSS Vizier, use
 these import targets:
@@ -26,7 +24,7 @@ these import targets:
 * **`from vizier.interfaces import serializable`**
   * `PartiallySerializable`, `Serializable`
 
-#### Algorithm Abstractions
+### Algorithm Abstractions
 
 * **`from vizier import pythia`**
   * `Policy`, `PolicySupporter`: Key abstractions.
@@ -37,7 +35,7 @@ these import targets:
   * `GradientFreeMaximizer`: For optimizing acquisition functions.
   * `(Partially)SerializableDesigner`: Designers who wish to optimize performance by saving states.
 
-#### Tensorflow Modules
+### Tensorflow Modules
 
 * **`from vizier import tfp`**: Tensorflow-Probability utilities.
   * `acquisitions`: Acquisition functions module.

@@ -1,7 +1,10 @@
 API Reference
 =============
 
+Code Structure
+--------------
+
 .. toctree::
    :maxdepth: 1
 
-   code_structure
+   faq_imports

@@ -1,5 +1,5 @@
 Highlights
-=============
+==========
 
 .. toctree::
    :maxdepth: 1
