@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Grid Search Designer which searches over a discretized grid of Trial parameter values."""
+"""Grid Search Designer which searches over a discretized grid of Trial parameter values.
+"""
 from typing import List, Mapping, Optional, Sequence
 import numpy as np
 from vizier import algorithms
 from vizier import pyvizier
 
-GRID_RESOLUTION = 100  # For double parameters.
+# TODO: Make this a user settable parameter.
+GRID_RESOLUTION = 10  # For double parameters.
 
 
 def _grid_points_from_parameter_config(
@@ -31,8 +33,7 @@ def _grid_points_from_parameter_config(
     if min_value == max_value:
       return [pyvizier.ParameterValue(value=min_value)]
 
-    distance = (max_value - min_value) / (GRID_RESOLUTION - 1)
-    grid_scalars = np.arange(min_value, max_value + distance, distance)
+    grid_scalars = np.linspace(min_value, max_value, num=GRID_RESOLUTION)
     return [pyvizier.ParameterValue(value=value) for value in grid_scalars]
 
   elif parameter_config.type == pyvizier.ParameterType.INTEGER:

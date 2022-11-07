@@ -41,6 +41,10 @@ class GridSearchPolicyTest(absltest.TestCase):
   def test_make_grid_values(self):
     grid_values = grid._make_grid_values(self.search_space)
     self.assertLen(grid_values['double'], grid.GRID_RESOLUTION)
+    double_list = [p.value for p in grid_values['double']]
+    for d in double_list:
+      self.assertBetween(d, -1.0, 1.0)
+    self.assertContainsSubset([-1.0, 1.0], double_list)
     self.assertLen(grid_values['categorical'], 3)
     self.assertLen(grid_values['discrete'], 3)
     self.assertLen(grid_values['int'], 5)
