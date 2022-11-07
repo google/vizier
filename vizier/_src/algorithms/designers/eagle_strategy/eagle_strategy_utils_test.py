@@ -102,10 +102,16 @@ class UtilsTest(parameterized.TestCase):
   def test_is_better_than(self):
     trial1 = vz.Trial(parameters=self.param_dict1)
     trial1.complete(
-        vz.Measurement(metrics={'obj': vz.Metric(value=2.0)}), inplace=True)
+        vz.Measurement(
+            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(
+                value=2.0)}),
+        inplace=True)
     trial2 = vz.Trial(parameters=self.param_dict2)
     trial2.complete(
-        vz.Measurement(metrics={'obj': vz.Metric(value=1.5)}), inplace=True)
+        vz.Measurement(
+            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(
+                value=1.5)}),
+        inplace=True)
     # Test for maximization problem
     self.assertTrue(self.utils.is_better_than(trial1, trial2))
     self.assertFalse(self.utils.is_better_than(trial2, trial1))

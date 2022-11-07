@@ -14,16 +14,22 @@
 
 """Testing utils for Eagle designer."""
 from typing import List, Optional
+
 import numpy as np
+from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
+from vizier._src.benchmarks.experimenters import l1_categorical_experimenter
+from vizier._src.benchmarks.experimenters import shifting_experimenter
+from vizier._src.benchmarks.experimenters.synthetic import bbob
 
 EagleStrategyDesiger = eagle_strategy.EagleStrategyDesiger
 FireflyAlgorithmConfig = eagle_strategy.FireflyAlgorithmConfig
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyPool = eagle_strategy_utils.FireflyPool
 Firefly = eagle_strategy_utils.Firefly
+L1CategorialExperimenter = l1_categorical_experimenter.L1CategorialExperimenter
 
 
 def create_fake_trial(
@@ -112,3 +118,16 @@ def create_fake_populated_eagle_designer(
   eagle_designer._firefly_pool = create_fake_populated_firefly_pool(
       x_values=x_values, obj_values=obj_values, capacity=pool_capacity)
   return eagle_designer
+
+
+def create_continuous_exptr(func, dim=6):
+  problem = bbob.DefaultBBOBProblemStatement(dim)
+  rng = np.random.default_rng(0)
+  shift = rng.uniform(low=-2.0, high=2.0, size=(dim,))
+  return shifting_experimenter.ShiftingExperimenter(
+      exptr=benchmarks.NumpyExperimenter(func, problem), shift=shift)
+
+
+def create_categorical_exptr():
+  num_categories = [5, 8, 10, 2, 15, 10, 5, 8, 12]
+  return L1CategorialExperimenter(num_categories=num_categories, verbose=True)

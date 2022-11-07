@@ -14,15 +14,22 @@
 
 """Tests for eagle_strategy."""
 
+from vizier import algorithms as vza
+from vizier import benchmarks
 from vizier import pyvizier as vz
+from vizier._src.algorithms.designers import random
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.designers.eagle_strategy import testing
+from vizier._src.algorithms.testing import comparator_runner
+from vizier._src.benchmarks.experimenters.synthetic import bbob
+
 from absl.testing import absltest
+from absl.testing import parameterized
 
 EagleStrategyDesiger = eagle_strategy.EagleStrategyDesiger
 
 
-class EagleStrategyTest(absltest.TestCase):
+class EagleStrategyTest(parameterized.TestCase):
 
   def test_dump_and_load(self):
     eagle_designer = testing.create_fake_populated_eagle_designer()
@@ -117,6 +124,41 @@ class EagleStrategyTest(absltest.TestCase):
         'f3', 0.0, 10.0, scale_type=vz.ScaleType.LOG)
     with self.assertRaises(ValueError):
       EagleStrategyDesiger(problem)
+
+  @parameterized.parameters(
+      testing.create_continuous_exptr(bbob.Sphere),
+      testing.create_categorical_exptr())
+  def test_convergence_confidence_check(self, exptr):
+    """A simple and small convergence test for basic confidence check."""
+
+    def _random_designer_factory(problem: vz.ProblemStatement) -> vza.Designer:
+      return random.RandomDesigner(problem.search_space, seed=1)
+
+    def _eagle_designer_factory(problem: vz.ProblemStatement) -> vza.Designer:
+      return eagle_strategy.EagleStrategyDesiger(problem, seed=1)
+
+    random_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
+        designer_factory=_random_designer_factory,
+        experimenter=exptr,
+    )
+    eagle_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
+        designer_factory=_eagle_designer_factory,
+        experimenter=exptr,
+    )
+    evaluations = 1000
+    # Random designer batch size is large to expedite run time.
+    comparator_runner.SimpleRegretComparisonTester(
+        baseline_num_trials=evaluations,
+        candidate_num_trials=evaluations,
+        baseline_suggestion_batch_size=evaluations,
+        candidate_suggestion_batch_size=5,
+        baseline_num_repeats=5,
+        candidate_num_repeats=1,
+        alpha=0.05,
+        goal=vz.ObjectiveMetricGoal.MINIMIZE
+    ).assert_benchmark_state_better_simple_regret(
+        baseline_benchmark_state_factory=random_benchmark_state_factory,
+        candidate_benchmark_state_factory=eagle_benchmark_state_factory)
 
 
 if __name__ == '__main__':

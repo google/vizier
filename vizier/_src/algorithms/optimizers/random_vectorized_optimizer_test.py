@@ -16,7 +16,7 @@
 
 import numpy as np
 from vizier import pyvizier as vz
-from vizier._src.algorithms.optimizers import random_vectorized_optimizer
+from vizier._src.algorithms.optimizers import random_vectorized_optimizer as rvo
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -31,15 +31,14 @@ class RandomVectorizedOptimizerTest(absltest.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: np.sum(x, axis=-1)
-    random_optimizer = random_vectorized_optimizer.create_random_optimizer(
+    random_optimizer = rvo.create_random_optimizer(
         max_evaluations=100, suggestion_batch_size=10)
     res = random_optimizer.optimize(
         converter=converter, score_fn=score_fn, count=5)
     self.assertLen(res, 5)
 
   def test_random_optimizer_factory(self):
-    random_optimizer_factory = random_vectorized_optimizer.create_random_optimizer_factory(
-    )
+    random_optimizer_factory = rvo.create_random_optimizer_factory()
     random_optimizer = random_optimizer_factory(
         max_evaluations=100, suggestion_batch_size=10)
     self.assertEqual(random_optimizer.suggestion_batch_size, 10)

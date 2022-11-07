@@ -18,6 +18,7 @@ The experimenter's evaluation function counts the number of different parameters
 values between the optimal point ('optimum') and the suggestion trial.
 """
 
+import logging
 from typing import Optional, Sequence
 
 import numpy as np
@@ -34,6 +35,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
       num_categories: Sequence[int],
       optimum: Optional[Sequence[int]] = None,
       seed: Optional[int] = None,
+      verbose: bool = False,
   ):
     """Constructor.
 
@@ -45,6 +47,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
       optimum: Optional list of indices indicating the optimum point. If not
         set, randomly created from seed.
       seed: Optional random generator seed.
+      verbose: Whether to show logs.
     """
     rng = np.random.default_rng(seed=seed)
     self._problem = vz.ProblemStatement()
@@ -65,6 +68,8 @@ class L1CategorialExperimenter(experimenter.Experimenter):
     self._problem.metric_information.append(
         vz.MetricInformation(
             name='objective', goal=vz.ObjectiveMetricGoal.MINIMIZE))
+    if verbose:
+      logging.info('L1CategoricalExperimenter optimum point: %s', self._optimum)
 
   def evaluate(self, suggestions: Sequence[vz.Trial]):
     for suggestion in suggestions:

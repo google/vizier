@@ -24,7 +24,7 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.random import random_sample
 
-# Standardize name used to assign for trials' metric name, which help simplify
+# Standardize name used to assign for trials' metric name, which simplifies
 # serializing trials as part of the FireflyPool.
 OBJECTIVE_NAME = 'objective'
 
@@ -90,7 +90,7 @@ class EagleStrategyUtils:
   _n_parameters: int = attr.field(init=False)
   _degrees_of_freedom: DefaultDict[vz.ParameterType, int] = attr.field(
       init=False, factory=lambda: collections.defaultdict(int))
-  _metric_name: str = attr.field(init=False)
+  _original_metric_name: str = attr.field(init=False)
   _goal: vz.ObjectiveMetricGoal = attr.field(init=False)
 
   def __attrs_post_init__(self):
@@ -98,8 +98,9 @@ class EagleStrategyUtils:
     self._search_space = self.problem_statement.search_space
     self._n_parameters = len(self._search_space.parameters)
     self._cache_degrees_of_freedom()
-    self._metric_name = self.problem_statement.single_objective_metric_name
+    self._original_metric_name = self.problem_statement.single_objective_metric_name
     self._goal = self.problem_statement.metric_information.item().goal
+    logging.info('EagleStrategyUtils was created.\n%s', str(self))
 
   def compute_pull_weight_by_type(
       self,
@@ -317,7 +318,7 @@ class EagleStrategyUtils:
 
   def get_metric(self, trial: vz.Trial) -> float:
     """Returns the trial metric."""
-    return trial.final_measurement.metrics[self._metric_name]
+    return trial.final_measurement.metrics[OBJECTIVE_NAME]
 
   def is_better_than(
       self,
@@ -348,12 +349,10 @@ class EagleStrategyUtils:
 
     if self._goal == vz.ObjectiveMetricGoal.MAXIMIZE:
       return trial1.final_measurement.metrics[
-          self._metric_name] > trial2.final_measurement.metrics[
-              self._metric_name]
+          OBJECTIVE_NAME] > trial2.final_measurement.metrics[OBJECTIVE_NAME]
     else:
       return trial1.final_measurement.metrics[
-          self._metric_name] < trial2.final_measurement.metrics[
-              self._metric_name]
+          OBJECTIVE_NAME] < trial2.final_measurement.metrics[OBJECTIVE_NAME]
 
   def is_pure_categorical(self) -> bool:
     """Returns True if all parameters in search_space are categorical."""
@@ -373,7 +372,7 @@ class EagleStrategyUtils:
 
   def standardize_trial_metric_name(self, trial: vz.Trial) -> vz.Trial:
     """Creates a new trial with canonical metric name."""
-    value = trial.final_measurement.metrics[self._metric_name].value
+    value = trial.final_measurement.metrics[self._original_metric_name].value
     new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)
     new_trial.complete(
         measurement=vz.Measurement(metrics={OBJECTIVE_NAME: value}))
@@ -386,7 +385,7 @@ class EagleStrategyUtils:
         for k, v in trial.parameters.as_dict().items()
     }
     if trial.final_measurement:
-      obj_value = f'{list(trial.final_measurement.metrics.values())[0].value:.3f}'
+      obj_value = f'{list(trial.final_measurement.metrics.values())[0].value:.5f}'
       return f'Value: {obj_value}, Parameters: {parameters}'
     else:
       return f'Parameters: {parameters}'
