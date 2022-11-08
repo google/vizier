@@ -14,93 +14,79 @@
 
 """Binary classifiers for Bayesian Optimization."""
 
-from typing import Any, Literal
+from typing import Optional
+
+import attr
 import chex
-
 import numpy as np
-from sklearn import svm
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import ConstantKernel
+from sklearn.gaussian_process.kernels import RBF
+
+# TODO: Replace the sklearn GP classifier with TFP GP classifier
+# once implemented.
 
 
-class SupportVectorMachine():
-  """Class for SVM classifier."""
+@attr.define
+class SklearnClassifier:
+  """Class for Sklearn classifiers.
 
-  def __init__(self,
-               *,
-               kernel: Literal['linear', 'poly', 'rbf', 'sigmoid',
-                               'precomputed'] = 'rbf',
-               penalty_misclass: float = 1.):
-    """Sets up the setting for SVM.
+  Attributes:
+    classifier: a sklearn classifier such as SVM and GaussianProcessClassifier.
+    features: (n, d) shaped array of n samples in dimension d.
+    labels: (n, 1) shaped array of binary labels in {0, 1}.
+    features_test: (m, d) shaped array of m samples in dimension d.
+    eval_metric: a string denoting the evaluation metric. Accepted options are
+      `probability` which estimates the probability of belonging to each class
+      and `decision` which estimates a non-probability based metric such as the
+      margin from the classification boundary.
+  """
+  classifier: Optional[GaussianProcessClassifier] = attr.field(
+      kw_only=True,
+      default=GaussianProcessClassifier(
+          kernel=ConstantKernel(1.) * RBF(length_scale=1.)))
+  features: chex.Array = attr.field(kw_only=True)
+  labels: chex.Array = attr.field(kw_only=True)
+  features_test: chex.Array = attr.field(kw_only=True)
+  eval_metric: str = attr.field(kw_only=True, default='probability')
 
-    Args:
-      kernel: string denoting the type of kernel.
-      penalty_misclass: regularization parameter to penalize miscalssification
-        of training labels. For more details, see
-    https://scikit-learn.org/stable/modules/generated/sklearn.svm.SVC.html.
-    """
-
-    self.kernel = kernel
-    self.penalty_misclass = penalty_misclass
-    self.model = None
-    self._assert_kernel_type()
-
-  def _assert_kernel_type(self) -> None:
-    if self.kernel not in {'linear', 'poly', 'rbf', 'sigmoid', 'precomputed'}:
-      raise ValueError('Accepted kernels are linear, poly, rbf, sigmoid,'
-                       f'precomputed, but was given `{self.kernel}`.')
-
-  def _check_features_and_labels_train_shapes(self, features: chex.Array,
-                                              labels: chex.Array) -> Any:
-    if np.ndim(features) != 2:
-      raise ValueError(f'{self} expect 2d features.')
-    if labels.shape[0] != features.shape[0]:
-      raise ValueError(f'There are `{features.shape[0]}` features and '
-                       f'`{labels.shape[0]}` labels which is incompatible')
-    if np.ndim(labels) != 1 and labels.shape[1] != 1:
+  def _check_features_and_labels_shapes(self) -> None:
+    """Checks the compatibility between features and labels shapes."""
+    if np.ndim(self.features) != 2:
+      raise ValueError(f'{self} expects 2d features.')
+    if self.labels.shape[0] != self.features.shape[0]:
+      raise ValueError(f'There are `{self.features.shape[0]}` features and '
+                       f'`{self.labels.shape[0]}` labels which is incompatible')
+    if np.ndim(self.labels) != 1 and self.labels.shape[1] != 1:
       raise ValueError(
           f'{self} expects 1d labels or labels of shape (num_samples, 1), but'
-          f'was given labels of shape `{labels.shape}` .')
+          f'was given labels of shape `{self.labels.shape}` .')
+    if self.features_test.shape[1] != self.features.shape[1]:
+      raise ValueError(
+          f'{self} features_test to have `{self.features.shape[1]}`,'
+          f'but it has `{self.features_test.shape[1]}` features.')
 
-  def _check_labels_train_values(self, labels: chex.Array):
-    if not set(labels).issubset({0, 1}):
+  def _check_labels_values(self) -> None:
+    if not set(self.labels).issubset({0, 1}):
       raise ValueError('Labels should be either zero or one.')
-    if set(labels).issubset({0}) or set(labels).issubset({1}):
+    if set(self.labels).issubset({0}) or set(self.labels).issubset({1}):
       raise ValueError(f'{self} expects at least one sample per class, but all'
                        'training labels contain the same class.')
 
-  def train(self, features: chex.Array, labels: chex.Array) -> None:
-    """Trains the SVM classifier.
+  def _check_eval_metric(self) -> None:
+    if self.eval_metric not in ['probability', 'decision']:
+      raise ValueError(f'{self} expects the evaluation metric to be'
+                       f'`probability` or `decision ` but `{self.eval_metric}`'
+                       'was given.')
 
-    Args:
-      features: (m, d) shaped array of m samples in dimension d.
-      labels: (m, 1) or (m,) shaped array of binary labels encoded as (0, 1).
-    """
-    features = np.asarray(features)
-    labels = np.asarray(labels)
-    self._check_labels_train_values(labels)
-    self._check_features_and_labels_train_shapes(features, labels)
-    finite_labels_num = (labels == 0).sum()
-    infinite_labels_num = (labels == 1).sum()
-    self.model = svm.SVC(
-        kernel=self.kernel,
-        class_weight={
-            0: finite_labels_num,
-            1: infinite_labels_num
-        },
-        C=self.penalty_misclass)
-    self.model.fit(features, labels)
-
-  def evaluate(self, features: chex.Array) -> np.ndarray:
-    """Evaluates SVM scores for the test data.
-
-    Args:
-      features: (n, d) shaped array of n samples in dimension d.  The scores can
-        be used to predict the labels for any test features. For example, given
-        a threshold, labels = scores >= threshold. If scores are
-        probability-based, a good default threshold is 0.5 and if scores are
-        margin-based (eg. for SVM), a good default threshold is 0.
-
-    Returns:
-      (n,) shaped array of evaluated scores at features.
-    """
-    features = np.asarray(features)
-    return self.model.decision_function(features)
+  # TODO: separate the training and evaluation for extra speed up.
+  # Currently, the classifiers we use are reasonably fast.
+  def __call__(self) -> chex.Array:
+    self._check_features_and_labels_shapes()
+    self._check_labels_values()
+    self._check_eval_metric()
+    self.classifier.fit(np.asarray(self.features), np.asarray(self.labels))
+    if self.eval_metric == 'probability':
+      return self.classifier.predict_proba(np.asarray(self.features_test))[:, 1]
+    else:
+      return self.classifier.decision_function(np.asarray(self.features_test))
