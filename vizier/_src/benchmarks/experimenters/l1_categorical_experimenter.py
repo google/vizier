@@ -82,7 +82,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
 
   @property
   def optimum_trial(self) -> vz.Trial:
-    """Evalutes and returns the optimal trial."""
+    """Evaluates and returns the optimal trial."""
     optimum_trial = vz.Trial(parameters=self._optimum)
     self.evaluate([optimum_trial])
     return optimum_trial
