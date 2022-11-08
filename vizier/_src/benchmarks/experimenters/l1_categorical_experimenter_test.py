@@ -52,15 +52,15 @@ class L1CategoricalExperimenterTest(parameterized.TestCase):
       self.assertIsInstance(value, str)
       self.assertTrue(0 <= int(value) < num_categories[i])
 
-  def test_optimum_trial(self):
+  def test_optimal_trial(self):
     optimum = [9, 2, 1]
     exptr = l1_categorical_experimenter.L1CategorialExperimenter(
         num_categories=[10, 3, 2], optimum=optimum)
-    self.assertEqual(exptr.optimum_trial.parameters['c0'].value, '9')
-    self.assertEqual(exptr.optimum_trial.parameters['c1'].value, '2')
-    self.assertEqual(exptr.optimum_trial.parameters['c2'].value, '1')
+    self.assertEqual(exptr.optimal_trial.parameters['c0'].value, '9')
+    self.assertEqual(exptr.optimal_trial.parameters['c1'].value, '2')
+    self.assertEqual(exptr.optimal_trial.parameters['c2'].value, '1')
 
-  def test_optimum_trial_validation(self):
+  def test_optimal_trial_validation(self):
     optimum = [9, 3, 1]
     with self.assertRaises(ValueError):
       l1_categorical_experimenter.L1CategorialExperimenter(

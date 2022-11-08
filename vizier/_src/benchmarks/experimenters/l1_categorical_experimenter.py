@@ -18,6 +18,7 @@ The experimenter's evaluation function counts the number of different parameters
 values between the optimal point ('optimum') and the suggestion trial.
 """
 
+import copy
 import logging
 from typing import Optional, Sequence
 
@@ -73,20 +74,20 @@ class L1CategorialExperimenter(experimenter.Experimenter):
 
   def evaluate(self, suggestions: Sequence[vz.Trial]):
     for suggestion in suggestions:
-      loss = 0
+      loss = 0.0
       for param_config in self._problem.search_space.parameters:
         if suggestion.parameters[param_config.name].value != self._optimum[
             param_config.name]:
-          loss += 1
+          loss += 1.0
       suggestion.complete(vz.Measurement(metrics={'objective': loss}))
 
   @property
-  def optimum_trial(self) -> vz.Trial:
+  def optimal_trial(self) -> vz.Trial:
     """Evaluates and returns the optimal trial."""
-    optimum_trial = vz.Trial(parameters=self._optimum)
-    self.evaluate([optimum_trial])
-    return optimum_trial
+    optimal_trial = vz.Trial(parameters=self._optimum)
+    self.evaluate([optimal_trial])
+    return optimal_trial
 
   def problem_statement(self):
     """See superclass."""
-    return self._problem
+    return copy.deepcopy(self._problem)

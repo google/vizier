@@ -176,7 +176,7 @@ class VectorizedOptimizer:
       self._update_best_results(best_results, count, new_features, new_rewards)
       evaluated_count += len(new_rewards)
     logging.info(
-        'Optimization completed. Duration: %s. Evalutions: %s. Best Results: %s',
+        'Optimization completed. Duration: %s. Evaluations: %s. Best Results: %s',
         datetime.datetime.now() - start_time, evaluated_count, best_results)
 
     return self._best_candidates(best_results, converter)
@@ -242,12 +242,12 @@ class VectorizedOptimizer:
     duration = datetime.datetime.now() - start_time
     if self.max_duration and duration >= self.max_duration:
       logging.info(
-          'Optimization completed. Reached time limit. Duration: %s. Evalutions: %s',
+          'Optimization completed. Reached time limit. Duration: %s. Evaluations: %s',
           duration, evaluated_count)
       return True
     elif evaluated_count >= self.max_evaluations:
       logging.info(
-          'Optimization completed. Reched evaluations limit. Duration: %s. Evalutions: %s',
+          'Optimization completed. Reached evaluations limit. Duration: %s. Evaluations: %s',
           duration, evaluated_count)
       return True
     else:

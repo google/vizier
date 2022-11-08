@@ -90,7 +90,7 @@ class ShiftingExperimenter(experimenter.Experimenter):
         new_parameter_configs)
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
-    return self._problem_statement
+    return copy.deepcopy(self._problem_statement)
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
     """Evaluate the trials after shifting their parameters by +shift."""

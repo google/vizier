@@ -69,9 +69,9 @@ def create_categorical_problem(
 
 
 def create_mix_problem(n_features: int,
-                       categrocial_dim: int = 8) -> vz.ProblemStatement:
+                       categorical_dim: int = 8) -> vz.ProblemStatement:
   problem = create_continuous_problem(n_features // 2)
-  return create_categorical_problem(n_features // 2, categrocial_dim, problem)
+  return create_categorical_problem(n_features // 2, categorical_dim, problem)
 
 
 # TODO: Change to bbob functions when they can support batching.
@@ -89,6 +89,7 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
   """Test optimizing an acquisition functions using vectorized Eagle Strategy.
   """
 
+  @absltest.skip("Test takes too long externally.")
   @parameterized.product(
       create_problem_fn=[
           create_continuous_problem,
