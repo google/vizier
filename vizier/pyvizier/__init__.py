@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""PyVizier classes for Pythia policies."""
+"""PyVizier classes for general use.
+
+Contains API shared across all platforms (Internal, Cloud, OSS).
+"""
 
 from vizier._src.pyvizier.pythia.study import StudyDescriptor
 from vizier._src.pyvizier.pythia.study import StudyState

@@ -384,8 +384,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       context: Optional[grpc.ServicerContext] = None
   ) -> operations_pb2.Operation:
     """Gets the latest state of a SuggestTrials() long-running operation."""
-    operation = self.datastore.get_suggestion_operation(request.name)
-    return operation
+    return self.datastore.get_suggestion_operation(request.name)
 
   def CreateTrial(
       self,

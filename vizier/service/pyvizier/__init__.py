@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Import target for oss."""
+"""PyVizier classes relevant for the service, including OSS-specific objects."""
 
 # TODO: Re-evalaute what to expose to users, once closed.
 # TODO: Alternatively, remove this import.
