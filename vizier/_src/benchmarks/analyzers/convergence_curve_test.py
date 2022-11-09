@@ -65,6 +65,31 @@ class ConvergenceCurveTest(absltest.TestCase):
     np.testing.assert_array_equal(aligned.ys,
                                   np.array([[2, 1.25, 1], [3, np.nan, np.nan]]))
 
+  def test_align_xs_with_interpolation(self):
+    c1 = convergence.ConvergenceCurve(
+        xs=np.array([1, 2, 3, 4, 5]),
+        ys=np.array([[2, 2, 1, 0.5, 0.5], [1, 1, 1, 1, 1]]),
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+    aligned = convergence.ConvergenceCurve.align_xs([c1],
+                                                    interpolate_repeats=True)
+
+    np.testing.assert_array_equal(aligned.xs, np.array([1, 2, 3, 4, 5]))
+    np.testing.assert_array_equal(
+        aligned.ys, np.array([[2, 1.5, 1.0, 0.5, 0.5], [1, 1, 1, 1, 1]]))
+
+  def test_extrapolate_ys_with_steps(self):
+    c1 = convergence.ConvergenceCurve(
+        xs=np.array([1, 2, 3, 4]),
+        ys=np.array([[2, 1.5, 1, 0.5], [1, 1, 1, 1]]),
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+
+    extra_c1 = convergence.ConvergenceCurve.extrapolate_ys(c1, steps=2)
+
+    np.testing.assert_array_equal(extra_c1.xs.shape, (6,))
+    np.testing.assert_array_equal(
+        extra_c1.ys,
+        np.array([[2, 1.5, 1.0, 0.5, 0.0, -0.5], [1, 1, 1, 1, 1, 1]]))
+
   def test_align_xs_on_increasing_and_dicreasing_fails(self):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 3, 4]),
@@ -163,7 +188,7 @@ class ConvergenceComparatorTest(absltest.TestCase):
     base_score = self._baseline.get_log_efficiency_score(self._better_curves)
     reversed_score = convergence.ConvergenceCurveComparator(
         self._better_curves).get_log_efficiency_score(self._baseline_curve)
-    self.assertAlmostEqual(base_score, -reversed_score, delta=0.2)
+    self.assertAlmostEqual(base_score, -reversed_score, delta=0.01)
 
   def testEfficiencyScoreValue(self):
     xs = self._baseline_curve.xs

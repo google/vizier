@@ -94,9 +94,9 @@ class EfficiencyComparisonTester:
                   candidate_state.algorithm.supporter.GetTrials()))
 
     baseline_curve = benchmarks.ConvergenceCurve.align_xs(
-        baseline_curves, resolution=1)
+        baseline_curves, interpolate_repeats=True)
     candidate_curve = benchmarks.ConvergenceCurve.align_xs(
-        candidate_curves, resolution=1)
+        candidate_curves, interpolate_repeats=True)
     comparator = benchmarks.ConvergenceCurveComparator(baseline_curve)
 
     if (log_eff_score :=

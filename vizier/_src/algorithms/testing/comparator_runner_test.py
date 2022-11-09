@@ -92,7 +92,6 @@ class FakeDesigner(vza.Designer):
     return [vz.TrialSuggestion(parameters)]
 
 
-@absltest.skip('b/255420693')
 class EfficiencyConvergenceTest(absltest.TestCase):
 
   def test_comparison(self):
@@ -102,11 +101,17 @@ class EfficiencyConvergenceTest(absltest.TestCase):
 
     def _baseline_designer(problem: vz.ProblemStatement) -> vza.Designer:
       return FakeDesigner(
-          problem.search_space, num_trial_to_converge=num_trials)
+          problem.search_space,
+          good_value=0.0,
+          bad_value=1.0,
+          num_trial_to_converge=num_trials)
 
     def _good_designer(problem: vz.ProblemStatement) -> vza.Designer:
       return FakeDesigner(
-          problem.search_space, num_trial_to_converge=int(num_trials / 4))
+          problem.search_space,
+          good_value=0.0,
+          bad_value=1.0,
+          num_trial_to_converge=int(num_trials / 4))
 
     comparator = comparator_runner.EfficiencyComparisonTester(
         num_trials=num_trials, num_repeats=5)
@@ -115,7 +120,7 @@ class EfficiencyConvergenceTest(absltest.TestCase):
             experimenter=experimenter, designer_factory=_good_designer),
         benchmarks.DesignerBenchmarkStateFactory(
             experimenter=experimenter, designer_factory=_baseline_designer),
-        score_threshold=0.0)
+        score_threshold=0.3)
 
     # Test that our baseline is worse.
     with self.assertRaises(comparator_runner.FailedComparisonTestError):  # pylint: disable=g-error-prone-assert-raises
@@ -124,10 +129,9 @@ class EfficiencyConvergenceTest(absltest.TestCase):
               experimenter=experimenter, designer_factory=_baseline_designer),
           benchmarks.DesignerBenchmarkStateFactory(
               experimenter=experimenter, designer_factory=_good_designer),
-          score_threshold=0.1)
+          score_threshold=-0.1)
 
 
-@absltest.skip('b/255420693')
 class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
   """Test suite for convergence runner."""
 

@@ -47,13 +47,19 @@ class ConvergenceCurve:
   @classmethod
   def align_xs(cls,
                curves: Sequence['ConvergenceCurve'],
-               resolution: Optional[int] = None) -> 'ConvergenceCurve':
+               *,
+               resolution: Optional[int] = None,
+               interpolate_repeats=False) -> 'ConvergenceCurve':
     """Align curves to the same xs using linear interpolation.
+
+    If xs are greater than xp[-1], then default is np.nan.
 
     Args:
       curves:
       resolution: Number of points to interpolate to. Leave it None to use the
         maximal resolution.
+      interpolate_repeats: Interpolate repeated values in the curve via
+      linear interpolation (except for the last repeated segment).
 
     Returns:
       ConvergenceCurve whose batch size is equal to the sum of the batch size
@@ -71,7 +77,22 @@ class ConvergenceCurve:
     all_ys = []
     for curve in curves:
       for ys in curve.ys:
-        all_ys.append(np.interp(xs, curve.xs, ys, right=np.nan))
+        if interpolate_repeats:
+          _, indices = np.unique(ys, return_index=True)
+          # Sorting indices from increasing order due to sign differences.
+          indices = sorted(indices)
+          if len(ys) - 1 not in indices:
+            indices.append(len(ys) - 1)
+        else:
+          # Use the whole curve.
+          indices = range(len(ys))
+
+        all_ys.append(
+            np.interp(
+                xs,
+                np.array([curve.xs[i] for i in indices]),
+                np.array([ys[i] for i in indices]),
+                right=np.nan))
 
     # Take all non-empty ylabels.
     ylabels = list(set([c.ylabel for c in curves if c.ylabel]))
@@ -84,6 +105,43 @@ class ConvergenceCurve:
       ylabel = ylabels[0]
 
     return cls(xs=xs, ys=np.stack(all_ys), ylabel=ylabel, trend=curves[0].trend)
+
+  @classmethod
+  def extrapolate_ys(cls,
+                     curve: 'ConvergenceCurve',
+                     steps: int = 0) -> 'ConvergenceCurve':
+    """Extrapolates the future ys using a variant of linear extrapolation.
+
+    Args:
+      curve:
+      steps: Number of steps to perform extrapolation.
+
+    Returns:
+      ConvergenceCurve whose xs, ys are extrapolated. Batch size remains the
+      same but xs, ys now have length T + steps.
+    """
+    if curve.trend not in (cls.YTrend.INCREASING, cls.YTrend.DECREASING):
+      raise ValueError('Curve must be increasing or decreasing.')
+
+    all_extra_ys = []
+    for ys in curve.ys:
+      # Use average slope in the last half of the curve as slope extrapolate.
+      ys_later_half = ys[int(len(ys) / 2):]
+      slope = np.mean([
+          ys_later_half[idx] - ys_later_half[idx - 1]
+          for idx in range(1, len(ys_later_half))
+      ])
+
+      extra_ys = np.append(
+          ys, [ys[-1] + slope * (1 + step) for step in range(steps)])
+      all_extra_ys.append(extra_ys)
+
+    return cls(
+        xs=np.append(curve.xs,
+                     [curve.xs[-1] + 1 + step for step in range(steps)]),
+        ys=np.stack(all_extra_ys),
+        ylabel=curve.ylabel,
+        trend=curve.trend)
 
 
 class ConvergenceCurveConverter:
@@ -237,7 +295,8 @@ class ConvergenceCurveComparator:
   def get_log_efficiency_score(self,
                                compared_curve: ConvergenceCurve,
                                baseline_quantile=0.5,
-                               compared_quantile=0.5) -> float:
+                               compared_quantile=0.5,
+                               max_score=5) -> float:
     """Gets a finalized log efficiency score.
 
     The compared curve should approximately use exp(-score)% Trials compared to
@@ -252,22 +311,39 @@ class ConvergenceCurveComparator:
       compared_quantile: Quantile in [0, 1] of the batched compared curve to use
         for efficiency comparison. The higher the quantile, the better the
         quality of the baseline batch.
+      max_score: Maximum log efficiency score.
 
     Returns:
       Sample efficiency score. This score is symmetric and always finite when
       baseline_quantile <= compare_quantile (recommended setting).
     """
-    rel_efficiency = self.log_efficiency_curve(compared_curve,
-                                               baseline_quantile,
-                                               compared_quantile)
-    if np.isfinite(float(rel_efficiency.ys[:, -1])):
-      # Return last relative efficiency.
-      return float(rel_efficiency.ys[:, -1])
-    else:
-      reverse_baseline = ConvergenceCurveComparator(compared_curve)
-      reverse_efficiency = reverse_baseline.log_efficiency_curve(
-          self._baseline_curve, compared_quantile, baseline_quantile)
-      return -float(reverse_efficiency.ys[:, -1])
+    baseline_curve = ConvergenceCurve.align_xs([self._baseline_curve],
+                                               interpolate_repeats=True)
+    compared_curve = ConvergenceCurve.align_xs([compared_curve],
+                                               interpolate_repeats=True)
+    # Combined curve (as the baseline) becomes the y-values at which
+    # Trial efficiency is evaluated.
+    combined_curve = ConvergenceCurve.align_xs([baseline_curve, compared_curve])
+    combined_curve.ys = np.nanmedian(combined_curve.ys, axis=0, keepdims=True)
+    comparator = ConvergenceCurveComparator(baseline_curve=combined_curve)
+
+    # Look ahead for exp(max_score)*T steps, as score is in the log space.
+    extend_steps = int(np.exp(max_score) * len(self._baseline_curve.xs))
+    extended_baseline = ConvergenceCurve.extrapolate_ys(self._baseline_curve,
+                                                        extend_steps)
+    extended_compared = ConvergenceCurve.extrapolate_ys(compared_curve,
+                                                        extend_steps)
+
+    efficiency_baseline = comparator.log_efficiency_curve(
+        extended_baseline, compared_quantile=baseline_quantile)
+    efficiency_compared = comparator.log_efficiency_curve(
+        extended_compared, compared_quantile=compared_quantile)
+
+    # Clip log efficiency and return median log efficiency in last half.
+    diff = np.clip(
+        efficiency_compared.ys, a_min=-max_score, a_max=max_score) - np.clip(
+            efficiency_baseline.ys, a_min=-max_score, a_max=max_score)
+    return np.median(diff[int(len(diff) / 2):])
 
 
 def build_convergence_curve(baseline_curve: Sequence[float],
