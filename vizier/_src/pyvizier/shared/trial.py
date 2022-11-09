@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Wrapper classes for Trial protos and other messages in them.
-
-Example usage:
-  trial = Trial.from_proto(trial_proto)
-  print('This trial's auc is: ', trial.final_measurement.metrics['auc'].value)
-  print('This trial had parameter "n_hidden_layers": ',
-        trial.parameters['n_hidden_layers'].value)
-"""
+"""Wrapper classes for Trial protos and other messages in them."""
 
 import collections
 from collections import abc
