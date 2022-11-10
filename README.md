@@ -33,6 +33,10 @@ OSS Vizier's interface consists of three main APIs:
 * [**Developer API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-developers) Defines abstractions and utilities for implementing new optimization algorithms for research and to be hosted in the service.
 * [**Benchmarking API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-benchmarking) A wide collection of objective functions and methods to benchmark and compare algorithms.
 
+Additionally, it contains [advanced API](https://oss-vizier.readthedocs.io/en/latest/advanced_topics/index.html) for:
+
+* [**Bayesian Optimization via Tensorflow Probability:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#tensorflow-probability) For defining custom Gaussian Process surrogate models for Bayesian Optimization.
+
 Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
 
 
