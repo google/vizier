@@ -155,6 +155,47 @@ class StudyConfigTest(parameterized.TestCase):
 
     _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
+  def testCreationFromAndToProtoSafeStudy(self):
+    expected_automated_stopping_config = (
+        study_pb2.StudySpec.DefaultEarlyStoppingSpec())
+
+    study_config_proto = study_pb2.StudySpec(
+        algorithm='QUASI_RANDOM_SEARCH',
+        metrics=[
+            study_pb2.StudySpec.MetricSpec(
+                metric_id='pr-auc',
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE),
+            study_pb2.StudySpec.MetricSpec(
+                metric_id='privacy-safety',
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MINIMIZE,
+                safety_config=study_pb2.StudySpec.MetricSpec.SafetyMetricConfig(
+                    safety_threshold=0.2, desired_min_safe_trials_fraction=0.8))
+        ],
+        default_stopping_spec=expected_automated_stopping_config)
+
+    study_config_proto.parameters.extend(self.pconfigs)
+    # Test all proprties.
+    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    expected = pyvizier.MetricsConfig([
+        pyvizier.MetricInformation(
+            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
+        pyvizier.MetricInformation(
+            name='privacy-safety',
+            goal=pyvizier.ObjectiveMetricGoal.MINIMIZE,
+            safety_threshold=0.2,
+            desired_min_safe_trials_fraction=0.8)
+    ])
+    self.assertEqual(sc.metric_information, expected)
+    self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
+    self.assertIsNone(sc.pythia_endpoint)
+    self.assertEqual(sc.single_objective_metric_name, 'pr-auc')
+    self.assertTrue(sc.is_single_objective)
+
+    compare.assertProto2Equal(self, expected_automated_stopping_config,
+                              sc.automated_stopping_config.to_proto())
+    compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
+    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+
   def testCreationFromProtoNoGoalRaises(self):
     study_config_proto = study_pb2.StudySpec()
 

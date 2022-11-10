@@ -112,7 +112,7 @@ class MetricInformation:
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
       kw_only=True)
-  # Safety_std_threshold is deprecated and is here for backward compatibility.
+  # Safety_std_threshold is DEPRECATED and is here for backward compatibility.
   # To configure how cautious the optimization should be, please defer to
   # desired_min_safe_trials_fraction. This corresponds to the allowed
   # probability threshold (as a function of the z-score) of

@@ -339,10 +339,19 @@ class MetricInformationConverter:
     if proto.goal not in list(base_study_config.ObjectiveMetricGoal):
       raise ValueError('Unknown MetricInformation.goal: {}'.format(proto.goal))
 
+    safety_threshold = None
+    desired_min_safe_trials_fraction = None
+
+    if proto.HasField('safety_config'):
+      safety_threshold = proto.safety_config.safety_threshold
+    if proto.safety_config.HasField('desired_min_safe_trials_fraction'):
+      desired_min_safe_trials_fraction = proto.safety_config.desired_min_safe_trials_fraction
+
     return base_study_config.MetricInformation(
         name=proto.metric_id,
         goal=proto.goal,
-        safety_threshold=None,
+        safety_threshold=safety_threshold,
+        desired_min_safe_trials_fraction=desired_min_safe_trials_fraction,
         min_value=None,
         max_value=None)
 
@@ -351,8 +360,15 @@ class MetricInformationConverter:
       cls, obj: base_study_config.MetricInformation
   ) -> study_pb2.StudySpec.MetricSpec:
     """Returns this object as a proto."""
-    return study_pb2.StudySpec.MetricSpec(
+
+    proto = study_pb2.StudySpec.MetricSpec(
         metric_id=obj.name, goal=obj.goal.value)
+
+    if obj.type == base_study_config.MetricType.SAFETY:
+      proto.safety_config.safety_threshold = obj.safety_threshold
+      if obj.desired_min_safe_trials_fraction is not None:
+        proto.safety_config.desired_min_safe_trials_fraction = obj.desired_min_safe_trials_fraction
+    return proto
 
 
 class SearchSpaceConverter:
