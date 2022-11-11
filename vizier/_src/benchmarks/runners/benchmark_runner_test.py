@@ -50,13 +50,13 @@ class BaseRunnerTest(parameterized.TestCase):
     dim = 10
     experimenter = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)()
 
-    def _designer_factory(config: vz.ProblemStatement):
-      return random.RandomDesigner(config.search_space, seed=5)
+    def _designer_factory(config: vz.ProblemStatement, seed: int):
+      return random.RandomDesigner(config.search_space, seed=seed)
 
     benchmark_state_factory = benchmark_runner.DesignerBenchmarkStateFactory(
         designer_factory=_designer_factory, experimenter=experimenter)
 
-    benchmark_state = benchmark_state_factory()
+    benchmark_state = benchmark_state_factory(seed=5)
 
     runner.run(benchmark_state)
     self.assertEmpty(

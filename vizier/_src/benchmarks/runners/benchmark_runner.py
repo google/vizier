@@ -48,7 +48,7 @@ one that simulates the stochasticity of natural evaluation processes.
 """
 
 import abc
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence, Protocol
 
 from absl import logging
 import attr
@@ -59,8 +59,20 @@ from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.runners import algorithm_suggester
 
 AlgorithmSuggester = algorithm_suggester.AlgorithmSuggester
-DesignerFactory = Callable[[vz.ProblemStatement], vza.Designer]
-PolicyFactory = Callable[[vz.ProblemStatement], pythia.Policy]
+
+
+class SeedDesignerFactory(Protocol):
+  """Factory to generate a designer with a seed."""
+
+  def __call__(self, problem: vz.ProblemStatement, seed: int) -> vza.Designer:
+    ...
+
+
+class SeedPolicyFactory(Protocol):
+  """Factory to generate a policy with a seed."""
+
+  def __call__(self, problem: vz.ProblemStatement, seed: int) -> pythia.Policy:
+    ...
 
 
 @attr.define
@@ -78,7 +90,7 @@ class BenchmarkStateFactory(abc.ABC):
   experimenter: Experimenter
 
   @abc.abstractmethod
-  def __call__(self) -> BenchmarkState:
+  def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
     """Creates a new instance of BenchmarkFactory."""
     pass
 
@@ -87,30 +99,30 @@ class BenchmarkStateFactory(abc.ABC):
 class DesignerBenchmarkStateFactory(BenchmarkStateFactory):
   """Factory class to generate new BenchmarkState from designer factory."""
 
-  designer_factory: DesignerFactory
+  designer_factory: SeedDesignerFactory
 
-  def __call__(self) -> BenchmarkState:
+  def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
     """Create a BenchmarkState from designer factory."""
     problem = self.experimenter.problem_statement()
     return BenchmarkState(
         experimenter=self.experimenter,
         algorithm=algorithm_suggester.DesignerSuggester(
-            designer=self.designer_factory(problem),
+            designer=self.designer_factory(problem, seed),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
 
 @attr.define(frozen=True)
 class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
+  """Factory class to generate new BenchmarkState from policy factory."""
+  policy_factory: SeedPolicyFactory
 
-  policy_factory: PolicyFactory
-
-  def __call__(self) -> BenchmarkState:
+  def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
     """Create a BenchmarkState from policy factory."""
     problem = self.experimenter.problem_statement()
     return BenchmarkState(
         experimenter=self.experimenter,
         algorithm=algorithm_suggester.PolicySuggester(
-            policy=self.policy_factory(problem),
+            policy=self.policy_factory(problem, seed),
             local_supporter=pythia.InRamPolicySupporter(problem)))
 
 

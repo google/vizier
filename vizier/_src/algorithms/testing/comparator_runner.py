@@ -153,13 +153,13 @@ class SimpleRegretComparisonTester:
         suggestion_batch_size=self.candidate_suggestion_batch_size,
         max_evaluations=self.candidate_num_trials)
 
-    for _ in range(self.baseline_num_repeats):
-      trial = baseline_optimizer.optimize(converter, score_fn, count=1)
+    for i in range(self.baseline_num_repeats):
+      trial = baseline_optimizer.optimize(converter, score_fn, count=1, seed=i)
       baseline_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
 
-    for _ in range(self.candidate_num_repeats):
-      trial = candidate_optimizer.optimize(converter, score_fn, count=1)
+    for i in range(self.candidate_num_repeats):
+      trial = candidate_optimizer.optimize(converter, score_fn, count=1, seed=i)
       candidate_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
 
@@ -173,9 +173,9 @@ class SimpleRegretComparisonTester:
     """Runs simple-regret convergence test for benchmark state."""
 
     def _run_one(benchmark_state_factory: benchmarks.BenchmarkStateFactory,
-                 num_trials: int, batch_size: int) -> float:
+                 num_trials: int, batch_size: int, seed: int) -> float:
       """Run one benchmark run and returns simple regret."""
-      benchmark_state = benchmark_state_factory()
+      benchmark_state = benchmark_state_factory(seed=seed)
       baseline_runner = benchmarks.BenchmarkRunner(
           benchmark_subroutines=[benchmarks.GenerateAndEvaluate(batch_size)],
           num_repeats=num_trials // batch_size)
@@ -189,18 +189,21 @@ class SimpleRegretComparisonTester:
     baseline_obj_values = []
     candidate_obj_values = []
 
-    for _ in range(self.baseline_num_repeats):
+    for idx in range(self.baseline_num_repeats):
       baseline_obj_values.append(
-          _run_one(baseline_benchmark_state_factory, self.baseline_num_trials,
-                   self.baseline_suggestion_batch_size))
+          _run_one(
+              benchmark_state_factory=baseline_benchmark_state_factory,
+              num_trials=self.baseline_num_trials,
+              batch_size=self.baseline_suggestion_batch_size,
+              seed=idx))
 
-    for _ in range(self.candidate_num_repeats):
+    for idx in range(self.candidate_num_repeats):
       candidate_obj_values.append(
           _run_one(
-              candidate_benchmark_state_factory,
-              self.candidate_num_trials,
-              self.candidate_suggestion_batch_size,
-          ))
+              benchmark_state_factory=candidate_benchmark_state_factory,
+              num_trials=self.candidate_num_trials,
+              batch_size=self.candidate_suggestion_batch_size,
+              seed=idx))
     self._conclude_test(baseline_obj_values, candidate_obj_values)
 
   def _conclude_test(self, baseline_obj_values: list[float],

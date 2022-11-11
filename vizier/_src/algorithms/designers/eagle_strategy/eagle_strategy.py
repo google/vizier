@@ -78,8 +78,7 @@ Firefly = eagle_strategy_utils.Firefly
 FireflyPool = eagle_strategy_utils.FireflyPool
 
 
-# TODO: Create a EagleStrategyDesignerFactory.
-class EagleStrategyDesiger(vza.PartiallySerializableDesigner):
+class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
   """The eagle strategy partially serializable designer."""
 
   def __init__(self,

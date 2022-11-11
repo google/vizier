@@ -24,7 +24,7 @@ from vizier._src.benchmarks.experimenters import l1_categorical_experimenter
 from vizier._src.benchmarks.experimenters import shifting_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
 
-EagleStrategyDesiger = eagle_strategy.EagleStrategyDesiger
+EagleStrategyDesiger = eagle_strategy.EagleStrategyDesigner
 FireflyAlgorithmConfig = eagle_strategy.FireflyAlgorithmConfig
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyPool = eagle_strategy_utils.FireflyPool

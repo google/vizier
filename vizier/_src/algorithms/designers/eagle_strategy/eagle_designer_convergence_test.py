@@ -14,7 +14,6 @@
 
 """Convergence test for Eagle Strategy."""
 
-from vizier import algorithms as vza
 from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
@@ -33,28 +32,26 @@ class EagleStrategyConvergenceTest(parameterized.TestCase):
   Note that all optimization problems are MINIMIZATION.
   """
 
-  @absltest.skip("Test takes too long externally.")
   @parameterized.parameters(
       testing.create_continuous_exptr(bbob.Gallagher101Me),
       testing.create_continuous_exptr(bbob.Rastrigin),
       testing.create_categorical_exptr())
   def test_convergence(self, exptr):
 
-    def _random_designer_factory(problem: vz.ProblemStatement) -> vza.Designer:
-      return random.RandomDesigner(problem.search_space, seed=1)
+    def _random_designer_factory(problem, seed):
+      return random.RandomDesigner(problem.search_space, seed=seed)
 
-    def _eagle_designer_factory(problem: vz.ProblemStatement) -> vza.Designer:
-      return eagle_strategy.EagleStrategyDesiger(problem, seed=1)
+    def _eagle_designer_factory(problem, seed):
+      return eagle_strategy.EagleStrategyDesigner(problem, seed=seed)
 
     random_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=_random_designer_factory,
-        experimenter=exptr,
-    )
+        designer_factory=_random_designer_factory, experimenter=exptr)
+
     eagle_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
         designer_factory=_eagle_designer_factory,
         experimenter=exptr,
     )
-    evaluations = 15000
+    evaluations = 1000
     # Random designer batch size is large to expedite run time.
     comparator_runner.SimpleRegretComparisonTester(
         baseline_num_trials=2 * evaluations,

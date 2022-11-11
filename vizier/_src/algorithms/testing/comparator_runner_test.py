@@ -63,10 +63,12 @@ class FakeDesigner(vza.Designer):
 
   def __init__(self,
                search_space: vz.SearchSpace,
+               *,
                good_value: float = 1.0,
                bad_value: float = 0.0,
                noise: float = 0.1,
-               num_trial_to_converge: int = 0):
+               num_trial_to_converge: int = 0,
+               seed: Optional[int] = None):
     self.search_space = search_space
     self.good_value = good_value
     self.bad_value = bad_value
@@ -99,19 +101,23 @@ class EfficiencyConvergenceTest(absltest.TestCase):
 
     num_trials = 20
 
-    def _baseline_designer(problem: vz.ProblemStatement) -> vza.Designer:
+    def _baseline_designer(problem: vz.ProblemStatement,
+                           seed: Optional[int] = None) -> vza.Designer:
       return FakeDesigner(
           problem.search_space,
+          num_trial_to_converge=num_trials,
           good_value=0.0,
           bad_value=1.0,
-          num_trial_to_converge=num_trials)
+          seed=seed)
 
-    def _good_designer(problem: vz.ProblemStatement) -> vza.Designer:
+    def _good_designer(problem: vz.ProblemStatement,
+                       seed: Optional[int] = None) -> vza.Designer:
       return FakeDesigner(
           problem.search_space,
           good_value=0.0,
           bad_value=1.0,
-          num_trial_to_converge=int(num_trials / 4))
+          num_trial_to_converge=int(num_trials / 4),
+          seed=seed)
 
     comparator = comparator_runner.EfficiencyComparisonTester(
         num_trials=num_trials, num_repeats=5)
@@ -186,19 +192,21 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
   def test_designer_convergence(self, candidate_num_trials, candidate_x_value,
                                 goal, should_pass):
 
-    def _better_designer_factory(problem):
+    def _better_designer_factory(problem, seed):
       return FakeDesigner(
           search_space=problem.search_space,
           good_value=candidate_x_value,
           bad_value=0.0,
-          noise=0.0)
+          noise=0.0,
+          seed=seed)
 
-    def _baseline_designer_factory(problem):
+    def _baseline_designer_factory(problem, seed):
       return FakeDesigner(
           search_space=problem.search_space,
           good_value=1.0,
           bad_value=1.0,
-          noise=0.0)
+          noise=0.0,
+          seed=seed)
 
     baseline_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
         experimenter=self.experimenter,

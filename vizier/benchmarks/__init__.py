@@ -36,9 +36,9 @@ from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkState
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkStateFactory
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkSubroutine
 from vizier._src.benchmarks.runners.benchmark_runner import DesignerBenchmarkStateFactory
-from vizier._src.benchmarks.runners.benchmark_runner import DesignerFactory
 from vizier._src.benchmarks.runners.benchmark_runner import EvaluateActiveTrials
 from vizier._src.benchmarks.runners.benchmark_runner import GenerateAndEvaluate
 from vizier._src.benchmarks.runners.benchmark_runner import GenerateSuggestions
 from vizier._src.benchmarks.runners.benchmark_runner import PolicyBenchmarkStateFactory
-from vizier._src.benchmarks.runners.benchmark_runner import PolicyFactory
+from vizier._src.benchmarks.runners.benchmark_runner import SeedDesignerFactory
+from vizier._src.benchmarks.runners.benchmark_runner import SeedPolicyFactory
