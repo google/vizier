@@ -11,3 +11,6 @@ scikit-learn==1.1.2
 
 # For CMA-ES.
 evojax==0.2.15
+
+# For regression utils.
+lightgbm==2.2.3
