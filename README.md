@@ -35,7 +35,7 @@ OSS Vizier's interface consists of three main APIs:
 
 Additionally, it contains [advanced API](https://oss-vizier.readthedocs.io/en/latest/advanced_topics/index.html) for:
 
-* [**Bayesian Optimization via Tensorflow Probability:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#tensorflow-probability) For defining custom Gaussian Process surrogate models for Bayesian Optimization.
+* [**Tensorflow Probability:**](https://oss-vizier.readthedocs.io/en/latest/advanced_topics/index.html#tensorflow-probability) For writing Bayesian Optimization algorithms using Tensorflow Probability and Flax.
 
 Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
 
