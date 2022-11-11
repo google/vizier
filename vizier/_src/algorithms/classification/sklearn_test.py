@@ -20,7 +20,7 @@ from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import ConstantKernel
 from sklearn.gaussian_process.kernels import RBF
 from sklearn.metrics.pairwise import euclidean_distances
-from vizier._src.algorithms.classification import classifiers
+from vizier._src.algorithms.classification import sklearn
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -42,27 +42,26 @@ class SklearnClassifierTest(parameterized.TestCase):
     self.features_test = np.array([[-1.], [6.], [0.], [6.]])
 
   def test_raise_error_invalid_labels(self):
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=gpc_classifier,
-        features=self.features_train,
-        labels=self.labels_train_invalid,
         features_test=self.features_test,
         eval_metric='probability')
+
+    classifier_instance.train(self.features_train, self.labels_train_invalid)
     with self.assertRaises(ValueError):
-      classifier_instance._check_labels_values()
+      classifier_instance._check_labels_values(self.labels_train_invalid)
 
   @parameterized.parameters([
       dict(classifier=svm_classifier, eval_metric='decision'),
       dict(classifier=gpc_classifier, eval_metric='probability')
   ])
   def test_scores_shape(self, classifier, eval_metric):
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
         features_test=self.features_test,
         eval_metric=eval_metric)
-    scores = classifier_instance()
+    classifier_instance.train(self.features_train, self.labels_train)
+    scores = classifier_instance.evaluate(self.features_train)
     self.assertEqual(scores.shape[0], self.features_test.shape[0])
 
   @parameterized.parameters([
@@ -70,13 +69,12 @@ class SklearnClassifierTest(parameterized.TestCase):
       dict(classifier=gpc_classifier, eval_metric='probability', threshold=0.5)
   ])
   def test_labels_shape(self, classifier, eval_metric, threshold):
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
         features_test=self.features_test,
         eval_metric=eval_metric)
-    scores = classifier_instance()
+    classifier_instance.train(self.features_train, self.labels_train)
+    scores = classifier_instance.evaluate(self.features_train)
     labels_test_pred = (scores >= threshold).astype(float)
     labels_test_real = np.array([0, 1, 0, 1])
     self.assertTrue((labels_test_pred == labels_test_real).all())
@@ -85,27 +83,25 @@ class SklearnClassifierTest(parameterized.TestCase):
   def test_raise_error_identical_labels(self, label_val):
     labels_train_identical = np.ones(
         (self.features_train.shape[0],)) * label_val
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=gpc_classifier,
-        features=self.features_train,
-        labels=labels_train_identical,
         features_test=self.features_test,
         eval_metric='probability')
+    classifier_instance.train(self.features_train, labels_train_identical)
     with self.assertRaises(ValueError):
-      classifier_instance._check_labels_values()
+      classifier_instance._check_labels_values(labels_train_identical)
 
   @parameterized.parameters([
       dict(classifier=svm_classifier, eval_metric='decision'),
       dict(classifier=gpc_classifier, eval_metric='probability')
   ])
   def test_scores_range(self, classifier, eval_metric):
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
         features_test=self.features_test,
         eval_metric=eval_metric)
-    scores = classifier_instance()
+    classifier_instance.train(self.features_train, self.labels_train)
+    scores = classifier_instance.evaluate(self.features_train)
     if eval_metric == 'probability':
       self.assertGreaterEqual(scores.min(), 0.)
       self.assertLessEqual(scores.max(), 1.)
@@ -121,13 +117,12 @@ class SklearnClassifierTest(parameterized.TestCase):
       dict(classifier=gpc_classifier, eval_metric='probability', threshold=0.5)
   ])
   def test_prediction_on_train_data(self, classifier, eval_metric, threshold):
-    classifier_instance = classifiers.SklearnClassifier(
+    classifier_instance = sklearn.SklearnClassifier(
         classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
         features_test=self.features_train,
         eval_metric=eval_metric)
-    scores = classifier_instance()
+    classifier_instance.train(self.features_train, self.labels_train)
+    scores = classifier_instance.evaluate(self.features_train)
     labels_test_pred = (scores >= threshold).astype(float)
     self.assertTrue((labels_test_pred == self.labels_train).all())
 

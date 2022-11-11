@@ -12,23 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Binary classifiers for Bayesian Optimization."""
+"""Sklearn Classifier."""
 
-from typing import Optional
+from typing import Optional, Union
 
 import attr
 import chex
 import numpy as np
+from sklearn import svm
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import ConstantKernel
 from sklearn.gaussian_process.kernels import RBF
+
+from vizier._src.algorithms.classification import classifier
 
 # TODO: Replace the sklearn GP classifier with TFP GP classifier
 # once implemented.
 
 
 @attr.define
-class SklearnClassifier:
+class SklearnClassifier(classifier.BinaryClassifier):
   """Class for Sklearn classifiers.
 
   Attributes:
@@ -41,35 +44,33 @@ class SklearnClassifier:
       and `decision` which estimates a non-probability based metric such as the
       margin from the classification boundary.
   """
-  classifier: Optional[GaussianProcessClassifier] = attr.field(
+  classifier: Optional[Union[GaussianProcessClassifier, svm.SVC]] = attr.field(
       kw_only=True,
       default=GaussianProcessClassifier(
           kernel=ConstantKernel(1.) * RBF(length_scale=1.)))
-  features: chex.Array = attr.field(kw_only=True)
-  labels: chex.Array = attr.field(kw_only=True)
   features_test: chex.Array = attr.field(kw_only=True)
   eval_metric: str = attr.field(kw_only=True, default='probability')
 
-  def _check_features_and_labels_shapes(self) -> None:
+  def _check_features_and_labels_shapes(self, features: chex.Array,
+                                        labels: chex.Array) -> None:
     """Checks the compatibility between features and labels shapes."""
-    if np.ndim(self.features) != 2:
+    if np.ndim(features) != 2:
       raise ValueError(f'{self} expects 2d features.')
-    if self.labels.shape[0] != self.features.shape[0]:
-      raise ValueError(f'There are `{self.features.shape[0]}` features and '
-                       f'`{self.labels.shape[0]}` labels which is incompatible')
-    if np.ndim(self.labels) != 1 and self.labels.shape[1] != 1:
+    if labels.shape[0] != features.shape[0]:
+      raise ValueError(f'There are `{features.shape[0]}` features and '
+                       f'`{labels.shape[0]}` labels which is incompatible')
+    if np.ndim(labels) != 1 and labels.shape[1] != 1:
       raise ValueError(
           f'{self} expects 1d labels or labels of shape (num_samples, 1), but'
-          f'was given labels of shape `{self.labels.shape}` .')
-    if self.features_test.shape[1] != self.features.shape[1]:
-      raise ValueError(
-          f'{self} features_test to have `{self.features.shape[1]}`,'
-          f'but it has `{self.features_test.shape[1]}` features.')
+          f'was given labels of shape `{labels.shape}` .')
+    if self.features_test.shape[1] != features.shape[1]:
+      raise ValueError(f'{self} features_test to have `{features.shape[1]}`,'
+                       f'but it has `{self.features_test.shape[1]}` features.')
 
-  def _check_labels_values(self) -> None:
-    if not set(self.labels).issubset({0, 1}):
+  def _check_labels_values(self, labels: chex.Array) -> None:
+    if not set(labels).issubset({0, 1}):
       raise ValueError('Labels should be either zero or one.')
-    if set(self.labels).issubset({0}) or set(self.labels).issubset({1}):
+    if set(labels).issubset({0}) or set(labels).issubset({1}):
       raise ValueError(f'{self} expects at least one sample per class, but all'
                        'training labels contain the same class.')
 
@@ -79,14 +80,15 @@ class SklearnClassifier:
                        f'`probability` or `decision ` but `{self.eval_metric}`'
                        'was given.')
 
-  # TODO: separate the training and evaluation for extra speed up.
-  # Currently, the classifiers we use are reasonably fast.
-  def __call__(self) -> chex.Array:
-    self._check_features_and_labels_shapes()
-    self._check_labels_values()
+  def train(self, features: chex.Array, labels: chex.Array) -> None:
+    self._check_features_and_labels_shapes(features, labels)
+    self._check_labels_values(labels)
     self._check_eval_metric()
-    self.classifier.fit(np.asarray(self.features), np.asarray(self.labels))
+    self.classifier.fit(np.asarray(features), np.asarray(labels))
+
+  def evaluate(self, features: chex.Array) -> chex.Array:
     if self.eval_metric == 'probability':
       return self.classifier.predict_proba(np.asarray(self.features_test))[:, 1]
-    else:
-      return self.classifier.decision_function(np.asarray(self.features_test))
+    elif self.eval_metric == 'decision':
+      # Only works for SVM classifiers.
+      return self.classifier.decision_function(np.asarray(self.features_test))  # pytype:disable=attribute-error

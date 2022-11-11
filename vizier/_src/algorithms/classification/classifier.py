@@ -23,7 +23,7 @@ from sklearn import svm
 
 
 class BinaryClassifier(abc.ABC):
-  """Abstratc class for classification."""
+  """Abstract class for classification."""
 
   @abc.abstractmethod
   def train(self, features: chex.Array, labels: chex.Array) -> None:
