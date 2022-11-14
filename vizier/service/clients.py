@@ -25,11 +25,15 @@ from vizier.service import stubs_util
 from vizier.service import vizier_client
 from vizier.service import vizier_service_pb2_grpc
 
+NO_ENDPOINT = vizier_client.NO_ENDPOINT
 
+
+# TODO: Consider if user should set a one-line flag explicitly to
+# denote local NO_ENDPOINT server will be used.
 @attr.define
 class _EnviromentVariables:
   service_endpoint: str = attr.field(
-      default='UNSET', validator=attr.validators.instance_of(str))
+      default=NO_ENDPOINT, validator=attr.validators.instance_of(str))
 
 
 environment_variables = _EnviromentVariables()

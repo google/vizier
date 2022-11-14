@@ -14,15 +14,19 @@
 
 """Example of a Vizier Client, which can be run on multiple machines.
 
-This is meant to be used after the Vizier Server (see `run_vizier_server.py`)
-has been launched and provided an address to connect to. Example of a launch
-command:
+For distributed cases, this is meant to be used after the Vizier Server (see
+run_vizier_server.py`) has been launched and provided an address to connect to.
+Example of a launch command:
 
 ```
 python run_vizier_client.py --address="localhost:[PORT]"
 ```
 
 where `address` was provided by the server.
+
+If not provided, the Vizier Server will be created locally, which still allows
+parallelization via multithreading, but will not be able to coordinate jobs
+across different machines.
 """
 
 from typing import Sequence
@@ -35,8 +39,8 @@ from vizier.service import clients
 from vizier.service import pyvizier as vz
 
 flags.DEFINE_string(
-    'address', '',
-    "Address of the Vizier Server which will be used by this demo. Should be of the form e.g. 'localhost:6006' if running on the same machine, or `[IP]:[PORT]` if running on a remote machine."
+    'address', clients.NO_ENDPOINT,
+    "Address of the Vizier Server which will be used by this demo. Should be of the form e.g. 'localhost:6006' if running on the same machine, or `[IP]:[PORT]` if running on a remote machine. If unset, a local Vizier server will be created inside this process."
 )
 flags.DEFINE_integer(
     'max_num_iterations', 10,
@@ -68,11 +72,13 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  if not FLAGS.address:
+  if FLAGS.address == clients.NO_ENDPOINT:
     logging.info(
-        'You did not specify the server address. Please see the documentation on the `address` FLAGS.'
+        'You did not specify the server address. The Vizier Service will be created locally.'
     )
-  clients.environment_variables.service_endpoint = FLAGS.address  # Set address.
+  else:
+    # Set address.
+    clients.environment_variables.service_endpoint = FLAGS.address
 
   study_config = vz.StudyConfig()  # Search space, metrics, and algorithm.
   root = study_config.search_space.root

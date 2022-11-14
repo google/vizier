@@ -18,6 +18,7 @@ This client can be used interchangeably with the Cloud Vizier client.
 """
 
 import datetime
+import functools
 import time
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
@@ -29,6 +30,7 @@ from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import stubs_util
 from vizier.service import study_pb2
+from vizier.service import vizier_server
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
 from vizier.utils import attrs_utils
@@ -49,6 +51,21 @@ Metadata = Mapping[Tuple[str, str], Any]
 
 VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
                       vizier_service_pb2_grpc.VizierServiceServicer]
+
+NO_ENDPOINT = 'NO_ENDPOINT'
+
+
+@functools.cache
+def _create_local_vizier_server(
+) -> vizier_service_pb2_grpc.VizierServiceServicer:
+  return vizier_server.VizierService()
+
+
+def _create_vizier_server_or_stub(endpoint: str) -> VizierService:
+  if endpoint == NO_ENDPOINT:
+    logging.info('Using cached local Vizier server.')
+    return _create_local_vizier_server()
+  return stubs_util.create_vizier_server_stub(endpoint)
 
 
 @attr.frozen(init=True)
@@ -84,7 +101,8 @@ class VizierClient:
 
     Args:
       service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
-        'localhost:8998'.
+        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local Vizier
+        server inside the client.
       study_resource_name: An identifier of the study. The full study name will
         be `owners/{owner_id}/studies/{study_id}`.
       client_id: An ID that identifies the worker requesting a `Trial`. Workers
@@ -98,8 +116,8 @@ class VizierClient:
       Vizier client.
     """
     return cls(
-        stubs_util.create_vizier_server_stub(service_endpoint),
-        study_resource_name, client_id)
+        _create_vizier_server_or_stub(service_endpoint), study_resource_name,
+        client_id)
 
   @property
   def _owner_id(self) -> str:
@@ -175,7 +193,8 @@ class VizierClient:
       metric_list: List[Mapping[str, Union[int, float]]],
       trial_id: int,
   ) -> pyvizier.Trial:
-    """Sends intermediate objective value for the trial identified by trial_id."""
+    """Sends intermediate objective value for the trial identified by trial_id.
+    """
     new_metric_list = []
     for metric in metric_list:
       for metric_name in metric:
@@ -216,7 +235,8 @@ class VizierClient:
       trial_id: int,
       final_measurement: Optional[pyvizier.Measurement] = None,
       infeasibility_reason: Optional[str] = None) -> pyvizier.Trial:
-    """Completes the trial, which is infeasible if given a infeasibility_reason."""
+    """Completes the trial, which is infeasible if given a infeasibility_reason.
+    """
     request = vizier_service_pb2.CompleteTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
                                      trial_id).name,
@@ -358,7 +378,8 @@ def create_or_load_study(
 
   Args:
       service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
-        'localhost:8998'.
+        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local Vizier
+        server inside the client.
       owner_id: An owner id.
       client_id: ID for the VizierClient. See class for notes.
       study_id: Each study is uniquely identified by the tuple (owner_id,
@@ -377,7 +398,7 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = stubs_util.create_vizier_server_stub(service_endpoint)
+  vizier_stub = _create_vizier_server_or_stub(service_endpoint)
   study = study_pb2.Study(
       display_name=study_id, study_spec=study_config.to_proto())
   request = vizier_service_pb2.CreateStudyRequest(
