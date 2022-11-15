@@ -12,4 +12,4 @@ Articles
 Videos
 ------------
 
--  `ML News by Yannic Kilcher <https://youtu.be/TOo-HnjjuhU>'__
+-  `ML News by Yannic Kilcher <https://youtu.be/TOo-HnjjuhU>`__
