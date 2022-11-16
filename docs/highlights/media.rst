@@ -12,6 +12,6 @@ Articles
 Videos/Talks
 ------------
 
--  `AutoML Conference Paper Presentation <https://youtu.be/b5hemgM16tM>`__
--  `AutoML AutoRL Tutorial <https://youtu.be/9FDqUsByRiQ>`__
+-  `AutoML Conference 2022 Paper Presentation <https://youtu.be/b5hemgM16tM>`__
+-  `AutoML Conference 2022 AutoRL Tutorial <https://youtu.be/9FDqUsByRiQ>`__
 -  `ML News by Yannic Kilcher <https://youtu.be/TOo-HnjjuhU>`__
