@@ -8,7 +8,7 @@ Codebases
 
 -  `Vertex
    AI <https://github.com/GoogleCloudPlatform/vertex-ai-samples/tree/main/notebooks/official/vizier>`__
--- `PyGlove <https://github.com/google/pyglove>`__
+- `PyGlove <https://github.com/google/pyglove>`__
 -  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `OptFormer <https://github.com/google-research/optformer>`__
 -  `CFU-Playground <https://github.com/google/CFU-Playground>`__
