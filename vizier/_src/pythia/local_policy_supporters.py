@@ -176,7 +176,8 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
                     count: int) -> Sequence[vz.Trial]:
     """Suggest and add new trials."""
     decisions = algorithm.suggest(
-        policy.SuggestRequest(self.study_descriptor(), count))
+        policy.SuggestRequest(
+            study_descriptor=self.study_descriptor(), count=count))
     self.SendMetadata(decisions.metadata)
     return self.AddSuggestions([
         vz.TrialSuggestion(d.parameters, metadata=d.metadata)
