@@ -8,6 +8,8 @@ Articles
 
 -  `Analytics India
    Magazine <https://analyticsindiamag.com/google-vizier-is-now-open-source-and-thats-great-news/>`__
+-  `This Week in AI by Lighting
+   AI <https://lightning.ai/pages/community/steve-jobs-is-resurrected-meta-is-translating-unwritten-languages-and-ai-is-running-for-office/>`__
 
 Videos/Talks
 ------------
