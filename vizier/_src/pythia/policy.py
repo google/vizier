@@ -104,7 +104,7 @@ class EarlyStopRequest:
     max_trial_id: max(trial.id for all existing Trials in the Study)
   """
   _study_descriptor: vz.StudyDescriptor = attr.field(
-      kw_only=True, validator=attr.validators.instance_of(vz.StudyDescriptor))
+      validator=attr.validators.instance_of(vz.StudyDescriptor))
 
   trial_ids: Optional[FrozenSet[int]] = attr.field(
       default=None,
@@ -165,19 +165,16 @@ class SuggestRequest:
   """
   _study_descriptor: vz.StudyDescriptor = attr.field(
       validator=attr.validators.instance_of(vz.StudyDescriptor),
-      on_setattr=attr.setters.frozen,
-      kw_only=True)
+      on_setattr=attr.setters.frozen)
 
   count: int = attr.field(
       validator=[attr.validators.instance_of(int), _is_positive],
-      on_setattr=attr.setters.validate,
-      kw_only=True)
+      on_setattr=attr.setters.validate)
 
   checkpoint_dir: Optional[str] = attr.field(
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(str)),
-      on_setattr=attr.setters.validate,
-      kw_only=True)
+      on_setattr=attr.setters.validate)
 
   @property
   def study_config(self) -> vz.ProblemStatement:
@@ -185,7 +182,7 @@ class SuggestRequest:
 
   @property
   def study_guid(self) -> str:
-    return str(self._study_descriptor.guid)
+    return f'{self._study_descriptor.guid}'
 
   @property
   def max_trial_id(self) -> int:
