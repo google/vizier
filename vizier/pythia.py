@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""These are the externally-useful symbols for Pythia."""
+"""These are the externally-useful symbols for OSS Pythia."""
 # pylint: disable=unused-import
 
 # The API for a Pythia Policy -- i.e. the algorithm that Pythia serves.
