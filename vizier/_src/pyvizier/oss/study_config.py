@@ -32,28 +32,19 @@ import enum
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import attr
+from vizier import pyvizier as vz
 from vizier._src.pyvizier.oss import automated_stopping
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.oss import proto_converters
-from vizier._src.pyvizier.shared import base_study_config
-from vizier._src.pyvizier.shared import common
-from vizier._src.pyvizier.shared import parameter_config
-from vizier._src.pyvizier.shared import trial
 from vizier.service import study_pb2
 
 ################### PyTypes ###################
-ScaleType = parameter_config.ScaleType
-ExternalType = parameter_config.ExternalType
-# A sequence of possible internal parameter values.
-MonotypeParameterSequence = parameter_config.MonotypeParameterSequence
 # Possible types for trial parameter values after cast to external types.
-ParameterValueSequence = Union[trial.ParameterValueTypes, Sequence[int],
+# TODO: Define this in _src/shared/
+ParameterValueSequence = Union[vz.ParameterValueTypes, Sequence[int],
                                Sequence[float], Sequence[str], Sequence[bool]]
 
 ################### Enums ###################
-
-# Values should NEVER be removed from ObjectiveMetricGoal, only added.
-ObjectiveMetricGoal = base_study_config.ObjectiveMetricGoal
 
 
 class Algorithm(enum.Enum):
@@ -89,8 +80,6 @@ class ObservationNoise(enum.Enum):
   HIGH = study_pb2.StudySpec.ObservationNoise.HIGH
 
 
-SearchSpaceSelector = base_study_config.SearchSpaceSelector
-
 ################### Main Class ###################
 #
 # A StudyConfig object can be initialized:
@@ -122,13 +111,13 @@ SearchSpaceSelector = base_study_config.SearchSpaceSelector
 
 
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
-class StudyConfig(base_study_config.ProblemStatement):
+class StudyConfig(vz.ProblemStatement):
   """A builder and wrapper for study_pb2.StudySpec proto."""
 
-  search_space: base_study_config.SearchSpace = attr.field(
+  search_space: vz.SearchSpace = attr.field(
       init=True,
-      factory=base_study_config.SearchSpace,
-      validator=attr.validators.instance_of(base_study_config.SearchSpace),
+      factory=vz.SearchSpace,
+      validator=attr.validators.instance_of(vz.SearchSpace),
       on_setattr=attr.setters.validate)
 
   algorithm: str = attr.field(
@@ -147,11 +136,11 @@ class StudyConfig(base_study_config.ProblemStatement):
       kw_only=True)
 
   # TODO: This name/type combo is confusing.
-  metric_information: base_study_config.MetricsConfig = attr.field(
+  metric_information: vz.MetricsConfig = attr.field(
       init=True,
-      factory=base_study_config.MetricsConfig,
-      converter=base_study_config.MetricsConfig,
-      validator=attr.validators.instance_of(base_study_config.MetricsConfig),
+      factory=vz.MetricsConfig,
+      converter=vz.MetricsConfig,
+      validator=attr.validators.instance_of(vz.MetricsConfig),
       kw_only=True)
 
   observation_noise: ObservationNoise = attr.field(
@@ -171,11 +160,11 @@ class StudyConfig(base_study_config.ProblemStatement):
           on_setattr=attr.setters.validate,
           kw_only=True)
 
-  metadata: common.Metadata = attr.field(
+  metadata: vz.Metadata = attr.field(
       init=True,
       kw_only=True,
-      factory=common.Metadata,
-      validator=attr.validators.instance_of(common.Metadata),
+      factory=vz.Metadata,
+      validator=attr.validators.instance_of(vz.Metadata),
       on_setattr=[attr.setters.convert, attr.setters.validate])
 
   # An internal representation as a StudyConfig proto.
@@ -205,7 +194,7 @@ class StudyConfig(base_study_config.ProblemStatement):
     if proto.HasField('pythia_endpoint'):
       pythia_endpoint = proto.pythia_endpoint
 
-    metric_information = base_study_config.MetricsConfig(
+    metric_information = vz.MetricsConfig(
         sorted([
             proto_converters.MetricInformationConverter.from_proto(m)
             for m in proto.metrics
@@ -219,9 +208,9 @@ class StudyConfig(base_study_config.ProblemStatement):
       automated_stopping_config = automated_stopping.AutomatedStoppingConfig.from_proto(
           getattr(proto, oneof_name))
 
-    metadata = common.Metadata()
+    metadata = vz.Metadata()
     for kv in proto.metadata:
-      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
+      metadata.abs_ns(vz.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value)
 
     return cls(
@@ -266,16 +255,14 @@ class StudyConfig(base_study_config.ProblemStatement):
     return proto
 
   def _trial_to_external_values(
-      self, pytrial: trial.Trial) -> Dict[str, Union[float, int, str, bool]]:
+      self, pytrial: vz.Trial) -> Dict[str, Union[float, int, str, bool]]:
     """Returns the trial paremeter values cast to external types."""
     parameter_values: Dict[str, Union[float, int, str]] = {}
     external_values: Dict[str, Union[float, int, str, bool]] = {}
     # parameter_configs is a list of Tuple[parent_name, ParameterConfig].
-    parameter_configs: List[Tuple[Optional[str],
-                                  parameter_config.ParameterConfig]] = [
-                                      (None, p)
-                                      for p in self.search_space.parameters
-                                  ]
+    parameter_configs: List[Tuple[Optional[str], vz.ParameterConfig]] = [
+        (None, p) for p in self.search_space.parameters
+    ]
     remaining_parameters = copy.deepcopy(pytrial.parameters)
     # Traverse the conditional tree using a BFS.
     while parameter_configs and remaining_parameters:
@@ -321,7 +308,7 @@ class StudyConfig(base_study_config.ProblemStatement):
     return self._pytrial_parameters(pytrial)
 
   def _pytrial_parameters(
-      self, pytrial: trial.Trial) -> Dict[str, ParameterValueSequence]:
+      self, pytrial: vz.Trial) -> Dict[str, ParameterValueSequence]:
     """Returns the trial values, cast to external types, if they exist.
 
     Args:
@@ -347,7 +334,7 @@ class StudyConfig(base_study_config.ProblemStatement):
     # multi_dim_params: Dict[str, List[Tuple[int, ParameterValueSequence]]]
     multi_dim_params = collections.defaultdict(list)
     for name in trial_external_values:
-      base_index = SearchSpaceSelector.parse_multi_dimensional_parameter_name(
+      base_index = vz.SearchSpaceSelector.parse_multi_dimensional_parameter_name(
           name)
       if base_index is None:
         trial_final_values[name] = trial_external_values[name]
@@ -384,7 +371,7 @@ class StudyConfig(base_study_config.ProblemStatement):
         pytrial, include_all_metrics=include_all_metrics)
 
   def _pytrial_metrics(self,
-                       pytrial: trial.Trial,
+                       pytrial: vz.Trial,
                        *,
                        include_all_metrics=False) -> Dict[str, float]:
     """Returns the trial's final measurement metric values.
