@@ -32,16 +32,6 @@ class TemporaryPythiaError(PythiaError):
   """
 
 
-class CachedPolicyIsStaleError(PythiaError):
-  """Raise this if the cached Policy instance is too stale.
-
-  Raised by Policy code.  Because Policy instances are cached,
-  they could potentially become stale.  If so, code should raise this,
-  and the computation will be restarted with a freshly created Policy
-  instance.
-  """
-
-
 class InactivateStudyError(PythiaError):
   """Pythia cannot handle this Study as configured; inactivate it.
 
