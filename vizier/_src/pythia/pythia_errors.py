@@ -60,11 +60,6 @@ class LoadTooLargeError(PythiaError):
   """
 
 
-class CancelledByVizierError(PythiaError):
-  """Indicates that Vizier cancelled the interaction."""
-  pass
-
-
 class CancelComputeError(Exception):
   """Raised by the Pythia server to kill Policy computations.
 

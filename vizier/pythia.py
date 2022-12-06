@@ -26,7 +26,6 @@ from vizier._src.pythia.policy import SuggestRequest
 from vizier._src.pythia.policy_supporter import PolicySupporter
 from vizier._src.pythia.pythia_errors import CachedPolicyIsStaleError
 from vizier._src.pythia.pythia_errors import CancelComputeError
-from vizier._src.pythia.pythia_errors import CancelledByVizierError
 from vizier._src.pythia.pythia_errors import InactivateStudyError
 from vizier._src.pythia.pythia_errors import LoadTooLargeError
 from vizier._src.pythia.pythia_errors import PythiaError
