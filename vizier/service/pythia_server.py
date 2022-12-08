@@ -14,7 +14,7 @@
 
 """Separate Pythia service for handling algorithmic logic."""
 # pylint:disable=g-import-not-at-top
-from typing import Optional, Union
+from typing import Optional, Protocol, Union
 from absl import logging
 import grpc
 
@@ -28,8 +28,17 @@ from vizier.service import stubs_util
 from vizier.service import vizier_service_pb2_grpc
 
 
-def policy_creator(problem_statement: vz.ProblemStatement, algorithm: str,
-                   policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
+class PolicyFactory(Protocol):
+  """Protocol (PEP-544) for a Policy Factory."""
+
+  def __call__(self, problem_statement: vz.ProblemStatement, algorithm: str,
+               policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
+    """Creates a Pythia Policy."""
+
+
+def default_policy_factory(
+    problem_statement: vz.ProblemStatement, algorithm: str,
+    policy_supporter: pythia.PolicySupporter) -> pythia.Policy:
   """Creates a policy."""
   if algorithm in ('ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
     from vizier._src.algorithms.policies import random_policy
@@ -74,15 +83,21 @@ VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
 class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
   """Implements the GRPC functions outlined in pythia_service.proto."""
 
-  def __init__(self, vizier_service: Optional[VizierService] = None):
+  def __init__(self,
+               vizier_service: Optional[VizierService] = None,
+               policy_factory: PolicyFactory = default_policy_factory):
     """Initialization.
 
     Args:
       vizier_service: Can be either an actual VizierService object or a stub. An
         actual VizierService should be passed only for local testing/local
         development.
+      policy_factory: Factory for creating policies. Defaulted to OSS
+        Vizier-specific policies, but allows use of external package (e.g.
+        PyGlove) poliices.
     """
     self._vizier_service = vizier_service
+    self._policy_factory = policy_factory
 
   def connect_to_vizier(self, vizier_service_endpoint: str) -> None:
     """Only needs to be called if VizierService wasn't passed in init."""
@@ -101,8 +116,8 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
     study_config = vz.SuggestConverter.from_request_proto(request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
         request.study_descriptor.guid, self._vizier_service)
-    pythia_policy = policy_creator(study_config, request.algorithm,
-                                   policy_supporter)
+    pythia_policy = self._policy_factory(study_config, request.algorithm,
+                                         policy_supporter)
 
     # Perform algorithmic computation.
     suggest_request = vz.SuggestConverter.from_request_proto(request)
@@ -129,8 +144,8 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
         request).study_config
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
         request.study_descriptor.guid, self._vizier_service)
-    pythia_policy = policy_creator(study_config, request.algorithm,
-                                   policy_supporter)
+    pythia_policy = self._policy_factory(study_config, request.algorithm,
+                                         policy_supporter)
 
     # Perform algorithmic computation.
     early_stop_request = vz.EarlyStopConverter.from_request_proto(request)
