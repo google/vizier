@@ -38,6 +38,8 @@ class DefaultVizierService:
   _host: str = attr.field(init=True, default='localhost')
   _database_url: str = attr.field(
       init=True, default=vizier_server.SQL_MEMORY_URL, kw_only=True)
+  _policy_factory: pythia_server.PolicyFactory = attr.field(
+      init=True, default=pythia_server.default_policy_factory, kw_only=True)
   _early_stop_recycle_period: datetime.timedelta = attr.field(
       init=False, default=datetime.timedelta(seconds=0.1))
   _port: int = attr.field(init=False, factory=portpicker.pick_unused_port)
@@ -57,7 +59,8 @@ class DefaultVizierService:
     # Setup Vizier server.
     self._servicer = vizier_server.VizierService(
         database_url=self._database_url,
-        early_stop_recycle_period=self._early_stop_recycle_period)
+        early_stop_recycle_period=self._early_stop_recycle_period,
+        policy_factory=self._policy_factory)
     self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=30))
     vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
         self._servicer, self._server)
@@ -86,7 +89,8 @@ class DistributedPythiaVizierService(DefaultVizierService):
   def __attrs_post_init__(self):
     super().__attrs_post_init__()
     # Setup Pythia server.
-    self._pythia_servicer = pythia_server.PythiaService()
+    self._pythia_servicer = pythia_server.PythiaService(
+        policy_factory=self._policy_factory)
     # `max_workers=1` is used since we can only run one Pythia thread at a time.
     self._pythia_server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     pythia_service_pb2_grpc.add_PythiaServiceServicer_to_server(

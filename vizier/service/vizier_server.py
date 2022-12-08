@@ -67,7 +67,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self,
       database_url: Optional[str] = SQL_MEMORY_URL,
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
-          seconds=60)):
+          seconds=60),
+      policy_factory: pythia_server.PolicyFactory = pythia_server
+      .default_policy_factory):
     """Initializes the service.
 
     Creates the datastore and relevant locks for multhreading. Note that the
@@ -79,10 +81,11 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
+      policy_factory: Protocol/function for creating Pythia policies.
     """
     # By default, uses a local PythiaService instance.
     self._pythia_service: PythiaService = pythia_server.PythiaService(
-        vizier_service=self)
+        vizier_service=self, policy_factory=policy_factory)
 
     if database_url is None:
       self.datastore = datastore.NestedDictRAMDataStore()
