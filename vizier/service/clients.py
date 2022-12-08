@@ -21,11 +21,14 @@ from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optio
 import attr
 from vizier.client import client_abc
 from vizier.service import pyvizier as vz
+from vizier.service import resources
 from vizier.service import stubs_util
 from vizier.service import vizier_client
 from vizier.service import vizier_service_pb2_grpc
 
+# Redeclared so users do not have to also import client_abc and vizier_client.
 NO_ENDPOINT = vizier_client.NO_ENDPOINT
+ResourceNotFoundError = client_abc.ResourceNotFoundError
 
 
 # TODO: Consider if user should set a one-line flag explicitly to
@@ -190,7 +193,12 @@ class Study(client_abc.StudyInterface):
     return TrialIterable(lambda: trials, self._client)
 
   def materialize_problem_statement(self) -> vz.ProblemStatement:
+    """Returns a cross-platform compatible minimal StudyConfig."""
     return self._client.get_study_config().to_problem()
+
+  def materialize_study_config(self) -> vz.StudyConfig:
+    """Returns a fully specific StudyConfig."""
+    return self._client.get_study_config(self.resource_name)
 
   def set_state(self, state: vz.StudyState) -> None:
     # TODO: Add support for study states.
@@ -209,6 +217,25 @@ class Study(client_abc.StudyInterface):
     except Exception as err:
       raise client_abc.ResourceNotFoundError() from err
     return Study(client)
+
+  @classmethod
+  def from_owner_and_id(cls: Type['Study'], owner: str,
+                        study_id: str) -> 'Study':
+    """Create study from StudyConfig.
+
+    Args:
+      owner: Owner of the study.
+      study_id: Unique identifier within the same owner.
+
+    Returns:
+      Study.
+
+    Raises:
+      ResourceNotFoundError
+    """
+    study_resource_name = resources.StudyResource(
+        owner_id=owner, study_id=study_id).name
+    return cls.from_resource_name(study_resource_name)
 
   @classmethod
   def from_study_config(cls, config: vz.StudyConfig, /, *, owner: str,

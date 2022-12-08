@@ -48,6 +48,13 @@ class VizierClientTest(client_abc_testing.TestCase):
         config, owner='owner', study_id=study_id)
     return study
 
+  def create_study2(self, problem: vz.ProblemStatement,
+                    study_id: str) -> clients.Study:
+    config = vz.StudyConfig.from_problem(problem)
+    config.algorithm = vz.Algorithm.RANDOM_SEARCH
+    study = clients.Study.from_owner_and_id(owner='owner', study_id=study_id)
+    return study
+
   def test_e2e_tuning(self):
     self.assertPassesE2ETuning()
 
