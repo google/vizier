@@ -86,7 +86,7 @@ setup(
         'algorithms': _parse_requirements('requirements-algorithms.txt'),
         'benchmarks': _parse_requirements('requirements-benchmarks.txt')
     },
-    python_requires='>=3.9',
+    python_requires='>=3.7',
     include_package_data=True,
     zip_safe=False,
     cmdclass={'build': BuildCmd},
