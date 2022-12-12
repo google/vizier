@@ -81,7 +81,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
-      policy_factory: Protocol/function for creating Pythia policies.
+      policy_factory: Protocol/function, only passed when using a local
+        PythiaService instance.
     """
     # By default, uses a local PythiaService instance.
     self._pythia_service: PythiaService = pythia_server.PythiaService(
