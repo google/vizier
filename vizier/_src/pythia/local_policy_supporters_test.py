@@ -41,7 +41,7 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     # The 10 trials are assigned ids 1 through 10 automatically.
     self.assertSequenceEqual([t.id for t in trials], range(1, 11))
 
-  def test_update_metadata(self):
+  def test_push_metadata(self):
     runner = _runner_with_10trials()
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
 
@@ -51,7 +51,7 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     # Metadata update is not immediate.
     self.assertEmpty(runner.GetStudyConfig(study_guid=_GUID).metadata.ns('ns'))
     self.assertEmpty(trial1.metadata)
-    runner.SendMetadata(mu)
+    runner._UpdateMetadata(mu)
 
     self.assertEqual(
         runner.GetStudyConfig(study_guid=_GUID).metadata.ns('ns').get('key'),

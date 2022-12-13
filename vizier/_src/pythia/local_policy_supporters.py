@@ -88,11 +88,10 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
         t for t in self._trials[min_trial_id - 1:max_trial_id]
         if (status_matches is None or t.status == status_matches)
     ]
-    if trial_ids is None:
-      return trials
-    else:
+    if trial_ids is not None:
       trial_ids = set(trial_ids)
-      return [t for t in trials if t.id in trial_ids]
+      trials = [t for t in trials if t.id in trial_ids]
+    return trials
 
   def CheckCancelled(self, note: Optional[str] = None) -> None:
     pass
@@ -100,7 +99,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   def TimeRemaining(self) -> datetime.timedelta:
     return datetime.timedelta(seconds=100.0)
 
-  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
+  def _UpdateMetadata(self, delta: vz.MetadataDelta) -> None:
     """Assign metadata to trials."""
     for ns in delta.on_study.namespaces():
       self.study_config.metadata.abs_ns(ns).update(delta.on_study.abs_ns(ns))
@@ -112,7 +111,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
         self._trials[tid - 1].metadata.abs_ns(ns).update(metadatum.abs_ns(ns))
 
   # TODO: Return `count` trials for multi-objectives, when
-  # `count` exceeds the size of the pareto frontier.
+  # `count` exceeds the size of the Pareto frontier.
   def GetBestTrials(self, *, count: Optional[int] = None) -> List[vz.Trial]:
     """Returns optimal trials.
 
@@ -122,12 +121,12 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
            arbitrarily.
 
     Multi-objective study:
-      * If `count` is unset, returns all pareto optimal trials.
-      * If `count` is set, returns up to `count` of pareto optimal trials that
+      * If `count` is unset, returns all Pareto optimal trials.
+      * If `count` is set, returns up to `count` of Pareto optimal trials that
           are arbitrarily selected.
 
     Args:
-      count: If unset, returns pareto optimal trials only. If set, returns the
+      count: If unset, returns Pareto optimal trials only. If set, returns the
         top "count" trials.
 
     Returns:
@@ -178,7 +177,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     decisions = algorithm.suggest(
         policy.SuggestRequest(
             study_descriptor=self.study_descriptor(), count=count))
-    self.SendMetadata(decisions.metadata)
+    self._UpdateMetadata(decisions.metadata)
     return self.AddSuggestions([
         vz.TrialSuggestion(d.parameters, metadata=d.metadata)
         for d in decisions.suggestions

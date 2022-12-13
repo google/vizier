@@ -21,7 +21,6 @@ from typing import Iterable, List, Optional, Union
 
 from vizier import pythia
 from vizier import pyvizier as vz
-from vizier.service import pythia_util
 from vizier.service import pyvizier
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
@@ -89,15 +88,3 @@ class ServicePolicySupporter(pythia.PolicySupporter):
   def TimeRemaining(self) -> datetime.timedelta:
     """The time remaining to compute a result."""
     return datetime.timedelta.max  # RPCs don't have timeouts in OSS.
-
-  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
-    """Updates the metadata."""
-    self.CheckCancelled('UpdateMetadata entry')
-    request = pyvizier.metadata_util.to_request_proto(self._study_guid, delta)
-    waiter = pythia_util.ResponseWaiter()
-    # In a real server, this happens in another thread:
-    response = self._vizier_service.UpdateMetadata(request)
-    waiter.Report(response)
-    # Wait for Vizier to reply with a UpdateMetadataResponse packet.
-    waiter.WaitForResponse()
-    self.CheckCancelled('UpdateMetadata exit')

@@ -24,7 +24,10 @@ from vizier import pyvizier as vz
 class PolicySupporter(abc.ABC):
   """Used by Policy instances to communicate with Vizier."""
 
-  # TODO: Change to GetStudyDescriptor.
+  # TODO: Change to GetStudyDescriptor (Maybe: Note that
+  #   StudyDescriptor includes $max_trial_id, so it causes many more database
+  #   collisions than ProblemStatement, especially if there are lots of
+  #   workers.)
   @abc.abstractmethod
   def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
     """Requests a StudyConfig from Vizier.
@@ -70,10 +73,11 @@ class PolicySupporter(abc.ABC):
       status_matches: If not None, filters for Trials where
         Trial.status==status_matches.  The default passes all types of Trial.
       include_intermediate_measurements: If True (default), the returned Trials
-        must have all measurements. Note that the final Measurement is always
-        included for COMPLETED Trials. If False, PolicySupporter _may_ leave
-        `measurements` field empty in the returned Trials in order to optimize
-        speed, but it is not required to do so.
+        should include all available intermediate measurements.  If False,
+        PolicySupporter _may_ leave the `measurements` field empty in the
+        returned Trials (e.g. to optimize speed).  (Note that the
+        final_measurement field should always be included when available,
+        i.e. for COMPLETED Trials.)
 
     Returns:
       Trials obtained from Vizier.
@@ -116,12 +120,3 @@ class PolicySupporter(abc.ABC):
     InactivateStudyError (if not).
     """
     return datetime.timedelta(hours=1.0)
-
-  def SendMetadata(self, delta: vz.MetadataDelta) -> None:
-    """Updates the Study's metadata in Vizier's database.
-
-    Args:
-      delta: Metadata to be uploaded to the Vizier database.
-    """
-    raise NotImplementedError(
-        f"Metadata update is not supported in {type(self)}")
