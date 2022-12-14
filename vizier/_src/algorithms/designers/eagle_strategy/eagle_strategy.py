@@ -163,7 +163,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     Args:
       metadata: Metadata
     """
-    if not metadata.namespaces():
+    if metadata.ns('eagle').get('serialization_version', default=None) is None:
       # First time the designer is called, so the namespace doesn't exist yet.
       logging.info(
           'Eagle designer was called for the first time. No state was recovered.'
@@ -181,7 +181,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
             self._utils, firefly_pool)
       except Exception as e:
         raise serializable.HarmlessDecodeError(
-            "Coulnd't load firefly pool from metadata.") from e
+            "Couldn't load firefly pool from metadata.") from e
       logging.info(
           'Eagle designer restored state from timestamp %s. Firefly pool now '
           'contains %s fireflies.',
