@@ -19,14 +19,21 @@ from vizier import pyvizier
 from vizier._src.benchmarks.experimenters import experimenter_factory
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
-class ExperimenterFactoryTest(absltest.TestCase):
+class ExperimenterFactoryTest(parameterized.TestCase):
 
-  def testBBOBFactory(self):
+  @parameterized.parameters(
+      {'bbob_name': 'Sphere'},
+      {'bbob_name': 'LinearSlope'},
+      {'bbob_name': 'RosenbrockRotated'},
+      {'bbob_name': 'SchaffersF7IllConditioned'},
+  )
+  def testBBOBFactory(self, bbob_name):
     dim = 4
     bbob_factory = experimenter_factory.BBOBExperimenterFactory(
-        name='sphere', dim=dim)
+        name=bbob_name, dim=dim)
     exptr = bbob_factory()
 
     parameters = exptr.problem_statement().search_space.parameters

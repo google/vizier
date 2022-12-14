@@ -36,15 +36,14 @@ class ExperimenterFactory(Protocol):
 class BBOBExperimenterFactory(ExperimenterFactory):
   """Factory for a BBOB function."""
 
-  # Should be a BBOB function name in bbob.py.
+  # Should be a BBOB function name in bbob.py (name should match exactly).
   name: str = attr.field(validator=attr.validators.instance_of(str))
   dim: int = attr.field(
       validator=[attr.validators.instance_of(int),
                  attr.validators.gt(0)])
 
   def __call__(self) -> experimenter.Experimenter:
-    name = self.name.lower().capitalize()
-    bbob_function = getattr(bbob, name, None)
+    bbob_function = getattr(bbob, self.name, None)
     if bbob_function is None:
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')
     return numpy_experimenter.NumpyExperimenter(
