@@ -14,6 +14,7 @@
 
 """Json utils."""
 
+from collections.abc import Mapping
 import json
 from typing import Any
 
@@ -23,16 +24,21 @@ import numpy as np
 class NumpyEncoder(json.JSONEncoder):
   """Example: json.dumps(np.array(...), cls=NumpyEncoder)."""
 
-  def default(self, obj: Any) -> Any:
-    if isinstance(obj, np.ndarray):
+  def default(self, o: Any) -> Any:
+    if not isinstance(o, dict) and isinstance(o, Mapping):
+      # Handles FrozenDict and any dict-like structures.
+      return dict(o)
+    elif set(dir(o)).issuperset(set(['tolist', 'dtype', 'shape'])):
+      # Any numpy.array-like objects.
       # Shape must be dumped and restored, in case that the array has shape
       # that includes 0-sized dimensions.
       return {
-          'dtype': np.dtype(obj.dtype).name,
-          'value': obj.tolist(),
-          'shape': obj.shape
+          'dtype': np.dtype(o.dtype).name,
+          'value': o.tolist(),
+          'shape': o.shape
       }
-    return json.JSONEncoder.default(self, obj)
+    else:
+      return o
 
 
 def numpy_hook(obj: Any) -> Any:
