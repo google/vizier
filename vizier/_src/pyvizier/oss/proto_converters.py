@@ -366,20 +366,16 @@ class SearchSpaceConverter:
   @classmethod
   def from_proto(cls, proto: study_pb2.StudySpec) -> vz.SearchSpace:
     """Extracts a SearchSpace object from a StudyConfig proto."""
-    parameter_configs = []
+    space = vz.SearchSpace()
     for pc in proto.parameters:
-      parameter_configs.append(ParameterConfigConverter.from_proto(pc))
-    # TODO: Remove _factory implementation.
-    return vz.SearchSpace._factory(  # pylint:disable=protected-access
-        parameter_configs=parameter_configs)
+      space.add(ParameterConfigConverter.from_proto(pc))
+    return space
 
   @classmethod
   def parameter_protos(
       cls, obj: vz.SearchSpace) -> List[study_pb2.StudySpec.ParameterSpec]:
     """Returns the search space as a List of ParameterConfig protos."""
-    return [
-        ParameterConfigConverter.to_proto(pc) for pc in obj._parameter_configs  # pylint:disable=protected-access
-    ]
+    return [ParameterConfigConverter.to_proto(pc) for pc in obj.parameters]
 
 
 class MetricsConfigConverter:
@@ -395,9 +391,7 @@ class MetricsConfigConverter:
   @classmethod
   def to_protos(cls,
                 obj: vz.MetricsConfig) -> List[study_pb2.StudySpec.MetricSpec]:
-    return [
-        MetricInformationConverter.to_proto(metric) for metric in obj._metrics  # pylint:disable=protected-access
-    ]
+    return [MetricInformationConverter.to_proto(metric) for metric in obj]
 
 
 def _to_pyvizier_trial_status(

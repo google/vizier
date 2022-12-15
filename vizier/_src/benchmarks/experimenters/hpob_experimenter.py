@@ -235,31 +235,31 @@ class _HPOBVizierConverter:
           f'data shape {data.X.shape} is not compatible with descriptor, which'
           f'defines {len(descriptor.order)} columns!')
 
-    pcs = self.problem.search_space._parameter_configs
+    space = self.problem.search_space
     for variable in descriptor.variables.values():
       if variable.is_categorical:
         if self._categorical_policy == CategoricalPolicy.AS_CATEGORICAL:
-          pcs.append(variable.as_parameter_config())
+          space.add(variable.as_parameter_config())
         elif self._categorical_policy == CategoricalPolicy.AS_CONTINUOUS:
           for category in variable.categories:
-            pcs.append(
+            space.add(
                 vz.ParameterConfig.factory(
                     name=f'{variable.name}.ohe._{category}', bounds=(0., 1.)))
         else:
           raise ValueError(f'Unknown policy: {self._categorical_policy}')
       elif variable.optional:
-        pcs.append(variable.as_parameter_config())
+        space.add(variable.as_parameter_config())
         # For optional parameters, handle the na dimension.
         if self._na_policy == NaPolicy.DROP:
           pass
         elif self._na_policy == NaPolicy.DISCRETE:
           # Optional variable.
-          pcs.append(
+          space.add(
               vz.ParameterConfig.factory(
                   f'{variable.name}.na', feasible_values=(0., 1.)))
         elif self._na_policy == NaPolicy.CONTINUOUS:
           # Optional variable.
-          pcs.append(
+          space.add(
               vz.ParameterConfig.factory(
                   f'{variable.name}.na', bounds=(0., 1.)))
         else:
@@ -269,13 +269,13 @@ class _HPOBVizierConverter:
         # TODO: Clean up with PEP 572 once python 3.8 arrives.
         uniq = np.unique(data.X[:, descriptor.column_index(variable.name)])
         if uniq.size < 10:
-          pcs.append(
+          space.add(
               variable.as_discrete_parameter_config(
                   list(variable.unscale(uniq))))
         else:
-          pcs.append(variable.as_parameter_config())
+          space.add(variable.as_parameter_config())
       else:
-        pcs.append(variable.as_parameter_config())
+        space.add(variable.as_parameter_config())
 
   def to_trials(self, dataset: _Dataset) -> List[vz.Trial]:
     """Convert HPOB data to Vizier trials."""

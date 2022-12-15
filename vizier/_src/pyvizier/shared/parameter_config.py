@@ -15,15 +15,16 @@
 """ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
 
 import collections
+from collections.abc import Sized, Collection, Set as AbstractSet
 import copy
 import enum
+import json
 import math
 import re
-from typing import Iterable, Generator, List, Optional, Sequence, Tuple, Union, overload
+from typing import Generator, Iterator, List, Optional, Sequence, Tuple, Union, overload
 
 from absl import logging
 import attr
-
 from vizier._src.pyvizier.shared import trial
 
 ExternalType = trial.ExternalType
@@ -55,6 +56,7 @@ class ScaleType(enum.Enum):
 
 
 # A sequence of possible internal parameter values.
+ParameterValueTypes = Union[str, int, float, bool]
 MonotypeParameterSequence = Union[Sequence[Union[int, float]], Sequence[str]]
 MonotypeParameterList = Union[List[Union[int, float]], List[str]]
 
@@ -160,7 +162,7 @@ class FidelityConfig:
 ########################
 
 
-@attr.s(auto_attribs=True, frozen=True, init=True, slots=True)
+@attr.s(auto_attribs=True, frozen=False, init=True, slots=True, eq=True)
 class ParameterConfig:
   """A Vizier ParameterConfig.
 
@@ -206,18 +208,18 @@ class ParameterConfig:
           attr.validators.instance_of(ExternalType)),
       repr=lambda v: v.name if v is not None else 'None',
       kw_only=True)
-  # Parent values for this ParameterConfig. If set, then this is a child
-  # ParameterConfig.
-  _matching_parent_values: Optional[MonotypeParameterList] = attr.ib(
+
+  # TODO: Make this a defaultdict and public.
+  _children: dict[Union[float, int, str, bool], 'SearchSpace'] = attr.ib(
       init=True,
-      validator=attr.validators.optional(
-          attr.validators.deep_iterable(
-              member_validator=attr.validators.instance_of((int, float, str)),
-              iterable_validator=attr.validators.instance_of((list, tuple)))),
-      kw_only=True)
-  # Children ParameterConfig. If set, then this is a parent ParameterConfig.
-  _child_parameter_configs: Optional[List['ParameterConfig']] = attr.ib(
-      init=True, kw_only=True)
+      factory=dict,
+      # For equality checks, drop any empty search spaces.
+      eq=lambda d: {k: v for k, v in d.items() if v.parameters},
+      repr=lambda d: json.dumps(d, indent=2, default=repr))
+
+  # TODO: Deprecate this field.
+  _matching_parent_values: MonotypeParameterSequence = attr.ib(
+      init=True, default=tuple(), kw_only=True, eq=False)
 
   # Experimental feature.
   fidelity_config: Optional[FidelityConfig] = attr.ib(
@@ -320,11 +322,9 @@ class ParameterConfig:
         scale_type=scale_type,
         default_value=default_value,
         fidelity_config=fidelity_config,
-        external_type=external_type,
-        matching_parent_values=None,
-        child_parameter_configs=None)
+        external_type=external_type)
     if children:
-      pc = pc.add_children(children)
+      pc = pc._add_children(children)
     return pc
 
   @property
@@ -352,22 +352,37 @@ class ParameterConfig:
     return self._bounds
 
   @property
+  def _child_parameter_configs(self) -> Iterator['ParameterConfig']:
+    for subspace in self._children.values():
+      for param in subspace.parameters:
+        yield param
+
+  # TODO: TO BE DEPRECATED. If we want to continue supporting multiple
+  # matching parent values, expose "def compact_subspaces(self)" that returns
+  # Iterator[tuple[MonotypeValueSequence, ParameterConfig]]
+  @property
   def matching_parent_values(self) -> MonotypeParameterList:
     """Returns the matching parent values, if this is a child parameter."""
     if not self._matching_parent_values:
       return []
-    return copy.copy(self._matching_parent_values)
+    return list(self._matching_parent_values)
 
+  # TODO: TO BE DEPRECATED. Replace with
+  # def subspaces() -> Iterator[Value, 'SearchSpace'] which lets users
+  # iterate over all search spaces.
   @property
   def child_parameter_configs(self) -> List['ParameterConfig']:
-    if not self._child_parameter_configs:
-      return []
-    return copy.deepcopy(self._child_parameter_configs)
+    return copy.deepcopy(list(self._child_parameter_configs))
 
+  # TODO: TO BE DEPRECATED.
   def _del_child_parameter_configs(self):
     """Deletes the current child ParameterConfigs."""
-    object.__setattr__(self, '_child_parameter_configs', None)
+    self._children.clear()
 
+  # TODO: Equivalent code should look like:
+  # copied = copy.deepcopy(config)
+  # for feasible_value in copied.feasible_values():
+  #   copied.subspace(feasible_value).clear()
   @property
   def clone_without_children(self) -> 'ParameterConfig':
     """Returns the clone of self, without child_parameter_configs."""
@@ -390,26 +405,8 @@ class ParameterConfig:
     """Returns the default value, or None if not set."""
     return self._default_value
 
-  def _set_matching_parent_values(self,
-                                  parent_values: MonotypeParameterSequence):
-    """Sets the given matching parent values in this object, without validation.
-
-    Args:
-      parent_values: Parent values for which this child ParameterConfig is
-        active. Existing values will be replaced.
-    """
-    object.__setattr__(self, '_matching_parent_values', list(parent_values))
-
-  def _set_child_parameter_configs(self, children: List['ParameterConfig']):
-    """Sets the given child ParameterConfigs in this object, without validation.
-
-    Args:
-      children: The children to set in this object. Existing children will be
-        replaced.
-    """
-    object.__setattr__(self, '_child_parameter_configs', children)
-
-  def add_children(
+  # TODO: TO BE DEPRECATED. Used by factory() only.
+  def _add_children(
       self, new_children: Sequence[Tuple[MonotypeParameterSequence,
                                          'ParameterConfig']]
   ) -> 'ParameterConfig':
@@ -437,36 +434,11 @@ class ParameterConfig:
                          '(Sequence of valid parent values,  ParameterConfig),'
                          ' given: {}'.format(child_pair))
 
-    logging.debug('add_children: new_children=%s', new_children)
-    child_parameter_configs = parent.child_parameter_configs
+    logging.debug('_add_children: new_children=%s', new_children)
     for unsorted_parent_values, child in new_children:
       parent_values = sorted(unsorted_parent_values)
-      child_copy = copy.deepcopy(child)
-      if parent.type == ParameterType.DISCRETE:
-        if not all(isinstance(v, (float, int)) for v in parent_values):
-          raise TypeError('Parent is DISCRETE-typed, but a child is specifying '
-                          'one or more non float/int parent values: child={} '
-                          ', parent_values={}'.format(child, parent_values))
-        child_copy._set_matching_parent_values(parent_values)  # pylint: disable='protected-access'
-      elif parent.type == ParameterType.CATEGORICAL:
-        if not all(isinstance(v, str) for v in parent_values):
-          raise TypeError('Parent is CATEGORICAL-typed, but a child is '
-                          'specifying one or more non float/int parent values: '
-                          'child={}, parent_values={}'.format(
-                              child, parent_values))
-        child_copy._set_matching_parent_values(parent_values)  # pylint: disable='protected-access'
-      elif parent.type == ParameterType.INTEGER:
-        # Allow {int, float}->float conversion but block str->float conversion.
-        int_values = [int(v) for v in parent_values]
-        if int_values != parent_values:
-          raise TypeError(
-              'Parent is INTEGER-typed, but a child is specifying one or more '
-              'non-integral parent values: {}'.format(parent_values))
-        child_copy._set_matching_parent_values(int_values)  # pylint: disable='protected-access'
-      else:
-        raise ValueError('DOUBLE type cannot have child parameters')
-      child_parameter_configs.extend([child_copy])
-    parent._set_child_parameter_configs(child_parameter_configs)  # pylint: disable='protected-access'
+      for parent_value in parent_values:
+        parent.subspace(parent_value).add(copy.deepcopy(child))
     return parent
 
   def continuify(self) -> 'ParameterConfig':
@@ -476,7 +448,7 @@ class ParameterConfig:
     elif not ParameterType.is_numeric(self.type):
       raise ValueError(
           'Cannot convert a non-numeric parameter to DOUBLE: {}'.format(self))
-    elif self._child_parameter_configs:
+    elif list(self._child_parameter_configs):
       raise ValueError(
           'Cannot convert a parent parameter to DOUBLE: {}'.format(self))
 
@@ -566,6 +538,7 @@ class ParameterConfig:
     for child in self.child_parameter_configs:
       yield from child.traverse(show_children)
 
+  # TODO: Rename to `validate_value`
   def contains(
       self, value: Union[trial.ParameterValueTypes,
                          trial.ParameterValue]) -> bool:
@@ -598,57 +571,65 @@ class ParameterConfig:
     else:
       return len(self.feasible_values)
 
-
-@attr.s(frozen=True, init=True, slots=True, kw_only=True)
-class _PathSegment:
-  """Selection of a parameter name and one of its values."""
-  # A ParameterConfig name.
-  name: str = attr.ib(
-      init=True, validator=attr.validators.instance_of(str), kw_only=True)
-
-  # A ParameterConfig value.
-  value: Union[int, float, str] = attr.ib(
-      init=True,
-      validator=attr.validators.instance_of((int, float, str)),
-      kw_only=True)
-
-
-class _PathSelector(Sequence[_PathSegment]):
-  """Immutable sequence of path segments."""
-
-  def __init__(self, iterable: Iterable[_PathSegment] = tuple()):
-    self._paths = tuple(iterable)
-
-  @overload
-  def __getitem__(self, s: slice) -> '_PathSelector':
-    ...
-
-  @overload
-  def __getitem__(self, i: int) -> _PathSegment:
-    ...
-
-  def __getitem__(self, index):
-    item = self._paths[index]
-    if isinstance(item, _PathSegment):
-      return item
+  def subspace(self, value: Union[str, float, int]) -> 'SearchSpace':
+    """Selects the subspace for a specified parent value."""
+    if self.type == ParameterType.DISCRETE:
+      if not isinstance(value, (float, int)):
+        raise TypeError(f'Parent is DISCRETE-typed and must be selected with '
+                        f'float or int. Given={value}')
+    elif self.type == ParameterType.CATEGORICAL:
+      if not isinstance(value, str):
+        raise TypeError(
+            f'Parent is CATEGORICAL-typed and must be selected with '
+            f'str. Given={value}')
+    elif self.type == ParameterType.INTEGER:
+      if int(value) != value:
+        raise TypeError(f'Parent is INTEGER-typed and must be selected with '
+                        f'int or float. Given={value}')
     else:
-      return _PathSelector(item)
+      raise ValueError('DOUBLE type cannot have child parameters')
+
+    if value not in self.feasible_values:
+      raise ValueError(f'{value} is not feasible in {self}')
+    if value not in self._children:
+      self._children[value] = SearchSpace(parent_values=[value])
+    return self._children[value]
+
+
+@attr.define(init=False)
+class ParameterConfigSelector(Sized):
+  """Holds a reference to ParameterConfigs."""
+
+  # Selected configs.
+  _selected: tuple[ParameterConfig] = attr.field(init=True)
 
   def __len__(self) -> int:
-    """Returns the number of elements in the container."""
-    return len(self._paths)
+    return len(self._selected)
 
-  def __add__(
-      self, other: Union[Sequence[_PathSegment],
-                         _PathSegment]) -> '_PathSelector':
-    if isinstance(other, _PathSegment):
-      other = [other]
-    return _PathSelector(self._paths + tuple(other))
+  def __init__(self, selected: Union[ParameterConfig,
+                                     Collection[ParameterConfig]], /):
+    if isinstance(selected, Collection):
+      self.__attrs_init__(tuple(selected))
+    else:
+      self.__attrs_init__(tuple([selected]))
 
-  def __repr__(self) -> str:
-    """Returns the path as a string."""
-    path = '/'.join(['{}={}'.format(p.name, p.value) for p in self._paths])
-    return f'{path}'
+  def select_values(self,
+                    values: MonotypeParameterSequence) -> 'SearchSpaceSelector':
+    """Select values."""
+    values = tuple(values)
+
+    for value in values:
+      for config in self._selected:
+        if value not in config.feasible_values:
+          # Validate first so we don't create a lot of unnecessary empty
+          # search space upon failure.
+          raise ValueError(f'{value} is not feasible in {self}')
+
+    spaces = []
+    for value in values:
+      for config in self._selected:
+        spaces.append(config.subspace(value))
+    return SearchSpaceSelector(spaces)
 
 
 class InvalidParameterError(Exception):
@@ -656,80 +637,24 @@ class InvalidParameterError(Exception):
 
 
 ################### Main Classes ###################
-@attr.s(frozen=True, init=True, slots=True, kw_only=True)
+@attr.define(init=False)
 class SearchSpaceSelector:
-  """A Selector for all, or part of a SearchSpace."""
+  """Holds a reference to (sub) spaces."""
 
-  # List of ParameterConfig objects referenced by this selector.
-  # This is a reference to a list of objects owned by SearchSpace (and will
-  # typically include the entire SearchSpace).
-  _configs: List[ParameterConfig] = attr.ib(
-      init=True,
-      factory=list,
-      # Verify that this is a list of ParameterConfig objects.
-      validator=attr.validators.deep_iterable(
-          member_validator=attr.validators.instance_of(ParameterConfig),
-          iterable_validator=attr.validators.instance_of(list)),
-      kw_only=True)
+  # Selected (sub)-spaces.
+  # TODO: Consider switching the order of SearchSpaceSelector and
+  # SearchSpace.
+  _selected: tuple['SearchSpace'] = attr.field(init=True)
 
-  # _selected_path and _selected_name control how parameters are added to the
-  # search space.
-  #
-  # 1) If _selected_path is empty, and _selected_name is empty, parameters
-  #    are added to the root of the search space.
-  # 2) If _selected_path is empty, and _selected_name is non-empty, parameters
-  #    will be added as child parameters to all root and child parameters
-  #    with name ==_selected_name.
-  # 3) If both _selected_path and _selected_name are specified, parameters will
-  #    be added as child parameters to the parameter specified by the path and
-  #    the name.
-  # 4) If _selected_path is non-empty, and _selected_name is empty, this is an
-  #    error.
+  def __len__(self) -> int:
+    return len(self._selected)
 
-  # An ordered list of _PathSelector objects which uniquely identifies a path
-  # in a conditional tree.
-  _selected_path: _PathSelector = attr.ib(
-      init=True,
-      default=_PathSelector(),  # We don't need factory since it's immutable.
-      converter=_PathSelector,
-      kw_only=True)
-
-  # A ParameterConfig name.
-  # If there is a _selected_name, then there have to also be _selected_values
-  # below, and new parameters are added to the parent(s) selected by
-  # _selected_path and _selected_name.
-  _selected_name: str = attr.ib(
-      init=True,
-      default='',
-      validator=attr.validators.instance_of(str),
-      kw_only=True)
-
-  # List of ParameterConfig values from _configs.
-  # If there are _selected_values, then there have to also be _selected_name
-  # above.
-  _selected_values: MonotypeParameterSequence = attr.ib(
-      init=True,
-      factory=list,
-      validator=attr.validators.deep_iterable(
-          member_validator=attr.validators.instance_of((int, float, str)),
-          iterable_validator=attr.validators.instance_of(list)),
-      kw_only=True)
-
-  @property
-  def parameter_name(self) -> str:
-    """Returns the selected parameter name."""
-    return self._selected_name
-
-  @property
-  def parameter_values(self) -> MonotypeParameterSequence:
-    """Returns the selected parameter values.
-
-    Callers should not mutate the returned values.
-
-    Returns:
-      Values for the parameter selected by this selector.
-    """
-    return self._selected_values
+  def __init__(self, selected: Union['SearchSpace', Collection['SearchSpace']],
+               /):
+    if isinstance(selected, Collection):
+      self.__attrs_init__(tuple(selected))
+    else:
+      self.__attrs_init__(tuple([selected]))
 
   def add_float_param(self,
                       name: str,
@@ -738,17 +663,8 @@ class SearchSpaceSelector:
                       *,
                       default_value: Optional[float] = None,
                       scale_type: Optional[ScaleType] = ScaleType.LINEAR,
-                      index: Optional[int] = None) -> 'SearchSpaceSelector':
-    """Adds floating point parameter config(s) to the search space.
-
-    If select_all() was previously called for this selector, so it contains
-    selected parent values, the parameter configs will be added as child
-    parameters to the selected parameter configs, and a reference to this
-    selector is returned.
-
-    If no parent values are selected, the parameter config(s) will be added at
-    the same level as currently selected parameters, and a reference to the
-    newly added parameters is returned.
+                      index: Optional[int] = None) -> 'ParameterConfigSelector':
+    """Adds floating point parameter config(s) to the selected search space(s).
 
     Args:
       name: The parameter's name. Cannot be empty.
@@ -779,7 +695,7 @@ class SearchSpaceSelector:
           scale_type=scale_type,
           default_value=default_value)
       new_params.append(new_pc)
-    return self._add_parameters(new_params)[0]
+    return self._add_parameters(new_params)
 
   def add_int_param(
       self,
@@ -791,17 +707,8 @@ class SearchSpaceSelector:
       scale_type: Optional[ScaleType] = None,
       index: Optional[int] = None,
       experimental_fidelity_config: Optional[FidelityConfig] = None,
-  ) -> 'SearchSpaceSelector':
-    """Adds integer parameter config(s) to the search space.
-
-    If select_all() was previously called for this selector, so it contains
-    selected parent values, the parameter configs will be added as child
-    parameters to the selected parameter configs, and a reference to this
-    selector is returned.
-
-    If no parent values are selected, the parameter config(s) will be added at
-    the same level as currently selected parameters, and a reference to the
-    newly added parameters is returned.
+  ) -> 'ParameterConfigSelector':
+    """Adds integer parameter config(s) to the selected search space(s).
 
     Args:
       name: The parameter's name. Cannot be empty.
@@ -815,7 +722,7 @@ class SearchSpaceSelector:
       experimental_fidelity_config: EXPERIMENTAL. See FidelityConfig doc.
 
     Returns:
-      SearchSpaceSelector for the newly added parameter.
+      ParameterConfigSelector for the newly added parameter(s).
 
     Raises:
       ValueError: If min_value or max_value are not integers.
@@ -842,7 +749,7 @@ class SearchSpaceSelector:
           fidelity_config=experimental_fidelity_config,
           default_value=default_value)
       new_params.append(new_pc)
-    return self._add_parameters(new_params)[0]
+    return self._add_parameters(new_params)
 
   def add_discrete_param(
       self,
@@ -854,22 +761,13 @@ class SearchSpaceSelector:
       index: Optional[int] = None,
       auto_cast: Optional[bool] = True,
       experimental_fidelity_config: Optional[FidelityConfig] = None,
-  ) -> 'SearchSpaceSelector':
+  ) -> 'ParameterConfigSelector':
     """Adds ordered numeric parameter config(s) with a finite set of values.
 
     IMPORTANT: If a parameter is discrete, its values are assumed to have
     ordered semantics. Thus, you should not use discrete parameters for
     unordered values such as ids. In this case, see add_categorical_param()
     below.
-
-    If select_all() was previously called for this selector, so it contains
-    selected parent values, the parameter configs will be added as child
-    parameters to the selected parameter configs, and a reference to this
-    selector is returned.
-
-    If no parent values are selected, the parameter config(s) will be added at
-    the same level as currently selected parameters, and a reference to the
-    newly added parameters is returned.
 
     Args:
       name: The parameter's name. Cannot be empty.
@@ -885,7 +783,7 @@ class SearchSpaceSelector:
       experimental_fidelity_config: EXPERIMENTAL. See FidelityConfig doc.
 
     Returns:
-      SearchSpaceSelector for the newly added parameter.
+      ParameterConfigSelector for the newly added parameter(s).
 
     Raises:
       ValueError: If `index` is invalid (e.g. negative).
@@ -911,7 +809,7 @@ class SearchSpaceSelector:
           default_value=default_value,
           external_type=external_type)
       new_params.append(new_pc)
-    return self._add_parameters(new_params)[0]
+    return self._add_parameters(new_params)
 
   def add_categorical_param(
       self,
@@ -920,21 +818,12 @@ class SearchSpaceSelector:
       *,
       default_value: Optional[str] = None,
       scale_type: Optional[ScaleType] = None,
-      index: Optional[int] = None) -> 'SearchSpaceSelector':
-    """Adds unordered string-valued parameter config(s) to the search space.
+      index: Optional[int] = None) -> 'ParameterConfigSelector':
+    """Adds string-valued parameter config(s) to the selected search space(s).
 
     IMPORTANT: If a parameter is categorical, its values are assumed to be
     unordered. If the `feasible_values` have ordering, use add_discrete_param()
     above, since it will improve Vizier's model quality.
-
-    If select_all() was previously called for this selector, so it contains
-    selected parent values, the parameter configs will be added as child
-    parameters to the selected parameter configs, and a reference to this
-    selector is returned.
-
-    If no parent values are selected, the parameter config(s) will be added at
-    the same level as currently selected parameters, and a reference to the
-    newly added parameters is returned.
 
     Args:
       name: The parameter's name. Cannot be empty.
@@ -946,7 +835,7 @@ class SearchSpaceSelector:
         is added. `index` should be >= 0.
 
     Returns:
-      SearchSpaceSelector for the newly added parameter.
+      ParameterConfigSelector for the newly added parameter(s).
 
     Raises:
       ValueError: If `index` is invalid (e.g. negative).
@@ -961,7 +850,7 @@ class SearchSpaceSelector:
           scale_type=scale_type,
           default_value=default_value)
       new_params.append(new_pc)
-    return self._add_parameters(new_params)[0]
+    return self._add_parameters(new_params)
 
   def add_bool_param(self,
                      name: str,
@@ -969,17 +858,8 @@ class SearchSpaceSelector:
                      *,
                      default_value: Optional[bool] = None,
                      scale_type: Optional[ScaleType] = None,
-                     index: Optional[int] = None) -> 'SearchSpaceSelector':
-    """Adds boolean-valued parameter config(s) to the search space.
-
-    If select_all() was previously called for this selector, so it contains
-    selected parent values, the parameter configs will be added as child
-    parameters to the selected parameter configs, and a reference to this
-    selector is returned.
-
-    If no parent values are selected, the parameter config(s) will be added at
-    the same level as currently selected parameters, and a reference to the
-    newly added parameters is returned.
+                     index: Optional[int] = None) -> 'ParameterConfigSelector':
+    """Adds boolean-valued parameter config(s) to the selected search space(s).
 
     Args:
       name: The parameter's name. Cannot be empty.
@@ -992,7 +872,7 @@ class SearchSpaceSelector:
         'match[0]' is added. `index` should be >= 0.
 
     Returns:
-      SearchSpaceSelector for the newly added parameter.
+      ParameterConfigSelector for the newly added parameter(s).
 
     Raises:
       ValueError: If `feasible_values` has invalid values.
@@ -1025,52 +905,53 @@ class SearchSpaceSelector:
           default_value=default_value,
           external_type=ExternalType.BOOLEAN)
       new_params.append(new_pc)
-    return self._add_parameters(new_params)[0]
+    return self._add_parameters(new_params)
 
+  @overload
   def select(
       self,
       parameter_name: str,
-      parameter_values: Optional[MonotypeParameterSequence] = None
-  ) -> 'SearchSpaceSelector':
-    """Selects a single parameter specified by path and parameter_name.
+      parameter_values: None,
+  ) -> ParameterConfigSelector:
+    ...
 
-    This method should be called to select a parent parameter, before calling
-    `add_*_param` methods to create child parameters.
+  @overload
+  def select(
+      self, parameter_name: str,
+      parameter_values: MonotypeParameterSequence) -> 'SearchSpaceSelector':
+    ...
 
-    Given a selector to the root of the search space:
+  def select(self,
+             parameter_name,
+             parameter_values: Optional[MonotypeParameterSequence] = None):
+    """Selects a parameter config or its subspace.
+
+    This method is for constructing a _conditional_ search space.
+
+    EXAMPLE: Suppose we have a selector to the root of the search space with one
+    categorical parameter.
     root = pyvizier.SearchSpace().root
+    root.add_categorical_param('model_type', ['dnn', 'linear'])
 
-    1) To select a parameter at the root of the search space, with parent values
-      for child parameters:
-      model = root.select('model_type', ['dnn'])
-      model.add_float_param('hidden_units', ...)
-    2) To select a parameter at the root of the search space, and defer parent
-      value selection to later calls:
+    1) Select a `ParameterConfig`:
       model = root.select('model_type')
-      # Add `hidden_units` and `optimizer_type` as `dnn` children.
-      model.select_values(['dnn']).add_float_param('hidden_units', ...)
-      model.select_values(['dnn']).add_categorical_param(
-        'optimizer_type', ['adam', 'adagrad'])
-      # Add `optimizer_type` and `activation` as `linear` children.
-      model.select_values(['linear']).add_categorical_param(
-        'optimizer_type', ['adam', 'ftrl'])
-      model.select_values(['linear']).add_categorical_param('activation', ...)
-    3) To select a parameter in a conditional search space, specify a path, by
-      chaining select() calls:
-      optimizer = root.select('model_type', ['linear']).select('optimizer_type')
-      optimizer.select_values('adam').add_float_param('learning_rate', 0.001,..)
-      optimizer.select_values('ftrl').add_float_param('learning_rate', 0.1,..)
 
-      # OR pre-select the parent parameter values:
-      optimizer = root.select('model_type', ['linear']).select(
-        'optimizer_type', ['adam'])
-      optimizer.add_float_param('learning_rate', 0.001,...)
-    4) If there is *only one* parameter with the given name, then it is possible
-      to select it without specifying the path, using:
-      selectors = root.select_all('activation')
-      # 'activation' exists only under model_type='linear'.
-      assert len(selectors) == 1
-      activation = selectors[0]
+    2) Select a subspace conditioned on `model_type == 'dnn'` and add
+    a child parameter `hidden_units`:
+      dnn_subspace = root.select('model_type', ['dnn'])
+      dnn_subspace.add_int_param('hidden_layers', ...)
+
+    or equivalently,
+      dnn_subspace = root.select('model_type').select_values(['dnn'])
+      dnn_subspace.add_int_param('hidden_layers', ...)
+
+    3) Traverse your search space by chaining select() calls:
+      root.select('model_type', ['dnn']).select('hidden_layers', [1, 2])
+
+    4) Select more than one search space simultaneously:
+      selected = root.select('model_type', ['dnn', 'linear'])
+        .add_categorical_param('optimizer', ['adam', 'adagrad'])
+      assert len(selected) == 4  # {dnn, linear} x {adam, adagard}
 
     Args:
       parameter_name:
@@ -1078,181 +959,22 @@ class SearchSpaceSelector:
         be used to add child parameters, or traverse a conditional tree.
 
     Returns:
-      A new SearchSpaceSelector.
+      ParameterConfigSelector for `ParameterConfig`(s) if the values are not
+        specified.
+      SearchSpaceSelector for subspace(s) if parameter_values are specified.
     """
-    # Make sure parameter_name exists in the conditional parameters tree.
-    # parameter_values will be validated only when a child parameter is added.
-    if not self._parameter_exists(parameter_name):
-      raise ValueError('No parameter with name {} exists in this SearchSpace')
-
-    path = []
-    selected_values = []
-    if parameter_values is not None:
-      if not isinstance(parameter_values, (list, tuple)):
-        raise ValueError('parameter_values should be a list or tuple, given '
-                         '{} with type {}'.format(parameter_values,
-                                                  type(parameter_values)))
-      selected_values = parameter_values
-
-    if self._selected_name:
-      # There is already a parameter name selected, so this is a chained select
-      # call.
-      if not self._selected_values:
-        raise ValueError('Cannot call select() again before parameter values '
-                         'are selected: parameter {} was previously selected, '
-                         ' with the path: {}, but no values were selected for '
-                         'it'.format(self.parameter_name, self.path_string))
-      # Return a new selector, with the currently selected parameter added to
-      # the path.
-      new_path_segment = [
-          _PathSegment(
-              name=self._selected_name, value=self._selected_values[0])
-      ]
-      path = self._selected_path + new_path_segment
-      if not self._path_exists(path):
-        raise ValueError('Path {} does not exist in this SearchSpace: '
-                         '{}'.format((path), self))
-
-    return SearchSpaceSelector(
-        configs=self._configs,
-        selected_path=path,
-        selected_name=parameter_name,
-        selected_values=selected_values)
-
-  def select_values(
-      self,
-      parameter_values: MonotypeParameterSequence) -> 'SearchSpaceSelector':
-    """Selects values for a pre-selected parameter.
-
-    This method should be called to select parent parameter(s) value(s), before
-    calling `add_*_param` methods to create child parameters.
-
-    This method must be called AFTER select().
-    This method mutates this selector.
-
-    Args:
-      parameter_values: Parameter values for this selector, which will be used
-        to add child parameters.
-
-    Returns:
-      SearchSpaceSelector
-    """
-    if not self._selected_name:
-      raise ValueError('No parameter is selected. Call select() first.')
-    if not parameter_values:
-      raise ValueError(
-          'parameter_values cannot be empty. Specify at least one value.')
-    if not isinstance(parameter_values, (list, tuple)):
-      raise ValueError('parameter_values should be a list or tuple, given '
-                       '{} with type {}'.format(parameter_values,
-                                                type(parameter_values)))
-    # TODO: Allow to directly select boolean parent parameters.
-    object.__setattr__(self, '_selected_values', parameter_values)
-    return self
-
-  def select_all(
-      self, parameter_name: str, parameter_values: MonotypeParameterSequence
-  ) -> List['SearchSpaceSelector']:
-    """Select one or more parent parameters, with the same name.
-
-    This method should be called to select parent parameter(s), before calling
-    `add_*_param` methods to create child parameters.
-    Multiple parent parameters with the same name are possible in a conditional
-    search space. See go/conditional-parameters for more details.
-
-    1) If the conditional search space has two parameters with the same
-    name, 'optimizer_type', given a selector to the root of the search space,
-    select_all() can be used to simultaneously add child parameters to both
-    'optimizer_type` parameters:
-
-    root = pyvizier.SearchSpace().root
-    model.select_values(['dnn']).add_categorical_param(
-        'optimizer_type', ['adam', 'adagrad'])
-    model.select_values(['linear']).add_categorical_param(
-        'optimizer_type', ['adam', 'ftrl'])
-    # Add a 'learning_rate' parameter to both 'adam' optimizers:
-    optimizers = model.select_all('optimizer_type', parent_values=['adam'])
-    optimizers.add_float_param('learning_rate', ...)
-
-    2) If there is *only one* parameter with the given name, then it is also
-      possible to use select_all() to select it:
-      root = pyvizier.SearchSpace().root
-      model.select_values(['dnn']).add_categorical_param('activation', ...)
-      # Select the single parameter with the name 'activation':
-      selectors = root.select_all('activation')
-      assert len(selectors) == 1
-      activation = selector[0]
-
-    Args:
-      parameter_name:
-      parameter_values: Optional parameter values for this selector, which will
-        be used to add child parameters.
-
-    Returns:
-      List of SearchSpaceSelector
-    """
-    # TODO: Raise an error if this selector already has selected_name.
-    # Make sure parameter_name exists in the conditional parameters tree.
-    if not self._parameter_exists(parameter_name):
-      raise ValueError('No parameter with name {} exists in this SearchSpace')
-
-    if parameter_values is not None:
-      if not isinstance(parameter_values, (list, tuple)):
-        raise ValueError('parameter_values should be a list or tuple, given '
-                         '{} with type {}'.format(parameter_values,
-                                                  type(parameter_values)))
-    # TODO: Complete this method.
-    raise NotImplementedError()
-
-  def _path_exists(self, path: _PathSelector) -> bool:
-    """Checks if the path exists in the conditional tree."""
-    for parent in self._configs:
-      if (path[0].name == parent.name and
-          path[0].value in parent.feasible_values):
-        if len(path) == 1:
-          # No need to recurse.
-          return True
-        return self._path_exists_inner(parent, path[1:])
-    return False
-
-  @classmethod
-  def _path_exists_inner(cls, current_root: ParameterConfig,
-                         current_path: _PathSelector) -> bool:
-    """Returns true if the path exists, starting at root_parameter."""
-    child_idx = None
-    for idx, child in enumerate(current_root.child_parameter_configs):
-      if (current_path[0].name == child.name and
-          current_path[0].value in child.feasible_values):
-        child_idx = idx
-        break
-    if child_idx is None:
-      # No match is found. This path does not exist.
-      return False
-    if len(current_path) == 1:
-      # This is the end of the path.
-      return True
-    # Keep traversing.
-    return cls._path_exists_inner(
-        current_root.child_parameter_configs[child_idx], current_path[1:])
-
-  def _parameter_exists(self, parameter_name: str) -> bool:
-    """Checks if there exists at least one parameter with this name.
-
-    Note that this method checks existence in the entire search space.
-
-    Args:
-      parameter_name:
-
-    Returns:
-      bool: Exists.
-    """
-    found = False
-    for parent in self._configs:
-      for pc in parent.traverse(show_children=False):
-        if pc.name == parameter_name:
-          found = True
-          break
-    return found
+    if parameter_values is None:
+      selected_configs = []
+      for space in self._selected:
+        selected_configs.append(space.get(parameter_name))
+      return ParameterConfigSelector(selected_configs)
+    else:
+      selected_spaces = []
+      for space in self._selected:
+        selected_parameter = space.get(parameter_name)
+        for value in parameter_values:
+          selected_spaces.append(selected_parameter.subspace(value))
+      return SearchSpaceSelector(selected_spaces)
 
   @classmethod
   def _get_parameter_names_to_create(cls,
@@ -1326,14 +1048,10 @@ class SearchSpaceSelector:
       return None
     return (matches.groupdict()['name'], int(matches.groupdict()['index']))
 
-  @property
-  def path_string(self) -> str:
-    """Returns the selected path as a string."""
-    return str(self._selected_path)
-
+  # TODO: Add def extend(space: SearchSpace)
   def _add_parameters(
-      self, parameters: List[ParameterConfig]) -> List['SearchSpaceSelector']:
-    """Adds ParameterConfigs either to the root, or as child parameters.
+      self, parameters: List[ParameterConfig]) -> ParameterConfigSelector:
+    """Adds deepcopy of the ParameterConfigs.
 
     Args:
       parameters: The parameters to add to the search space.
@@ -1341,377 +1059,84 @@ class SearchSpaceSelector:
     Returns:
       A list of SearchSpaceSelectors, one for each parameters added.
     """
-    if self._selected_name and not self._selected_values:
-      raise ValueError(
-          'Cannot add child parameters to parameter {}: parent values were '
-          'not selected. Call select_values() first.'.format(
-              self._selected_name))
-    if not self._selected_name and self._selected_values:
-      raise ValueError(
-          'Cannot add child parameters: no parent name is selected.'
-          ' Call select() or select_all() first.')
-    if self._selected_path and not self._selected_name:
-      raise ValueError(
-          'Cannot add child parameters: path is specified ({}), but no parent'
-          ' name is specified. Call select() or select_all() first'.format(
-              self.path_string))
+    logging.info('Adding child parameters %s to %s subspaces ',
+                 set(p.name for p in parameters), len(self._selected))
+    added = []
+    for parameter in parameters:
+      for selected in self._selected:
+        # Adds a deepcopy so that every ParameterConfig object is unique.
+        added.append(selected.add(copy.deepcopy(parameter)))
 
-    selectors: List['SearchSpaceSelector'] = []
-    if not self._selected_path and not self._selected_name:
-      # If _selected_path is empty, and _selected_name is empty, parameters
-      # are added to the root of the search space.
-      logging.info('Adding parameters to root of search space: %s', parameters)
-      self._configs.extend(parameters)
-      # Return Selectors for the newly added parameters.
-      for param in parameters:
-        selectors.append(
-            SearchSpaceSelector(
-                configs=self._configs,
-                selected_path=[],
-                selected_name=param.name,
-                selected_values=[]))
-    elif not self._selected_path and self._selected_name:
-      # If _selected_path is empty, and _selected_name is not empty, parameters
-      # will be added as child parameters to *all* root and child parameters
-      # with name ==_selected_name.
-      logging.info(
-          'Adding child parameters to all matching parents with '
-          'name "%s": %s', self._selected_name, parameters)
-      found_at_least_one_match = False
-      for idx, root_param in enumerate(self._configs):
-        updated_param, new_selectors = self._recursive_add_child_parameters(
-            self._configs, _PathSelector(), root_param, self._selected_name,
-            self._selected_values, parameters)
-        if new_selectors:
-          found_at_least_one_match = True
-        # Update the root ParameterConfig in place.
-        self._configs[idx] = updated_param
-        selectors.extend(new_selectors)
-      if not found_at_least_one_match:
-        logging.warning('Failed to find a matching parent with name %s',
-                        self._selected_name)
-    else:
-      # If both _selected_path and _selected_name are specified, parameters will
-      # be added as child parameters to the parameter specified by the path and
-      # the name.
-      logging.info(
-          'Adding child parameters to parent with path "%s" '
-          ', name "%s", values: %s: %s', (self._selected_path),
-          self._selected_name, self._selected_values, parameters)
-      idx, updated_param, new_selectors = self._add_parameters_at_selected_path(
-          root_configs=self._configs,
-          complete_path=self._selected_path,
-          parent_name=self._selected_name,
-          parent_values=self._selected_values,
-          new_children=parameters)
-      # Update the root ParameterConfig in place.
-      self._configs[idx] = updated_param
-      selectors.extend(new_selectors)
-
-    if not selectors:
-      raise ValueError(
-          'Cannot add child parameters: the path ({}), is not valid.'.format(
-              self.path_string))
-    return selectors
-
-  @classmethod
-  def _recursive_add_child_parameters(
-      cls, configs: List[ParameterConfig], path: _PathSelector,
-      root: ParameterConfig, parent_name: str,
-      parent_values: MonotypeParameterSequence,
-      new_children: List[ParameterConfig]
-  ) -> Tuple[ParameterConfig, List['SearchSpaceSelector']]:
-    """Recursively adds new children to all matching parameters.
-
-    new_children are potentially added to root, and all matching child
-    parameters with name==parent_name.
-
-    Args:
-      configs: A list of configs to include in returned SearchSpaceSelectors,
-        this list is not modified or used for anything else.
-      path: The path to include in returned SearchSpaceSelectors.
-      root: Parent parameter to start the recursion at.
-      parent_name: new_children are added to all parameter with this name.
-      parent_values: new_children are added with these parent values.
-      new_children: Child parameter configs to add.
-
-    Returns:
-      (An updated root with all of its children updated, list of selectors to
-       any parameters which may have been added)
-    """
-    updated_children: List[Tuple[MonotypeParameterSequence,
-                                 ParameterConfig]] = []
-    selectors: List['SearchSpaceSelector'] = []
-
-    logging.debug(
-        '_recursive_add_child_parameters called with path=%s, '
-        'root=%s, parent_name=%s, parent_values=%s', path, root, parent_name,
-        parent_values)
-
-    if root.name == parent_name:
-      # Add new children to this root. If this is a leaf parameter,
-      # e.g. it has no children, this is where the recursion ends.
-      for child in new_children:
-        updated_children.append((parent_values, child))
-        # For the path, select one parent value, since for the path, the exact
-        # value does not matter, as long as it's valid.
-        root_path_fragment = [
-            _PathSegment(name=root.name, value=parent_values[0])
-        ]
-        selectors.append(
-            SearchSpaceSelector(
-                configs=configs,
-                selected_path=path + root_path_fragment,
-                selected_name=child.name,
-                selected_values=[]))
-    # Recursively update existing children, if any.
-    for child in root.child_parameter_configs:
-      # For the path, select one parent value, since for the path, the exact
-      # value does not matter, as long as it's valid.
-      root_path_fragment = [
-          _PathSegment(name=root.name, value=child.matching_parent_values[0])
-      ]
-      updated_child, new_selectors = cls._recursive_add_child_parameters(
-          configs, path + root_path_fragment, child, parent_name, parent_values,
-          new_children)
-      updated_children.append(
-          (updated_child.matching_parent_values, updated_child))
-      selectors += new_selectors
-    # Update all children (existing and potentially new) in the root.
-    return root.clone_without_children.add_children(updated_children), selectors
-
-  @classmethod
-  def _add_parameters_at_selected_path(
-      cls, root_configs: List[ParameterConfig], complete_path: _PathSelector,
-      parent_name: str, parent_values: MonotypeParameterSequence,
-      new_children: List[ParameterConfig]
-  ) -> Tuple[int, ParameterConfig, List['SearchSpaceSelector']]:
-    """Adds new children to the parameter specified by the path and parent_name.
-
-    Args:
-      root_configs: A list of configs to include in returned
-        SearchSpaceSelectors, this list is not modified. These are expected to
-        be the configs at the root of the search space.
-      complete_path: The path to include in the returned SearchSpaceSelectors.
-      parent_name: new_children are added to all parameter with this name.
-      parent_values: new_children are added with these parent values.
-      new_children: Child parameter configs to add.
-
-    Returns:
-      (Root index in root_configs,
-       an updated root with all of its children updated,
-       list of selectors to any parameters which may have been added)
-
-    Raises:
-      RuntimeError:
-      ValueError:
-    """
-    if not complete_path:
-      # This is an internal error, since the caller should never specify an
-      # empty current_path.
-      raise RuntimeError('Internal error: got empty complete_path')
-
-    # This is the beginning of the recursion. Select a root to recurse at.
-    current_root: Optional[ParameterConfig] = None
-    root_idx: int = 0
-    for root_idx, root_param in enumerate(root_configs):
-      if complete_path[0].name == root_param.name:
-        current_root = root_param
-        break
-    if current_root is None:
-      raise ValueError('Invalid path: {}: failed to traverse the path: failed'
-                       ' to find a matching root for parameter name "{}".'
-                       ' Root parameter names: {}'.format(
-                           (complete_path), complete_path[0].name,
-                           [pc.name for pc in root_configs]))
-
-    updated_root, selectors = cls._add_parameters_at_selected_path_inner(
-        root_configs=root_configs,
-        complete_path=complete_path,
-        current_root=current_root,
-        current_path=complete_path[1:],
-        parent_name=parent_name,
-        parent_values=parent_values,
-        new_children=new_children)
-    return (root_idx, updated_root, selectors)
-
-  @classmethod
-  def _add_parameters_at_selected_path_inner(
-      cls, root_configs: List[ParameterConfig], complete_path: _PathSelector,
-      current_root: ParameterConfig, current_path: _PathSelector,
-      parent_name: str, parent_values: MonotypeParameterSequence,
-      new_children: List[ParameterConfig]
-  ) -> Tuple[ParameterConfig, List['SearchSpaceSelector']]:
-    """Adds new children to the parameter specified by the path and parent_name.
-
-    Args:
-      root_configs: A list of configs to include in returned
-        SearchSpaceSelectors, this list is not modified. These are expected to
-        be the configs at the root of the search space.
-      complete_path: The path to include in the returned SearchSpaceSelectors.
-      current_root: Parent parameter to start the recursion at.
-      current_path: The path to the parent parameter from current_root. This is
-        used in the recursion.
-      parent_name: new_children are added to all parameter with this name.
-      parent_values: new_children are added with these parent values.
-      new_children: Child parameter configs to add.
-
-    Returns:
-      (An updated root with all of its children updated,
-       List of selectors to all added parameters)
-
-    Raises:
-      RuntimeError:
-      ValueError:
-    """
-    updated_children: List[Tuple[MonotypeParameterSequence,
-                                 ParameterConfig]] = []
-    selectors: List['SearchSpaceSelector'] = []
-
-    if not current_path:
-      # This is the end of the path. End the recursion.
-      # parent_name should be a child of current_root
-      child_idx = None
-      for idx, child in enumerate(current_root.child_parameter_configs):
-        if parent_name == child.name:
-          child_idx = idx
-          last_parent_path = [
-              _PathSegment(name=parent_name, value=parent_values[0])
-          ]
-          new_path = complete_path + last_parent_path
-          updated_child, selectors = cls._add_child_parameters(
-              root_configs, new_path, child, parent_values, new_children)
-          break
-      if child_idx is None:
-        raise ValueError('Invalid parent_name: after traversing the path "{}", '
-                         'failed to find a child parameter with name "{}".'
-                         ' Current root="{}"'.format((complete_path),
-                                                     parent_name, current_root))
-
-      # Update current_root with the updated child.
-      for idx, child in enumerate(current_root.child_parameter_configs):
-        if idx == child_idx:
-          updated_children.append(
-              (updated_child.matching_parent_values, updated_child))
-        else:
-          updated_children.append((child.matching_parent_values, child))
-      return (
-          current_root.clone_without_children.add_children(updated_children),
-          selectors)
-
-    # Traverse the path: find which child matches the next path selection.
-    child_idx = None
-    for idx, child in enumerate(current_root.child_parameter_configs):
-      if (current_path[0].name == child.name and
-          current_path[0].value in child.feasible_values):
-        child_idx = idx
-        break
-    if child_idx is None:
-      raise ValueError('Invalid path: "{}": failed to traverse the path: failed'
-                       ' to find a matching child for path selector "{}".'
-                       ' Current root="{}", current_path="{}"'.format(
-                           (complete_path), (current_path[:1]),
-                           current_root.name, (current_path)))
-
-    updated_child, selectors = cls._add_parameters_at_selected_path_inner(
-        root_configs=root_configs,
-        complete_path=complete_path,
-        current_root=current_root.child_parameter_configs[child_idx],
-        current_path=current_path[1:],
-        parent_name=parent_name,
-        parent_values=parent_values,
-        new_children=new_children)
-    # Update current_root with the updated child, leave the selectors untouched.
-    for idx, child in enumerate(current_root.child_parameter_configs):
-      if idx == child_idx:
-        updated_children.append(
-            (updated_child.matching_parent_values, updated_child))
-      else:
-        updated_children.append((child.matching_parent_values, child))
-    return (current_root.clone_without_children.add_children(updated_children),
-            selectors)
-
-  @classmethod
-  def _add_child_parameters(
-      cls, selector_configs: List[ParameterConfig],
-      selector_path: _PathSelector, parent: ParameterConfig,
-      parent_values: MonotypeParameterSequence,
-      new_children: List[ParameterConfig]
-  ) -> Tuple[ParameterConfig, List['SearchSpaceSelector']]:
-    """Adds new children to the parent parameter and returns selectors.
-
-    Args:
-      selector_configs: A list of configs to include in returned
-        SearchSpaceSelectors, this list is not modified. These are expected to
-        be the configs at the root of the search space.
-      selector_path: The path to include in the returned SearchSpaceSelectors.
-      parent: Parent parameter to add children to.
-      parent_values: new_children are added with these parent values.
-      new_children: Child parameter configs to add.
-
-    Returns:
-      (An updated root with all of its children updated,
-       List of selectors to all added parameters)
-
-    Raises:
-      RuntimeError:
-      ValueError:
-    """
-    updated_children: List[Tuple[MonotypeParameterSequence,
-                                 ParameterConfig]] = []
-    selectors: List['SearchSpaceSelector'] = []
-
-    # Add existing children.
-    for child in parent.child_parameter_configs:
-      updated_children.append((child.matching_parent_values, child))
-    # Add new child parameter configs.
-    for child in new_children:
-      updated_children.append((parent_values, child))
-      selectors.append(
-          SearchSpaceSelector(
-              configs=selector_configs,
-              selected_path=selector_path,
-              selected_name=child.name,
-              selected_values=[]))
-    # Add all children (existing and potentially new) to the parent.
-    return (parent.clone_without_children.add_children(updated_children),
-            selectors)
+    return ParameterConfigSelector(added)
 
 
-@attr.s(frozen=True, init=True, slots=True, kw_only=True)
+@attr.define(frozen=False, init=True, slots=True, kw_only=True)
 class SearchSpace:
-  """A builder and wrapper for StudyConfig.parameter_configs."""
+  """[Cross-platform] Collection of ParameterConfigs.
 
-  _parameter_configs: List[ParameterConfig] = attr.ib(init=False, factory=list)
+  Vizier search space can be *conditional*
+  Parameter names are guaranteed to be unique in any subspace.
 
-  @classmethod
-  def _factory(
-      cls,
-      parameter_configs: Optional[List[ParameterConfig]] = None
-  ) -> 'SearchSpace':
-    """Creates a new SearchSpace containing the provided parameter configs.
 
-    Args:
-      parameter_configs:
+  Attribute:
+    _parameter_configs: Maps parameter names to configs.
+  """
+  _parameter_configs: dict[str, ParameterConfig] = attr.field(
+      init=False, factory=dict)
 
-    Returns:
-      SearchSpace
-    """
-    if parameter_configs is None:
-      parameter_configs = []
-    space = cls()
-    object.__setattr__(space, '_parameter_configs', list(parameter_configs))
-    return space
+  # TODO: To be deprecated.
+  _parent_values: MonotypeParameterSequence = attr.field(
+      default=tuple(), converter=tuple, kw_only=True)
 
   @property
-  def parameters(self) -> List[ParameterConfig]:
+  def parameter_names(self) -> AbstractSet[str]:
+    return self._parameter_configs.keys()
+
+  def get(self, name: str) -> ParameterConfig:
+    if name not in self._parameter_configs:
+      raise KeyError(f'{name} is not in the search space.')
+    return self._parameter_configs[name]
+
+  def add(self,
+          parameter_config: ParameterConfig,
+          /,
+          *,
+          replace: bool = False) -> ParameterConfig:
+    """Adds the ParameterConfig.
+
+    For advanced users only. Takes a reference to Parameterconfig.
+    Future edits will change the search space.
+
+    Args:
+      parameter_config:
+      replace: Determines the behavior when there already exists a
+        ParameterConfig with the same name. If set to True, replaces it. If set
+        to False, raises ValueError.
+
+    Returns:
+      Reference to the ParameterConfig that was added to the search space.
+    """
+    name = parameter_config.name
+    parameter_config._matching_parent_values = tuple(self._parent_values)  # pylint: disable=protected-access
+    if (name in self._parameter_configs) and (not replace):
+      raise ValueError(
+          f'Duplicate name: {parameter_config.name} already exists.\n'
+          f'Existing config: {parameter_config}\n'
+          f'New config:{parameter_config}')
+
+    self._parameter_configs[name] = parameter_config
+    return parameter_config
+
+  # TODO: Change the return type to Iterator.
+  @property
+  def parameters(self) -> list[ParameterConfig]:
     """Returns the parameter configs in this search space."""
-    return self._parameter_configs
+    return list(self._parameter_configs.values())
 
   def select_root(self) -> SearchSpaceSelector:
     # Deprecated function.
     # TODO: Remove this from downstream user code.
-    return self.root
+    return SearchSpaceSelector(self)
 
   @property
   def root(self) -> SearchSpaceSelector:
@@ -1720,12 +1145,12 @@ class SearchSpace:
     Parameters can be added to the search space using the returned
     SearchSpaceSelector.
     """
-    return SearchSpaceSelector(configs=self._parameter_configs)
+    return SearchSpaceSelector(self)
 
   @property
   def is_conditional(self) -> bool:
     """Returns True if search_space contains any conditional parameters."""
-    return any([p.child_parameter_configs for p in self._parameter_configs])
+    return any([p.child_parameter_configs for p in self.parameters])
 
   def contains(self, parameters: trial.ParameterDict) -> bool:
     try:
@@ -1749,15 +1174,15 @@ class SearchSpace:
     """
     if self.is_conditional:
       raise NotImplementedError('Not implemented for conditional space.')
-    if len(parameters) != len(self._parameter_configs):
-      set1 = set(pc.name for pc in self._parameter_configs)
+    if len(parameters) != len(self._parameter_configs.values()):
+      set1 = set(pc.name for pc in self._parameter_configs.values())
       set2 = set(parameters)
       raise InvalidParameterError(
-          f'Search space has {len(self._parameter_configs)} parameters '
+          f'Search space has {len(self._parameter_configs.values())} parameters '
           f'but only {len(parameters)} were given. '
           f'Missing in search space: {set2 - set1}. '
           f'Missing in parameters: {set1 - set2}.')
-    for pc in self._parameter_configs:
+    for pc in self._parameter_configs.values():
       if pc.name not in parameters:
         raise InvalidParameterError(f'{pc.name} is missing in {parameters}.')
       elif not pc.contains(parameters[pc.name]):

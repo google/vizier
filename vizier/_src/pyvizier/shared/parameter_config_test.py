@@ -174,12 +174,8 @@ class ParameterConfigFactoryTestWithChildren(parameterized.TestCase):
       ('FloatParentValues', [([0.0], _child1), ([0.0, 1.0], _child2)]))
   def testIntegerWithValid(self, children):
     p = pc.ParameterConfig.factory('parent', bounds=(0, 1), children=children)
-    self.assertLen(p.child_parameter_configs, 2)
-    self.assertEmpty(p.matching_parent_values)
-    self.assertSameElements(p.child_parameter_configs[0].matching_parent_values,
-                            children[0][0])
-    self.assertSameElements(p.child_parameter_configs[1].matching_parent_values,
-                            children[1][0])
+    self.assertCountEqual(p.subspace(0.0).parameters, [_child1, _child2])
+    self.assertCountEqual(p.subspace(1.0).parameters, [_child2])
 
   @parameterized.named_parameters(
       ('FloatParentValues', [([0.5], _child1)]),
@@ -189,17 +185,13 @@ class ParameterConfigFactoryTestWithChildren(parameterized.TestCase):
       _ = pc.ParameterConfig.factory('parent', bounds=(0, 1), children=children)
 
   @parameterized.named_parameters(
-      ('IntParentValues', [([0], _child1), ([1], _child2)]),
+      ('IntParentValues', [([0], _child1), ([0, 1], _child2)]),
       ('FloatParentValues', [([0.0], _child1), ([0.0, 1.0], _child2)]))
   def testDiscreteWithValid(self, children):
     p = pc.ParameterConfig.factory(
         'parent', feasible_values=[0.0, 1.0], children=children)
-    self.assertLen(p.child_parameter_configs, 2)
-    self.assertEmpty(p.matching_parent_values)
-    self.assertSameElements(p.child_parameter_configs[0].matching_parent_values,
-                            children[0][0])
-    self.assertSameElements(p.child_parameter_configs[1].matching_parent_values,
-                            children[1][0])
+    self.assertCountEqual(p.subspace(0.0).parameters, [_child1, _child2])
+    self.assertCountEqual(p.subspace(1.0).parameters, [_child2])
 
   @parameterized.named_parameters(('StringParentValues', [(['0.0'], _child1),
                                                           (['0.0',
@@ -214,12 +206,8 @@ class ParameterConfigFactoryTestWithChildren(parameterized.TestCase):
   def testCategoricalWithValid(self, children):
     p = pc.ParameterConfig.factory(
         'parent', feasible_values=['a', 'b'], children=children)
-    self.assertLen(p.child_parameter_configs, 2)
-    self.assertEmpty(p.matching_parent_values)
-    self.assertSameElements(p.child_parameter_configs[0].matching_parent_values,
-                            children[0][0])
-    self.assertSameElements(p.child_parameter_configs[1].matching_parent_values,
-                            children[1][0])
+    self.assertCountEqual(p.subspace('a').parameters, [_child1, _child2])
+    self.assertCountEqual(p.subspace('b').parameters, [_child2])
 
   @parameterized.named_parameters(('StringParentValues', [(['0.0'], _child1),
                                                           (['1.0'], _child2)]))
@@ -227,27 +215,6 @@ class ParameterConfigFactoryTestWithChildren(parameterized.TestCase):
     with self.assertRaises(TypeError):
       _ = pc.ParameterConfig.factory(
           'parent', feasible_values=[0.0, 1.0], children=children)
-
-  def testAddChildren(self):
-    children = [(['a'], _child1), (['a', 'b'], _child2)]
-    p = pc.ParameterConfig.factory(
-        'parent', feasible_values=['a', 'b'], children=children)
-    new_children = [
-        (['a'], pc.ParameterConfig.factory('double_child2', bounds=(1.0, 2.0))),
-        (['b'],
-         pc.ParameterConfig.factory(
-             'categorical_child', feasible_values=['c', 'd'])),
-    ]
-    p2 = p.add_children(new_children)
-    self.assertLen(p.child_parameter_configs, 2)
-    self.assertSameElements([c.name for c in p.child_parameter_configs],
-                            [c[1].name for c in children])
-
-    self.assertLen(p2.child_parameter_configs, 4)
-    expected_names = [c[1].name for c in children]
-    expected_names += [c[1].name for c in new_children]
-    got_names = [c.name for c in p2.child_parameter_configs]
-    self.assertSameElements(got_names, expected_names)
 
 
 class MergeTest(parameterized.TestCase):
@@ -326,88 +293,48 @@ class TraverseTest(parameterized.TestCase):
         pc.name for pc in parent.traverse(show_children=show_children)
     ]
     # Some parameter names are reused for separate child nodes, so they
-    # will appear multiple times, but they are indeed separate parameters.
+    # will appear multiple times.
     self.assertEqual(traversed_names, [
-        'parent', 'child1', 'grandchild1', 'grandchild1', 'child1',
+        'parent', 'child1', 'grandchild1', 'grandchild1', 'child2', 'child1',
         'grandchild1', 'grandchild1', 'child2'
     ])
 
 
 class SearchSpaceTest(parameterized.TestCase):
+  """Check basic functionalities."""
 
   def testRootAndSelectRootEqual(self):
     space = pc.SearchSpace()
-    space.root.add_float_param('f', 0.0, 1.0)
-    space.root.add_int_param('i', 0, 1)
-    space.root.add_discrete_param('d', [0.0, 0.5, 1.0])
-    space.root.add_categorical_param('c', ['a', 'b', 'c'])
-
     select_root = space.select_root()
     shortcut_root = space.root
-    self.assertEqual(select_root.parameter_name, shortcut_root.parameter_name)
-    self.assertEqual(select_root.parameter_values,
-                     shortcut_root.parameter_values)
-    self.assertEqual(select_root.path_string, shortcut_root.path_string)
+    self.assertIs(select_root._selected[0], shortcut_root._selected[0])
 
   def testAddFloatParamMinimal(self):
     # Remove this test once we deprecate select_root().
     space = pc.SearchSpace()
     self.assertEmpty(space.parameters)
-    selector = space.select_root().add_float_param('f1', 1.0, 15.0)
-    # Test the returned selector.
-    self.assertEqual(selector.path_string, '')
-    self.assertEqual(selector.parameter_name, 'f1')
-    self.assertEqual(selector.parameter_values, [])
-    # Test the search space.
-    self.assertLen(space.parameters, 1)
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LINEAR)
-    self.assertEmpty(space.parameters[0].matching_parent_values)
-    self.assertEmpty(space.parameters[0].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[0].feasible_values
-    self.assertIsNone(space.parameters[0].default_value)
-
+    _ = space.select_root().add_float_param('f1', 1.0, 15.0)
     _ = space.select_root().add_float_param('f2', 2.0, 16.0)
-    self.assertLen(space.parameters, 2)
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[1].name, 'f2')
-    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[1].bounds, (2.0, 16.0))
 
-  def testAddFloatParamMinimalFromRoot(self):
-    """Same test as above, but using `space.root` property."""
+    self.assertLen(space.parameters, 2)
+    self.assertCountEqual(space.parameter_names, ['f1', 'f2'])
+
+  def testMultidimensionalParameters(self):
     space = pc.SearchSpace()
-    self.assertEmpty(space.parameters)
-    selector = space.root.add_float_param('f1', 1.0, 15.0)
-    # Test the returned selector.
-    self.assertEqual(selector.path_string, '')
-    self.assertEqual(selector.parameter_name, 'f1')
-    self.assertEqual(selector.parameter_values, [])
-    # Test the search space.
-    self.assertLen(space.parameters, 1)
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LINEAR)
-    self.assertEmpty(space.parameters[0].matching_parent_values)
-    self.assertEmpty(space.parameters[0].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[0].feasible_values
-    self.assertIsNone(space.parameters[0].default_value)
+    _ = space.select_root().add_float_param(
+        'f', 1.0, 15.0, default_value=3.0, scale_type=pc.ScaleType.LOG, index=0)
+    _ = space.select_root().add_float_param(
+        'f',
+        2.0,
+        10.0,
+        default_value=4.0,
+        scale_type=pc.ScaleType.LINEAR,
+        index=1)
+    self.assertCountEqual(space.parameter_names, ['f[0]', 'f[1]'])
 
-    _ = space.root.add_float_param('f2', 2.0, 16.0)
-    self.assertLen(space.parameters, 2)
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[1].name, 'f2')
-    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[1].bounds, (2.0, 16.0))
+
+class SearchSpaceAddParamtest(parameterized.TestCase):
+  """Check `add_xx_param` methods relay the arguments correctly."""
 
   def testAddFloatParam(self):
     space = pc.SearchSpace()
@@ -477,118 +404,13 @@ class SearchSpaceTest(parameterized.TestCase):
     self.assertLen(space.parameters, 1)
     self.assertEqual(space.parameters[0].default_value, 'False')
 
-  def testAddTwoFloatParams(self):
-    space = pc.SearchSpace()
-    self.assertEmpty(space.parameters)
-    _ = space.select_root().add_float_param(
-        'f1', 1.0, 15.0, default_value=3.0, scale_type=pc.ScaleType.LOG)
-    _ = space.select_root().add_float_param(
-        'f2', 2.0, 16.0, default_value=4.0, scale_type=pc.ScaleType.REVERSE_LOG)
-
-    self.assertLen(space.parameters, 2)
-
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LOG)
-    self.assertEmpty(space.parameters[0].matching_parent_values)
-    self.assertEmpty(space.parameters[0].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[0].feasible_values
-    self.assertEqual(space.parameters[0].default_value, 3.0)
-
-    self.assertEqual(space.parameters[1].name, 'f2')
-    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[1].bounds, (2.0, 16.0))
-    self.assertEqual(space.parameters[1].scale_type, pc.ScaleType.REVERSE_LOG)
-    self.assertEmpty(space.parameters[1].matching_parent_values)
-    self.assertEmpty(space.parameters[1].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[1].feasible_values
-    self.assertEqual(space.parameters[1].default_value, 4.0)
-
-  def testChainAddTwoFloatParams(self):
-    space = pc.SearchSpace()
-    self.assertEmpty(space.parameters)
-    root = space.select_root()
-    root.add_float_param(
-        'f1', 1.0, 15.0, default_value=3.0, scale_type=pc.ScaleType.LOG)
-    root.add_float_param(
-        'f2', 2.0, 16.0, default_value=4.0, scale_type=pc.ScaleType.REVERSE_LOG)
-
-    self.assertLen(space.parameters, 2)
-
-    self.assertEqual(space.parameters[0].name, 'f1')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LOG)
-    self.assertEmpty(space.parameters[0].matching_parent_values)
-    self.assertEmpty(space.parameters[0].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[0].feasible_values
-    self.assertEqual(space.parameters[0].default_value, 3.0)
-
-    self.assertEqual(space.parameters[1].name, 'f2')
-    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[1].bounds, (2.0, 16.0))
-    self.assertEqual(space.parameters[1].scale_type, pc.ScaleType.REVERSE_LOG)
-    self.assertEmpty(space.parameters[1].matching_parent_values)
-    self.assertEmpty(space.parameters[1].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[1].feasible_values
-    self.assertEqual(space.parameters[1].default_value, 4.0)
-
-  def testMultidimensionalParameters(self):
-    space = pc.SearchSpace()
-    self.assertEmpty(space.parameters)
-    selector0 = space.select_root().add_float_param(
-        'f', 1.0, 15.0, default_value=3.0, scale_type=pc.ScaleType.LOG, index=0)
-    selector1 = space.select_root().add_float_param(
-        'f',
-        2.0,
-        10.0,
-        default_value=4.0,
-        scale_type=pc.ScaleType.LINEAR,
-        index=1)
-    # Test the returned selectors.
-    self.assertEqual(selector0.path_string, '')
-    self.assertEqual(selector0.parameter_name, 'f[0]')
-    self.assertEqual(selector0.parameter_values, [])
-    self.assertEqual(selector1.path_string, '')
-    self.assertEqual(selector1.parameter_name, 'f[1]')
-    self.assertEqual(selector1.parameter_values, [])
-    # Test the search space.
-    self.assertLen(space.parameters, 2)
-    self.assertEqual(space.parameters[0].name, 'f[0]')
-    self.assertEqual(space.parameters[0].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[0].bounds, (1.0, 15.0))
-    self.assertEqual(space.parameters[0].scale_type, pc.ScaleType.LOG)
-    self.assertEmpty(space.parameters[0].matching_parent_values)
-    self.assertEmpty(space.parameters[0].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[0].feasible_values
-    self.assertEqual(space.parameters[0].default_value, 3.0)
-
-    self.assertEqual(space.parameters[1].name, 'f[1]')
-    self.assertEqual(space.parameters[1].type, pc.ParameterType.DOUBLE)
-    self.assertEqual(space.parameters[1].bounds, (2.0, 10.0))
-    self.assertEqual(space.parameters[1].scale_type, pc.ScaleType.LINEAR)
-    self.assertEmpty(space.parameters[1].matching_parent_values)
-    self.assertEmpty(space.parameters[1].child_parameter_configs)
-    with self.assertRaisesRegex(ValueError, 'feasible_values is invalid.*'):
-      _ = space.parameters[1].feasible_values
-    self.assertEqual(space.parameters[1].default_value, 4.0)
-
   def testConditionalParameters(self):
     space = pc.SearchSpace()
     self.assertEmpty(space.parameters)
     root = space.select_root()
     root.add_categorical_param(
         'model_type', ['linear', 'dnn'], default_value='dnn')
-    # Test the selector.
-    self.assertEqual(root.path_string, '')
-    self.assertEqual(root.parameter_name, '')
-    self.assertEqual(root.parameter_values, [])
+
     # Test the search space.
     self.assertLen(space.parameters, 1)
     self.assertEqual(space.parameters[0].name, 'model_type')
@@ -603,10 +425,6 @@ class SearchSpaceTest(parameterized.TestCase):
     self.assertEqual(space.parameters[0].default_value, 'dnn')
 
     dnn = root.select('model_type', ['dnn'])
-    # Test the selector.
-    self.assertEqual(dnn.path_string, '')
-    self.assertEqual(dnn.parameter_name, 'model_type')
-    self.assertEqual(dnn.parameter_values, ['dnn'])
     dnn.add_float_param(
         'learning_rate',
         0.0001,
@@ -617,10 +435,6 @@ class SearchSpaceTest(parameterized.TestCase):
     self.assertLen(space.parameters, 1)
 
     linear = root.select('model_type', ['linear'])
-    # Test the selector.
-    self.assertEqual(linear.path_string, '')
-    self.assertEqual(linear.parameter_name, 'model_type')
-    self.assertEqual(linear.parameter_values, ['linear'])
     linear.add_float_param(
         'learning_rate',
         0.1,
@@ -630,66 +444,44 @@ class SearchSpaceTest(parameterized.TestCase):
     # Test the search space.
     self.assertLen(space.parameters, 1)
 
-    dnn_optimizer = dnn.add_categorical_param('optimizer_type',
-                                              ['adam', 'adagrad'])
+    _ = dnn.add_categorical_param('optimizer_type', ['adam', 'adagrad'])
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selector.
-    self.assertEqual(dnn_optimizer.path_string, 'model_type=dnn')
-    self.assertEqual(dnn_optimizer.parameter_name, 'optimizer_type')
-    self.assertEqual(dnn_optimizer.parameter_values, [])
 
     # Chained select() calls, path length of 1.
-    lr = root.select('model_type',
-                     ['dnn']).select('optimizer_type',
-                                     ['adam']).add_float_param(
-                                         'learning_rate',
-                                         0.1,
-                                         1.0,
-                                         default_value=0.1,
-                                         scale_type=pc.ScaleType.LOG)
+    selected = root.select('model_type',
+                           ['dnn']).select('optimizer_type',
+                                           ['adam']).add_float_param(
+                                               'learning_rate',
+                                               0.1,
+                                               1.0,
+                                               default_value=0.1,
+                                               scale_type=pc.ScaleType.LOG)
+    self.assertLen(selected, 1)
+
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selector.
-    self.assertEqual(lr.parameter_name, 'learning_rate')
-    self.assertEqual(lr.parameter_values, [])
-    self.assertEqual(lr.path_string, 'model_type=dnn/optimizer_type=adam')
 
     # Chained select() calls, path length of 2.
     ko = root.select('model_type', ['dnn']).select('optimizer_type',
                                                    ['adam']).add_bool_param(
                                                        'use_keras_optimizer',
                                                        default_value=False)
+    self.assertLen(ko, 1)
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selector.
-    self.assertEqual(ko.parameter_name, 'use_keras_optimizer')
-    self.assertEqual(ko.parameter_values, [])
-    self.assertEqual(ko.path_string, 'model_type=dnn/optimizer_type=adam')
 
-    ko.select_values(['True'])
-    self.assertEqual(ko.parameter_values, ['True'])
-
-    selector = ko.add_float_param('keras specific', 1.3, 2.4, default_value=2.1)
+    ko2 = ko.select_values(['True'])
+    _ = ko2.add_float_param('keras specific', 1.3, 2.4, default_value=2.1)
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selector.
-    self.assertEqual(selector.parameter_name, 'keras specific')
-    self.assertEqual(selector.parameter_values, [])
-    self.assertEqual(
-        selector.path_string,
-        'model_type=dnn/optimizer_type=adam/use_keras_optimizer=True')
-
-    # Selects more than one node.
-    # selectors = dnn.select_all('optimizer_type', ['adam'])
-    # self.assertLen(selectors, 2)
 
   def testConditionalParametersWithReturnedSelectors(self):
     space = pc.SearchSpace()
     self.assertEmpty(space.parameters)
     root = space.select_root()
     model_type = root.add_categorical_param('model_type', ['linear', 'dnn'])
-    learning_rate = model_type.select_values(['dnn']).add_float_param(
+    _ = model_type.select_values(['dnn']).add_float_param(
         'learning_rate',
         0.1,
         1.0,
@@ -697,24 +489,13 @@ class SearchSpaceTest(parameterized.TestCase):
         scale_type=pc.ScaleType.LOG)
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selectors.
-    self.assertEqual(model_type.parameter_values, ['dnn'])
-    self.assertEqual(learning_rate.parameter_name, 'learning_rate')
-    self.assertEqual(learning_rate.parameter_values, [])
-    self.assertEqual(learning_rate.path_string, 'model_type=dnn')
 
     # It is possible to select different values for the same selector.
-    optimizer_type = model_type.select_values(['linear',
-                                               'dnn']).add_categorical_param(
-                                                   'optimizer_type',
-                                                   ['adam', 'adagrad'])
+    self.assertLen(
+        model_type.select_values(['linear', 'dnn']).add_categorical_param(
+            'optimizer_type', ['adam', 'adagrad']), 2)
     # Test the search space.
     self.assertLen(space.parameters, 1)
-    # Test the selectors.
-    self.assertEqual(model_type.parameter_values, ['linear', 'dnn'])
-    self.assertEqual(optimizer_type.parameter_name, 'optimizer_type')
-    self.assertEqual(optimizer_type.parameter_values, [])
-    self.assertEqual(optimizer_type.path_string, 'model_type=linear')
 
   @parameterized.named_parameters(
       ('Multi', 'units[0]', ('units', 0)),

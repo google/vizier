@@ -61,10 +61,12 @@ class DiscretizingExperimenter(experimenter.Experimenter):
       if name not in param_names:
         raise ValueError(f'Parameter {name} not in search space'
                          f' parameters for discretization: {search_params}')
-    new_parameter_configs = []
+
+    self._problem_statement = copy.deepcopy(exptr_problem_statement)
+    self._problem_statement.search_space = pyvizier.SearchSpace()
     for parameter in search_params:
       if parameter.name not in discretization:
-        new_parameter_configs.append(parameter)
+        self._problem_statement.search_space.add(parameter)
         continue
 
       if parameter.type != pyvizier.ParameterType.DOUBLE:
@@ -76,16 +78,12 @@ class DiscretizingExperimenter(experimenter.Experimenter):
         float_value = float(value)
         if float_value > max_value or float_value < min_value:
           raise ValueError(f'Discretized values are not in bounds {parameter}')
-      new_parameter_configs.append(
+      self._problem_statement.search_space.add(
           pyvizier.ParameterConfig.factory(
               name=parameter.name,
               feasible_values=discretization[parameter.name],
               scale_type=parameter.scale_type,
               external_type=parameter.external_type))
-
-    self._problem_statement = copy.deepcopy(exptr_problem_statement)
-    self._problem_statement.search_space = pyvizier.SearchSpace._factory(
-        new_parameter_configs)
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return self._problem_statement

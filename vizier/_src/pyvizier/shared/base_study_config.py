@@ -205,7 +205,7 @@ class MetricInformation:
 
 
 @attr.define(frozen=False, init=True, slots=True)
-class MetricsConfig(collections_abc.Collection):
+class MetricsConfig(collections_abc.Collection[MetricInformation]):
   """Container for metrics.
 
   Metric names should be unique.

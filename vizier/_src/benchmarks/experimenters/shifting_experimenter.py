@@ -62,7 +62,9 @@ class ShiftingExperimenter(experimenter.Experimenter):
     self._converter = converters.TrialToArrayConverter.from_study_config(
         study_config=exptr_problem_statement, scale=False)
 
-    new_parameter_configs = []
+    self._problem_statement = copy.deepcopy(exptr_problem_statement)
+    self._problem_statement.search_space = pyvizier.SearchSpace()
+
     for parameter, shift in zip(exptr_problem_statement.search_space.parameters,
                                 self._shift):
       if parameter.type != pyvizier.ParameterType.DOUBLE:
@@ -77,17 +79,13 @@ class ShiftingExperimenter(experimenter.Experimenter):
         else:
           # Shift is negative so this restricts the bounds.
           new_bounds = (bounds[0] - shift, bounds[1])
-        new_parameter_configs.append(
+        self._problem_statement.search_space.add(
             pyvizier.ParameterConfig.factory(
                 name=parameter.name,
                 bounds=new_bounds,
                 scale_type=parameter.scale_type,
                 default_value=parameter.default_value,
                 external_type=parameter.external_type))
-
-    self._problem_statement = copy.deepcopy(exptr_problem_statement)
-    self._problem_statement.search_space = pyvizier.SearchSpace._factory(
-        new_parameter_configs)
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
