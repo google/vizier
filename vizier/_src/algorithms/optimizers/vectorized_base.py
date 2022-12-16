@@ -171,7 +171,7 @@ class VectorizedOptimizer:
 
     while not self._should_stop(start_time, evaluated_count):
       new_features = strategy.suggest()
-      new_rewards = score_fn(new_features)
+      new_rewards = np.asarray(score_fn(new_features))
       strategy.update(new_rewards)
       self._update_best_results(best_results, count, new_features, new_rewards)
       evaluated_count += len(new_rewards)
