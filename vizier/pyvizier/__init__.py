@@ -54,3 +54,11 @@ from vizier._src.pyvizier.shared.trial import TrialStatus
 from vizier._src.pyvizier.shared.trial import TrialSuggestion
 
 FlatSpace = SearchSpace
+
+# Documentation
+assert isinstance(NaNMetric, Metric)
+assert issubclass(CompletedTrial, Trial)
+assert issubclass(CompletedTrialWithMeasurements, Trial)
+assert issubclass(PendingTrial, Trial)
+assert issubclass(PendingTrialWithMeasurements, Trial)
+assert issubclass(Trial, TrialSuggestion)

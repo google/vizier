@@ -31,3 +31,11 @@ from vizier._src.pythia.pythia_errors import PythiaError
 from vizier._src.pythia.pythia_errors import PythiaProtocolError
 from vizier._src.pythia.pythia_errors import TemporaryPythiaError
 from vizier._src.pythia.pythia_errors import VizierDatabaseError
+
+# Documentation
+assert issubclass(CancelComputeError, Exception)
+assert issubclass(PythiaProtocolError, Exception)
+assert issubclass(VizierDatabaseError, Exception)
+assert issubclass(InactivateStudyError, PythiaError)
+assert issubclass(LoadTooLargeError, PythiaError)
+assert issubclass(TemporaryPythiaError, PythiaError)
