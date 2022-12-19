@@ -408,7 +408,7 @@ class MAXSATExperimenter(experimenter.Experimenter):
           int(suggestion.parameters[f'x_{i}'].value == 'True')
           for i in range(self._n_variables)
       ]
-      x = np.array(bools, dtype=np.bool)
+      x = np.array(bools, dtype=bool)
       satisfied = np.array([
           (x[clause[0]] == clause[1]).any() for clause in self._clauses
       ])

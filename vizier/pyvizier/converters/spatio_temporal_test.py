@@ -201,7 +201,7 @@ class SparseSpatioTemporalConverterTest(absltest.TestCase):
             'steps':
                 core.NumpyArraySpec.from_parameter_config(
                     pyvizier.ParameterConfig.factory(
-                        name='steps', bounds=(0.0, np.finfo(np.float).max)),
+                        name='steps', bounds=(0.0, np.finfo(float).max)),
                     core.NumpyArraySpecType.default_factory)
         })
 

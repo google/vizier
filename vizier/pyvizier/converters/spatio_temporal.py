@@ -135,7 +135,7 @@ class TimedLabelsExtractor:
                 delta_idx[-1] = True
             else:
               # No measurements were found.
-              delta_idx = np.array([], dtype=np.bool)
+              delta_idx = np.array([], dtype=bool)
             # Filter labels and times.
             labels[mc.metric_information.name] = marr[delta_idx][:, np.newaxis]
             times = times[delta_idx]
@@ -318,7 +318,7 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
     # isinstance(np.finfo(np.float32).max, float) == False
     specs[name] = core.NumpyArraySpec.from_parameter_config(
         pyvizier.ParameterConfig.factory(
-            name=name, bounds=(0.0, np.finfo(np.float).max)),
+            name=name, bounds=(0.0, np.finfo(float).max)),
         core.NumpyArraySpecType.default_factory)
     return specs
 
