@@ -135,8 +135,7 @@ class ParameterValue:
       init=True,
       validator=[
           attr.validators.instance_of((str, int, float, bool)),
-      ],
-      eq=str)
+      ])
 
   def cast_as_internal(self,
                        internal_type: ParameterType) -> ParameterValueTypes:
