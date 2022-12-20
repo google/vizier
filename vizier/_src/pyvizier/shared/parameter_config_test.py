@@ -271,7 +271,7 @@ class ParameterConfigContainsTest(parameterized.TestCase):
   @parameterized.parameters((True, True), ('a', False), (0, False))
   def testBoolean(self, value: Any, expected: bool):
     config = pc.ParameterConfig.factory(
-        'pc1', feasible_values=['true', 'false'])
+        'pc1', feasible_values=[trial.TRUE_VALUE, trial.FALSE_VALUE])
     self.assertEqual(config.contains(value), expected)
 
 

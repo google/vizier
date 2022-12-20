@@ -55,7 +55,15 @@ class TrialInterface(abc.ABC):
   @property
   @abc.abstractmethod
   def parameters(self) -> Mapping[str, Any]:
-    """#Materializes the parameters of the trial."""
+    """#Materializes the parameters of the trial.
+
+    The parameters are parsed to the external tpyes. The values in the returned
+    dict can be a list of values, if the search space is configured with
+    indicies.
+
+    As a result, TrialInterface.parameters can be totally different
+    from trial.materialize().parameters.
+    """
 
   @abc.abstractmethod
   def delete(self) -> None:
@@ -194,6 +202,8 @@ class StudyInterface(abc.ABC):
       Trials.
     """
 
+  # TODO: Request does not play well with boolean or discrete
+  # integer parameters.
   @abc.abstractmethod
   def request(self, suggestion: vz.TrialSuggestion) -> None:
     """Request a trial to be suggested in the future.

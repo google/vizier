@@ -67,12 +67,12 @@ ParameterValue = trial.ParameterValue
 
 class ParameterValueTest(parameterized.TestCase):
 
-  @parameterized.named_parameters(('True', True), ('False', False))
+  @parameterized.parameters((True,), (False,))
   def testBool(self, bool_value):
     value = ParameterValue(bool_value)
     self.assertEqual(value.as_float, float(bool_value))
     self.assertEqual(value.as_int, int(bool_value))
-    self.assertEqual(value.as_str, str(bool_value).lower())
+    self.assertEqual(value.as_str, str(bool_value))
 
   def testIntegralFloat0(self):
     value = ParameterValue(0.0)
@@ -117,14 +117,14 @@ class ParameterValueTest(parameterized.TestCase):
     self.assertEqual(value.as_str, '2')
 
   def testStringTrue(self):
-    value = ParameterValue('true')
+    value = ParameterValue(trial.TRUE_VALUE)
     self.assertEqual(value.as_bool, True)
-    self.assertEqual(value.as_str, 'true')
+    self.assertEqual(value.as_str, trial.TRUE_VALUE)
 
   def testStringFalse(self):
-    value = ParameterValue('false')
+    value = ParameterValue(trial.FALSE_VALUE)
     self.assertEqual(value.as_bool, False)
-    self.assertEqual(value.as_str, 'false')
+    self.assertEqual(value.as_str, trial.FALSE_VALUE)
 
   def testStringFloat1(self):
     value = ParameterValue('1.0')
@@ -139,13 +139,6 @@ class ParameterValueTest(parameterized.TestCase):
     self.assertEqual(value.as_int, 1)
     self.assertIsNone(value.as_bool)
     self.assertEqual(value.as_str, '1')
-
-  def testCastAsExternalNone(self):
-    value = ParameterValue(1.0)
-    # pytype: disable=wrong-arg-types
-    with self.assertRaisesRegex(ValueError, 'Unknown external type'):
-      value.cast(None)
-    # pytype: enable=wrong-arg-types
 
   def testParameterCanHaveNonFiniteValues(self):
     ParameterValue(float('nan'))

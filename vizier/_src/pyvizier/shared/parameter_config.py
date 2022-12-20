@@ -28,20 +28,7 @@ import attr
 from vizier._src.pyvizier.shared import trial
 
 ExternalType = trial.ExternalType
-
-
-class ParameterType(enum.Enum):
-  """Valid Values for ParameterConfig.type."""
-  DOUBLE = 'DOUBLE'
-  INTEGER = 'INTEGER'
-  CATEGORICAL = 'CATEGORICAL'
-  DISCRETE = 'DISCRETE'
-
-  def is_numeric(self) -> bool:
-    return self in [self.DOUBLE, self.INTEGER, self.DISCRETE]
-
-  def is_continuous(self) -> bool:
-    return self == self.DOUBLE
+ParameterType = trial.ParameterType
 
 
 class ScaleType(enum.Enum):
@@ -445,7 +432,7 @@ class ParameterConfig:
     """Returns a newly created DOUBLE parameter with the same range."""
     if self.type == ParameterType.DOUBLE:
       return copy.deepcopy(self)
-    elif not ParameterType.is_numeric(self.type):
+    elif not self.type.is_numeric():
       raise ValueError(
           'Cannot convert a non-numeric parameter to DOUBLE: {}'.format(self))
     elif list(self._child_parameter_configs):
@@ -538,29 +525,19 @@ class ParameterConfig:
     for child in self.child_parameter_configs:
       yield from child.traverse(show_children)
 
-  # TODO: Rename to `validate_value`
+  # TODO: Rename to `validate_value or is_feasible`
   def contains(
       self, value: Union[trial.ParameterValueTypes,
                          trial.ParameterValue]) -> bool:
     """Check if the `value` is a valid value for this parameter config."""
-    if not isinstance(value, trial.ParameterValue):
-      value = trial.ParameterValue(value)
-
-    if self.type == ParameterType.DOUBLE:
-      return self.bounds[0] <= value.as_float and value.as_float <= self.bounds[
-          1]
-    elif self.type == ParameterType.INTEGER:
-      if value.as_int != value.as_float:
-        return False
-      return self.bounds[0] <= value.as_int and value.as_int <= self.bounds[1]
-    elif self.type == ParameterType.DISCRETE:
-      return value.as_float in self.feasible_values
-    elif self.type == ParameterType.CATEGORICAL:
-      return value.as_str in self.feasible_values
-    else:
-      raise NotImplementedError(f'Cannot determine whether {value} is feasible'
-                                f'for Unknown parameter type {self.type}.\n'
-                                f'Full config: {repr(self)}')
+    if isinstance(value, trial.ParameterValue):
+      # TODO: Extract the raw value.
+      value = value.value
+    try:
+      self._assert_feasible(value)
+    except (TypeError, ValueError):
+      return False
+    return True
 
   @property
   def num_feasible_values(self) -> Union[float, int]:
@@ -571,26 +548,77 @@ class ParameterConfig:
     else:
       return len(self.feasible_values)
 
-  def subspace(self, value: Union[str, float, int]) -> 'SearchSpace':
-    """Selects the subspace for a specified parent value."""
-    if self.type == ParameterType.DISCRETE:
-      if not isinstance(value, (float, int)):
-        raise TypeError(f'Parent is DISCRETE-typed and must be selected with '
-                        f'float or int. Given={value}')
-    elif self.type == ParameterType.CATEGORICAL:
-      if not isinstance(value, str):
-        raise TypeError(
-            f'Parent is CATEGORICAL-typed and must be selected with '
-            f'str. Given={value}')
-    elif self.type == ParameterType.INTEGER:
-      if int(value) != value:
-        raise TypeError(f'Parent is INTEGER-typed and must be selected with '
-                        f'int or float. Given={value}')
-    else:
-      raise ValueError('DOUBLE type cannot have child parameters')
+  def _assert_bounds(self, value: trial.ParameterValueTypes) -> None:
+    if not self.bounds[0] <= value <= self.bounds[1]:
+      raise ValueError(f'Parameter {self.name} has bounds: {self.bounds}. '
+                       f'Given: {value}')
 
-    if value not in self.feasible_values:
-      raise ValueError(f'{value} is not feasible in {self}')
+  def _assert_in_feasible_values(self,
+                                 value: trial.ParameterValueTypes) -> None:
+    if value not in self._feasible_values:
+      raise ValueError(f'Parameter {self.name} has feasible values: '
+                       f'{self.feasible_values}. '
+                       f'Given: {value}')
+
+  def _assert_feasible(self, value: trial.ParameterValueTypes) -> None:
+    """Asserts that the value is feasible for this parameter config.
+
+    Args:
+      value:
+
+    Raises:
+      TypeError: Value does not match the config's type
+      ValueError: Value is not feasible.
+      RuntimeError: Other errors.
+    """
+    try:
+      self.type.assert_correct_type(value)
+    except TypeError as e:
+      raise TypeError(
+          f'Parameter {self.name} is not compatible with value: {value}') from e
+
+    # TODO: We should be able to directly use "value" without
+    # casting to the internal type.
+    value = trial.ParameterValue(value)
+    if self.type == ParameterType.DOUBLE:
+      self._assert_bounds(value.as_float)
+    elif self.type == ParameterType.INTEGER:
+      self._assert_bounds(value.as_int)
+    elif self.type == ParameterType.DISCRETE:
+      self._assert_in_feasible_values(value.as_float)
+    elif self.type == ParameterType.CATEGORICAL:
+      self._assert_in_feasible_values(value.as_str)
+    else:
+      raise RuntimeError(
+          f'Parameter {self.name} has unknown parameter type: {self.type}')
+
+  def get_subspace_deepcopy(self, value: ParameterValueTypes) -> 'SearchSpace':
+    """Get a deep copy of the subspace.
+
+    Validates the feasibility of value.
+
+    Args:
+      value: Must be a feasible value per this parameter config.
+
+    Returns:
+      Subspace conditioned on the value. Note that an empty search space is
+      returned if the parameter config is continuous and thus cannot have
+      a subspace.
+    """
+    if not math.isfinite(self.num_feasible_values):
+      return SearchSpace()
+    value = trial.ParameterValue(value).cast_as_internal(self.type)
+    self._assert_feasible(value)
+    return copy.deepcopy(self._children.get(value, SearchSpace()))
+
+  def subspace(self, value: ParameterValueTypes) -> 'SearchSpace':
+    """Selects the subspace for a specified parent value."""
+    if not math.isfinite(self.num_feasible_values):
+      raise TypeError('DOUBLE type cannot have child parameters')
+
+    # TODO: We should be able to directly use "value".
+    value = trial.ParameterValue(value).cast_as_internal(self.type)
+    self._assert_feasible(value)
     if value not in self._children:
       self._children[value] = SearchSpace(parent_values=[value])
     return self._children[value]
@@ -620,7 +648,7 @@ class ParameterConfigSelector(Sized):
 
     for value in values:
       for config in self._selected:
-        if value not in config.feasible_values:
+        if not config.contains(value):
           # Validate first so we don't create a lot of unnecessary empty
           # search space upon failure.
           raise ValueError(f'{value} is not feasible in {self}')
@@ -884,9 +912,9 @@ class SearchSpaceSelector:
       raise ValueError('feasible_values must be one of %s; got: %s.' %
                        (allowed_values, feasible_values))
     # Boolean parameters are represented as categorical parameters internally.
-    bool_to_string = lambda x: 'True' if x else 'False'
+    bool_to_string = lambda x: trial.TRUE_VALUE if x else trial.FALSE_VALUE
     if feasible_values is None:
-      categories = ('True', 'False')
+      categories = (trial.TRUE_VALUE, trial.FALSE_VALUE)
     else:
       categories = [bool_to_string(x) for x in feasible_values]
     feasible_values = sorted(categories, reverse=True)
@@ -1074,9 +1102,8 @@ class SearchSpaceSelector:
 class SearchSpace:
   """[Cross-platform] Collection of ParameterConfigs.
 
-  Vizier search space can be *conditional*
+  Vizier search space can be *conditional*.
   Parameter names are guaranteed to be unique in any subspace.
-
 
   Attribute:
     _parameter_configs: Maps parameter names to configs.
@@ -1096,6 +1123,9 @@ class SearchSpace:
     if name not in self._parameter_configs:
       raise KeyError(f'{name} is not in the search space.')
     return self._parameter_configs[name]
+
+  def pop(self, name: str) -> ParameterConfig:
+    return self._parameter_configs.pop(name)
 
   def add(self,
           parameter_config: ParameterConfig,

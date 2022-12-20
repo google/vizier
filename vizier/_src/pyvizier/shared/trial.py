@@ -30,7 +30,42 @@ from vizier._src.pyvizier.shared import common
 
 ParameterValueTypes = Union[str, int, float, bool]
 
+# TODO: These constants should be deleted.
+TRUE_VALUE = 'True'
+FALSE_VALUE = 'False'
 
+
+class ParameterType(enum.Enum):
+  """Valid Values for ParameterConfig.type."""
+  DOUBLE = 'DOUBLE'
+  INTEGER = 'INTEGER'
+  CATEGORICAL = 'CATEGORICAL'
+  DISCRETE = 'DISCRETE'
+
+  def is_numeric(self) -> bool:
+    return self in [self.DOUBLE, self.INTEGER, self.DISCRETE]
+
+  def is_continuous(self) -> bool:
+    return self == self.DOUBLE
+
+  def _raise_type_error(self, value: ParameterValueTypes) -> None:
+    raise TypeError(f'Type {self} is not compatible with value: {value}')
+
+  def assert_correct_type(self, value: ParameterValueTypes) -> None:
+    if self.is_numeric() and float(value) != value:
+      self._raise_type_error(value)
+
+  # TODO: Accepting boolean into categorical is unintuitive.
+    elif (self
+          == ParameterType.CATEGORICAL) and (not isinstance(value,
+                                                            (str, bool))):
+      self._raise_type_error(value)
+
+    if self == self.INTEGER and int(value) != value:
+      self._raise_type_error(value)
+
+
+# TODO: Trial class should not depend on these.
 class ExternalType(enum.Enum):
   """Valid Values for ParameterConfig.external_type."""
   INTERNAL = 'INTERNAL'
@@ -84,12 +119,14 @@ class Metric:
 NaNMetric = Metric(value=np.nan)
 
 
+# TODO: This class should be deleted in the future.
 @attr.s(auto_attribs=True, frozen=True, init=True, slots=True, repr=False)
 class ParameterValue:
   """Immutable wrapper for vizier_pb2.Parameter.value, which is a oneof field.
 
   Has accessors (properties) that cast the value into the type according
-  to StudyConfiguration class behavior. In particular, 'true' and 'false' are
+  to StudyConfiguration class behavior. In particular, 'true' and FALSE_VALUE
+  are
   treated as special strings that are cast to a numeric value of 1 and 0,
   respectively, and boolean value of True and False, repectively.
   """
@@ -98,7 +135,22 @@ class ParameterValue:
       init=True,
       validator=[
           attr.validators.instance_of((str, int, float, bool)),
-      ])
+      ],
+      eq=str)
+
+  def cast_as_internal(self,
+                       internal_type: ParameterType) -> ParameterValueTypes:
+    """Cast to the internal type."""
+    internal_type.assert_correct_type(self.value)
+
+    if internal_type in (ParameterType.DOUBLE, ParameterType.DISCRETE):
+      return self.as_float
+    elif internal_type == ParameterType.INTEGER:
+      return self.as_int
+    elif internal_type == ParameterType.CATEGORICAL:
+      return self.as_str
+    else:
+      raise RuntimeError(f'Unknown type {internal_type}')
 
   def cast(
       self,
@@ -133,9 +185,9 @@ class ParameterValue:
   @property
   def as_float(self) -> Optional[float]:
     """Returns the value cast to float."""
-    if self.value == 'true':
+    if self.value == TRUE_VALUE:
       return 1.0
-    elif self.value == 'false':
+    elif self.value == FALSE_VALUE:
       return 0.0
     try:
       # Note str -> float conversion exists for benchmark use.
@@ -146,9 +198,9 @@ class ParameterValue:
   @property
   def as_int(self) -> Optional[int]:
     """Returns the value cast to int."""
-    if self.value == 'true':
+    if self.value == TRUE_VALUE:
       return 1
-    elif self.value == 'false':
+    elif self.value == FALSE_VALUE:
       return 0
     try:
       # Note str -> int conversion exists for benchmark use.
@@ -158,9 +210,12 @@ class ParameterValue:
 
   @property
   def as_str(self) -> Optional[str]:
-    """Returns str-typed value or lowercase 'true'/'false' if value is bool."""
+    """Returns str-typed value or 'True'/'False' if value is bool."""
     if isinstance(self.value, bool):
-      return str(self.value).lower()
+      if self.value:
+        return TRUE_VALUE
+      else:
+        return FALSE_VALUE
     elif isinstance(self.value, str):
       return self.value
     # Note str conversion exists for benchmark use. Use __str__ instead.
@@ -170,16 +225,16 @@ class ParameterValue:
   def as_bool(self) -> Optional[bool]:
     """Returns the value as bool following StudyConfiguration's behavior.
 
-    Returns: True if value is 'true' or 1. False if value is
-      'false' or 0. For all other cases, returns None.
+    Returns: True if value is TRUE_VALUE or 1. False if value is
+      FALSE_VALUE or 0. For all other cases, returns None.
       For string type, this behavior is consistent with how
       StudyConfiguration.AddBooleanParameter's. For other types, this
       guarantees that self.value == self.as_bool
     """
     if isinstance(self.value, str):
-      if self.value.lower() == 'true':
+      if self.value == TRUE_VALUE:
         return True
-      elif self.value.lower() == 'false':
+      elif self.value == FALSE_VALUE:
         return False
     else:
       if self.value == 1.0:
@@ -192,7 +247,7 @@ class ParameterValue:
     return str(self.value)
 
   def __repr__(self) -> str:
-    return str(self.value)
+    return repr(self.value)
 
 
 class _MetricDict(collections.UserDict, Mapping[str, Metric]):
@@ -251,6 +306,8 @@ def _to_local_time(
   return dt.astimezone() if dt else None
 
 
+# TODO: This class should have group() method that
+# groups list parameters under the same key.
 @attr.define(init=False, frozen=True, eq=True)
 class ParameterDict(abc.MutableMapping):
   """Parameter dictionary.

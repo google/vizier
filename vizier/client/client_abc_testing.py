@@ -84,11 +84,18 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
       study.from_resource_name(resource_name)
 
   def _example_trials(self) -> list[vz.Trial]:
+    """Generates example trials."""
     trials = [
-        vz.Trial().complete(vz.Measurement({'maximize_metric': 1.0})),
-        vz.Trial().complete(vz.Measurement({'maximize_metric': 0.5})),
-        vz.Trial(measurements=[vz.Measurement({'maximize_metric': 0.7})]),
-        vz.Trial(is_requested=True)
+        vz.Trial(parameters={
+            'float': 0.5
+        },).complete(vz.Measurement({'maximize_metric': 1.0})),
+        vz.Trial(parameters={
+            'float': 0.5
+        },).complete(vz.Measurement({'maximize_metric': 0.5})),
+        vz.Trial(
+            parameters={'float': 0.5},
+            measurements=[vz.Measurement({'maximize_metric': 0.7})]),
+        vz.Trial(parameters={'float': 0.5}, is_requested=True)
     ]
     for idx, t in enumerate(trials):
       t.metadata['future_id'] = str(idx + 1)  # id to be assigned
