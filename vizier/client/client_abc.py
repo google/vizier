@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Cross-platform Vizier client interfaces.
 
 Code written using these interfaces are compatible with OSS and Cloud Vertex

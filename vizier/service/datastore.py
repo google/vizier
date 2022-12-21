@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Contains all datastore classes for saving study + trial data.
 
 See resources.py for naming conventions.

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tests for vizier.service.service_policy_supporter."""
 from vizier.service import pyvizier
 from vizier.service import resources

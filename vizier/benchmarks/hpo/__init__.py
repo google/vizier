@@ -12,5 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """HPO-related benchmarks."""
 from vizier._src.benchmarks.experimenters.hpob_experimenter import HPOBExperimenter

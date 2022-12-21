@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Algorithm core modules."""
 
 from vizier._src.algorithms.core.abstractions import CompletedTrials

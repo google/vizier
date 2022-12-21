@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import numpy as np
 from vizier import pyvizier
 from vizier._src.benchmarks.experimenters import discretizing_experimenter

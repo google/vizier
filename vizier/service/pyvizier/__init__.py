@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """PyVizier classes relevant for the service, including OSS-specific objects."""
 
 # TODO: Re-evalaute what to expose to users, once closed.

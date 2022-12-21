@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """The file has utilities to regress on trial intermediate measurements.
 
 This contains utilities to fit regression models that predict the objective

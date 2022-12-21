@@ -1,0 +1,45 @@
+name: pytest_clients
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-ubuntu:
+    name: "pytest on ${{ matrix.python-version }} on ${{ matrix.os }}"
+    runs-on: "${{ matrix.os }}"
+    strategy:
+      matrix:
+        python-version: [
+        3.7, # Cloud Vertex
+        3.8, # Public Colab
+        3.9, # Preferred Version
+        ]
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install essential dependencies
+        run: |
+          sudo apt-get install -y libprotobuf-dev
+          python -m pip install --upgrade pip setuptools
+          pip install wheel
+          pip install grpcio-tools==1.48.2
+          pip install pytest pytest-xdist
+      - name: Install Vizier
+        run: |
+          pip wheel -e .
+          pip install -e .
+      - name: Print installed dependencies
+        run: |
+          pip freeze
+      - name: Check OSS Client import.
+        run: |
+          python vizier/service/clients.py

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Random Pythia Policy which produces uniform sampling of Trial parameter values.
 
 Since this is a RandomPolicy (i.e. stateless), we don't use the PolicySupporter

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Wrapper classes for Trial protos and other messages in them."""
 
 import collections

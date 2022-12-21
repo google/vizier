@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Compatibility method comparison for protobufs.
 
 Note that using this method can be unstable and hard to debug.

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tests for vizier.pyvizier.shared.parameter_config."""
 
 from typing import Any

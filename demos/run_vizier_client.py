@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Example of a Vizier Client, which can be run on multiple machines.
 
 For distributed cases, this is meant to be used after the Vizier Server (see

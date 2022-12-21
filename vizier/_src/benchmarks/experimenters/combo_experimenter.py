@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Categorical benchmarks from https://github.com/QUVA-Lab/COMBO.
 
 Lines with 'ATTENTION' mean that code was modified from original Github, in

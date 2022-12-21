@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tests for parameter iterators."""
 
-from collections.abc import Sequence
-from typing import Literal
+from typing import Sequence
+
 
 from vizier import pyvizier as vz
 from vizier._src.pyvizier.shared import parameter_iterators as pi
@@ -37,7 +39,7 @@ class ParameterIteratorsTest(parameterized.TestCase):
           expected_order=[
               'model', 'num_layers', 'apply_preprocessing', 'preprocessor'
           ]))
-  def test_e2e(self, traverse_order: Literal['bfs', 'dfs'],
+  def test_e2e(self, traverse_order: str,
                expected_order: Sequence[str]):
     valid_params = {
         'model': 'dnn',

@@ -12,5 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 # Optimizers that directly act on Vizier search spaces and trials.
 # For jax optimizers that can be jit compiled, see vizier/_src/jax.

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Bayesian Optimization of Combinatorial Structures (BOCS) from https://arxiv.org/abs/1806.08838.
 
 Code is a cleaned-up exact version from /BOCSpy/ in

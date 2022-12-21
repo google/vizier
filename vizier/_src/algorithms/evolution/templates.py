@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Generic interfaces and template for evolutionary algorithms.
 
 The evolutionary algorithm and Vizier interaction workflow is:
@@ -75,7 +77,7 @@ class Population(serializable.Serializable, abc.ABC):
   def __getitem__(
       self: _P,
       index: Union[int, slice],
-      /,
+     
   ) -> _P:
     pass
 

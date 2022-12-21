@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Makes client calls via gRPC to an existing Vizier Service Server.
 
 This client can be used interchangeably with the Cloud Vizier client.
@@ -30,7 +32,6 @@ from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import stubs_util
 from vizier.service import study_pb2
-from vizier.service import vizier_server
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
 from vizier.utils import attrs_utils
@@ -55,15 +56,17 @@ VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
 NO_ENDPOINT = 'NO_ENDPOINT'
 
 
-@functools.cache
+@functools.lru_cache(maxsize=None)
 def _create_local_vizier_server(
 ) -> vizier_service_pb2_grpc.VizierServiceServicer:
+  from vizier.service import vizier_server  # pylint:disable=g-import-not-at-top
   return vizier_server.VizierService()
 
 
 def _create_vizier_server_or_stub(endpoint: str) -> VizierService:
   if endpoint == NO_ENDPOINT:
-    logging.info('Using cached local Vizier server.')
+    logging.info('No endpoint given; using cached local Vizier server.')
+    logging.warning('Python 3.8+ is required in this case.')
     return _create_local_vizier_server()
   return stubs_util.create_vizier_server_stub(endpoint)
 
@@ -193,8 +196,7 @@ class VizierClient:
       metric_list: List[Mapping[str, Union[int, float]]],
       trial_id: int,
   ) -> pyvizier.Trial:
-    """Sends intermediate objective value for the trial identified by trial_id.
-    """
+    """Sends intermediate objective value for the trial identified by trial_id."""
     new_metric_list = []
     for metric in metric_list:
       for metric_name in metric:
@@ -235,8 +237,7 @@ class VizierClient:
       trial_id: int,
       final_measurement: Optional[pyvizier.Measurement] = None,
       infeasibility_reason: Optional[str] = None) -> pyvizier.Trial:
-    """Completes the trial, which is infeasible if given a infeasibility_reason.
-    """
+    """Completes the trial, which is infeasible if given a infeasibility_reason."""
     request = vizier_service_pb2.CompleteTrialRequest(
         name=resources.TrialResource(self._owner_id, self._study_id,
                                      trial_id).name,
@@ -310,7 +311,7 @@ class VizierClient:
     self._server.DeleteTrial(request)
     logging.info('Trial deleted: %s', trial_id)
 
-  def delete_study(self, study_resource_name: Optional[str] = None, /) -> None:
+  def delete_study(self, study_resource_name: Optional[str] = None) -> None:
     """Deletes study from datastore."""
     study_resource_name = study_resource_name or (resources.StudyResource(
         self._owner_id, self._study_id).name)

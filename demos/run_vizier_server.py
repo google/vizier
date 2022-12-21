@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Sets up the Vizier Service gRPC server.
 
 This should be done on a server machine:

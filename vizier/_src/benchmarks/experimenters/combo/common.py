@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Common utility functions for COMBO benchmarks."""
 # pylint:disable = missing-function-docstring
 import itertools

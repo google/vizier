@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Utility functions for creating GRPC stubs."""
 
 import functools
@@ -31,7 +33,7 @@ def _create_channel(endpoint: str) -> grpc.Channel:
   return channel
 
 
-@functools.lru_cache
+@functools.lru_cache(maxsize=128)
 def create_pythia_server_stub(
     endpoint: str) -> pythia_service_pb2_grpc.PythiaServiceStub:
   """Creates the GRPC stub.
@@ -50,7 +52,7 @@ def create_pythia_server_stub(
   return pythia_service_pb2_grpc.PythiaServiceStub(_create_channel(endpoint))
 
 
-@functools.lru_cache
+@functools.lru_cache(maxsize=128)
 def create_vizier_server_stub(
     endpoint: str) -> vizier_service_pb2_grpc.VizierServiceStub:
   """Creates the GRPC stub.

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tests for vizier.service.vizier_server."""
 # TODO: Change the test to create a vizier stub and call its
 # methods, instead of directly calling VizierService methods.

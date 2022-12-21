@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Test runners for algorithms."""
 from typing import Any, Callable, Collection, Optional, Sequence
 
@@ -121,7 +123,7 @@ class RandomMetricsRunner:
 def run_with_random_metrics(
     designer: vza.Designer,
     problem: vz.ProblemStatement,
-    /,
+   
     iters: int = 5,
     *,
     batch_size: Optional[int] = 1,

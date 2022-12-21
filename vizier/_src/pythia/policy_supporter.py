@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """The Policy can use these classes to communicate with Vizier."""
 
 import abc
