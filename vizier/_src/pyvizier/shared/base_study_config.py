@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Essential classes for defining a blackbox optimization problem.
 
 Contains `ProblemStatement` and its components that are cross platform
 compatible.
 """
 import collections
-from collections import abc as collections_abc
+from typing import Collection
 import enum
 from typing import Callable, Iterable, Iterator, List, Optional, Type, TypeVar, Union
 import attr
@@ -205,7 +207,7 @@ class MetricInformation:
 
 
 @attr.define(frozen=False, init=True, slots=True)
-class MetricsConfig(collections_abc.Collection[MetricInformation]):
+class MetricsConfig(Collection[MetricInformation]):
   """Container for metrics.
 
   Metric names should be unique.

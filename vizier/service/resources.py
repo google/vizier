@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Contains resource utilities, such as name parsing.
 
 Convention for variable naming for string identifiers:

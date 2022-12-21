@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """HPO-B dataset.
 
 Note that we denote (X,Y) as a batched set of trials (i.e. suggestions X and

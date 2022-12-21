@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """NSGA-II algorithm: https://ieeexplore.ieee.org/document/996017."""
 
 from typing import Callable, Optional, Tuple

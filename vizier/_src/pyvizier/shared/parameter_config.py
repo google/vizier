@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
+from __future__ import annotations
 
+"""ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
 import collections
-from collections.abc import Sized, Collection, Set as AbstractSet
+from typing import Sized, Collection, Set as AbstractSet
 import copy
 import enum
 import json
@@ -624,6 +625,9 @@ class ParameterConfig:
     return self._children[value]
 
 
+ParameterConfigSelection = Union[ParameterConfig, Collection[ParameterConfig]]
+
+
 @attr.define(init=False)
 class ParameterConfigSelector(Sized):
   """Holds a reference to ParameterConfigs."""
@@ -634,8 +638,7 @@ class ParameterConfigSelector(Sized):
   def __len__(self) -> int:
     return len(self._selected)
 
-  def __init__(self, selected: Union[ParameterConfig,
-                                     Collection[ParameterConfig]], /):
+  def __init__(self, selected: ParameterConfigSelection):
     if isinstance(selected, Collection):
       self.__attrs_init__(tuple(selected))
     else:
@@ -665,6 +668,9 @@ class InvalidParameterError(Exception):
 
 
 ################### Main Classes ###################
+SearchSpaceSelection = Union['SearchSpace', Collection['SearchSpace']]
+
+
 @attr.define(init=False)
 class SearchSpaceSelector:
   """Holds a reference to (sub) spaces."""
@@ -677,8 +683,7 @@ class SearchSpaceSelector:
   def __len__(self) -> int:
     return len(self._selected)
 
-  def __init__(self, selected: Union['SearchSpace', Collection['SearchSpace']],
-               /):
+  def __init__(self, selected: SearchSpaceSelection):
     if isinstance(selected, Collection):
       self.__attrs_init__(tuple(selected))
     else:
@@ -1129,7 +1134,7 @@ class SearchSpace:
 
   def add(self,
           parameter_config: ParameterConfig,
-          /,
+         
           *,
           replace: bool = False) -> ParameterConfig:
     """Adds the ParameterConfig.

@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tools for iterating through a collection of Parameter(config)s."""
 
-from collections.abc import Iterator, Generator
+from typing import Iterator, Generator
 import copy
-from typing import Literal
+
 
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.parameter_config import SearchSpace
@@ -44,9 +46,9 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
 
   def __init__(self,
                search_space: SearchSpace,
-               /,
+              
                *,
-               traverse_order: Literal['dfs', 'bfs'] = 'dfs'):
+               traverse_order: str = 'dfs'):
     """Init.
 
     See the class pydoc for more details.
@@ -86,7 +88,7 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
       raise self._stop_iteration
     return self._next
 
-  def choose_value(self, value: ParameterValueTypes, /) -> None:
+  def choose_value(self, value: ParameterValueTypes) -> None:
     """Choose the value for the last ParameterConfig."""
     try:
       self._next = self._gen.send(value)

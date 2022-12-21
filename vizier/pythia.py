@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """These are the externally-useful symbols for OSS Pythia."""
 # pylint: disable=unused-import
 

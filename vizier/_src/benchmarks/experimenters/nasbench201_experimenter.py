@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """NAS-Bench-201 Experimenter.
 
 Note that 'NATS' is an alias of 201.

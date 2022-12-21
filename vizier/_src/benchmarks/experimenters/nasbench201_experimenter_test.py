@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Tests for nasbench201_experimenter."""
 from absl import logging
 import nats_bench

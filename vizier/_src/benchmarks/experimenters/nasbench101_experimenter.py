@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """NAS-Bench-101 Experimenter.
 
 NOTE: Since our installation uses tensorflow>=2.0.0, you will need to change the

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Init file."""
 import os
 import sys
@@ -21,4 +23,4 @@ PROTO_ROOT = os.path.realpath(os.path.join(THIS_DIR, "service"))
 
 sys.path.append(PROTO_ROOT)
 
-__version__ = "0.0.15"
+__version__ = "0.0.16"

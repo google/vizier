@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Converters for OSS Vizier's protos from/to PyVizier's classes."""
 import datetime
 import logging

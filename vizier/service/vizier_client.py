@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Makes client calls via gRPC to an existing Vizier Service Server.
 
 This client can be used interchangeably with the Cloud Vizier client.
@@ -55,7 +57,7 @@ VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
 NO_ENDPOINT = 'NO_ENDPOINT'
 
 
-@functools.cache
+@functools.lru_cache(maxsize=None)
 def _create_local_vizier_server(
 ) -> vizier_service_pb2_grpc.VizierServiceServicer:
   return vizier_server.VizierService()
@@ -310,7 +312,7 @@ class VizierClient:
     self._server.DeleteTrial(request)
     logging.info('Trial deleted: %s', trial_id)
 
-  def delete_study(self, study_resource_name: Optional[str] = None, /) -> None:
+  def delete_study(self, study_resource_name: Optional[str] = None) -> None:
     """Deletes study from datastore."""
     study_resource_name = study_resource_name or (resources.StudyResource(
         self._owner_id, self._study_id).name)

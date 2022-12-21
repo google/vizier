@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """OSS Vizier client."""
 
 # TODO: Raise vizier-specific exceptions.
@@ -178,7 +180,7 @@ class Study(client_abc.StudyInterface):
 
     return TrialIterable(iterable_factory, self._client)
 
-  def get_trial(self, trial_id: int, /) -> Trial:
+  def get_trial(self, trial_id: int) -> Trial:
     try:
       # Check if the trial actually exists.
       trial = self._client.get_trial(trial_id)
@@ -210,7 +212,7 @@ class Study(client_abc.StudyInterface):
       raise NotImplementedError(f'Unknown state: {state}')
 
   @classmethod
-  def from_resource_name(cls: Type['Study'], name: str, /) -> 'Study':
+  def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
     client = vizier_client.VizierClient(_get_stub(), name, _UNUSED_CLIENT_ID)
     try:
       _ = client.get_study_config()  # Make sure study exists.
@@ -238,7 +240,7 @@ class Study(client_abc.StudyInterface):
     return cls.from_resource_name(study_resource_name)
 
   @classmethod
-  def from_study_config(cls, config: vz.StudyConfig, /, *, owner: str,
+  def from_study_config(cls, config: vz.StudyConfig, *, owner: str,
                         study_id: str) -> 'Study':
     """Create study from StudyConfig.
 

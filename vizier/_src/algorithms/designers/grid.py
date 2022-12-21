@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Grid Search Designer which searches over a discretized grid of Trial parameter values.
 """
 from typing import List, Mapping, Optional, Sequence

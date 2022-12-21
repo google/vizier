@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Convenience classes for configuring Vizier Study Configs and Search Spaces.
 
 This module contains several classes, used to access/build Vizier StudyConfig

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Core population utilities."""
 import collections
 import json
@@ -202,7 +204,7 @@ class Population(templates.Population):
   def __getitem__(
       self,
       index: Any,
-      /,
+     
   ) -> 'Population':
     return Population(**{k: v[index] for k, v in attr.asdict(self).items()})
 

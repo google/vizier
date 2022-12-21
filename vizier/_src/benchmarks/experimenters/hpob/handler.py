@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """HPOB Handler copied (with slightly modified filesystem logic) from
 
 https://github.com/releaunifreiburg/HPO-B/blob/main/hpob_handler.py.

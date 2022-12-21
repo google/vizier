@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Harmonica algorithm for boolean search spaces from 'Hyperparameter Optimization: A Spectral Approach' (https://arxiv.org/abs/1706.00764).
 
 This is a faithful re-implementation based off

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Import target for multimetric."""
 
 from vizier._src.pyvizier.multimetric.hypervolume import ParetoFrontier

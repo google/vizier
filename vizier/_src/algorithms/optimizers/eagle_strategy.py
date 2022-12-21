@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Eagle Strategy Optimizer.
 
 Implements a variation of Eagle Strategy without the Levy random walk, aka

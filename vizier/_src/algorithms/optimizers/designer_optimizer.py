@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Wraps Designer as a gradient-free optimizer."""
 
 from typing import Callable, List, TypeVar, Sequence

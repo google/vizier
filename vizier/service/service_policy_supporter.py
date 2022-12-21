@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 """Policy Supporter used for the OSS Vizier service.
 
 The Policy can use these methods to communicate with Vizier.
