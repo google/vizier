@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for eagle strategy."""
 
+from absl.testing import parameterized
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_param_handler
@@ -26,7 +27,7 @@ from vizier.pyvizier import converters
 from absl.testing import absltest
 
 
-class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
+class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
   def setUp(self):
     super(VectorizedEagleStrategyContinuousTest, self).setUp()
@@ -78,28 +79,56 @@ class VectorizedEagleStrategyContinuousTest(absltest.TestCase):
     scaled_directions = self.eagle._compute_scaled_directions()
     np.testing.assert_array_equal(scaled_directions, expected_scaled_directions)
 
-  def test_compute_features_changes(self):
+  @parameterized.parameters('random', 'mean')
+  def test_compute_features_changes(self, norm_type):
     self.eagle._rewards = np.array([-np.inf, 3, -np.inf, 1])
     features_diffs = np.array([[[0, 0], [2, 2], [6, 5], [7, 6]],
                                [[-2, -2], [0, 0], [4, 3], [5, 4]]])
-
     dists = np.array([[0, 8, 61, 85], [8, 0, 25, 41]])
-
     scaled_directions = np.array([
         [-1, 1, -1, 1],
         [-1, 1, -1, -1],
     ])
-    features_changes = self.eagle._compute_features_changes(
-        features_diffs, dists, scaled_directions)
-    # scaled_pulls array:
-    # [[-1.00000000e+000  4.24835426e-018 -3.46883002e-133  2.65977679e-185]
-    # [-4.24835426e-018  1.00000000e+000 -5.16642063e-055 -9.32462145e-090]]
-    c0 = np.array([2, 2]) * 4.24835426e-018 + np.array([7, 6]) * 2.65977679e-185
-    c1 = np.array([5, 4]) * (-9.32462145e-090)
-    expected_features_changes = np.vstack([c0, c1])
-    self.assertEqual(features_changes.shape, (2, 2))
-    np.testing.assert_array_almost_equal(expected_features_changes,
-                                         features_changes)
+    if norm_type == 'mean':
+      features_changes = self.eagle._compute_features_changes(
+          features_diffs, dists, scaled_directions)
+      # scaled_pulls array:
+      # [[-1.00000000e+000  4.24835426e-018 -3.46883002e-133  2.65977679e-185]
+      # [-4.24835426e-018  1.00000000e+000 -5.16642063e-055 -9.32462145e-090]
+      c0 = np.array([2, 2]) * 4.24835426e-018 / 2.0 + np.array(
+          [7, 6]) * 2.65977679e-185 / 2.0
+      c1 = np.array([5, 4]) * (-9.32462145e-090) / 1.0
+      expected_features_changes = np.vstack([c0, c1])
+      self.assertEqual(features_changes.shape, (2, 2))
+      np.testing.assert_array_almost_equal(expected_features_changes,
+                                           features_changes)
+
+    if norm_type == 'random':
+      for _ in range(1000):
+        # Repeat the check multiple time to increase confidence.
+        features_changes = self.eagle._compute_features_changes(
+            features_diffs, dists, scaled_directions)
+        # scaled_pulls:
+        # [[-1.00000000e+000  4.24835426e-018 -3.46883002e-133  2.65977679e-185]
+        # [-4.24835426e-018  1.00000000e+000 -5.16642063e-055 -9.32462145e-090]]
+        c0 = np.array([2, 2]) * 4.24835426e-018 / 2.0 + np.array(
+            [7, 6]) * 2.65977679e-185 / 2.0
+        c1 = np.array([5, 4]) * (-9.32462145e-090) / 1.0
+        self.assertEqual(features_changes.shape, (2, 2))
+
+        low_bound_00 = 7 * 2.65977679e-185
+        high_bound_00 = 2 * 4.24835426e-018
+        low_bound_01 = 6 * 2.65977679e-185
+        high_bound_01 = 2 * 4.24835426e-018
+
+        self.assertBetween(features_changes[0][0], low_bound_00, high_bound_00)
+        self.assertBetween(features_changes[0][1], low_bound_01, high_bound_01)
+        np.testing.assert_array_almost_equal(features_changes[1], c1)
+
+        expected_features_changes = np.vstack([c0, c1])
+
+        np.testing.assert_array_almost_equal(expected_features_changes,
+                                             features_changes)
 
   def test_create_features(self):
     self.assertEqual(self.eagle._create_features().shape, (2, 2))

@@ -69,7 +69,7 @@ best_reward, best_parameters = optimizer.best_results
 """
 
 import logging
-from typing import Tuple, Optional
+from typing import Optional, Tuple, Literal
 
 import attr
 import numpy as np
@@ -102,7 +102,11 @@ class EagleStrategyConfig:
   # Penalty
   perturbation_lower_bound: float = 0.001
   penalize_factor: float = 0.9
-  pool_size: int = 50
+  # Pool size
+  pool_size_exponent: float = 1.2
+  pool_size: int = 0
+  # Force normalization mode
+  mutate_normalization_type: str = "mean"
 
 
 @attr.define(frozen=True)
@@ -187,6 +191,14 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def __attrs_post_init__(self):
     self._initialize()
+    logging.info("Eagle class attributes:\n%s", self)
+    logging.info("Eagle configuration:\n%s", self.config)
+
+  def _compute_pool_size(self):
+    """Compute the pool size, and ensures it's a multiply of the batch_size."""
+    raw_pool_size = 10 + int(0.5 * self._n_features +
+                             self._n_features**self.config.pool_size_exponent)
+    return int(np.ceil(raw_pool_size / self.batch_size) * self.batch_size)
 
   def _initialize(self):
     """Initialize the designer state."""
@@ -199,10 +211,19 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         pure_categorical_perturbation_factor=self.config
         .pure_categorical_perturbation_factor)
     self._n_features = self._param_handler.n_features
+    if self.config.pool_size > 0:
+      # This allow to override the pool size computation.
+      self.pool_size = self.config.pool_size
+    else:
+      self.pool_size = self._compute_pool_size()
+    logging.info("Pool size: %d", self.pool_size)
+    if self.batch_size == -1:
+      # This configuration updates all the fireflies in each iteration.
+      self.batch_size = self.pool_size
+      logging.info("batch_size is set to pool_size (%s).", self.pool_size)
     self._batch_id = 0
     self._iterations = 0
     self._batch_slice = np.s_[0:self.batch_size]
-    self.pool_size = self.config.pool_size
     self._features = self._param_handler.random_features(
         self.pool_size, self._n_features)
     self._rewards = np.ones(self.pool_size,) * (-np.inf)
@@ -210,6 +231,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     self._last_suggested_features = None
     self._perturbation_factors = self._param_handler.perturbation_factors
     self._best_reward = -np.inf
+    # Ignore subtracting np.inf - np.inf. See '_compute_scaled_directions' for
+    # explanation on why we ignore warning in this case.
+    np.seterr(invalid="ignore")
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -307,6 +331,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
   ) -> np.ndarray:
     """Compute the firefly features changes due to mutation.
 
+    The pool fireflies forces (pull/push) are being normalized to ensure the
+    combined force doesn't throw the firefly too far. Mathematically, the
+    normalization guarantees that the combined normalized force is within the
+    simplex constructed by the unnormalized forces and therefore within bounds.
+
     Arguments:
       features_diffs: (batch_size, pool_size, n_features)
       dists: (batch_size, pool_size)
@@ -316,8 +345,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       feature changes: (batch_size, feature_n)
     """
     # Normalize the distance by the number of features.
-    pulls = np.exp(-self.config.visibility * dists / self._n_features * 10)
-    scaled_pulls = np.expand_dims(scaled_directions * pulls, -1)
+    force = np.exp(-self.config.visibility * dists / self._n_features * 10)
+    scaled_force = np.expand_dims(scaled_directions * force, -1)
     # Handle removed fireflies without updated rewards.
     inf_indx = np.isinf(self._rewards)
     if np.sum(inf_indx) == self.pool_size:
@@ -325,11 +354,43 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           ("All firefly were recently removed. This Shouldn't happen."
            "Pool Features:\n%sPool rewards:\n%s"), self._features,
           self._rewards)
-
       return np.zeros((self.batch_size, self._n_features))
-    # Sums contributions of all non-outdated fireflies with invalid directions.
+
+    # Ignore fireflies that were removed from the pool.
+    features_diffs = features_diffs[:, ~inf_indx, :]
+    scaled_force = scaled_force[:, ~inf_indx, :]
+
+    # Separate forces to pull and push so to normalize them separately.
+    scaled_pulls = np.where(scaled_force > 0, scaled_force, 0)
+    scaled_push = np.where(scaled_force < 0, scaled_force, 0)
+
+    if self.config.mutate_normalization_type == "mean":
+      # Divide the push and pull forces by the number of flies participating.
+      norm_scaled_pulls = np.nan_to_num(
+          scaled_pulls / np.sum(scaled_pulls > 0, axis=1, keepdims=True), 0)
+      norm_scaled_push = np.nan_to_num(
+          scaled_push / np.sum(scaled_push < 0, axis=1, keepdims=True), 0)
+    elif self.config.mutate_normalization_type == "random":
+      # Create random matrices and normalize each row, s.t. the sum is 1.
+      pull_rand_matrix = self._rng.uniform(
+          0, 1, size=scaled_pulls.shape) * np.int_(scaled_pulls > 0)
+      pull_weight_matrix = pull_rand_matrix / np.sum(
+          pull_rand_matrix, axis=1, keepdims=True)
+      push_rand_matrix = self._rng.uniform(
+          0, 1, size=scaled_pulls.shape) * np.int_(scaled_pulls > 0)
+      push_weight_matrix = push_rand_matrix / np.sum(
+          push_rand_matrix, axis=1, keepdims=True)
+      # Normalize pulls/pulls by the weight matrices.
+      norm_scaled_pulls = scaled_pulls * pull_weight_matrix
+      norm_scaled_push = scaled_push * push_weight_matrix
+    elif self.config.mutate_normalization_type == "unnormalized":
+      # Doesn't normalize the forces. Use this option with caution.
+      norm_scaled_pulls = scaled_pulls
+      norm_scaled_push = scaled_push
+    # Sums normalized forces (pull/push) of all fireflies.
+
     return np.sum(
-        features_diffs[:, ~inf_indx] * scaled_pulls[:, ~inf_indx], axis=1)
+        features_diffs * (norm_scaled_pulls + norm_scaled_push), axis=1)
 
   def _create_perturbations(self) -> np.ndarray:
     """Create random perturbations for the newly creatd batch.
