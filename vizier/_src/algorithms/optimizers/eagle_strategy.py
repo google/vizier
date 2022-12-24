@@ -107,6 +107,8 @@ class EagleStrategyConfig:
   pool_size: int = 0
   # Force normalization mode
   mutate_normalization_type: str = "mean"
+  # Multiplier factor when using normalized modes.
+  normalization_scale: float = 1.0
 
 
 @attr.define(frozen=True)
@@ -366,9 +368,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     if self.config.mutate_normalization_type == "mean":
       # Divide the push and pull forces by the number of flies participating.
-      norm_scaled_pulls = np.nan_to_num(
+      # Also multiply by normalization_scale.
+      norm_scaled_pulls = self.config.normalization_scale * np.nan_to_num(
           scaled_pulls / np.sum(scaled_pulls > 0, axis=1, keepdims=True), 0)
-      norm_scaled_push = np.nan_to_num(
+      norm_scaled_push = self.config.normalization_scale * np.nan_to_num(
           scaled_push / np.sum(scaled_push < 0, axis=1, keepdims=True), 0)
     elif self.config.mutate_normalization_type == "random":
       # Create random matrices and normalize each row, s.t. the sum is 1.
@@ -381,14 +384,15 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       push_weight_matrix = push_rand_matrix / np.sum(
           push_rand_matrix, axis=1, keepdims=True)
       # Normalize pulls/pulls by the weight matrices.
-      norm_scaled_pulls = scaled_pulls * pull_weight_matrix
-      norm_scaled_push = scaled_push * push_weight_matrix
+      # Also multiply by normalization_scale.
+      norm_scaled_pulls = self.config.normalization_scale * scaled_pulls * pull_weight_matrix
+      norm_scaled_push = self.config.normalization_scale * scaled_push * push_weight_matrix
     elif self.config.mutate_normalization_type == "unnormalized":
       # Doesn't normalize the forces. Use this option with caution.
       norm_scaled_pulls = scaled_pulls
       norm_scaled_push = scaled_push
-    # Sums normalized forces (pull/push) of all fireflies.
 
+    # Sums normalized forces (pull/push) of all fireflies.
     return np.sum(
         features_diffs * (norm_scaled_pulls + norm_scaled_push), axis=1)
 
