@@ -126,8 +126,8 @@ class VectorizedOptimizer:
       each 'suggest' call.
   """
   strategy_factory: VectorizedStrategyFactory
-  suggestion_batch_size: int = 5
-  max_evaluations: int = 15_000
+  suggestion_batch_size: int = 25
+  max_evaluations: int = 75_000
   max_duration: Optional[datetime.timedelta] = None
 
   def optimize(
