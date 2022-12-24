@@ -207,20 +207,31 @@ class VectorizedOptimizer:
     sorted_indices = sorted(
         range(len(batch_rewards)), key=lambda x: batch_rewards[x],
         reverse=True)[:count]
+    if count == 1:
+      # In thise case we can simply track the single best result.
+      ind = sorted_indices[0]
+      if not best_results:
+        best_results.append(
+            VectorizedStrategyResult(
+                reward=batch_rewards[ind], features=batch_features[ind]))
+      else:
+        if best_results[0].reward < batch_rewards[ind]:
+          best_results[0].reward = batch_rewards[ind]
+          best_results[0].features = batch_features[ind]
+    else:
+      for ind in sorted_indices:
+        if len(best_results) < count:
+          # 'best_results' is below capacity, add the best batch result.
+          new_result = VectorizedStrategyResult(
+              reward=batch_rewards[ind], features=batch_features[ind])
+          heapq.heappush(best_results, new_result)
 
-    for ind in sorted_indices:
-      if len(best_results) < count:
-        # 'best_results' is below capacity, add the best result from the batch.
-        new_result = VectorizedStrategyResult(
-            reward=batch_rewards[ind], features=batch_features[ind])
-        heapq.heappush(best_results, new_result)
-
-      elif batch_rewards[ind] > best_results[0].reward:
-        # 'best_result' is at capacity and the best batch result is better than
-        # the worst item in 'best_results'.
-        new_result = VectorizedStrategyResult(
-            reward=batch_rewards[ind], features=batch_features[ind])
-        heapq.heapreplace(best_results, new_result)
+        elif batch_rewards[ind] > best_results[0].reward:
+          # 'best_result' is at capacity and the best batch result is better
+          # than the worst item in 'best_results'.
+          new_result = VectorizedStrategyResult(
+              reward=batch_rewards[ind], features=batch_features[ind])
+          heapq.heapreplace(best_results, new_result)
 
   def _best_candidates(
       self,

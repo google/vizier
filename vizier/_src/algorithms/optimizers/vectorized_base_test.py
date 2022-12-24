@@ -90,7 +90,25 @@ class VectorizedBaseTest(parameterized.TestCase):
     # The batch size is 5, so we expect 100/5 = 20 calls
     self.assertEqual(score_fn.call_count, 20)
 
-  def test_best_candidates(self):
+  def test_best_candidates_count_is_1(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 1.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 1.0)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    score_fn = lambda x: -np.max(np.square(x - 0.52), axis=-1)
+    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
+    optimizer = vb.VectorizedOptimizer(
+        strategy_factory=strategy_factory, max_evaluations=10)
+    best_candidates = optimizer.optimize(
+        converter=converter, score_fn=score_fn, count=1)
+    # check the best candidate
+    self.assertEqual(best_candidates[0].parameters['f1'].value, 0.5)
+    self.assertEqual(best_candidates[0].parameters['f2'].value, 0.5)
+    self.assertEqual(
+        best_candidates[0].final_measurement.metrics['acquisition'].value,
+        -(0.5 - 0.52)**2)
+
+  def test_best_candidates_count_is_3(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
