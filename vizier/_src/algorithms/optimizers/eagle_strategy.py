@@ -106,7 +106,8 @@ class EagleStrategyConfig:
   pool_size_exponent: float = 1.2
   pool_size: int = 0
   # Force normalization mode
-  mutate_normalization_type: str = "mean"
+  mutate_normalization_type: Literal["mean", "random",
+                                     "unnormalized"] = "random"
   # Multiplier factor when using normalized modes.
   normalization_scale: float = 1.0
 
