@@ -33,7 +33,7 @@ OBJECTIVE_NAME = eagle_strategy_utils.OBJECTIVE_NAME
 class PartialFireflyPoolEncoder(json.JSONEncoder):
   """Eagle strategy pool partial encoder.
 
-  The encoder stores the '_pool' dictionary, 'capacity', '_last_id' and
+  The encoder encodes the '_pool' dictionary, 'capacity', '_last_id' and
   '_max_fly_id' into a string format.
 
   The encoder does not store the EagleStrategyUtils as its state only depends
@@ -41,7 +41,6 @@ class PartialFireflyPoolEncoder(json.JSONEncoder):
   """
 
   def default(self, o: Any) -> Any:
-
     if isinstance(o, FireflyPool):
       return {
           'capacity': o.capacity,
@@ -63,7 +62,7 @@ class PartialFireflyPoolEncoder(json.JSONEncoder):
               o.parameters.as_dict(),
           'objective':
               o.final_measurement.metrics[eagle_strategy_utils.OBJECTIVE_NAME
-                                         ].value
+                                         ].value,
       }
     else:
       return json.JSONEncoder.default(self, o)
@@ -78,6 +77,7 @@ class FireflyPoolDecoder:
   Attributes:
     utils: EagleStrategyUtils initialized with the appropriate random generator.
   """
+
   _utils: EagleStrategyUtils
 
   def decode(self, obj: Any) -> FireflyPool:
@@ -103,7 +103,8 @@ class FireflyPoolDecoder:
           id_=fly['id_'],
           perturbation=fly['perturbation'],
           generation=fly['generation'],
-          trial=trial)
+          trial=trial,
+      )
 
     restored_capacity = int(obj_dict['capacity'])
     restored_firefly_pool = FireflyPool(

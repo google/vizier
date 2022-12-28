@@ -83,12 +83,14 @@ FireflyPool = eagle_strategy_utils.FireflyPool
 class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
   """The eagle strategy partially serializable designer."""
 
-  def __init__(self,
-               problem_statement: vz.ProblemStatement,
-               *,
-               config: Optional[FireflyAlgorithmConfig] = None,
-               seed: Optional[int] = None,
-               verbose: bool = True):
+  def __init__(
+      self,
+      problem_statement: vz.ProblemStatement,
+      *,
+      config: Optional[FireflyAlgorithmConfig] = None,
+      seed: Optional[int] = None,
+      verbose: bool = True,
+  ):
     """Initializes the Eagle Strategy desiger.
 
     Args:
@@ -106,8 +108,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # ensure non-repeated behavior.
       seed = int(time.time())
       logging.info(
-          'A seed was not provided to Eagle Strategy designer constructor. '
-          'Setting the seed to %s', str(seed))
+          ('A seed was not provided to Eagle Strategy designer constructor. '
+           'Setting the seed to %s'),
+          str(seed),
+      )
 
     self._rng = np.random.default_rng(seed=seed)
     self.problem = problem_statement
@@ -130,8 +134,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           "Eagle Strategy designer doesn't support non-linear scales.")
 
     logging.info(
-        'Eagle Strategy designer initialized. Pool capacity: %s. '
-        'Eagle config:\n%s\nProblem statement:\n%s',
+        ('Eagle Strategy designer initialized. Pool capacity: %s. '
+         'Eagle config:\n%s\nProblem statement:\n%s'),
         self._utils.compute_pool_capacity(),
         json.dumps(attr.asdict(self.config), indent=2),
         self.problem,
@@ -145,11 +149,11 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     """
     metadata = vz.Metadata()
     metadata.ns('eagle')['rng'] = serialization.serialize_rng(self._rng)
-    metadata.ns('eagle')[
-        'firefly_pool'] = serialization.partially_serialize_firefly_pool(
-            self._firefly_pool)
+    metadata.ns('eagle')['firefly_pool'] = (
+        serialization.partially_serialize_firefly_pool(self._firefly_pool))
     metadata.ns('eagle')['serialization_version'] = 'v1'
     metadata.ns('eagle')['dump_timestamp'] = str(time.time())
+    logging.info('Dump metadata:\n%s', metadata.ns('eagle'))
     return metadata
 
   def load(self, metadata: vz.Metadata) -> None:
@@ -167,27 +171,31 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     """
     if metadata.ns('eagle').get('serialization_version', default=None) is None:
       # First time the designer is called, so the namespace doesn't exist yet.
-      logging.info(
-          'Eagle designer was called for the first time. No state was recovered.'
-      )
+      logging.info('Eagle designer was called for the first time. No state was'
+                   ' recovered.')
     else:
       try:
+        logging.info('Load metadata:\n%s', metadata.ns('eagle'))
         self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])
       except Exception as e:
         raise serializable.FatalDecodeError(
-            "Coulnd't load random generator from metadata.") from e
+            "Couldn't load random generator from metadata.") from e
       self._utils.rng = self._rng
+      logging.info('Restored rng:\n%s', self._rng)
       try:
         firefly_pool = metadata.ns('eagle')['firefly_pool']
         self._firefly_pool = serialization.restore_firefly_pool(
             self._utils, firefly_pool)
+        logging.info('Restored firefly pool:\n%s', self._firefly_pool)
       except Exception as e:
         raise serializable.HarmlessDecodeError(
             "Couldn't load firefly pool from metadata.") from e
       logging.info(
-          'Eagle designer restored state from timestamp %s. Firefly pool now '
-          'contains %s fireflies.',
-          metadata.ns('eagle')['dump_timestamp'], self._firefly_pool.size)
+          ('Eagle designer restored state from timestamp %s. Firefly pool'
+           ' now contains %s fireflies.'),
+          metadata.ns('eagle')['dump_timestamp'],
+          self._firefly_pool.size,
+      )
 
   def suggest(self,
               count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
@@ -214,7 +222,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # Create a new parent fly id and assign it to the trial, this will be
       # used during Update to match the trial to its parent fly in the pool.
       parent_fly_id = self._firefly_pool.generate_new_fly_id()
-      logging.info('Suggested a random trial.')
+      logging.info('Pool is underpopulated. Generated random trial parameters.')
     else:
       # The pool is full. Use a copy of the next fly in line to be moved.
       moving_fly = self._firefly_pool.get_next_moving_fly_copy()
@@ -226,8 +234,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
 
     suggested_trial.parameters = suggested_parameters
     suggested_trial.metadata.ns('eagle')['parent_fly_id'] = str(parent_fly_id)
-    logging.info('Suggested trial: %s',
-                 self._utils.display_trial(suggested_trial.to_trial(-1)))
+    logging.info(
+        'Suggested trial: %s',
+        self._utils.display_trial(suggested_trial.to_trial(-1)),
+    )
     return suggested_trial
 
   def _mutate_fly(self, moving_fly: Firefly) -> None:
@@ -256,15 +266,19 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         pull_weight = pull_weights[param_config.type]
         # Accentuate 'other_fly' pull using 'exploration_rate'.
         if pull_weight > 0.5:
-          explore_pull_weight = self.config.explore_rate * pull_weight + (
-              1 - self.config.explore_rate) * 1.0
+          explore_pull_weight = (
+              self.config.explore_rate * pull_weight +
+              (1 - self.config.explore_rate) * 1.0)
         else:
           explore_pull_weight = self.config.explore_rate * pull_weight
         # Update the parameters using 'other_fly' and 'explore_pull_rate'.
-        mutated_parameters[
-            param_config.name] = self._utils.combine_two_parameters(
-                param_config, other_fly.trial.parameters, mutated_parameters,
-                explore_pull_weight)
+        mutated_parameters[param_config.name] = (
+            self._utils.combine_two_parameters(
+                param_config,
+                other_fly.trial.parameters,
+                mutated_parameters,
+                explore_pull_weight,
+            ))
 
   def _perturb_fly(self, moving_fly: Firefly) -> None:
     """Perturbs the fly's trial parameters inplace.
@@ -279,8 +293,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     perturbations = self._utils.create_perturbations(moving_fly.perturbation)
     for i, param_config in enumerate(self.problem.search_space.parameters):
       perturbed_value = self._utils.perturb_parameter(
-          param_config, suggested_parameters[param_config.name].value,
-          perturbations[i])
+          param_config,
+          suggested_parameters[param_config.name].value,
+          perturbations[i],
+      )
       suggested_parameters[param_config.name] = perturbed_value
 
   def update(self, delta: vza.CompletedTrials) -> None:
@@ -318,7 +334,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         # Pool is below capacity. Create a new firefly or update existing one.
         logging.info(
             'Pool is below capacity (size=%s). Invoke create or update pool.',
-            self._firefly_pool.size)
+            self._firefly_pool.size,
+        )
         self._firefly_pool.create_or_update_fly(trial, parent_fly_id)
         return
       else:
@@ -337,7 +354,9 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           'Good step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',
           self._utils.get_metric(parent_fly.trial),
           self._utils.display_trial(parent_fly.trial),
-          self._utils.get_metric(trial), self._utils.display_trial(trial))
+          self._utils.get_metric(trial),
+          self._utils.display_trial(trial),
+      )
       parent_fly.trial = trial
       parent_fly.generation += 1
     else:
@@ -347,7 +366,9 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           'Bad step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',
           self._utils.get_metric(parent_fly.trial),
           self._utils.display_trial(parent_fly.trial),
-          self._utils.get_metric(trial), self._utils.display_trial(trial))
+          self._utils.get_metric(trial),
+          self._utils.display_trial(trial),
+      )
       self._penalize_parent_fly(parent_fly, trial)
 
   def _assign_closest_parent(self, trial: vz.Trial) -> Optional[Firefly]:
@@ -394,16 +415,20 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       parent_fly.perturbation = min(parent_fly.perturbation * 10,
                                     self.config.max_perturbation)
       logging.info(
-          'Penalize Parent Id: %s. Parameters are stuck. '
-          'New perturbation factor: %s', parent_fly.id_,
-          parent_fly.perturbation)
+          ('Penalize Parent Id: %s. Parameters are stuck. '
+           'New perturbation factor: %s'),
+          parent_fly.id_,
+          parent_fly.perturbation,
+      )
     else:
       # Otherwise, penalize the parent by decreasing its perturbation factor.
       parent_fly.perturbation *= 0.9
       logging.info(
-          'Penalize Parent Id: %s. Decrease perturbation factor. '
-          'New perturbation factor: %s', parent_fly.id_,
-          parent_fly.perturbation)
+          ('Penalize Parent Id: %s. Decrease perturbation factor. '
+           'New perturbation factor: %s'),
+          parent_fly.id_,
+          parent_fly.perturbation,
+      )
     if parent_fly.perturbation < self.config.perturbation_lower_bound:
       # If the perturbation factor is too low we attempt to eliminate the
       # unsuccessful parent fly from the pool.
