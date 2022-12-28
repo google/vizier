@@ -26,8 +26,8 @@ dependents should only call official API functions from this file and never
 explicitly write their own string processing.
 """
 import re
-
 import attr
+
 from vizier.utils import attrs_utils
 
 # Resource components cannot contain "/".

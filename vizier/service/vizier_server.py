@@ -26,12 +26,11 @@ import numpy as np
 import sqlalchemy as sqla
 
 from vizier import pythia
-from vizier import pyvizier as base_pyvizier
-from vizier._src.pyvizier.oss import metadata_util
+from vizier import pyvizier as vz
 from vizier.service import datastore
 from vizier.service import pythia_server
 from vizier.service import pythia_service_pb2_grpc
-from vizier.service import pyvizier
+from vizier.service import pyvizier as svz
 from vizier.service import resources
 from vizier.service import sql_datastore
 from vizier.service import stubs_util
@@ -297,8 +296,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         return output_op
 
       # Still need more suggestions. Pythia begins computing missing amount.
-      study_descriptor = base_pyvizier.StudyDescriptor(
-          config=pyvizier.StudyConfig.from_proto(study.study_spec),
+      study_descriptor = vz.StudyDescriptor(
+          config=svz.StudyConfig.from_proto(study.study_spec),
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name))
       suggest_request = pythia.SuggestRequest(
@@ -307,7 +306,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
 
       # Convert request, send to Pythia, and obtain suggestions.
       try:
-        suggest_request_proto = pyvizier.SuggestConverter.to_request_proto(
+        suggest_request_proto = svz.SuggestConverter.to_request_proto(
             suggest_request)
         suggest_request_proto.algorithm = study.study_spec.algorithm
         suggest_decision_proto = self._pythia_service.Suggest(
@@ -330,16 +329,16 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         self.datastore.update_suggestion_operation(output_op)
         return output_op
 
-      suggest_decision = pyvizier.SuggestConverter.from_decision_proto(
+      suggest_decision = svz.SuggestConverter.from_decision_proto(
           suggest_decision_proto)
 
       # Write the metadata update to the datastore.
       try:
         self.datastore.update_metadata(
             study_name,
-            metadata_util.make_key_value_list(
+            svz.metadata_util.make_key_value_list(
                 suggest_decision.metadata.on_study),
-            metadata_util.trial_metadata_to_update_list(
+            svz.metadata_util.trial_metadata_to_update_list(
                 suggest_decision.metadata.on_trials))
       except KeyError as e:
         output_op.error.CopyFrom(
@@ -351,10 +350,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         return output_op
 
       new_py_trials = [
-          pyvizier.Trial(parameters=decision.parameters)
+          vz.Trial(parameters=decision.parameters)
           for decision in suggest_decision.suggestions
       ]
-      new_trials = pyvizier.TrialConverter.to_protos(new_py_trials)
+      new_trials = svz.TrialConverter.to_protos(new_py_trials)
 
       while request.suggestion_count > len(output_trials):
         new_trial = new_trials.pop()
@@ -571,29 +570,29 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         self.datastore.update_early_stopping_operation(output_operation)
 
       study = self.datastore.load_study(study_name)
-      pythia_sc = pyvizier.StudyConfig.from_proto(study.study_spec)
-      study_descriptor = base_pyvizier.StudyDescriptor(
+      pythia_sc = svz.StudyConfig.from_proto(study.study_spec)
+      study_descriptor = vz.StudyDescriptor(
           config=pythia_sc,
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name))
       early_stop_request = pythia.EarlyStopRequest(
           study_descriptor=study_descriptor,
           trial_ids=[trial_resource.trial_id])
-      early_stop_request_proto = pyvizier.EarlyStopConverter.to_request_proto(
+      early_stop_request_proto = svz.EarlyStopConverter.to_request_proto(
           early_stop_request)
       early_stop_request_proto.algorithm = study.study_spec.algorithm
 
       # Send request to Pythia.
       early_stopping_decisions_proto = self._pythia_service.EarlyStop(
           early_stop_request_proto)
-      early_stopping_decisions = pyvizier.EarlyStopConverter.from_decisions_proto(
+      early_stopping_decisions = svz.EarlyStopConverter.from_decisions_proto(
           early_stopping_decisions_proto)
       # Update metadata from result.
       self.datastore.update_metadata(
           study_name,
-          metadata_util.make_key_value_list(
+          svz.metadata_util.make_key_value_list(
               early_stopping_decisions.metadata.on_study),
-          metadata_util.trial_metadata_to_update_list(
+          svz.metadata_util.trial_metadata_to_update_list(
               early_stopping_decisions.metadata.on_trials))
 
       # Pythia does not guarantee that the output_operation's id

@@ -19,8 +19,8 @@ from __future__ import annotations
 # TODO: Raise vizier-specific exceptions.
 
 from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optional, Type
-
 import attr
+
 from vizier.client import client_abc
 from vizier.service import pyvizier as vz
 from vizier.service import resources
