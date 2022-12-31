@@ -2,7 +2,7 @@
 <img src="docs/assets/vizier_logo.png" width=20% align="right"/>
 </figure>
 
-# Open Source Vizier: Reliable and Flexible Blackbox Optimization.
+# Open Source Vizier: Reliable and Flexible Black-Box Optimization.
 
 [![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
 ![Continuous Integration (Core)](https://github.com/google/vizier/workflows/pytest_core/badge.svg)
@@ -17,7 +17,7 @@
 
 ## What is Open Source (OSS) Vizier?
 
-[OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for blackbox optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
+[OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for black-box optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
 
 <figure>
 <p align="center" width=65%>
@@ -29,7 +29,7 @@
 
 OSS Vizier's interface consists of three main APIs:
 
-* [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup an OSS Vizier Server, which can host blackbox optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
+* [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup an OSS Vizier Server, which can host black-box optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
 * [**Developer API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-developers) Defines abstractions and utilities for implementing new optimization algorithms for research and to be hosted in the service.
 * [**Benchmarking API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-benchmarking) A wide collection of objective functions and methods to benchmark and compare algorithms.
 
@@ -77,7 +77,7 @@ If you found this code useful, please consider citing the [OSS Vizier paper](htt
                Chansoo Lee and
                Greg Kochanski and
                Daniel Golovin},
-  title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Blackbox Optimization},
+  title     = {Open Source Vizier: Distributed Infrastructure and API for Reliable and Flexible Black-box Optimization},
   booktitle = {Automated Machine Learning Conference, Systems Track (AutoML-Conf Systems)},
   year      = {2022},
 }
