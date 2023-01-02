@@ -59,9 +59,9 @@ class TrialInterface(abc.ABC):
   def parameters(self) -> Mapping[str, Any]:
     """#Materializes the parameters of the trial.
 
-    The parameters are parsed to the external tpyes. The values in the returned
+    The parameters are parsed to the external types. The values in the returned
     dict can be a list of values, if the search space is configured with
-    indicies.
+    indices.
 
     As a result, TrialInterface.parameters can be totally different
     from trial.materialize().parameters.
