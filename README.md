@@ -6,6 +6,7 @@
 
 [![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
 ![Continuous Integration (Core)](https://github.com/google/vizier/workflows/pytest_core/badge.svg)
+![Continuous Integration (Clients)](https://github.com/google/vizier/workflows/pytest_clients/badge.svg)
 ![Continuous Integration (Algorithms)](https://github.com/google/vizier/workflows/pytest_algorithms/badge.svg)
 ![Continuous Integration (Benchmarks)](https://github.com/google/vizier/workflows/pytest_benchmarks/badge.svg)
 ![Continuous Integration (Docs)](https://github.com/google/vizier/workflows/docs/badge.svg)

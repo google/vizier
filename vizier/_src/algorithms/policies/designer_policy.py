@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC.
+# Copyright 2023 Google LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -131,7 +131,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._designer = None
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
-    """Perform a suggest operations.
+    """Perform a suggest operation.
 
     The order of operations is:
     1. Initialize the designer and load its state from metadata.
