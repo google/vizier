@@ -53,6 +53,10 @@ For performance consideration, the 'pool size' is a multiplier of the
 'batch size', and so each iteration the pool is sliced to obtain the current
 fireflies to be mutated.
 
+Passing prior trials is supported for knowledge-transfering from previous runs
+of the optimizer. Prior trials are used to populate the pool with fireflies
+which are closer to the optimum.
+
 Note that the strategy assumes that the search space is not conditional.
 
 Example
@@ -69,7 +73,7 @@ best_reward, best_parameters = optimizer.best_results
 """
 
 import logging
-from typing import Optional, Tuple, Literal
+from typing import Optional, Literal
 
 import attr
 import numpy as np
@@ -90,6 +94,7 @@ class EagleStrategyConfig:
     perturbation_lower_bound: The threshold below flies are removed from pool.
     penalize_factor: The perturbation decrease for unsuccessful flies.
   """
+
   # Visibility
   visibility: float = 3.0
   # Gravity
@@ -109,11 +114,14 @@ class EagleStrategyConfig:
   mutate_normalization_type: str = "mean"
   # Multiplier factor when using normalized modes.
   normalization_scale: float = 1.0
+  # The percentage of the firefly pool to be populated with prior trials.
+  prior_trials_pool_pct: float = 0.7
 
 
 @attr.define(frozen=True)
 class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
   """Eagle strategy factory."""
+
   eagle_config: EagleStrategyConfig = attr.field(factory=EagleStrategyConfig)
 
   def __call__(
@@ -121,6 +129,8 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       converter: converters.TrialToArrayConverter,
       suggestion_batch_size: int = 5,
       seed: Optional[int] = None,
+      prior_features: Optional[np.ndarray] = None,
+      prior_rewards: Optional[np.ndarray] = None,
   ) -> "VectorizedEagleStrategy":
     """Create a new vectorized eagle strategy.
 
@@ -135,6 +145,10 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         computing the objective / acuisition function.
       suggestion_batch_size: The batch_size of the returned suggestion array.
       seed: The seed to input into the random generator.
+      prior_features: The prior features for populating the pool.
+        (n_prior_candidates, n_features)
+      prior_rewards:  The prior rewards for populating the pool.
+        (n_prior_candidates,)
 
     Returns:
       A new instance of VectorizedEagleStrategy.
@@ -144,6 +158,8 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         config=self.eagle_config,
         batch_size=suggestion_batch_size,
         seed=seed,
+        prior_features=prior_features,
+        prior_rewards=prior_rewards,
     )
 
 
@@ -157,6 +173,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     config: The Eagle strategy configuration.
     n_features: The number of features.
     batch_size: The number of suggestions generated at each suggestion call.
+    prior_features: The prior features to be used for seeding the pool. When the
+      optimizer is used to optimize a designer's acquisition function, the prior
+      features are the previous designer suggestions provided in the ordered
+      they were suggested. Shape: (n_prior_trials, n_features).
+    prior_rewards: The associated prior rewards of the prior features.
+      Shape: (n_prior_trials,)
     seed: The seed to generate random values.
     pool_size: The total number of flies in the pool.
     _features: Array with dimensions (suggestion_count, feature_count) storing
@@ -172,11 +194,14 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     _best_results: An Heap storing the best results across all flies.
     _last_suggested_features: The last features the strategy has suggested.
   """
+
   converter: converters.TrialToArrayConverter
   config: EagleStrategyConfig = attr.field(init=True, repr=False)
   batch_size: int = attr.field(init=True)
   seed: Optional[int] = attr.field(init=True)
   pool_size: int = attr.field(init=False)
+  prior_features: Optional[np.ndarray] = attr.field(init=True, default=None)
+  prior_rewards: Optional[np.ndarray] = attr.field(init=True, default=None)
   # Attributes related to the strategy's state.
   _features: np.ndarray = attr.field(init=False, repr=False)
   _rewards: np.ndarray = attr.field(init=False, repr=False)
@@ -198,8 +223,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def _compute_pool_size(self):
     """Compute the pool size, and ensures it's a multiply of the batch_size."""
-    raw_pool_size = 10 + int(0.5 * self._n_features +
-                             self._n_features**self.config.pool_size_exponent)
+    raw_pool_size = 10 + int(
+        0.5 * self._n_features
+        + self._n_features**self.config.pool_size_exponent
+    )
     return int(np.ceil(raw_pool_size / self.batch_size) * self.batch_size)
 
   def _initialize(self):
@@ -208,10 +235,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     self._param_handler = eagle_param_handler.EagleParamHandler(
         converter=self.converter,
         rng=self._rng,
-        categorical_perturbation_factor=self.config
-        .categorical_perturbation_factor,
-        pure_categorical_perturbation_factor=self.config
-        .pure_categorical_perturbation_factor)
+        categorical_perturbation_factor=self.config.categorical_perturbation_factor,
+        pure_categorical_perturbation_factor=self.config.pure_categorical_perturbation_factor,
+    )
     self._n_features = self._param_handler.n_features
     if self.config.pool_size > 0:
       # This allow to override the pool size computation.
@@ -222,20 +248,91 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     if self.batch_size == -1:
       # This configuration updates all the fireflies in each iteration.
       self.batch_size = self.pool_size
-      logging.info("batch_size is set to pool_size (%s).", self.pool_size)
     self._batch_id = 0
     self._iterations = 0
-    self._batch_slice = np.s_[0:self.batch_size]
-    self._features = self._param_handler.random_features(
-        self.pool_size, self._n_features)
-    self._rewards = np.ones(self.pool_size,) * (-np.inf)
-    self._perturbations = np.ones(self.pool_size,) * self.config.perturbation
+    self._batch_slice = np.s_[0 : self.batch_size]
+    self._perturbations = (
+        np.ones(
+            self.pool_size,
+        )
+        * self.config.perturbation
+    )
     self._last_suggested_features = None
     self._perturbation_factors = self._param_handler.perturbation_factors
+    # Use priors to populate Eagle state
+    if self.prior_features is not None or self.prior_rewards is not None:
+      self._populate_pool_with_prior_trials()
+    else:
+      self._features = self._param_handler.random_features(
+          self.pool_size, self._n_features
+      )
+    # Rewards are not populated from seed, as they were potentially generated
+    # from a different objective function. New rewards will be obtained.
+    self._rewards = np.ones(
+        self.pool_size,
+    ) * (-np.inf)
     self._best_reward = -np.inf
     # Ignore subtracting np.inf - np.inf. See '_compute_scaled_directions' for
     # explanation on why we ignore warning in this case.
     np.seterr(invalid="ignore")
+
+  def _populate_pool_with_prior_trials(self) -> None:
+    """Populate the pool with prior trials.
+
+    A portion of the pool is first populated with random features based on
+    'prior_trials_pool_pct', then the rest of the flies are populated by
+    sequentially iterate over the prior trials, finding the cloest firefly in
+    the pool and replace it if the reward is better.
+    """
+    if self.prior_features is None or self.prior_rewards is None:
+      raise ValueError("One of prior features / prior rewards wasn't provided!")
+    if self.prior_features.shape[0] != self.prior_rewards.shape[0]:
+      raise ValueError(
+          f"prior features shape ({self.prior_features.shape[0]}) doesn't match"
+          f" prior  rewards shape ({self.prior_rewards.shape[0]})!"
+      )
+    if self.prior_features.shape[1] != self._n_features:
+      raise ValueError(
+          "prior features shape doesn't match n_features{self._n_features}!"
+      )
+    if len(self.prior_rewards.shape) > 1:
+      raise ValueError("prior rewards is expected to be 1D array!")
+
+    # Reverse the order of prior trials to assign more weight to recent trials.
+    self.prior_features = np.flip(self.prior_features, axis=-1)
+    self.prior_rewards = np.flip(self.prior_rewards, axis=-1)
+
+    self._features = np.zeros((0, self._n_features))
+    # Fill pool with random features.
+    n_random_flies = int(
+        self.pool_size * (1 - self.config.prior_trials_pool_pct)
+    )
+    self._features = self._param_handler.random_features(
+        n_random_flies, self._n_features
+    )
+    pool_left_space = self.pool_size - n_random_flies
+
+    if self.prior_features.shape[0] < pool_left_space:
+      # Less prior trials than left space. Take all prior trials for the pool.
+      self._features = np.concatenate([self._features, self.prior_features])
+      # Randomize the rest of the pool fireflies.
+      random_features = self._param_handler.random_features(
+          self.pool_size - len(self._features), self._n_features
+      )
+      self._features = np.concatenate([self._features, random_features])
+    else:
+      # More prior trials than left space. Iteratively populate the pool.
+      tmp_features = self.prior_features[:pool_left_space]
+      tmp_rewards = self.prior_rewards[:pool_left_space]
+      for i in range(pool_left_space, self.prior_features.shape[0]):
+        ind = np.argmin(
+            np.sum(np.square(self.prior_features[i] - tmp_features), axis=-1)
+        )
+        if tmp_rewards[ind] < self.prior_rewards[i]:
+          # Only take the prior trials features. Rewards obtain during update.
+          tmp_features[ind] = self.prior_features[i]
+          tmp_rewards[ind] = self.prior_rewards[i]
+      self._features = np.concatenate([self._features, tmp_features])
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -253,7 +350,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       suggested batch features: (batch_size, n_features)
     """
     if self._iterations < self.pool_size // self.batch_size:
-      # The strategy is still initializing. Return the random features.
+      # The strategy is still initializing. Return the random/prior features.
       new_features = self._features[self._batch_slice]
     else:
       mutated_features = self._create_features()
@@ -281,11 +378,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     features_diffs, dists = self._compute_features_diffs_and_dists()
     scaled_directions = self._compute_scaled_directions()
-    features_changes = self._compute_features_changes(features_diffs, dists,
-                                                      scaled_directions)
+    features_changes = self._compute_features_changes(
+        features_diffs, dists, scaled_directions
+    )
     return self._features[self._batch_slice] + features_changes
 
-  def _compute_features_diffs_and_dists(self) -> Tuple[np.ndarray, np.ndarray]:
+  def _compute_features_diffs_and_dists(self) -> tuple[np.ndarray, np.ndarray]:
     """Compute the features difference and distances.
 
     The computation is done between the 'batch_size' fireflies and all
@@ -300,7 +398,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     shape = (self.batch_size,) + self._features.shape
     features_diffs = np.broadcast_to(self._features, shape) - np.expand_dims(
-        self._features[self._batch_slice], 1)
+        self._features[self._batch_slice], 1
+    )
     dists = np.sum(np.square(features_diffs), axis=-1)
     return features_diffs, dists
 
@@ -309,20 +408,22 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     scaled_directions[i,j] := direction of force applied by fly 'j' on fly 'i'.
 
-    Note that to compute 'directions' we might subtract with removed flies with
-    reward value of -np.inf, which will result in either np.inf/-np.inf.
-    Moreover, we might even subtract between two removed flies which will result
-    in np.nan. We handle all of those cases when we compute the actual feautre
-    changes by masking the contribution of those cases.
+    Note that to compute 'directions' we might perform subtract with removed
+    flies with having value of -np.inf. Moreover, we might even subtract between
+    two removed flies which will result in np.nan. Both cases are handled when
+    computing the actual feautre changes applying a relevant mask.
 
     Returns:
       scaled directions: (batch_size, pool_size)
     """
     shape = (self.batch_size,) + self._rewards.shape
     directions = np.broadcast_to(self._rewards, shape) - np.expand_dims(
-        self._rewards[self._batch_slice], -1)
-    scaled_directions = np.where(directions >= 0, self.config.gravity,
-                                 -self.config.negative_gravity)
+        self._rewards[self._batch_slice], -1
+    )
+
+    scaled_directions = np.where(
+        directions >= 0, self.config.gravity, -self.config.negative_gravity
+    )
     return scaled_directions
 
   def _compute_features_changes(
@@ -353,9 +454,13 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     inf_indx = np.isinf(self._rewards)
     if np.sum(inf_indx) == self.pool_size:
       logging.warning(
-          ("All firefly were recently removed. This Shouldn't happen."
-           "Pool Features:\n%sPool rewards:\n%s"), self._features,
-          self._rewards)
+          (
+              "All firefly were recently removed. This Shouldn't happen."
+              "Pool Features:\n%sPool rewards:\n%s"
+          ),
+          self._features,
+          self._rewards,
+      )
       return np.zeros((self.batch_size, self._n_features))
 
     # Ignore fireflies that were removed from the pool.
@@ -370,23 +475,33 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       # Divide the push and pull forces by the number of flies participating.
       # Also multiply by normalization_scale.
       norm_scaled_pulls = self.config.normalization_scale * np.nan_to_num(
-          scaled_pulls / np.sum(scaled_pulls > 0, axis=1, keepdims=True), 0)
+          scaled_pulls / np.sum(scaled_pulls > 0, axis=1, keepdims=True), 0
+      )
       norm_scaled_push = self.config.normalization_scale * np.nan_to_num(
-          scaled_push / np.sum(scaled_push < 0, axis=1, keepdims=True), 0)
+          scaled_push / np.sum(scaled_push < 0, axis=1, keepdims=True), 0
+      )
     elif self.config.mutate_normalization_type == "random":
       # Create random matrices and normalize each row, s.t. the sum is 1.
       pull_rand_matrix = self._rng.uniform(
-          0, 1, size=scaled_pulls.shape) * np.int_(scaled_pulls > 0)
+          0, 1, size=scaled_pulls.shape
+      ) * np.int_(scaled_pulls > 0)
       pull_weight_matrix = pull_rand_matrix / np.sum(
-          pull_rand_matrix, axis=1, keepdims=True)
+          pull_rand_matrix, axis=1, keepdims=True
+      )
       push_rand_matrix = self._rng.uniform(
-          0, 1, size=scaled_pulls.shape) * np.int_(scaled_pulls > 0)
+          0, 1, size=scaled_pulls.shape
+      ) * np.int_(scaled_pulls > 0)
       push_weight_matrix = push_rand_matrix / np.sum(
-          push_rand_matrix, axis=1, keepdims=True)
+          push_rand_matrix, axis=1, keepdims=True
+      )
       # Normalize pulls/pulls by the weight matrices.
       # Also multiply by normalization_scale.
-      norm_scaled_pulls = self.config.normalization_scale * scaled_pulls * pull_weight_matrix
-      norm_scaled_push = self.config.normalization_scale * scaled_push * push_weight_matrix
+      norm_scaled_pulls = (
+          self.config.normalization_scale * scaled_pulls * pull_weight_matrix
+      )
+      norm_scaled_push = (
+          self.config.normalization_scale * scaled_push * push_weight_matrix
+      )
     elif self.config.mutate_normalization_type == "unnormalized":
       # Doesn't normalize the forces. Use this option with caution.
       norm_scaled_pulls = scaled_pulls
@@ -394,7 +509,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     # Sums normalized forces (pull/push) of all fireflies.
     return np.sum(
-        features_diffs * (norm_scaled_pulls + norm_scaled_push), axis=1)
+        features_diffs * (norm_scaled_pulls + norm_scaled_push), axis=1
+    )
 
   def _create_perturbations(self) -> np.ndarray:
     """Create random perturbations for the newly creatd batch.
@@ -406,8 +522,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     batch_noise = self._rng.laplace(size=(self.batch_size, self._n_features))
     batch_noise /= np.max(np.abs(batch_noise), axis=1, keepdims=True)
     # Scale the noise by the each fly current perturbation.
-    return batch_noise * self._perturbations[
-        self._batch_slice][:, np.newaxis] * self._perturbation_factors
+    return (
+        batch_noise
+        * self._perturbations[self._batch_slice][:, np.newaxis]
+        * self._perturbation_factors
+    )
 
   def update(self, batch_rewards: np.ndarray) -> None:
     """Update the firefly pool based on the new batch of results.
@@ -454,11 +573,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
   def _trim_pool(self) -> None:
     """Trim the pool by replacing unsuccessful fireflies with new random ones.
 
-      A firefly is considered unsuccessful if its current perturbation is below
-      'perturbation_lower_bound' and it's not the best fly seen thus far.
-      Random features are created to replace the existing ones, and rewards
-      are set to -np.inf to indicate that we don't have values for those feaures
-      yet and we shouldn't use them during suggest.
+    A firefly is considered unsuccessful if its current perturbation is below
+    'perturbation_lower_bound' and it's not the best fly seen thus far.
+    Random features are created to replace the existing ones, and rewards
+    are set to -np.inf to indicate that we don't have values for those feaures
+    yet and we shouldn't use them during suggest.
     """
     sliced_perturbations = self._perturbations[self._batch_slice]
     indx = sliced_perturbations < self.config.perturbation_lower_bound
@@ -474,8 +593,16 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         return
       # Replace fireflies with random features and evaluate rewards.
       sliced_features[indx] = self._param_handler.random_features(
-          n_remove, self._n_features)
-      sliced_perturbations[indx] = np.ones(n_remove,) * self.config.perturbation
+          n_remove, self._n_features
+      )
+      sliced_perturbations[indx] = (
+          np.ones(
+              n_remove,
+          )
+          * self.config.perturbation
+      )
       # Setting rewards to -inf to filter out those fireflies during suggest.
-      sliced_rewards[indx] = np.ones(n_remove,) * (-np.inf)
+      sliced_rewards[indx] = np.ones(
+          n_remove,
+      ) * (-np.inf)
       self._num_removed_flies += n_remove

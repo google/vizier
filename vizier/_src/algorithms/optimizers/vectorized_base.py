@@ -20,7 +20,7 @@ import abc
 import datetime
 import heapq
 import logging
-from typing import Optional, Protocol, Union
+from typing import Optional, Protocol, Sequence, Union
 
 import attr
 import chex
@@ -35,6 +35,7 @@ Array = Union[np.ndarray, chex.Array]
 @attr.define
 class VectorizedStrategyResult:
   """Container for a vectorized strategy result."""
+
   features: Array
   reward: float
 
@@ -79,11 +80,26 @@ class VectorizedStrategyFactory(Protocol):
   call.
   """
 
-  def __call__(self,
-               converter: converters.TrialToArrayConverter,
-               suggestion_batch_size: int,
-               seed: Optional[int] = None) -> VectorizedStrategy:
-    """Create a new vectorized strategy."""
+  def __call__(
+      self,
+      converter: converters.TrialToArrayConverter,
+      *,
+      suggestion_batch_size: int,
+      seed: Optional[int] = None,
+      prior_features: Optional[np.ndarray] = None,
+      prior_rewards: Optional[np.ndarray] = None,
+  ) -> VectorizedStrategy:
+    """Create a new vectorized strategy.
+
+    Arguments:
+      converter: The trial to array converter.
+      suggestion_batch_size: The number of trials to be evaluated at once.
+      seed: The random seed.
+      prior_features: Prior trial features for knowledge transfer with a shape
+        of (n_trial_featurs, n_features)
+      prior_rewards: Prior trial rewards for knowledge transfer with a shape of
+        (n_trial_featurs,)
+    """
     ...
 
 
@@ -93,7 +109,7 @@ class BatchArrayScoreFunction(Protocol):
   def __call__(self, batched_array_trials: Array) -> Array:
     """Evaluates the array of batched trials.
 
-    Args:
+    Arguments:
       batched_array_trials: 2D Array of shape (batch_size, n_features).
 
     Returns:
@@ -125,6 +141,7 @@ class VectorizedOptimizer:
     suggestion_batch_size: The batch size of the suggestion vector received at
       each 'suggest' call.
   """
+
   strategy_factory: VectorizedStrategyFactory
   suggestion_batch_size: int = 25
   max_evaluations: int = 75_000
@@ -134,7 +151,9 @@ class VectorizedOptimizer:
       self,
       converter: converters.TrialToArrayConverter,
       score_fn: BatchArrayScoreFunction,
+      *,
       count: int = 1,
+      prior_trials: Optional[Sequence[vz.Trial]] = None,
       seed: Optional[int] = None,
   ) -> list[vz.Trial]:
     """Optimize the objective function.
@@ -160,13 +179,31 @@ class VectorizedOptimizer:
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
         features_count) and returns a 1D Array (batch_size,).
       count: The number of suggestions to generate.
+      prior_trials: Completed trials to be used for knowledge transfer. When the
+        optimizer is used to optimize a designer's acquisition function, the
+        prior trials are the previous designer suggestions provided in the
+        ordered they were suggested.
       seed: The seed to use in the random generator.
 
     Returns:
       The best trials found in the optimization.
     """
-    strategy = self.strategy_factory(converter, self.suggestion_batch_size,
-                                     seed)
+    if prior_trials:
+      # Sort the trials by the order they were created.
+      prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
+      prior_features = converter.to_features(prior_trials)
+      prior_rewards = np.array(score_fn(prior_features)).reshape(-1)
+    else:
+      prior_features, prior_rewards = None, None
+
+    strategy = self.strategy_factory(
+        converter=converter,
+        suggestion_batch_size=self.suggestion_batch_size,
+        seed=seed,
+        prior_features=prior_features,
+        prior_rewards=prior_rewards,
+    )
+
     start_time = datetime.datetime.now()
     evaluated_count = 0
     best_results = []
@@ -178,8 +215,14 @@ class VectorizedOptimizer:
       self._update_best_results(best_results, count, new_features, new_rewards)
       evaluated_count += len(new_rewards)
     logging.info(
-        'Optimization completed. Duration: %s. Evaluations: %s. Best Results: %s',
-        datetime.datetime.now() - start_time, evaluated_count, best_results)
+        (
+            'Optimization completed. Duration: %s. Evaluations: %s. Best'
+            ' Results: %s'
+        ),
+        datetime.datetime.now() - start_time,
+        evaluated_count,
+        best_results,
+    )
 
     return self._best_candidates(best_results, converter)
 
@@ -205,15 +248,17 @@ class VectorizedOptimizer:
         (batch_size,).
     """
     sorted_indices = sorted(
-        range(len(batch_rewards)), key=lambda x: batch_rewards[x],
-        reverse=True)[:count]
+        range(len(batch_rewards)), key=lambda x: batch_rewards[x], reverse=True
+    )[:count]
     if count == 1:
-      # In thise case we can simply track the single best result.
+      # In this case we can simply track the single best result.
       ind = sorted_indices[0]
       if not best_results:
         best_results.append(
             VectorizedStrategyResult(
-                reward=batch_rewards[ind], features=batch_features[ind]))
+                reward=batch_rewards[ind], features=batch_features[ind]
+            )
+        )
       else:
         if best_results[0].reward < batch_rewards[ind]:
           best_results[0].reward = batch_rewards[ind]
@@ -223,14 +268,16 @@ class VectorizedOptimizer:
         if len(best_results) < count:
           # 'best_results' is below capacity, add the best batch result.
           new_result = VectorizedStrategyResult(
-              reward=batch_rewards[ind], features=batch_features[ind])
+              reward=batch_rewards[ind], features=batch_features[ind]
+          )
           heapq.heappush(best_results, new_result)
 
         elif batch_rewards[ind] > best_results[0].reward:
           # 'best_result' is at capacity and the best batch result is better
           # than the worst item in 'best_results'.
           new_result = VectorizedStrategyResult(
-              reward=batch_rewards[ind], features=batch_features[ind])
+              reward=batch_rewards[ind], features=batch_features[ind]
+          )
           heapq.heapreplace(best_results, new_result)
 
   def _best_candidates(
@@ -244,24 +291,37 @@ class VectorizedOptimizer:
       # Create trials and convert the strategy features back to parameters.
       trial = vz.Trial(
           parameters=converter.to_parameters(
-              np.expand_dims(best_result.features, axis=0))[0])
+              np.expand_dims(best_result.features, axis=0)
+          )[0]
+      )
       trial.complete(vz.Measurement({'acquisition': best_result.reward}))
       trials.append(trial)
     return trials
 
-  def _should_stop(self, start_time: datetime.datetime,
-                   evaluated_count: int) -> bool:
+  def _should_stop(
+      self, start_time: datetime.datetime, evaluated_count: int
+  ) -> bool:
     """Determines if the optimizer has reached its optimization budget."""
     duration = datetime.datetime.now() - start_time
     if self.max_duration and duration >= self.max_duration:
       logging.info(
-          'Optimization completed. Reached time limit. Duration: %s. Evaluations: %s',
-          duration, evaluated_count)
+          (
+              'Optimization completed. Reached time limit. Duration: %s.'
+              ' Evaluations: %s'
+          ),
+          duration,
+          evaluated_count,
+      )
       return True
     elif evaluated_count >= self.max_evaluations:
       logging.info(
-          'Optimization completed. Reached evaluations limit. Duration: %s. Evaluations: %s',
-          duration, evaluated_count)
+          (
+              'Optimization completed. Reached evaluations limit. Duration: %s.'
+              ' Evaluations: %s'
+          ),
+          duration,
+          evaluated_count,
+      )
       return True
     else:
       return False

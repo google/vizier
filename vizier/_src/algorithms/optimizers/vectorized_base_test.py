@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 import time
+from typing import Optional
 
 import mock
 import numpy as np
@@ -29,20 +30,24 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-class FakeVectorizedStrategy(vb.VectorizedStrategy):
+class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
+  """Fake vectorized strategy with incrementing suggestions."""
 
-  def __init__(self):
+  def __init__(self, *args, **kwargs):
     self._iter = 0
 
   def suggest(self) -> np.ndarray:
     # The following structure allows to test the top K results.
-    suggestions = np.array([
-        [self._iter % 10, self._iter % 10],
-        [(self._iter + 1) % 10, (self._iter + 1) % 10],
-        [(self._iter + 2) % 10, (self._iter + 2) % 10],
-        [(self._iter + 3) % 10, (self._iter + 3) % 10],
-        [(self._iter + 4) % 10, (self._iter + 4) % 10],
-    ]) / 10
+    suggestions = (
+        np.array([
+            [self._iter % 10, self._iter % 10],
+            [(self._iter + 1) % 10, (self._iter + 1) % 10],
+            [(self._iter + 2) % 10, (self._iter + 2) % 10],
+            [(self._iter + 3) % 10, (self._iter + 3) % 10],
+            [(self._iter + 4) % 10, (self._iter + 4) % 10],
+        ])
+        / 10
+    )
     self._iter += 5
     return suggestions
 
@@ -54,6 +59,49 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
     pass
 
 
+# pylint: disable=unused-argument
+def fake_increment_strategy_factory(
+    converter: converters.TrialToArrayConverter,
+    suggestion_batch_size: int,
+    seed: Optional[int] = None,
+    prior_features: Optional[np.ndarray] = None,
+    prior_rewards: Optional[np.ndarray] = None,
+) -> vb.VectorizedStrategy:
+  return FakeIncrementVectorizedStrategy()
+
+
+class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
+  """Fake vectorized strategy to test prior trials."""
+
+  def __init__(self, prior_features: np.ndarray, prior_rewards: np.ndarray):
+    self.seed_features, self.seed_rewards = prior_features, prior_rewards
+    if len(self.seed_rewards.shape) != 1:
+      raise ValueError('Expected seed labels to have 1D dimension!')
+
+  def suggest(self) -> np.ndarray:
+    return self.seed_features[np.argmax(self.seed_rewards, axis=-1)].reshape(
+        1, -1
+    )
+
+  @property
+  def suggestion_batch_size(self) -> int:
+    return 1
+
+  def update(self, rewards: np.ndarray) -> None:
+    pass
+
+
+# pylint: disable=unused-argument
+def fake_prior_trials_strategy_factory(
+    converter: converters.TrialToArrayConverter,
+    suggestion_batch_size: int,
+    seed: Optional[int] = None,
+    prior_features: Optional[np.ndarray] = None,
+    prior_rewards: Optional[np.ndarray] = None,
+) -> vb.VectorizedStrategy:
+  return FakePriorTrialsVectorizedStrategy(prior_features, prior_rewards)
+
+
 class VectorizedBaseTest(parameterized.TestCase):
 
   @parameterized.parameters(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
@@ -63,13 +111,13 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: np.sum(x, axis=-1)
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory,
+        strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
     )
     res = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=count)
+        converter=converter, score_fn=score_fn, count=count
+    )
     self.assertLen(res, count)
 
   @parameterized.parameters([None, datetime.timedelta(minutes=10)])
@@ -80,9 +128,8 @@ class VectorizedBaseTest(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = mock.Mock()
     score_fn.side_effect = lambda x: np.sum(x, axis=-1)
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory,
+        strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
         max_duration=max_duration,
     )
@@ -96,17 +143,20 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -np.max(np.square(x - 0.52), axis=-1)
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
+    strategy_factory = FakeIncrementVectorizedStrategy
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory, max_evaluations=10)
+        strategy_factory=strategy_factory, max_evaluations=10
+    )
     best_candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=1)
+        converter=converter, score_fn=score_fn, count=1
+    )
     # check the best candidate
     self.assertEqual(best_candidates[0].parameters['f1'].value, 0.5)
     self.assertEqual(best_candidates[0].parameters['f2'].value, 0.5)
     self.assertEqual(
         best_candidates[0].final_measurement.metrics['acquisition'].value,
-        -(0.5 - 0.52)**2)
+        -((0.5 - 0.52) ** 2),
+    )
 
   def test_best_candidates_count_is_3(self):
     problem = vz.ProblemStatement()
@@ -114,29 +164,33 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -np.max(np.square(x - 0.52), axis=-1)
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory, max_evaluations=10)
+        strategy_factory=fake_increment_strategy_factory, max_evaluations=10
+    )
     best_candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=3)
+        converter=converter, score_fn=score_fn, count=3
+    )
     # check 1st best candidate
     self.assertEqual(best_candidates[0].parameters['f1'].value, 0.5)
     self.assertEqual(best_candidates[0].parameters['f2'].value, 0.5)
     self.assertEqual(
         best_candidates[0].final_measurement.metrics['acquisition'].value,
-        -(0.5 - 0.52)**2)
+        -((0.5 - 0.52) ** 2),
+    )
     # check 2nd best candidate
     self.assertEqual(best_candidates[1].parameters['f1'].value, 0.6)
     self.assertEqual(best_candidates[1].parameters['f2'].value, 0.6)
     self.assertEqual(
         best_candidates[1].final_measurement.metrics['acquisition'].value,
-        -(0.6 - 0.52)**2)
+        -((0.6 - 0.52) ** 2),
+    )
     # check 3rd best candidate
     self.assertEqual(best_candidates[2].parameters['f1'].value, 0.4)
     self.assertEqual(best_candidates[2].parameters['f2'].value, 0.4)
     self.assertEqual(
         best_candidates[2].final_measurement.metrics['acquisition'].value,
-        -(0.4 - 0.52)**2)
+        -((0.4 - 0.52) ** 2),
+    )
 
   def test_should_stop_max_duration(self):
     problem = vz.ProblemStatement()
@@ -150,22 +204,67 @@ class VectorizedBaseTest(parameterized.TestCase):
       return np.sum(x, axis=-1)
 
     score_fn.side_effect = slow_score_fn
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=strategy_factory,
+        strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
-        max_duration=datetime.timedelta(seconds=3))
+        max_duration=datetime.timedelta(seconds=3),
+    )
     optimizer.optimize(converter=converter, score_fn=score_fn)
     # Test the optimization stopped after ~3 seconds based on function calls.
     self.assertLess(score_fn.call_count, 4)
 
   def test_vectorized_optimizer_factory(self):
-    strategy_factory = lambda converter, batch, seed: FakeVectorizedStrategy()
     optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=strategy_factory)
+        strategy_factory=fake_increment_strategy_factory
+    )
     optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=1000)
     self.assertEqual(optimizer.max_evaluations, 1000)
     self.assertEqual(optimizer.suggestion_batch_size, 5)
+
+  def test_prior_trials(self):
+    """Test that the optimizer can correctly parsae and pass seed trials."""
+    optimizer_factory = vb.VectorizedOptimizerFactory(
+        strategy_factory=fake_prior_trials_strategy_factory
+    )
+    optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=100)
+
+    study_config = vz.ProblemStatement(
+        metric_information=[
+            vz.MetricInformation(
+                name='obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
+    root = study_config.search_space.root
+    root.add_float_param('x1', 0.0, 10.0)
+    root.add_float_param('x2', 0.0, 10.0)
+    converter = converters.TrialToArrayConverter.from_study_config(study_config)
+
+    trial1 = vz.Trial(parameters={'x1': 1, 'x2': 1})
+    measurement1 = vz.Measurement(metrics={'obj': vz.Metric(value=-10.33)})
+    trial1.complete(measurement1, inplace=True)
+
+    trial2 = vz.Trial(parameters={'x1': 2, 'x2': 2})
+    measurement2 = vz.Measurement(metrics={'obj': vz.Metric(value=5.0)})
+    trial2.complete(measurement2, inplace=True)
+
+    best_trial = optimizer.optimize(
+        converter,
+        lambda x: -np.max(np.square(x - 0.52), axis=-1),
+        count=1,
+        prior_trials=[trial1, trial2, trial1],
+    )
+    self.assertEqual(best_trial[0].parameters['x1'].value, 2)
+    self.assertEqual(best_trial[0].parameters['x2'].value, 2)
+
+    best_trial = optimizer.optimize(
+        converter,
+        lambda x: -np.max(np.square(x - 0.52), axis=-1),
+        count=1,
+        prior_trials=[trial1],
+    )
+    self.assertEqual(best_trial[0].parameters['x1'].value, 1)
+    self.assertEqual(best_trial[0].parameters['x2'].value, 1)
 
 
 if __name__ == '__main__':
