@@ -41,29 +41,37 @@ from google.protobuf import duration_pb2
 from google.protobuf import json_format
 
 flags.DEFINE_integer(
-    'vizier_new_suggestion_polling_secs', 1,
-    'The period to wait between polling for the status of long-running '
-    'SuggestOperations. Vizier may increase this period if multiple polls '
-    'are needed. (You may use zero for interactive demos, but it is only '
-    'appropriate for very small Studies.)')
+    'vizier_new_suggestion_polling_secs',
+    1,
+    (
+        'The period to wait between polling for the status of long-running '
+        'SuggestOperations. Vizier may increase this period if multiple polls '
+        'are needed. (You may use zero for interactive demos, but it is only '
+        'appropriate for very small Studies.)'
+    ),
+)
 FLAGS = flags.FLAGS
 
 Metadata = Mapping[Tuple[str, str], Any]
 
-VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
-                      vizier_service_pb2_grpc.VizierServiceServicer]
+VizierService = Union[
+    vizier_service_pb2_grpc.VizierServiceStub,
+    vizier_service_pb2_grpc.VizierServiceServicer,
+]
 
 NO_ENDPOINT = 'NO_ENDPOINT'
 
 
 @functools.lru_cache(maxsize=None)
-def _create_local_vizier_server(
-) -> vizier_service_pb2_grpc.VizierServiceServicer:
+def _create_local_vizier_server() -> (
+    vizier_service_pb2_grpc.VizierServiceServicer
+):
   from vizier.service import vizier_server  # pylint:disable=g-import-not-at-top
+
   return vizier_server.VizierService()
 
 
-def _create_vizier_server_or_stub(endpoint: str) -> VizierService:
+def create_vizier_server_or_stub(endpoint: str) -> VizierService:
   if endpoint == NO_ENDPOINT:
     logging.info('No endpoint given; using cached local Vizier server.')
     logging.warning('Python 3.8+ is required in this case.')
@@ -83,18 +91,20 @@ class VizierClient:
   # interact with the server to prevent deadlocks.
   _server: VizierService = attr.field(repr=False)
   _study_resource_name: str = attr.field(
-      validator=attr.validators.instance_of(str))
-  _client_id: str = attr.field(validator=[
-      attr.validators.instance_of(str), attrs_utils.assert_not_empty
-  ])
+      validator=attr.validators.instance_of(str)
+  )
+  _client_id: str = attr.field(
+      validator=[attr.validators.instance_of(str), attrs_utils.assert_not_empty]
+  )
 
   @property
   def _study_resource(self) -> resources.StudyResource:
     return resources.StudyResource.from_name(self._study_resource_name)
 
   @classmethod
-  def from_endpoint(cls, service_endpoint: str, study_resource_name: str,
-                    client_id: str) -> 'VizierClient':
+  def from_endpoint(
+      cls, service_endpoint: str, study_resource_name: str, client_id: str
+  ) -> 'VizierClient':
     """Create a VizierClient object.
 
     Use this constructor when you know the study_resource_name, and when the
@@ -119,8 +129,10 @@ class VizierClient:
       Vizier client.
     """
     return cls(
-        _create_vizier_server_or_stub(service_endpoint), study_resource_name,
-        client_id)
+        create_vizier_server_or_stub(service_endpoint),
+        study_resource_name,
+        client_id,
+    )
 
   @property
   def _owner_id(self) -> str:
@@ -135,10 +147,8 @@ class VizierClient:
     return self._study_resource_name
 
   def get_suggestions(
-      self,
-      suggestion_count: int,
-      *,
-      client_id_override: Optional[str] = None) -> List[pyvizier.Trial]:
+      self, suggestion_count: int, *, client_id_override: Optional[str] = None
+  ) -> List[pyvizier.Trial]:
     """Gets a list of suggested Trials.
 
     Args:
@@ -164,29 +174,35 @@ class VizierClient:
     request = vizier_service_pb2.SuggestTrialsRequest(
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         suggestion_count=suggestion_count,
-        client_id=client_id)
+        client_id=client_id,
+    )
     operation = self._server.SuggestTrials(request)
 
     num_attempts = 0
     while not operation.done:
-      sleep_time = PollingDelay(num_attempts,
-                                FLAGS.vizier_new_suggestion_polling_secs)
+      sleep_time = PollingDelay(
+          num_attempts, FLAGS.vizier_new_suggestion_polling_secs
+      )
       num_attempts += 1
-      logging.info('Waiting for operation with name %s to be done',
-                   operation.name)
+      logging.info(
+          'Waiting for operation with name %s to be done', operation.name
+      )
       time.sleep(sleep_time.total_seconds())
 
       operation = self._server.GetOperation(
-          operations_pb2.GetOperationRequest(name=operation.name))
+          operations_pb2.GetOperationRequest(name=operation.name)
+      )
 
     if operation.HasField('error'):
       error_message = 'SuggestOperation {} failed with message: {}'.format(
-          operation.name, operation.error)
+          operation.name, operation.error
+      )
       logging.error(error_message)
       raise RuntimeError(error_message)
     # TODO: Replace with any.Unpack().
     trials = vizier_service_pb2.SuggestTrialsResponse.FromString(
-        operation.response.value).trials
+        operation.response.value
+    ).trials
     return pyvizier.TrialConverter.from_protos(trials)
 
   def report_intermediate_objective_value(
@@ -201,34 +217,43 @@ class VizierClient:
     for metric in metric_list:
       for metric_name in metric:
         metric_pb2 = study_pb2.Measurement.Metric(
-            metric_id=metric_name, value=metric[metric_name])
+            metric_id=metric_name, value=metric[metric_name]
+        )
         new_metric_list.append(metric_pb2)
 
     integer_seconds = int(elapsed_secs)
     nano_seconds = int((elapsed_secs - integer_seconds) * 1e9)
     measurement = study_pb2.Measurement(
         elapsed_duration=duration_pb2.Duration(
-            seconds=integer_seconds, nanos=nano_seconds),
+            seconds=integer_seconds, nanos=nano_seconds
+        ),
         step_count=step,
-        metrics=new_metric_list)
+        metrics=new_metric_list,
+    )
     request = vizier_service_pb2.AddTrialMeasurementRequest(
-        trial_name=resources.TrialResource(self._owner_id, self._study_id,
-                                           trial_id).name,
-        measurement=measurement)
+        trial_name=resources.TrialResource(
+            self._owner_id, self._study_id, trial_id
+        ).name,
+        measurement=measurement,
+    )
     trial = self._server.AddTrialMeasurement(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def should_trial_stop(self, trial_id: int) -> bool:
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
-        trial_name=resources.TrialResource(self._owner_id, self._study_id,
-                                           trial_id).name)
+        trial_name=resources.TrialResource(
+            self._owner_id, self._study_id, trial_id
+        ).name
+    )
     early_stopping_response = self._server.CheckTrialEarlyStoppingState(request)
     return early_stopping_response.should_stop
 
   def stop_trial(self, trial_id: int) -> None:
     request = vizier_service_pb2.StopTrialRequest(
-        name=resources.TrialResource(self._owner_id, self._study_id,
-                                     trial_id).name)
+        name=resources.TrialResource(
+            self._owner_id, self._study_id, trial_id
+        ).name
+    )
     self._server.StopTrial(request)
     logging.info('Trial with id %s stopped.', trial_id)
 
@@ -236,19 +261,23 @@ class VizierClient:
       self,
       trial_id: int,
       final_measurement: Optional[pyvizier.Measurement] = None,
-      infeasibility_reason: Optional[str] = None) -> pyvizier.Trial:
+      infeasibility_reason: Optional[str] = None,
+  ) -> pyvizier.Trial:
     """Completes the trial, which is infeasible if given a infeasibility_reason."""
     request = vizier_service_pb2.CompleteTrialRequest(
-        name=resources.TrialResource(self._owner_id, self._study_id,
-                                     trial_id).name,
+        name=resources.TrialResource(
+            self._owner_id, self._study_id, trial_id
+        ).name,
         trial_infeasible=infeasibility_reason is not None,
-        infeasible_reason=infeasibility_reason)
+        infeasible_reason=infeasibility_reason,
+    )
 
     if final_measurement is not None:
       # Final measurement can still be included even for infeasible trials, for
       # other metrics, or a subset of objective + safety metrics.
       request.final_measurement.CopyFrom(
-          pyvizier.MeasurementConverter.to_proto(final_measurement))
+          pyvizier.MeasurementConverter.to_proto(final_measurement)
+      )
 
     trial = self._server.CompleteTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
@@ -256,8 +285,10 @@ class VizierClient:
   def get_trial(self, trial_id: int) -> pyvizier.Trial:
     """Return the Optimizer trial for the given trial_id."""
     request = vizier_service_pb2.GetTrialRequest(
-        name=resources.TrialResource(self._owner_id, self._study_id,
-                                     trial_id).name)
+        name=resources.TrialResource(
+            self._owner_id, self._study_id, trial_id
+        ).name
+    )
     trial = self._server.GetTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
@@ -278,7 +309,8 @@ class VizierClient:
   def list_studies(self) -> List[Dict[str, Any]]:
     """List all studies for the given owner."""
     request = vizier_service_pb2.ListStudiesRequest(
-        parent=resources.OwnerResource(self._owner_id).name)
+        parent=resources.OwnerResource(self._owner_id).name
+    )
     list_studies_response = self._server.ListStudies(request)
     # TODO: Use PyVizier StudyDescriptor instead.
     return [
@@ -299,39 +331,45 @@ class VizierClient:
     """
     request = vizier_service_pb2.CreateTrialRequest(
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
-        trial=pyvizier.TrialConverter.to_proto(trial))
+        trial=pyvizier.TrialConverter.to_proto(trial),
+    )
     trial_proto = self._server.CreateTrial(request)
     return pyvizier.TrialConverter.from_proto(trial_proto)
 
   def delete_trial(self, trial_id: int) -> None:
     """Deletes trial from datastore."""
-    request_trial_name = resources.TrialResource(self._owner_id, self._study_id,
-                                                 trial_id).name
+    request_trial_name = resources.TrialResource(
+        self._owner_id, self._study_id, trial_id
+    ).name
     request = vizier_service_pb2.DeleteTrialRequest(name=request_trial_name)
     self._server.DeleteTrial(request)
     logging.info('Trial deleted: %s', trial_id)
 
   def delete_study(self, study_resource_name: Optional[str] = None) -> None:
     """Deletes study from datastore."""
-    study_resource_name = study_resource_name or (resources.StudyResource(
-        self._owner_id, self._study_id).name)
+    study_resource_name = study_resource_name or (
+        resources.StudyResource(self._owner_id, self._study_id).name
+    )
     request = vizier_service_pb2.DeleteStudyRequest(name=study_resource_name)
     self._server.DeleteStudy(request)
     logging.info('Study deleted: %s', study_resource_name)
 
-  def get_study_config(self,
-                       study_resource_name: Optional[str] = None
-                      ) -> pyvizier.StudyConfig:
+  def get_study_config(
+      self, study_resource_name: Optional[str] = None
+  ) -> pyvizier.StudyConfig:
     """Returns the study config."""
-    study_resource_name = study_resource_name or (resources.StudyResource(
-        self._owner_id, self._study_id).name)
+    study_resource_name = study_resource_name or (
+        resources.StudyResource(self._owner_id, self._study_id).name
+    )
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
     response = self._server.GetStudy(request)
     return pyvizier.StudyConfig.from_proto(response.study_spec)
 
-  def update_metadata(self,
-                      delta: pyvizier.MetadataDelta,
-                      study_resource_name: Optional[str] = None) -> None:
+  def update_metadata(
+      self,
+      delta: pyvizier.MetadataDelta,
+      study_resource_name: Optional[str] = None,
+  ) -> None:
     """Updates metadata.
 
     Args:
@@ -347,10 +385,12 @@ class VizierClient:
       RuntimeError: If server reported an error or if a value could not be
       pickled.
     """
-    study_resource_name = study_resource_name or (resources.StudyResource(
-        self._owner_id, self._study_id).name)
-    request = pyvizier.metadata_util.to_request_proto(study_resource_name,
-                                                      delta)
+    study_resource_name = study_resource_name or (
+        resources.StudyResource(self._owner_id, self._study_id).name
+    )
+    request = pyvizier.metadata_util.to_request_proto(
+        study_resource_name, delta
+    )
     response = self._server.UpdateMetadata(request)
 
     if response.error_details:
@@ -399,11 +439,13 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = _create_vizier_server_or_stub(service_endpoint)
+  vizier_stub = create_vizier_server_or_stub(service_endpoint)
   study = study_pb2.Study(
-      display_name=study_id, study_spec=study_config.to_proto())
+      display_name=study_id, study_spec=study_config.to_proto()
+  )
   request = vizier_service_pb2.CreateStudyRequest(
-      parent=resources.OwnerResource(owner_id).name, study=study)
+      parent=resources.OwnerResource(owner_id).name, study=study
+  )
   # The response study contains a service assigned `name`, and may have been
   # created by this RPC or a previous RPC from another client.
   study = vizier_stub.CreateStudy(request)
@@ -427,5 +469,5 @@ def PollingDelay(num_attempts: int, time_scale: float) -> datetime.timedelta:  #
     A recommended delay interval, in seconds.
   """
   small_interval = 0.3  # Seconds
-  interval = max(time_scale, small_interval) * 1.41**min(num_attempts, 9)
+  interval = max(time_scale, small_interval) * 1.41 ** min(num_attempts, 9)
   return datetime.timedelta(seconds=interval)

@@ -55,8 +55,10 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
 MAX_STUDY_ID = 2147483647  # Max int32 value.
 SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
 
-PythiaService = Union[pythia_service_pb2_grpc.PythiaServiceStub,
-                      pythia_service_pb2_grpc.PythiaServiceServicer]
+PythiaService = Union[
+    pythia_service_pb2_grpc.PythiaServiceStub,
+    pythia_service_pb2_grpc.PythiaServiceServicer,
+]
 
 
 # TODO: remove context = None
@@ -68,9 +70,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self,
       database_url: Optional[str] = SQL_MEMORY_URL,
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
-          seconds=60),
-      policy_factory: pythia_server.PolicyFactory = pythia_server
-      .default_policy_factory):
+          seconds=60
+      ),
+      policy_factory: pythia_server.PolicyFactory = pythia_server.default_policy_factory,
+  ):
     """Initializes the service.
 
     Creates the datastore and relevant locks for multhreading. Note that the
@@ -87,7 +90,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     """
     # By default, uses a local PythiaService instance.
     self._pythia_service: PythiaService = pythia_server.PythiaService(
-        vizier_service=self, policy_factory=policy_factory)
+        vizier_service=self, policy_factory=policy_factory
+    )
 
     if database_url is None:
       self.datastore = datastore.NestedDictRAMDataStore()
@@ -96,7 +100,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           database_url,
           echo=False,  # Set True to log transactions for debugging.
           connect_args={'check_same_thread': False},
-          poolclass=sqla.pool.StaticPool)
+          poolclass=sqla.pool.StaticPool,
+      )
       self.datastore = sql_datastore.SQLDataStore(engine)
 
     # For database edits using owner names.
@@ -117,7 +122,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def CreateStudy(
       self,
       request: vizier_service_pb2.CreateStudyRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Study:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Study:
     """Creates a study or loads an existing one.
 
     The initial request contains the study without the study name, only
@@ -135,7 +141,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     owner_id = resources.OwnerResource.from_name(request.parent).owner_id
     if request.study.name:
       raise ValueError(
-          'Study should not have a resource name. Study names can only be assigned by the Vizier service.'
+          'Study should not have a resource name. Study names can only be'
+          ' assigned by the Vizier service.'
       )
     if not request.study.display_name:
       raise ValueError('Study display_name must be specified.')
@@ -151,12 +158,16 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       # Check if all possible study_id's have been taken.
       if len(possible_candidate_studies) >= MAX_STUDY_ID:
         raise ValueError(
-            'Maximum number of studies reached for owner {}.'.format(owner_id))
+            'Maximum number of studies reached for owner {}.'.format(owner_id)
+        )
 
       for candidate_study in possible_candidate_studies:
         if candidate_study.display_name == request.study.display_name:
-          logging.info('Found existing study of owner=%s display_name=%s!',
-                       owner_id, candidate_study.display_name)
+          logging.info(
+              'Found existing study of owner=%s display_name=%s!',
+              owner_id,
+              candidate_study.display_name,
+          )
           return candidate_study
 
       # No study in the database matches the resource name. Making a new one.
@@ -171,14 +182,15 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def GetStudy(
       self,
       request: vizier_service_pb2.GetStudyRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Study:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Study:
     """Gets a Study by name. If the study does not exist, return error."""
     return self.datastore.load_study(request.name)
 
   def ListStudies(
       self,
       request: vizier_service_pb2.ListStudiesRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> vizier_service_pb2.ListStudiesResponse:
     """Lists all the studies in a region for an associated project."""
     list_of_studies = self.datastore.list_studies(request.parent)
@@ -187,7 +199,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def DeleteStudy(
       self,
       request: vizier_service_pb2.DeleteStudyRequest,
-      context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> empty_pb2.Empty:
     """Deletes a Study."""
     self.datastore.delete_study(request.name)
     return empty_pb2.Empty()
@@ -195,7 +208,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def SuggestTrials(
       self,
       request: vizier_service_pb2.SuggestTrialsRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> operations_pb2.Operation:
     """Adds one or more Trials to a Study, with parameter values suggested by a Pythia policy.
 
@@ -242,7 +255,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       active_op_filter_fn = lambda op: not op.done
       try:
         active_op_list = self.datastore.list_suggestion_operations(
-            study_name, request.client_id, active_op_filter_fn)
+            study_name, request.client_id, active_op_filter_fn
+        )
       except datastore.NotFoundError:
         active_op_list = []
       if active_op_list:
@@ -251,25 +265,33 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       start_time = _get_current_time()
       # Create a new Op if there aren't any active (not done) ops.
       try:
-        new_op_number = self.datastore.max_suggestion_operation_number(
-            study_name, request.client_id) + 1
+        new_op_number = (
+            self.datastore.max_suggestion_operation_number(
+                study_name, request.client_id
+            )
+            + 1
+        )
       except datastore.NotFoundError:
         new_op_number = 1
       new_op_name = resources.SuggestionOperationResource(
-          owner_id, study_id, request.client_id, new_op_number).name
+          owner_id, study_id, request.client_id, new_op_number
+      ).name
       output_op = operations_pb2.Operation(name=new_op_name, done=False)
       self.datastore.create_suggestion_operation(output_op)
 
       # Check how many ACTIVE trials already exist for this client only.
       all_trials = self.datastore.list_trials(study_name)
       active_trials = [
-          t for t in all_trials if t.state == study_pb2.Trial.State.ACTIVE and
-          t.client_id == request.client_id
+          t
+          for t in all_trials
+          if t.state == study_pb2.Trial.State.ACTIVE
+          and t.client_id == request.client_id
       ]
       if len(active_trials) >= request.suggestion_count:
         output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-            trials=active_trials[:request.suggestion_count],
-            start_time=start_time).SerializeToString()
+            trials=active_trials[: request.suggestion_count],
+            start_time=start_time,
+        ).SerializeToString()
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
@@ -290,7 +312,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       if len(output_trials) == request.suggestion_count:
         # We've finished collecting enough trials from the REQUESTED pool.
         output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-            trials=output_trials, start_time=start_time).SerializeToString()
+            trials=output_trials, start_time=start_time
+        ).SerializeToString()
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
@@ -299,52 +322,67 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       study_descriptor = vz.StudyDescriptor(
           config=svz.StudyConfig.from_proto(study.study_spec),
           guid=study_name,
-          max_trial_id=self.datastore.max_trial_id(study_name))
+          max_trial_id=self.datastore.max_trial_id(study_name),
+      )
       suggest_request = pythia.SuggestRequest(
           study_descriptor=study_descriptor,
-          count=request.suggestion_count - len(output_trials))
+          count=request.suggestion_count - len(output_trials),
+      )
 
       # Convert request, send to Pythia, and obtain suggestions.
       try:
         suggest_request_proto = svz.SuggestConverter.to_request_proto(
-            suggest_request)
+            suggest_request
+        )
         suggest_request_proto.algorithm = study.study_spec.algorithm
         suggest_decision_proto = self._pythia_service.Suggest(
-            suggest_request_proto)
+            suggest_request_proto
+        )
         # Check if we received enough suggestions.
-        if len(suggest_decision_proto.suggestions
-              ) < request.suggestion_count - len(output_trials):
+        if len(
+            suggest_decision_proto.suggestions
+        ) < request.suggestion_count - len(output_trials):
           logging.warning(
               'Requested at least %d suggestions but Pythia only produced %d.',
               request.suggestion_count - len(output_trials),
-              len(suggest_decision_proto.suggestions))
+              len(suggest_decision_proto.suggestions),
+          )
 
       # Pythia can raise any exception, captured inside grpc.RpcError.
       except grpc.RpcError as e:
         output_op.error.CopyFrom(
-            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
+            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e))
+        )
         logging.exception(
-            'Failed to request trials from Pythia for request: %s', request)
+            'Failed to request trials from Pythia for request: %s', request
+        )
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
 
       suggest_decision = svz.SuggestConverter.from_decision_proto(
-          suggest_decision_proto)
+          suggest_decision_proto
+      )
 
       # Write the metadata update to the datastore.
       try:
         self.datastore.update_metadata(
             study_name,
             svz.metadata_util.make_key_value_list(
-                suggest_decision.metadata.on_study),
+                suggest_decision.metadata.on_study
+            ),
             svz.metadata_util.trial_metadata_to_update_list(
-                suggest_decision.metadata.on_trials))
+                suggest_decision.metadata.on_trials
+            ),
+        )
       except KeyError as e:
         output_op.error.CopyFrom(
-            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e)))
-        logging.exception('Failed to write metadata update to datastore: %s',
-                          suggest_decision.metadata)
+            status_pb2.Status(code=code_pb2.Code.INTERNAL, message=str(e))
+        )
+        logging.exception(
+            'Failed to write metadata update to datastore: %s',
+            suggest_decision.metadata,
+        )
         output_op.done = True
         self.datastore.update_suggestion_operation(output_op)
         return output_op
@@ -359,8 +397,9 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         new_trial = new_trials.pop()
         trial_id = self.datastore.max_trial_id(request.parent) + 1
         new_trial.id = str(trial_id)
-        new_trial.name = resources.TrialResource(owner_id, study_id,
-                                                 trial_id).name
+        new_trial.name = resources.TrialResource(
+            owner_id, study_id, trial_id
+        ).name
         new_trial.state = study_pb2.Trial.State.ACTIVE
         new_trial.start_time.CopyFrom(start_time)
         new_trial.client_id = request.client_id
@@ -368,14 +407,16 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         output_trials.append(new_trial)
 
       output_op.response.value = vizier_service_pb2.SuggestTrialsResponse(
-          trials=output_trials, start_time=start_time).SerializeToString()
+          trials=output_trials, start_time=start_time
+      ).SerializeToString()
 
       # Store remaining trials as REQUESTED if Pythia over-delivered.
       for remaining_trial in new_trials:
         trial_id = self.datastore.max_trial_id(request.parent) + 1
         remaining_trial.id = str(trial_id)
-        remaining_trial.name = resources.TrialResource(owner_id, study_id,
-                                                       trial_id).name
+        remaining_trial.name = resources.TrialResource(
+            owner_id, study_id, trial_id
+        ).name
         remaining_trial.state = study_pb2.Trial.State.REQUESTED
         self.datastore.create_trial(new_trial)
 
@@ -386,7 +427,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def GetOperation(
       self,
       request: operations_pb2.GetOperationRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> operations_pb2.Operation:
     """Gets the latest state of a SuggestTrials() long-running operation."""
     return self.datastore.get_suggestion_operation(request.name)
@@ -394,13 +435,17 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def CreateTrial(
       self,
       request: vizier_service_pb2.CreateTrialRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
     trial = request.trial
     with self._study_name_to_lock[request.parent]:
       trial.id = str(self.datastore.max_trial_id(request.parent) + 1)
-      trial.name = (resources.StudyResource.from_name(
-          request.parent).trial_resource(trial_id=trial.id)).name
+      trial.name = (
+          resources.StudyResource.from_name(request.parent).trial_resource(
+              trial_id=trial.id
+          )
+      ).name
 
       if trial.state != study_pb2.Trial.State.SUCCEEDED:
         trial.state = study_pb2.Trial.State.REQUESTED
@@ -410,19 +455,18 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       self.datastore.create_trial(trial)
     return trial
 
-  def GetTrial(self, request: vizier_service_pb2.GetTrialRequest,
-               context: grpc.ServicerContext) -> Optional[study_pb2.Trial]:
+  def GetTrial(
+      self,
+      request: vizier_service_pb2.GetTrialRequest,
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> Optional[study_pb2.Trial]:
     """Gets a Trial."""
-    try:
-      return self.datastore.get_trial(request.name)
-    except datastore.NotFoundError as e:
-      context.set_code(grpc.StatusCode.NOT_FOUND)
-      context.set_details(str(e))
+    return self.datastore.get_trial(request.name)
 
   def ListTrials(
       self,
       request: vizier_service_pb2.ListTrialsRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> vizier_service_pb2.ListTrialsResponse:
     """Lists the Trials associated with a Study."""
     list_of_trials = self.datastore.list_trials(request.parent)
@@ -431,7 +475,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def AddTrialMeasurement(
       self,
       request: vizier_service_pb2.AddTrialMeasurementRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Trial:
     """Adds a measurement of the objective metrics to a Trial.
 
     This measurement is assumed to have been taken before the Trial is
@@ -445,7 +490,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       Trial whose measurement was appended.
     """
     study_name = resources.TrialResource.from_name(
-        request.trial_name).study_resource.name
+        request.trial_name
+    ).study_resource.name
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.trial_name)
       trial.measurements.extend([request.measurement])
@@ -457,10 +503,12 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def CompleteTrial(
       self,
       request: vizier_service_pb2.CompleteTrialRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Trial:
     """Marks a Trial as complete."""
     study_name = resources.TrialResource.from_name(
-        request.name).study_resource.name
+        request.name
+    ).study_resource.name
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
 
@@ -475,7 +523,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
           trial.final_measurement.CopyFrom(trial.measurements[-1])
         else:
           raise ValueError(
-              "Both the request and trial intermediate measurements are missing. Cannot determine trial's final_measurement."
+              'Both the request and trial intermediate measurements are'
+              " missing. Cannot determine trial's final_measurement."
           )
 
       # Handle infeasibility.
@@ -489,7 +538,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def DeleteTrial(
       self,
       request: vizier_service_pb2.DeleteTrialRequest,
-      context: Optional[grpc.ServicerContext] = None) -> empty_pb2.Empty:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> empty_pb2.Empty:
     """Deletes a Trial."""
     self.datastore.delete_trial(request.name)
     return empty_pb2.Empty()
@@ -498,7 +548,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def CheckTrialEarlyStoppingState(
       self,
       request: vizier_service_pb2.CheckTrialEarlyStoppingStateRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> vizier_service_pb2.CheckTrialEarlyStoppingStateResponse:
     """Checks whether a Trial should stop or not.
 
@@ -543,7 +593,8 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         # Reuse any existing early stopping op, since the Pythia policy may have
         # already signaled this trial to stop.
         output_operation = self.datastore.get_early_stopping_operation(
-            outer_op_name)
+            outer_op_name
+        )
       except KeyError:
         output_operation = None
 
@@ -552,20 +603,28 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         output_operation = vizier_oss_pb2.EarlyStoppingOperation(
             name=outer_op_name,
             status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE,
-            should_stop=False)
+            should_stop=False,
+        )
         output_operation.creation_time.CopyFrom(_get_current_time())
         self.datastore.create_early_stopping_operation(output_operation)
       else:
-        if output_operation.status == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE or datetime.datetime.utcnow(
-        ) - output_operation.completion_time.ToDatetime(
-        ) < self._early_stop_recycle_period:
+        if (
+            output_operation.status
+            == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
+            or datetime.datetime.utcnow()
+            - output_operation.completion_time.ToDatetime()
+            < self._early_stop_recycle_period
+        ):
           # Operation is already active or very recent. Just return it.
           return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
-              should_stop=output_operation.should_stop)
+              should_stop=output_operation.should_stop
+          )
 
         # Recycle the operation to ACTIVE again and start Pythia for
         # recomputation.
-        output_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
+        output_operation.status = (
+            vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
+        )
         output_operation.should_stop = False  # Defaulted back to False.
         self.datastore.update_early_stopping_operation(output_operation)
 
@@ -574,62 +633,79 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       study_descriptor = vz.StudyDescriptor(
           config=pythia_sc,
           guid=study_name,
-          max_trial_id=self.datastore.max_trial_id(study_name))
+          max_trial_id=self.datastore.max_trial_id(study_name),
+      )
       early_stop_request = pythia.EarlyStopRequest(
-          study_descriptor=study_descriptor,
-          trial_ids=[trial_resource.trial_id])
+          study_descriptor=study_descriptor, trial_ids=[trial_resource.trial_id]
+      )
       early_stop_request_proto = svz.EarlyStopConverter.to_request_proto(
-          early_stop_request)
+          early_stop_request
+      )
       early_stop_request_proto.algorithm = study.study_spec.algorithm
 
       # Send request to Pythia.
       early_stopping_decisions_proto = self._pythia_service.EarlyStop(
-          early_stop_request_proto)
+          early_stop_request_proto
+      )
       early_stopping_decisions = svz.EarlyStopConverter.from_decisions_proto(
-          early_stopping_decisions_proto)
+          early_stopping_decisions_proto
+      )
       # Update metadata from result.
       self.datastore.update_metadata(
           study_name,
           svz.metadata_util.make_key_value_list(
-              early_stopping_decisions.metadata.on_study),
+              early_stopping_decisions.metadata.on_study
+          ),
           svz.metadata_util.trial_metadata_to_update_list(
-              early_stopping_decisions.metadata.on_trials))
+              early_stopping_decisions.metadata.on_trials
+          ),
+      )
 
       # Pythia does not guarantee that the output_operation's id
       # will be in the decisions.
       for early_stopping_decision in early_stopping_decisions.decisions:
         inner_op_name = resources.EarlyStoppingOperationResource(
-            trial_resource.owner_id, trial_resource.study_id,
-            early_stopping_decision.id).name
+            trial_resource.owner_id,
+            trial_resource.study_id,
+            early_stopping_decision.id,
+        ).name
         try:
           inner_operation = self.datastore.get_early_stopping_operation(
-              inner_op_name)
+              inner_op_name
+          )
         except KeyError:
           # Create the operation to store early stopping data for future use.
           inner_operation = vizier_oss_pb2.EarlyStoppingOperation(
               name=inner_op_name,
               status=vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE,
-              should_stop=False)
+              should_stop=False,
+          )
           inner_operation.creation_time.CopyFrom(_get_current_time())
           self.datastore.create_early_stopping_operation(inner_operation)
 
         inner_operation.should_stop = early_stopping_decision.should_stop
-        inner_operation.status = vizier_oss_pb2.EarlyStoppingOperation.Status.DONE
+        inner_operation.status = (
+            vizier_oss_pb2.EarlyStoppingOperation.Status.DONE
+        )
         inner_operation.completion_time.CopyFrom(_get_current_time())
         self.datastore.update_early_stopping_operation(inner_operation)
 
       # Operation to be outputted may have changed.
       output_operation = self.datastore.get_early_stopping_operation(
-          output_operation.name)
+          output_operation.name
+      )
       return vizier_service_pb2.CheckTrialEarlyStoppingStateResponse(
-          should_stop=output_operation.should_stop)
+          should_stop=output_operation.should_stop
+      )
 
   def StopTrial(
       self,
       request: vizier_service_pb2.StopTrialRequest,
-      context: Optional[grpc.ServicerContext] = None) -> study_pb2.Trial:
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Trial:
     study_name = resources.TrialResource.from_name(
-        request.name).study_resource.name
+        request.name
+    ).study_resource.name
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
       trial.state = study_pb2.Trial.STOPPING
@@ -639,7 +715,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
   def ListOptimalTrials(
       self,
       request: vizier_service_pb2.ListOptimalTrialsRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> vizier_service_pb2.ListOptimalTrialsResponse:
     """The definition of pareto-optimal can be checked in wiki page.
 
@@ -670,8 +746,10 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
       }
       trial_metric_ids = set(trial_metric_id_to_value.keys())
       # Add trials ONLY if they succeeded and contain all supposed metrics.
-      if trial.state == study_pb2.Trial.State.SUCCEEDED and required_metric_ids.issubset(
-          trial_metric_ids):
+      if (
+          trial.state == study_pb2.Trial.State.SUCCEEDED
+          and required_metric_ids.issubset(trial_metric_ids)
+      ):
         objective_vector = []
         for metric_id, goal in metric_id_to_goal.items():
           # Flip sign for convenience when computing optimality.
@@ -691,9 +769,11 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     ys = np.array(considered_trial_objective_vectors)
     n = ys.shape[0]
     dominated = np.asarray(
-        [[np.all(ys[i] <= ys[j]) & np.any(ys[j] > ys[i])
-          for i in range(n)]
-         for j in range(n)])
+        [
+            [np.all(ys[i] <= ys[j]) & np.any(ys[j] > ys[i]) for i in range(n)]
+            for j in range(n)
+        ]
+    )
     optimal_booleans = np.logical_not(np.any(dominated, axis=0))
     optimal_trials = []
     for i, boolean in enumerate(list(optimal_booleans)):
@@ -701,20 +781,23 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         optimal_trials.append(considered_trials[i])
 
     return vizier_service_pb2.ListOptimalTrialsResponse(
-        optimal_trials=optimal_trials)
+        optimal_trials=optimal_trials
+    )
 
   def UpdateMetadata(
       self,
       request: vizier_service_pb2.UpdateMetadataRequest,
-      context: Optional[grpc.ServicerContext] = None
+      context: Optional[grpc.ServicerContext] = None,
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
     try:
       self.datastore.update_metadata(
           request.name,
           [x.metadatum for x in request.delta if not x.HasField('trial_id')],
-          [x for x in request.delta if x.HasField('trial_id')])
+          [x for x in request.delta if x.HasField('trial_id')],
+      )
     except KeyError as e:
       return vizier_service_pb2.UpdateMetadataResponse(
-          error_details=';'.join(e.args))
+          error_details=';'.join(e.args)
+      )
     return vizier_service_pb2.UpdateMetadataResponse()
