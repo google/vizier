@@ -176,7 +176,7 @@ class Study(client_abc.StudyInterface):
 
     def iterable_factory():
       for t in filter(trial_filter, all_trials):
-        yield self._trial_client(t)
+        yield t
 
     return TrialIterable(iterable_factory, self._client)
 
