@@ -24,9 +24,7 @@ import attr
 from vizier.client import client_abc
 from vizier.service import pyvizier as vz
 from vizier.service import resources
-from vizier.service import stubs_util
 from vizier.service import vizier_client
-from vizier.service import vizier_service_pb2_grpc
 
 # Redeclared so users do not have to also import client_abc and vizier_client.
 NO_ENDPOINT = vizier_client.NO_ENDPOINT
@@ -38,17 +36,13 @@ ResourceNotFoundError = client_abc.ResourceNotFoundError
 @attr.define
 class _EnviromentVariables:
   service_endpoint: str = attr.field(
-      default=NO_ENDPOINT, validator=attr.validators.instance_of(str))
+      default=NO_ENDPOINT, validator=attr.validators.instance_of(str)
+  )
 
 
 environment_variables = _EnviromentVariables()
 
 _UNUSED_CLIENT_ID = 'Unused client id.'
-
-
-def _get_stub() -> vizier_service_pb2_grpc.VizierServiceStub:
-  return stubs_util.create_vizier_server_stub(
-      environment_variables.service_endpoint)
 
 
 @attr.define
@@ -83,9 +77,11 @@ class Trial(client_abc.TrialInterface):
       self,
       measurement: Optional[vz.Measurement] = None,
       *,
-      infeasible_reason: Optional[str] = None) -> Optional[vz.Measurement]:
-    self._trial = self._client.complete_trial(self._id, measurement,
-                                              infeasible_reason)
+      infeasible_reason: Optional[str] = None,
+  ) -> Optional[vz.Measurement]:
+    self._trial = self._client.complete_trial(
+        self._id, measurement, infeasible_reason
+    )
     return self._trial.final_measurement
 
   def check_early_stopping(self) -> bool:
@@ -96,7 +92,8 @@ class Trial(client_abc.TrialInterface):
         int(measurement.steps),
         measurement.elapsed_secs,
         [{k: v.value for k, v in measurement.metrics.items()}],
-        trial_id=self._id)
+        trial_id=self._id,
+    )
 
   def materialize(
       self,
@@ -135,6 +132,7 @@ class TrialIterable(client_abc.TrialIterable):
 @attr.define
 class Study(client_abc.StudyInterface):
   """Responsible for study-level operations."""
+
   _client: vizier_client.VizierClient = attr.field()
 
   @property
@@ -145,13 +143,14 @@ class Study(client_abc.StudyInterface):
     """Returns the client for the vz.Trial object."""
     return Trial(self._client, trial.id)
 
-  def suggest(self,
-              *,
-              count: Optional[int] = None,
-              client_id: str = 'default_client_id') -> Collection[Trial]:
+  def suggest(
+      self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
+  ) -> Collection[Trial]:
     return [
-        self._trial_client(t) for t in self._client.get_suggestions(
-            count, client_id_override=client_id)
+        self._trial_client(t)
+        for t in self._client.get_suggestions(
+            count, client_id_override=client_id
+        )
     ]
 
   def delete(self) -> None:
@@ -169,8 +168,9 @@ class Study(client_abc.StudyInterface):
     trial.is_requested = True
     self._client.add_trial(trial)
 
-  def trials(self,
-             trial_filter: Optional[vz.TrialFilter] = None) -> TrialIterable:
+  def trials(
+      self, trial_filter: Optional[vz.TrialFilter] = None
+  ) -> TrialIterable:
     all_trials = self._client.list_trials()
     trial_filter = trial_filter or vz.TrialFilter()
 
@@ -187,8 +187,8 @@ class Study(client_abc.StudyInterface):
       return self._trial_client(trial)
     except KeyError as err:
       raise client_abc.ResourceNotFoundError(
-          f'Study f{self.resource_name} does not have '
-          f'Trial {trial_id}.') from err
+          f'Study f{self.resource_name} does not have Trial {trial_id}.'
+      ) from err
 
   def optimal_trials(self) -> TrialIterable:
     trials = self._client.list_optimal_trials()
@@ -213,16 +213,23 @@ class Study(client_abc.StudyInterface):
 
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
-    client = vizier_client.VizierClient(_get_stub(), name, _UNUSED_CLIENT_ID)
+    client = vizier_client.VizierClient(
+        vizier_client.create_vizier_server_or_stub(
+            environment_variables.service_endpoint
+        ),
+        name,
+        _UNUSED_CLIENT_ID,
+    )
     try:
       _ = client.get_study_config()  # Make sure study exists.
     except Exception as err:
-      raise client_abc.ResourceNotFoundError() from err
+      raise KeyError(f'Study {name} does not exist.') from err
     return Study(client)
 
   @classmethod
-  def from_owner_and_id(cls: Type['Study'], owner: str,
-                        study_id: str) -> 'Study':
+  def from_owner_and_id(
+      cls: Type['Study'], owner: str, study_id: str
+  ) -> 'Study':
     """Create study from StudyConfig.
 
     Args:
@@ -236,12 +243,14 @@ class Study(client_abc.StudyInterface):
       ResourceNotFoundError
     """
     study_resource_name = resources.StudyResource(
-        owner_id=owner, study_id=study_id).name
+        owner_id=owner, study_id=study_id
+    ).name
     return cls.from_resource_name(study_resource_name)
 
   @classmethod
-  def from_study_config(cls, config: vz.StudyConfig, *, owner: str,
-                        study_id: str) -> 'Study':
+  def from_study_config(
+      cls, config: vz.StudyConfig, *, owner: str, study_id: str
+  ) -> 'Study':
     """Create study from StudyConfig.
 
     Args:
@@ -261,4 +270,6 @@ class Study(client_abc.StudyInterface):
             owner_id=owner,
             client_id=_UNUSED_CLIENT_ID,
             study_id=study_id,
-            study_config=config))
+            study_config=config,
+        )
+    )
