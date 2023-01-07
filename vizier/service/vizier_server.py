@@ -388,8 +388,7 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
         return output_op
 
       new_py_trials = [
-          vz.Trial(parameters=decision.parameters)
-          for decision in suggest_decision.suggestions
+          decision.to_trial() for decision in suggest_decision.suggestions
       ]
       new_trials = svz.TrialConverter.to_protos(new_py_trials)
 
