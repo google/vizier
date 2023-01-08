@@ -48,6 +48,14 @@ service VizierService {
     option (google.api.method_signature) = "name";
   }
 
+  // Sets the state of a Study.
+  rpc SetStudyState(SetStudyStateRequest) returns (Study) {
+    option (google.api.http) = {
+      get: "{name=owners/*/studies/*}"
+    };
+    option (google.api.method_signature) = "parent,state";
+  }
+
   // Adds one or more Trials to a Study, with parameter values
   // suggested by a Pythia policy. Returns a long-running
   // operation associated with the generation of Trial suggestions.
@@ -226,6 +234,19 @@ message DeleteStudyRequest {
   // The name of the Study resource to be deleted.
   // Format: `owners/{owner_id}/studies/{study_id}`
   string name = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for [VizierService.SetStudyState][].
+message SetStudyStateRequest {
+  // The name of the Study resource.
+  // Format: `owners/{owner_id}/studies/{study_id}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type =
+        "aiplatform.googleapis.com/Study"
+  ];
+  // The state to set the Study to.
+  Study.State state = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for [VizierService.SuggestTrials][].

@@ -92,7 +92,8 @@ class SQLDataStore(datastore.DataStore):
         study_name=study.name,
         owner_id=study_resource.owner_id,
         study_id=study_resource.study_id,
-        serialized_study=study.SerializeToString())
+        serialized_study=study.SerializeToString(),
+    )
 
     with self._lock:
       try:
@@ -104,8 +105,8 @@ class SQLDataStore(datastore.DataStore):
         return study_resource
       except sqla.exc.IntegrityError as integrity_error:
         raise datastore.AlreadyExistsError(
-            'Study with name %s already exists.' %
-            study.name) from integrity_error
+            'Study with name %s already exists.' % study.name
+        ) from integrity_error
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     query = sqla.select([self._studies_table])
@@ -116,22 +117,52 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError('Failed to find study name: %s' %
-                                    study_name)
+      raise datastore.NotFoundError(
+          'Failed to find study name: %s' % study_name
+      )
     return study_pb2.Study.FromString(row['serialized_study'])
+
+  def update_study(self, study: study_pb2.Study) -> resources.StudyResource:
+    study_resource = resources.StudyResource.from_name(study.name)
+    exists_query = sqla.exists(
+        sqla.select([self._studies_table]).where(
+            self._studies_table.c.study_name == study.name
+        )
+    ).select()
+    update_query = (
+        sqla.update(self._studies_table)
+        .where(self._studies_table.c.study_name == study.name)
+        .values(
+            study_name=study.name,
+            owner_id=study_resource.owner_id,
+            study_id=study_resource.study_id,
+            serialized_study=study.SerializeToString(),
+        )
+    )
+
+    with self._lock:
+      exists = self._connection.execute(exists_query).fetchone()[0]
+      if not exists:
+        raise datastore.NotFoundError('Study %s does not exist.' % study.name)
+      self._connection.execute(update_query)
+    return study_resource
 
   def delete_study(self, study_name: str) -> None:
     study_resource = resources.StudyResource.from_name(study_name)
 
     exists_query = sqla.select([self._studies_table])
     exists_query = exists_query.where(
-        self._studies_table.c.study_name == study_name)
+        self._studies_table.c.study_name == study_name
+    )
     exists_query = sqla.exists(exists_query).select()
     delete_study_query = self._studies_table.delete().where(
-        self._studies_table.c.study_name == study_name)
-    delete_trials_query = self._trials_table.delete().where(
-        self._trials_table.c.owner_id == study_resource.owner_id).where(
-            self._trials_table.c.study_id == study_resource.study_id)
+        self._studies_table.c.study_name == study_name
+    )
+    delete_trials_query = (
+        self._trials_table.delete()
+        .where(self._trials_table.c.owner_id == study_resource.owner_id)
+        .where(self._trials_table.c.study_id == study_resource.study_id)
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
@@ -143,17 +174,20 @@ class SQLDataStore(datastore.DataStore):
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     owner_id = resources.OwnerResource.from_name(owner_name).owner_id
     exists_query = sqla.exists(
-        sqla.select([
-            self._owners_table
-        ]).where(self._owners_table.c.owner_name == owner_name)).select()
-    list_query = sqla.select(
-        [self._studies_table]).where(self._studies_table.c.owner_id == owner_id)
+        sqla.select([self._owners_table]).where(
+            self._owners_table.c.owner_name == owner_name
+        )
+    ).select()
+    list_query = sqla.select([self._studies_table]).where(
+        self._studies_table.c.owner_id == owner_id
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Owner name %s does not exist.' %
-                                      owner_name)
+        raise datastore.NotFoundError(
+            'Owner name %s does not exist.' % owner_name
+        )
       result = self._connection.execute(list_query).fetchall()
 
     return [
@@ -167,7 +201,8 @@ class SQLDataStore(datastore.DataStore):
         owner_id=trial_resource.owner_id,
         study_id=trial_resource.study_id,
         trial_id=trial_resource.trial_id,
-        serialized_trial=trial.SerializeToString())
+        serialized_trial=trial.SerializeToString(),
+    )
 
     with self._lock:
       try:
@@ -175,8 +210,8 @@ class SQLDataStore(datastore.DataStore):
         return trial_resource
       except sqla.exc.IntegrityError as integrity_error:
         raise datastore.AlreadyExistsError(
-            'Trial with name %s already exists.' %
-            trial.name) from integrity_error
+            'Trial with name %s already exists.' % trial.name
+        ) from integrity_error
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     query = sqla.select([self._trials_table])
@@ -187,23 +222,29 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError('Failed to find trial name: %s' %
-                                    trial_name)
+      raise datastore.NotFoundError(
+          'Failed to find trial name: %s' % trial_name
+      )
     return study_pb2.Trial.FromString(row['serialized_trial'])
 
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     trial_resource = resources.TrialResource.from_name(trial.name)
     exists_query = sqla.exists(
-        sqla.select([
-            self._trials_table
-        ]).where(self._trials_table.c.trial_name == trial.name)).select()
-    update_query = sqla.update(self._trials_table).where(
-        self._trials_table.c.trial_name == trial.name).values(
+        sqla.select([self._trials_table]).where(
+            self._trials_table.c.trial_name == trial.name
+        )
+    ).select()
+    update_query = (
+        sqla.update(self._trials_table)
+        .where(self._trials_table.c.trial_name == trial.name)
+        .values(
             trial_name=trial.name,
             owner_id=trial_resource.owner_id,
             study_id=trial_resource.study_id,
             trial_id=trial_resource.trial_id,
-            serialized_trial=trial.SerializeToString())
+            serialized_trial=trial.SerializeToString(),
+        )
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
@@ -216,19 +257,22 @@ class SQLDataStore(datastore.DataStore):
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     study_resource = resources.StudyResource.from_name(study_name)
     exists_query = sqla.exists(
-        sqla.select([
-            self._studies_table
-        ]).where(self._studies_table.c.study_name == study_name)).select()
-    list_query = sqla.select([
-        self._trials_table
-    ]).where(self._trials_table.c.owner_id == study_resource.owner_id).where(
-        self._trials_table.c.study_id == study_resource.study_id)
+        sqla.select([self._studies_table]).where(
+            self._studies_table.c.study_name == study_name
+        )
+    ).select()
+    list_query = (
+        sqla.select([self._trials_table])
+        .where(self._trials_table.c.owner_id == study_resource.owner_id)
+        .where(self._trials_table.c.study_id == study_resource.study_id)
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Study name %s does not exist.' %
-                                      study_name)
+        raise datastore.NotFoundError(
+            'Study name %s does not exist.' % study_name
+        )
       result = self._connection.execute(list_query)
 
     return [
@@ -237,11 +281,13 @@ class SQLDataStore(datastore.DataStore):
 
   def delete_trial(self, trial_name: str) -> None:
     exists_query = sqla.exists(
-        sqla.select([
-            self._trials_table
-        ]).where(self._trials_table.c.trial_name == trial_name)).select()
+        sqla.select([self._trials_table]).where(
+            self._trials_table.c.trial_name == trial_name
+        )
+    ).select()
     delete_query = self._trials_table.delete().where(
-        self._trials_table.c.trial_name == trial_name)
+        self._trials_table.c.trial_name == trial_name
+    )
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
@@ -251,20 +297,25 @@ class SQLDataStore(datastore.DataStore):
   def max_trial_id(self, study_name: str) -> int:
     study_resource = resources.StudyResource.from_name(study_name)
     exists_query = sqla.exists(
-        sqla.select([
-            self._studies_table
-        ]).where(self._studies_table.c.study_name == study_name)).select()
-    trial_id_query = sqla.select([
-        sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)
-    ]).where(self._trials_table.c.owner_id == study_resource.owner_id).where(
-        self._trials_table.c.study_id == study_resource.study_id)
+        sqla.select([self._studies_table]).where(
+            self._studies_table.c.study_name == study_name
+        )
+    ).select()
+    trial_id_query = (
+        sqla.select(
+            [sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)]
+        )
+        .where(self._trials_table.c.owner_id == study_resource.owner_id)
+        .where(self._trials_table.c.study_id == study_resource.study_id)
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
         raise datastore.NotFoundError('Study %s does not exist.' % study_name)
-      potential_trial_id = self._connection.execute(
-          trial_id_query).fetchone()[0]
+      potential_trial_id = self._connection.execute(trial_id_query).fetchone()[
+          0
+      ]
 
     if potential_trial_id is None:
       return 0
@@ -280,7 +331,8 @@ class SQLDataStore(datastore.DataStore):
         study_id=resource.study_id,
         client_id=resource.client_id,
         operation_number=resource.operation_number,
-        serialized_op=operation.SerializeToString())
+        serialized_op=operation.SerializeToString(),
+    )
 
     try:
       with self._lock:
@@ -288,21 +340,24 @@ class SQLDataStore(datastore.DataStore):
       return resource
     except sqla.exc.IntegrityError as integrity_error:
       raise datastore.AlreadyExistsError(
-          'Suggest Op with name %s already exists.' %
-          operation.name) from integrity_error
+          'Suggest Op with name %s already exists.' % operation.name
+      ) from integrity_error
 
-  def get_suggestion_operation(self,
-                               operation_name: str) -> operations_pb2.Operation:
+  def get_suggestion_operation(
+      self, operation_name: str
+  ) -> operations_pb2.Operation:
     query = sqla.select([self._suggestion_operations_table]).where(
-        self._suggestion_operations_table.c.operation_name == operation_name)
+        self._suggestion_operations_table.c.operation_name == operation_name
+    )
 
     with self._lock:
       result = self._connection.execute(query)
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError('Failed to find suggest op name: %s' %
-                                    operation_name)
+      raise datastore.NotFoundError(
+          'Failed to find suggest op name: %s' % operation_name
+      )
     return operations_pb2.Operation.FromString(row['serialized_op'])
 
   def update_suggestion_operation(
@@ -311,24 +366,31 @@ class SQLDataStore(datastore.DataStore):
     resource = resources.SuggestionOperationResource.from_name(operation.name)
 
     exists_query = sqla.exists(
-        sqla.select([self._suggestion_operations_table
-                    ]).where(self._suggestion_operations_table.c.operation_name
-                             == operation.name)).select()
-    update_query = sqla.update(self._suggestion_operations_table).where(
-        self._suggestion_operations_table.c.operation_name ==
-        operation.name).values(
+        sqla.select([self._suggestion_operations_table]).where(
+            self._suggestion_operations_table.c.operation_name == operation.name
+        )
+    ).select()
+    update_query = (
+        sqla.update(self._suggestion_operations_table)
+        .where(
+            self._suggestion_operations_table.c.operation_name == operation.name
+        )
+        .values(
             operation_name=operation.name,
             owner_id=resource.owner_id,
             study_id=resource.study_id,
             client_id=resource.client_id,
             operation_number=resource.operation_number,
-            serialized_op=operation.SerializeToString())
+            serialized_op=operation.SerializeToString(),
+        )
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Suggest op %s does not exist.' %
-                                      operation.name)
+        raise datastore.NotFoundError(
+            'Suggest op %s does not exist.' % operation.name
+        )
       self._connection.execute(update_query)
     return resource
 
@@ -336,23 +398,28 @@ class SQLDataStore(datastore.DataStore):
       self,
       study_name: str,
       client_id: str,
-      filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None
+      filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None,
   ) -> List[operations_pb2.Operation]:
     study_resource = resources.StudyResource.from_name(study_name)
     query = sqla.select([self._suggestion_operations_table])
     query = query.where(
-        self._suggestion_operations_table.c.owner_id == study_resource.owner_id)
+        self._suggestion_operations_table.c.owner_id == study_resource.owner_id
+    )
     query = query.where(
-        self._suggestion_operations_table.c.study_id == study_resource.study_id)
+        self._suggestion_operations_table.c.study_id == study_resource.study_id
+    )
     query = query.where(
-        self._suggestion_operations_table.c.client_id == client_id)
+        self._suggestion_operations_table.c.client_id == client_id
+    )
 
     exists_query = sqla.exists(query).select()
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Could not find (study_name, client_id):',
-                                      (study_resource.name, client_id))
+        raise datastore.NotFoundError(
+            'Could not find (study_name, client_id):',
+            (study_resource.name, client_id),
+        )
       result = self._connection.execute(query)
 
     all_ops = [
@@ -368,44 +435,60 @@ class SQLDataStore(datastore.DataStore):
     else:
       return all_ops
 
-  def max_suggestion_operation_number(self, study_name: str,
-                                      client_id: str) -> int:
+  def max_suggestion_operation_number(
+      self, study_name: str, client_id: str
+  ) -> int:
     resource = resources.StudyResource.from_name(study_name)
 
     exists_query = sqla.exists(
-        sqla.select([self._suggestion_operations_table]).where(
-            self._suggestion_operations_table.c.owner_id == resource.owner_id)
-        .where(self._suggestion_operations_table.c.study_id == resource.study_id
-              ).where(self._suggestion_operations_table.c.client_id ==
-                      client_id)).select()
-    max_query = sqla.select([
-        sqla.func.max(
-            self._suggestion_operations_table.c.operation_number,
-            type_=sqla.INT)
-    ]).where(self._suggestion_operations_table.c.owner_id ==
-             resource.owner_id).where(
-                 self._suggestion_operations_table.c.study_id ==
-                 resource.study_id).where(
-                     self._suggestion_operations_table.c.client_id == client_id)
+        sqla.select([self._suggestion_operations_table])
+        .where(
+            self._suggestion_operations_table.c.owner_id == resource.owner_id
+        )
+        .where(
+            self._suggestion_operations_table.c.study_id == resource.study_id
+        )
+        .where(self._suggestion_operations_table.c.client_id == client_id)
+    ).select()
+    max_query = (
+        sqla.select(
+            [
+                sqla.func.max(
+                    self._suggestion_operations_table.c.operation_number,
+                    type_=sqla.INT,
+                )
+            ]
+        )
+        .where(
+            self._suggestion_operations_table.c.owner_id == resource.owner_id
+        )
+        .where(
+            self._suggestion_operations_table.c.study_id == resource.study_id
+        )
+        .where(self._suggestion_operations_table.c.client_id == client_id)
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Could not find (study_name, client_id):',
-                                      (study_name, client_id))
+        raise datastore.NotFoundError(
+            'Could not find (study_name, client_id):', (study_name, client_id)
+        )
       return self._connection.execute(max_query).fetchone()[0]
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     resource = resources.EarlyStoppingOperationResource.from_name(
-        operation.name)
+        operation.name
+    )
     query = self._early_stopping_operations_table.insert().values(
         operation_name=operation.name,
         owner_id=resource.owner_id,
         study_id=resource.study_id,
         trial_id=resource.trial_id,
-        serialized_op=operation.SerializeToString())
+        serialized_op=operation.SerializeToString(),
+    )
 
     try:
       with self._lock:
@@ -413,15 +496,15 @@ class SQLDataStore(datastore.DataStore):
       return resource
     except sqla.exc.IntegrityError as integrity_error:
       raise datastore.AlreadyExistsError(
-          'Early stopping op with name %s already exists.' %
-          operation.name) from integrity_error
+          'Early stopping op with name %s already exists.' % operation.name
+      ) from integrity_error
 
   def get_early_stopping_operation(
-      self, operation_name: str) -> vizier_oss_pb2.EarlyStoppingOperation:
-    query = sqla.select([
-        self._early_stopping_operations_table
-    ]).where(self._early_stopping_operations_table.c.operation_name ==
-             operation_name)
+      self, operation_name: str
+  ) -> vizier_oss_pb2.EarlyStoppingOperation:
+    query = sqla.select([self._early_stopping_operations_table]).where(
+        self._early_stopping_operations_table.c.operation_name == operation_name
+    )
 
     with self._lock:
       result = self._connection.execute(query)
@@ -429,34 +512,45 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     if not row:
       raise datastore.NotFoundError(
-          'Failed to find early stopping op name: %s' % operation_name)
+          'Failed to find early stopping op name: %s' % operation_name
+      )
     return vizier_oss_pb2.EarlyStoppingOperation.FromString(
-        row['serialized_op'])
+        row['serialized_op']
+    )
 
   def update_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
   ) -> resources.EarlyStoppingOperationResource:
     resource = resources.EarlyStoppingOperationResource.from_name(
-        operation.name)
+        operation.name
+    )
     exists_query = sqla.exists(
-        sqla.select([
-            self._early_stopping_operations_table
-        ]).where(self._early_stopping_operations_table.c.operation_name ==
-                 operation.name)).select()
-    update_query = sqla.update(self._early_stopping_operations_table).where(
-        self._early_stopping_operations_table.c.operation_name ==
-        operation.name).values(
+        sqla.select([self._early_stopping_operations_table]).where(
+            self._early_stopping_operations_table.c.operation_name
+            == operation.name
+        )
+    ).select()
+    update_query = (
+        sqla.update(self._early_stopping_operations_table)
+        .where(
+            self._early_stopping_operations_table.c.operation_name
+            == operation.name
+        )
+        .values(
             operation_name=operation.name,
             owner_id=resource.owner_id,
             study_id=resource.study_id,
             trial_id=resource.trial_id,
-            serialized_op=operation.SerializeToString())
+            serialized_op=operation.SerializeToString(),
+        )
+    )
 
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Early stopping op %s does not exist.' %
-                                      operation.name)
+        raise datastore.NotFoundError(
+            'Early stopping op %s does not exist.' % operation.name
+        )
       self._connection.execute(update_query)
       return resource
 
@@ -470,9 +564,9 @@ class SQLDataStore(datastore.DataStore):
     s_resource = resources.StudyResource.from_name(study_name)
     logging.debug('database.update_metadata s_resource= %s', s_resource)
     # Obtain original study.
-    get_study_query = sqla.select([
-        self._studies_table
-    ]).where(self._studies_table.c.study_name == study_name)
+    get_study_query = sqla.select([self._studies_table]).where(
+        self._studies_table.c.study_name == study_name
+    )
 
     with self._lock:
       study_result = self._connection.execute(get_study_query)
@@ -483,15 +577,17 @@ class SQLDataStore(datastore.DataStore):
 
       # Store Study-related metadata into the database.
       datastore.merge_study_metadata(original_study.study_spec, study_metadata)
-      update_study_query = sqla.update(self._studies_table).where(
-          self._studies_table.c.study_name == study_name).values(
-              serialized_study=original_study.SerializeToString())
+      update_study_query = (
+          sqla.update(self._studies_table)
+          .where(self._studies_table.c.study_name == study_name)
+          .values(serialized_study=original_study.SerializeToString())
+      )
       self._connection.execute(update_study_query)
 
       # Split the trial-related metadata by Trial.
-      split_metadata: DefaultDict[
-          str,
-          List[datastore.UnitMetadataUpdate]] = collections.defaultdict(list)
+      split_metadata: DefaultDict[str, List[datastore.UnitMetadataUpdate]] = (
+          collections.defaultdict(list)
+      )
       for md in trial_metadata:
         split_metadata[md.trial_id].append(md)
 
@@ -501,9 +597,9 @@ class SQLDataStore(datastore.DataStore):
 
         # Obtain original trial.
         trial_name = t_resource.name
-        original_trial_query = sqla.select([
-            self._trials_table
-        ]).where(self._trials_table.c.trial_name == trial_name)
+        original_trial_query = sqla.select([self._trials_table]).where(
+            self._trials_table.c.trial_name == trial_name
+        )
         trial_result = self._connection.execute(original_trial_query)
         row = trial_result.fetchone()
         if not row:
@@ -512,7 +608,9 @@ class SQLDataStore(datastore.DataStore):
 
         # Update Trial.
         datastore.merge_trial_metadata(original_trial, md_list)
-        update_trial_query = sqla.update(self._trials_table).where(
-            self._trials_table.c.trial_name == trial_name).values(
-                serialized_trial=original_trial.SerializeToString())
+        update_trial_query = (
+            sqla.update(self._trials_table)
+            .where(self._trials_table.c.trial_name == trial_name)
+            .values(serialized_trial=original_trial.SerializeToString())
+        )
         self._connection.execute(update_trial_query)

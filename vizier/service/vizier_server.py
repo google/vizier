@@ -205,6 +205,17 @@ class VizierService(vizier_service_pb2_grpc.VizierServiceServicer):
     self.datastore.delete_study(request.name)
     return empty_pb2.Empty()
 
+  def SetStudyState(
+      self,
+      request: vizier_service_pb2.SetStudyStateRequest,
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> study_pb2.Study:
+    with self._study_name_to_lock[request.parent]:
+      study = self.datastore.load_study(request.parent)
+      study.state = request.state
+      self.datastore.update_study(study)
+    return study
+
   def SuggestTrials(
       self,
       request: vizier_service_pb2.SuggestTrialsRequest,

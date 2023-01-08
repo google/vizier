@@ -46,61 +46,77 @@ class VizierServerTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       ('Maximize', study_pb2.StudySpec.MetricSpec.MAXIMIZE),
-      ('Minimize', study_pb2.StudySpec.MetricSpec.MINIMIZE))
+      ('Minimize', study_pb2.StudySpec.MetricSpec.MINIMIZE),
+  )
   def test_single_objective_list_optimal(self, max_or_min_proto):
     metric_id = 'accuracy'
     max_or_min_study = test_util.generate_study(
         self.owner_id,
         self.study_id,
-        study_spec=study_pb2.StudySpec(metrics=[
-            study_pb2.StudySpec.MetricSpec(
-                metric_id=metric_id, goal=max_or_min_proto)
-        ]))
+        study_spec=study_pb2.StudySpec(
+            metrics=[
+                study_pb2.StudySpec.MetricSpec(
+                    metric_id=metric_id, goal=max_or_min_proto
+                )
+            ]
+        ),
+    )
 
     self.vs.datastore.create_study(max_or_min_study)
 
     lowest_trial_final_measurement = study_pb2.Measurement(
-        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=-1.0)])
+        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=-1.0)]
+    )
 
     middle_trial_final_measurement = study_pb2.Measurement(
-        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=0.0)])
+        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=0.0)]
+    )
 
     highest_trial_final_measurement = study_pb2.Measurement(
-        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=1.0)])
+        metrics=[study_pb2.Measurement.Metric(metric_id=metric_id, value=1.0)]
+    )
 
     lowest_trial = test_util.generate_trials(
         trial_id_list=[1],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=lowest_trial_final_measurement,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
 
     middle_trial = test_util.generate_trials(
         trial_id_list=[2],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=middle_trial_final_measurement,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
 
     highest_trial = test_util.generate_trials(
         trial_id_list=[3],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=highest_trial_final_measurement,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
 
     another_highest_trial = test_util.generate_trials(
         trial_id_list=[4],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=highest_trial_final_measurement,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
 
-    trials_to_be_ignored = test_util.generate_trials([5, 6, 7], self.owner_id,
-                                                     self.study_id)
+    trials_to_be_ignored = test_util.generate_trials(
+        [5, 6, 7], self.owner_id, self.study_id
+    )
 
     all_trials = [
-        lowest_trial, middle_trial, highest_trial, another_highest_trial
+        lowest_trial,
+        middle_trial,
+        highest_trial,
+        another_highest_trial,
     ] + trials_to_be_ignored
 
     for trial in all_trials:
@@ -108,7 +124,9 @@ class VizierServerTest(parameterized.TestCase):
 
     optimal_trial_list = self.vs.ListOptimalTrials(
         request=vizier_service_pb2.ListOptimalTrialsRequest(
-            parent=max_or_min_study.name)).optimal_trials
+            parent=max_or_min_study.name
+        )
+    ).optimal_trials
 
     if max_or_min_study == study_pb2.StudySpec.MetricSpec.MAXIMIZE:
       self.assertLen(optimal_trial_list, 2)
@@ -121,14 +139,19 @@ class VizierServerTest(parameterized.TestCase):
     study = test_util.generate_study(
         self.owner_id,
         self.study_id,
-        study_spec=study_pb2.StudySpec(metrics=[
-            study_pb2.StudySpec.MetricSpec(
-                metric_id=metric_id_1,
-                goal=study_pb2.StudySpec.MetricSpec.MAXIMIZE),
-            study_pb2.StudySpec.MetricSpec(
-                metric_id=metric_id_2,
-                goal=study_pb2.StudySpec.MetricSpec.MINIMIZE),
-        ]))
+        study_spec=study_pb2.StudySpec(
+            metrics=[
+                study_pb2.StudySpec.MetricSpec(
+                    metric_id=metric_id_1,
+                    goal=study_pb2.StudySpec.MetricSpec.MAXIMIZE,
+                ),
+                study_pb2.StudySpec.MetricSpec(
+                    metric_id=metric_id_2,
+                    goal=study_pb2.StudySpec.MetricSpec.MINIMIZE,
+                ),
+            ]
+        ),
+    )
     self.vs.datastore.create_study(study)
 
     low_x1 = study_pb2.Measurement.Metric(metric_id=metric_id_1, value=-1.0)
@@ -148,41 +171,50 @@ class VizierServerTest(parameterized.TestCase):
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=low_low,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
     lh_trial = test_util.generate_trials(
         trial_id_list=[2],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=low_high,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
     hl_trial = test_util.generate_trials(
         trial_id_list=[3],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=high_low,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
     hh_trial = test_util.generate_trials(
         trial_id_list=[4],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=high_high,
-        state=study_pb2.Trial.State.SUCCEEDED)[0]
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )[0]
 
     missing_measurement_trials = test_util.generate_trials(
         trial_id_list=[5, 6, 7],
         owner_id=self.owner_id,
         study_id=self.study_id,
         final_measurement=incomplete_measurement,
-        state=study_pb2.Trial.State.SUCCEEDED)
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )
 
-    all_trials = [ll_trial, lh_trial, hl_trial, hh_trial
-                 ] + missing_measurement_trials
+    all_trials = [
+        ll_trial,
+        lh_trial,
+        hl_trial,
+        hh_trial,
+    ] + missing_measurement_trials
     for trial in all_trials:
       self.vs.datastore.create_trial(trial)
 
     optimal_trial_list = self.vs.ListOptimalTrials(
-        request=vizier_service_pb2.ListOptimalTrialsRequest(
-            parent=study.name)).optimal_trials
+        request=vizier_service_pb2.ListOptimalTrialsRequest(parent=study.name)
+    ).optimal_trials
 
     self.assertLen(optimal_trial_list, 1)
     self.assertEqual(optimal_trial_list[0], hl_trial)
@@ -191,27 +223,35 @@ class VizierServerTest(parameterized.TestCase):
     suggestion_count = 10
 
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm='RANDOM_SEARCH')
+        algorithm='RANDOM_SEARCH'
+    )
     example_study = test_util.generate_study(
-        self.owner_id, self.study_id, study_spec=example_study_spec)
+        self.owner_id, self.study_id, study_spec=example_study_spec
+    )
     self.vs.datastore.create_study(example_study)
 
     request = vizier_service_pb2.SuggestTrialsRequest(
         parent=resources.StudyResource(self.owner_id, self.study_id).name,
         suggestion_count=suggestion_count,
-        client_id=self.client_id)
+        client_id=self.client_id,
+    )
     operation = self.vs.SuggestTrials(request)
 
     # Check if operation was stored in database.
     get_operation_request = operations_pb2.GetOperationRequest(
-        name=resources.SuggestionOperationResource(self.owner_id, self.study_id,
-                                                   self.client_id, 1).name)
+        name=resources.SuggestionOperationResource(
+            self.owner_id, self.study_id, self.client_id, 1
+        ).name
+    )
     get_operation_output = self.vs.GetOperation(get_operation_request)
     self.assertEqual(operation, get_operation_output)
 
     # Check operation contents.
-    suggest_trials_response = vizier_service_pb2.SuggestTrialsResponse.FromString(
-        operation.response.value)
+    suggest_trials_response = (
+        vizier_service_pb2.SuggestTrialsResponse.FromString(
+            operation.response.value
+        )
+    )
     self.assertLen(suggest_trials_response.trials, suggestion_count)
     for trial in suggest_trials_response.trials:
       self.assertLen(trial.parameters, 4)
@@ -220,42 +260,53 @@ class VizierServerTest(parameterized.TestCase):
     # client id.
     another_study_id = self.study_id + 'another'
     another_study = test_util.generate_study(
-        self.owner_id, another_study_id, study_spec=example_study_spec)
+        self.owner_id, another_study_id, study_spec=example_study_spec
+    )
     self.vs.datastore.create_study(another_study)
     another_request = vizier_service_pb2.SuggestTrialsRequest(
         parent=resources.StudyResource(self.owner_id, another_study_id).name,
         suggestion_count=suggestion_count,
-        client_id=self.client_id)
+        client_id=self.client_id,
+    )
     another_operation = self.vs.SuggestTrials(another_request)
     self.assertNotEqual(operation, another_operation)
 
-  @parameterized.named_parameters(('IncludeFinalMeasurement', True),
-                                  ('NoFinalMeasurement', False))
+  @parameterized.named_parameters(
+      ('IncludeFinalMeasurement', True), ('NoFinalMeasurement', False)
+  )
   def test_complete_trial(self, include_final_measurement: bool):
     metric_id = 'x'
     study = test_util.generate_study(
         self.owner_id,
         self.study_id,
-        study_spec=study_pb2.StudySpec(metrics=[
-            study_pb2.StudySpec.MetricSpec(
-                metric_id=metric_id,
-                goal=study_pb2.StudySpec.MetricSpec.MAXIMIZE)
-        ]))
+        study_spec=study_pb2.StudySpec(
+            metrics=[
+                study_pb2.StudySpec.MetricSpec(
+                    metric_id=metric_id,
+                    goal=study_pb2.StudySpec.MetricSpec.MAXIMIZE,
+                )
+            ]
+        ),
+    )
     self.vs.datastore.create_study(study)
 
     trial = test_util.generate_trials(
         trial_id_list=[1],
         owner_id=self.owner_id,
         study_id=self.study_id,
-        state=study_pb2.Trial.State.ACTIVE)[0]
+        state=study_pb2.Trial.State.ACTIVE,
+    )[0]
     self.vs.datastore.create_trial(trial)
     complete_trial_request = vizier_service_pb2.CompleteTrialRequest(
-        name=trial.name)
+        name=trial.name
+    )
 
     if include_final_measurement:
-      final_measurement = study_pb2.Measurement(metrics=[
-          study_pb2.Measurement.Metric(metric_id=metric_id, value=-1.0)
-      ])
+      final_measurement = study_pb2.Measurement(
+          metrics=[
+              study_pb2.Measurement.Metric(metric_id=metric_id, value=-1.0)
+          ]
+      )
       complete_trial_request.final_measurement.CopyFrom(final_measurement)
       self.vs.CompleteTrial(complete_trial_request)
     else:
@@ -265,26 +316,31 @@ class VizierServerTest(parameterized.TestCase):
 
   def test_early_stopping(self):
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm='RANDOM_SEARCH')
+        algorithm='RANDOM_SEARCH'
+    )
     example_study = test_util.generate_study(
-        self.owner_id, self.study_id, study_spec=example_study_spec)
+        self.owner_id, self.study_id, study_spec=example_study_spec
+    )
     self.vs.datastore.create_study(example_study)
 
     active_trials = test_util.generate_trials(
         trial_id_list=[1, 2, 3, 4],
         owner_id=self.owner_id,
         study_id=self.study_id,
-        state=study_pb2.Trial.State.ACTIVE)
+        state=study_pb2.Trial.State.ACTIVE,
+    )
     for t in active_trials:
       self.vs.datastore.create_trial(t)
       request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
-          trial_name=t.name)
+          trial_name=t.name
+      )
       response = self.vs.CheckTrialEarlyStoppingState(request)
       # Since RandomPolicy picks a random ACTIVE trial to stop and current trial
       # t is the only ACTIVE trial, it should always stop.
       self.assertTrue(
           response.should_stop,
-          msg=f'trial={t}, request={request}, response={response}')
+          msg=f'trial={t}, request={request}, response={response}',
+      )
       stop_trial_request = vizier_service_pb2.StopTrialRequest(name=t.name)
       new_t = self.vs.StopTrial(stop_trial_request)
       self.assertEqual(new_t.state, study_pb2.Trial.State.STOPPING)
@@ -292,8 +348,10 @@ class VizierServerTest(parameterized.TestCase):
     for t in active_trials:
       trial_resource = resources.TrialResource.from_name(t.name)
       operation_name = resources.EarlyStoppingOperationResource(
-          trial_resource.owner_id, trial_resource.study_id,
-          trial_resource.trial_id).name
+          trial_resource.owner_id,
+          trial_resource.study_id,
+          trial_resource.trial_id,
+      ).name
       op = self.vs.datastore.get_early_stopping_operation(operation_name)
       self.assertTrue(op.should_stop)
 
@@ -302,34 +360,41 @@ class VizierServerTest(parameterized.TestCase):
     # not consider it.
     self.local_service.wait_for_early_stop_recycle_period()
     request = vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
-        trial_name=active_trials[0].name)
+        trial_name=active_trials[0].name
+    )
     response = self.vs.CheckTrialEarlyStoppingState(request)
     self.assertFalse(response.should_stop)
 
   def test_update_metadata(self):
     # Construct a study.
     example_study_spec = test_util.generate_all_four_parameter_specs(
-        algorithm='RANDOM_SEARCH')
+        algorithm='RANDOM_SEARCH'
+    )
     example_study = test_util.generate_study(
-        self.owner_id, self.study_id, study_spec=example_study_spec)
+        self.owner_id, self.study_id, study_spec=example_study_spec
+    )
     self.vs.datastore.create_study(example_study)
     active_trials = test_util.generate_trials(
         trial_id_list=[1, 2],
         owner_id=self.owner_id,
         study_id=self.study_id,
-        state=study_pb2.Trial.State.ACTIVE)
+        state=study_pb2.Trial.State.ACTIVE,
+    )
     for t in active_trials:
       self.vs.datastore.create_trial(t)
 
     # Construct the request.
     study_metadata = UnitMetadataUpdate(
-        metadatum=key_value_pb2.KeyValue(key='a', ns='b', value='C'))
+        metadatum=key_value_pb2.KeyValue(key='a', ns='b', value='C')
+    )
     trial_metadata = UnitMetadataUpdate(
         trial_id='1',
-        metadatum=key_value_pb2.KeyValue(key='d', ns='e', value='F'))
+        metadatum=key_value_pb2.KeyValue(key='d', ns='e', value='F'),
+    )
     request = vizier_service_pb2.UpdateMetadataRequest(
         name=resources.StudyResource(self.owner_id, self.study_id).name,
-        delta=[study_metadata, trial_metadata])
+        delta=[study_metadata, trial_metadata],
+    )
     # Send it to the server.
     response = self.vs.UpdateMetadata(request)
     # Check that there was no error.
