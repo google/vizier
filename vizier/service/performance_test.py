@@ -23,28 +23,28 @@ from absl import logging
 from vizier import benchmarks
 from vizier.service import pyvizier
 from vizier.service import vizier_client
-from vizier.service import vizier_service
+from vizier.service import vizier_server
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 
 class PerformanceTest(parameterized.TestCase):
-  service: vizier_service.DefaultVizierService
+  server: vizier_server.DefaultVizierServer
 
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    cls.service = vizier_service.DistributedPythiaVizierService()
+    cls.server = vizier_server.DistributedPythiaVizierServer()
 
   @parameterized.parameters(
       (1, 10, 2),
       (2, 10, 2),
       (10, 10, 2),
   )
-  def test_multiple_clients_basic(self, num_simultaneous_clients,
-                                  num_trials_per_client, dimension):
-
+  def test_multiple_clients_basic(
+      self, num_simultaneous_clients, num_trials_per_client, dimension
+  ):
     def fn(client_id: int):
       experimenter = benchmarks.BBOBExperimenterFactory('Sphere', dimension)()
       problem_statement = experimenter.problem_statement()
@@ -52,18 +52,20 @@ class PerformanceTest(parameterized.TestCase):
       study_config.algorithm = pyvizier.Algorithm.NSGA2
 
       client = vizier_client.create_or_load_study(
-          service_endpoint=self.service.endpoint,
+          server_endpoint=self.server.endpoint,
           owner_id='my_username',
           study_id=self.id(),  # Use the testcase name.
           study_config=study_config,
-          client_id=str(client_id))
+          client_id=str(client_id),
+      )
 
       for _ in range(num_trials_per_client):
         suggestions = client.get_suggestions(suggestion_count=1)
         experimenter.evaluate(suggestions)
         for completed_trial in suggestions:
-          client.complete_trial(completed_trial.id,
-                                completed_trial.final_measurement)
+          client.complete_trial(
+              completed_trial.id, completed_trial.final_measurement
+          )
 
       return client
 
@@ -77,11 +79,15 @@ class PerformanceTest(parameterized.TestCase):
 
     self.assertEqual(
         max({t.id for t in clients[0].list_trials()}),
-        num_simultaneous_clients * num_trials_per_client)
+        num_simultaneous_clients * num_trials_per_client,
+    )
 
     logging.info(
         'For %d clients to evaluate %d trials each, it took %f seconds total.',
-        num_simultaneous_clients, num_trials_per_client, end - start)
+        num_simultaneous_clients,
+        num_trials_per_client,
+        end - start,
+    )
 
 
 if __name__ == '__main__':

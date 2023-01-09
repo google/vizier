@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Separate Pythia service for handling algorithmic logic."""
 # pylint:disable=g-import-not-at-top
-from typing import Optional, Protocol, Union
+from typing import Optional, Protocol
 from absl import logging
 import grpc
 
@@ -27,7 +27,7 @@ from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as vz
 from vizier.service import service_policy_supporter
 from vizier.service import stubs_util
-from vizier.service import vizier_service_pb2_grpc
+from vizier.service import types
 
 
 class PolicyFactory(Protocol):
@@ -52,7 +52,7 @@ def default_policy_factory(
   """Creates a policy."""
   del study_name
 
-  if algorithm in ('DEFAULT', 'ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
+  if algorithm in ('ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
     from vizier._src.algorithms.policies import random_policy
 
     return random_policy.RandomPolicy(policy_supporter)
@@ -100,18 +100,12 @@ def default_policy_factory(
     raise ValueError(f'Algorithm {algorithm} is not registered.')
 
 
-VizierService = Union[
-    vizier_service_pb2_grpc.VizierServiceStub,
-    vizier_service_pb2_grpc.VizierServiceServicer,
-]
-
-
-class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
+class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
   """Implements the GRPC functions outlined in pythia_service.proto."""
 
   def __init__(
       self,
-      vizier_service: Optional[VizierService] = None,
+      vizier_service: Optional[types.VizierService] = None,
       policy_factory: PolicyFactory = default_policy_factory,
   ):
     """Initialization.
@@ -127,13 +121,11 @@ class PythiaService(pythia_service_pb2_grpc.PythiaServiceServicer):
     self._vizier_service = vizier_service
     self._policy_factory = policy_factory
 
-  def connect_to_vizier(self, vizier_service_endpoint: str) -> None:
+  def connect_to_vizier(self, endpoint: str) -> None:
     """Only needs to be called if VizierService wasn't passed in init."""
     if self._vizier_service:
       raise ValueError('Vizier Service was already set:', self._vizier_service)
-    self._vizier_service = stubs_util.create_vizier_server_stub(
-        vizier_service_endpoint
-    )
+    self._vizier_service = stubs_util.create_vizier_server_stub(endpoint)
 
   def Suggest(
       self,

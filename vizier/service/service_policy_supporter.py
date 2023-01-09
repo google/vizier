@@ -19,23 +19,20 @@ from __future__ import annotations
 The Policy can use these methods to communicate with Vizier.
 """
 import datetime
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Optional
 
 from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.service import pyvizier
+from vizier.service import types
 from vizier.service import vizier_service_pb2
-from vizier.service import vizier_service_pb2_grpc
-
-VizierService = Union[vizier_service_pb2_grpc.VizierServiceStub,
-                      vizier_service_pb2_grpc.VizierServiceServicer]
 
 
 # TODO: Consider replacing protos with Pyvizier clients.py.
 class ServicePolicySupporter(pythia.PolicySupporter):
   """Service version of the PolicySupporter."""
 
-  def __init__(self, study_guid: str, vizier_service: VizierService):
+  def __init__(self, study_guid: str, vizier_service: types.VizierService):
     """Initalization.
 
     Args:
@@ -60,7 +57,8 @@ class ServicePolicySupporter(pythia.PolicySupporter):
       min_trial_id: Optional[int] = None,
       max_trial_id: Optional[int] = None,
       status_matches: Optional[vz.TrialStatus] = None,
-      include_intermediate_measurements: bool = True) -> List[vz.Trial]:
+      include_intermediate_measurements: bool = True,
+  ) -> List[vz.Trial]:
     """Fetch all trials and then apply the filter."""
 
     if study_guid is None:
@@ -73,7 +71,8 @@ class ServicePolicySupporter(pythia.PolicySupporter):
         ids=trial_ids,
         min_id=min_trial_id,
         max_id=max_trial_id,
-        status=[status_matches] if status_matches else None)
+        status=[status_matches] if status_matches else None,
+    )
     filtered_pytrials = [t for t in all_pytrials if trial_filter(t)]
 
     # Doesn't affect datastore when measurements are deleted.

@@ -35,7 +35,7 @@ ResourceNotFoundError = client_abc.ResourceNotFoundError
 # denote local NO_ENDPOINT server will be used.
 @attr.define
 class _EnviromentVariables:
-  service_endpoint: str = attr.field(
+  server_endpoint: str = attr.field(
       default=NO_ENDPOINT, validator=attr.validators.instance_of(str)
   )
 
@@ -214,8 +214,8 @@ class Study(client_abc.StudyInterface):
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
     client = vizier_client.VizierClient(
-        vizier_client.create_vizier_server_or_stub(
-            environment_variables.service_endpoint
+        vizier_client.create_vizier_servicer_or_stub(
+            environment_variables.server_endpoint
         ),
         name,
         _UNUSED_CLIENT_ID,
@@ -266,7 +266,7 @@ class Study(client_abc.StudyInterface):
     """
     return Study(
         vizier_client.create_or_load_study(
-            environment_variables.service_endpoint,
+            environment_variables.server_endpoint,
             owner_id=owner,
             client_id=_UNUSED_CLIENT_ID,
             study_id=study_id,

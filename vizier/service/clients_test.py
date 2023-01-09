@@ -22,7 +22,7 @@ import grpc
 from vizier.client import client_abc_testing
 from vizier.service import clients
 from vizier.service import pyvizier as vz
-from vizier.service import vizier_service
+from vizier.service import vizier_server
 
 from absl.testing import absltest
 
@@ -30,7 +30,7 @@ FLAGS = flags.FLAGS
 
 
 class VizierClientTest(client_abc_testing.TestCase):
-  _service: vizier_service.DefaultVizierService
+  _server: vizier_server.DefaultVizierServer
   _owner: str
   _channel: grpc.Channel
 
@@ -38,20 +38,23 @@ class VizierClientTest(client_abc_testing.TestCase):
   def setUpClass(cls):
     logging.info('Test setup started.')
     super().setUpClass()
-    cls._service = vizier_service.DefaultVizierService()
-    clients.environment_variables.service_endpoint = cls._service.endpoint
+    cls._server = vizier_server.DefaultVizierServer()
+    clients.environment_variables.server_endpoint = cls._server.endpoint
     logging.info('Test setup finished.')
 
-  def create_study(self, problem: vz.ProblemStatement,
-                   study_id: str) -> clients.Study:
+  def create_study(
+      self, problem: vz.ProblemStatement, study_id: str
+  ) -> clients.Study:
     config = vz.StudyConfig.from_problem(problem)
     config.algorithm = vz.Algorithm.RANDOM_SEARCH
     study = clients.Study.from_study_config(
-        config, owner='owner', study_id=study_id)
+        config, owner='owner', study_id=study_id
+    )
     return study
 
-  def create_study2(self, problem: vz.ProblemStatement,
-                    study_id: str) -> clients.Study:
+  def create_study2(
+      self, problem: vz.ProblemStatement, study_id: str
+  ) -> clients.Study:
     config = vz.StudyConfig.from_problem(problem)
     config.algorithm = vz.Algorithm.RANDOM_SEARCH
     study = clients.Study.from_owner_and_id(owner='owner', study_id=study_id)
@@ -62,7 +65,7 @@ class VizierClientTest(client_abc_testing.TestCase):
 
   @classmethod
   def tearDownClass(cls):
-    cls._service._server.stop(None)
+    cls._server._server.stop(None)
     super().tearDownClass()
 
 

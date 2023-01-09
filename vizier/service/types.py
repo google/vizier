@@ -14,13 +14,20 @@
 
 from __future__ import annotations
 
-"""Init file."""
-import os
-import sys
+"""Convenient types library for the /service/ folder."""
+from typing import Union
 
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
-PROTO_ROOT = os.path.realpath(os.path.join(THIS_DIR, "service"))
+from vizier.service import pythia_service_pb2_grpc
+from vizier.service import vizier_service_pb2_grpc
 
-sys.path.append(PROTO_ROOT)
+# PythiaService and VizierService aliases allow us to use either a gRPC stub or
+# the actual gRPC servicer implementation (for local setup) interchangeably.
+PythiaService = Union[
+    pythia_service_pb2_grpc.PythiaServiceStub,
+    pythia_service_pb2_grpc.PythiaServiceServicer,
+]
 
-__version__ = "0.0.18"
+VizierService = Union[
+    vizier_service_pb2_grpc.VizierServiceStub,
+    vizier_service_pb2_grpc.VizierServiceServicer,
+]

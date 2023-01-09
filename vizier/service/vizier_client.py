@@ -32,6 +32,7 @@ from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import stubs_util
 from vizier.service import study_pb2
+from vizier.service import types
 from vizier.service import vizier_service_pb2
 from vizier.service import vizier_service_pb2_grpc
 from vizier.utils import attrs_utils
@@ -54,28 +55,23 @@ FLAGS = flags.FLAGS
 
 Metadata = Mapping[Tuple[str, str], Any]
 
-VizierService = Union[
-    vizier_service_pb2_grpc.VizierServiceStub,
-    vizier_service_pb2_grpc.VizierServiceServicer,
-]
-
 NO_ENDPOINT = 'NO_ENDPOINT'
 
 
 @functools.lru_cache(maxsize=None)
-def _create_local_vizier_server() -> (
+def _create_local_vizier_servicer() -> (
     vizier_service_pb2_grpc.VizierServiceServicer
 ):
-  from vizier.service import vizier_server  # pylint:disable=g-import-not-at-top
+  from vizier.service import vizier_service  # pylint:disable=g-import-not-at-top
 
-  return vizier_server.VizierService()
+  return vizier_service.VizierServicer()
 
 
-def create_vizier_server_or_stub(endpoint: str) -> VizierService:
+def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
   if endpoint == NO_ENDPOINT:
     logging.info('No endpoint given; using cached local Vizier server.')
     logging.warning('Python 3.8+ is required in this case.')
-    return _create_local_vizier_server()
+    return _create_local_vizier_servicer()
   return stubs_util.create_vizier_server_stub(endpoint)
 
 
@@ -87,9 +83,9 @@ class VizierClient:
   created from endpoint. See also `create_server_stub`.
   """
 
-  # Note that if we use a literal Vizier server class, only one client should
+  # Note that if we use a literal VizierServicer class, only one client should
   # interact with the server to prevent deadlocks.
-  _server: VizierService = attr.field(repr=False)
+  _service: types.VizierService = attr.field(repr=False)
   _study_resource_name: str = attr.field(
       validator=attr.validators.instance_of(str)
   )
@@ -103,7 +99,7 @@ class VizierClient:
 
   @classmethod
   def from_endpoint(
-      cls, service_endpoint: str, study_resource_name: str, client_id: str
+      cls, server_endpoint: str, study_resource_name: str, client_id: str
   ) -> 'VizierClient':
     """Create a VizierClient object.
 
@@ -113,9 +109,9 @@ class VizierClient:
     VizierClient class directly.
 
     Args:
-      service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
-        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local Vizier
-        server inside the client.
+      server_endpoint: Address of Vizier Server for creation of gRPC stub, e.g.
+        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local
+        VizierServicer inside the client.
       study_resource_name: An identifier of the study. The full study name will
         be `owners/{owner_id}/studies/{study_id}`.
       client_id: An ID that identifies the worker requesting a `Trial`. Workers
@@ -129,7 +125,7 @@ class VizierClient:
       Vizier client.
     """
     return cls(
-        create_vizier_server_or_stub(service_endpoint),
+        create_vizier_servicer_or_stub(server_endpoint),
         study_resource_name,
         client_id,
     )
@@ -176,7 +172,7 @@ class VizierClient:
         suggestion_count=suggestion_count,
         client_id=client_id,
     )
-    operation = self._server.SuggestTrials(request)
+    operation = self._service.SuggestTrials(request)
 
     num_attempts = 0
     while not operation.done:
@@ -189,7 +185,7 @@ class VizierClient:
       )
       time.sleep(sleep_time.total_seconds())
 
-      operation = self._server.GetOperation(
+      operation = self._service.GetOperation(
           operations_pb2.GetOperationRequest(name=operation.name)
       )
 
@@ -236,7 +232,7 @@ class VizierClient:
         ).name,
         measurement=measurement,
     )
-    trial = self._server.AddTrialMeasurement(request)
+    trial = self._service.AddTrialMeasurement(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def should_trial_stop(self, trial_id: int) -> bool:
@@ -245,7 +241,9 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    early_stopping_response = self._server.CheckTrialEarlyStoppingState(request)
+    early_stopping_response = self._service.CheckTrialEarlyStoppingState(
+        request
+    )
     return early_stopping_response.should_stop
 
   def stop_trial(self, trial_id: int) -> None:
@@ -254,7 +252,7 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    self._server.StopTrial(request)
+    self._service.StopTrial(request)
     logging.info('Trial with id %s stopped.', trial_id)
 
   def complete_trial(
@@ -279,7 +277,7 @@ class VizierClient:
           pyvizier.MeasurementConverter.to_proto(final_measurement)
       )
 
-    trial = self._server.CompleteTrial(request)
+    trial = self._service.CompleteTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def get_trial(self, trial_id: int) -> pyvizier.Trial:
@@ -289,21 +287,21 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    trial = self._server.GetTrial(request)
+    trial = self._service.GetTrial(request)
     return pyvizier.TrialConverter.from_proto(trial)
 
   def list_trials(self) -> List[pyvizier.Trial]:
     """List all trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListTrialsRequest(parent=parent)
-    response = self._server.ListTrials(request)
+    response = self._service.ListTrials(request)
     return pyvizier.TrialConverter.from_protos(response.trials)
 
   def list_optimal_trials(self) -> List[pyvizier.Trial]:
     """List only the optimal completed trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListOptimalTrialsRequest(parent=parent)
-    response = self._server.ListOptimalTrials(request)
+    response = self._service.ListOptimalTrials(request)
     return pyvizier.TrialConverter.from_protos(response.optimal_trials)
 
   def list_studies(self) -> List[Dict[str, Any]]:
@@ -311,7 +309,7 @@ class VizierClient:
     request = vizier_service_pb2.ListStudiesRequest(
         parent=resources.OwnerResource(self._owner_id).name
     )
-    list_studies_response = self._server.ListStudies(request)
+    list_studies_response = self._service.ListStudies(request)
     # TODO: Use PyVizier StudyDescriptor instead.
     return [
         json_format.MessageToJson(study)
@@ -333,7 +331,7 @@ class VizierClient:
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         trial=pyvizier.TrialConverter.to_proto(trial),
     )
-    trial_proto = self._server.CreateTrial(request)
+    trial_proto = self._service.CreateTrial(request)
     return pyvizier.TrialConverter.from_proto(trial_proto)
 
   def delete_trial(self, trial_id: int) -> None:
@@ -342,7 +340,7 @@ class VizierClient:
         self._owner_id, self._study_id, trial_id
     ).name
     request = vizier_service_pb2.DeleteTrialRequest(name=request_trial_name)
-    self._server.DeleteTrial(request)
+    self._service.DeleteTrial(request)
     logging.info('Trial deleted: %s', trial_id)
 
   def delete_study(self, study_resource_name: Optional[str] = None) -> None:
@@ -351,7 +349,7 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.DeleteStudyRequest(name=study_resource_name)
-    self._server.DeleteStudy(request)
+    self._service.DeleteStudy(request)
     logging.info('Study deleted: %s', study_resource_name)
 
   def get_study_config(
@@ -362,7 +360,7 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
-    response = self._server.GetStudy(request)
+    response = self._service.GetStudy(request)
     return pyvizier.StudyConfig.from_proto(response.study_spec)
 
   def update_metadata(
@@ -382,7 +380,7 @@ class VizierClient:
       None.
 
     Raises:
-      RuntimeError: If server reported an error or if a value could not be
+      RuntimeError: If service reported an error or if a value could not be
       pickled.
     """
     study_resource_name = study_resource_name or (
@@ -391,14 +389,14 @@ class VizierClient:
     request = pyvizier.metadata_util.to_request_proto(
         study_resource_name, delta
     )
-    response = self._server.UpdateMetadata(request)
+    response = self._service.UpdateMetadata(request)
 
     if response.error_details:
       raise RuntimeError(response.error_details)
 
 
 def create_or_load_study(
-    service_endpoint: str,
+    server_endpoint: str,
     owner_id: str,
     client_id: str,
     study_id: str,
@@ -418,7 +416,7 @@ def create_or_load_study(
   to the same study.
 
   Args:
-      service_endpoint: Address of VizierService for creation of gRPC stub, e.g.
+      server_endpoint: Address of VizierService for creation of gRPC stub, e.g.
         'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local Vizier
         server inside the client.
       owner_id: An owner id.
@@ -439,7 +437,7 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = create_vizier_server_or_stub(service_endpoint)
+  vizier_stub = create_vizier_servicer_or_stub(server_endpoint)
   study = study_pb2.Study(
       display_name=study_id, study_spec=study_config.to_proto()
   )

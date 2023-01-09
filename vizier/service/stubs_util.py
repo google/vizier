@@ -35,7 +35,8 @@ def _create_channel(endpoint: str) -> grpc.Channel:
 
 @functools.lru_cache(maxsize=128)
 def create_pythia_server_stub(
-    endpoint: str) -> pythia_service_pb2_grpc.PythiaServiceStub:
+    endpoint: str,
+) -> pythia_service_pb2_grpc.PythiaServiceStub:
   """Creates the GRPC stub.
 
   This method uses LRU cache so we create a single stub per endpoint (which is
@@ -47,14 +48,15 @@ def create_pythia_server_stub(
     endpoint:
 
   Returns:
-    Pythia service stub at service_endpoint.
+    Pythia Server stub at endpoint.
   """
   return pythia_service_pb2_grpc.PythiaServiceStub(_create_channel(endpoint))
 
 
 @functools.lru_cache(maxsize=128)
 def create_vizier_server_stub(
-    endpoint: str) -> vizier_service_pb2_grpc.VizierServiceStub:
+    endpoint: str,
+) -> vizier_service_pb2_grpc.VizierServiceStub:
   """Creates the GRPC stub.
 
   This method uses LRU cache so we create a single stub per endpoint (which is
@@ -66,6 +68,6 @@ def create_vizier_server_stub(
     endpoint:
 
   Returns:
-    Vizier service stub at service_endpoint.
+    Vizier Server stub at endpoint.
   """
   return vizier_service_pb2_grpc.VizierServiceStub(_create_channel(endpoint))

@@ -34,11 +34,13 @@ from absl import app
 from absl import flags
 from absl import logging
 
-from vizier.service import vizier_service
+from vizier.service import vizier_server
 
 flags.DEFINE_string(
-    'host', 'localhost',
-    'Host location for the server. For distributed cases, use the IP address.')
+    'host',
+    'localhost',
+    'Host location for the server. For distributed cases, use the IP address.',
+)
 
 FLAGS = flags.FLAGS
 
@@ -49,15 +51,15 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  service = vizier_service.DefaultVizierService(host=FLAGS.host)
-  logging.info('Address to Vizier Server is: %s', service.endpoint)
+  server = vizier_server.DefaultVizierServer(host=FLAGS.host)
+  logging.info('Address to Vizier Server is: %s', server.endpoint)
 
   # prevent the main thread from exiting
   try:
     while True:
       time.sleep(_ONE_DAY_IN_SECONDS)
   except KeyboardInterrupt:
-    del service
+    del server
 
 
 if __name__ == '__main__':
