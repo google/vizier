@@ -403,6 +403,55 @@ class VizierServicerTest(parameterized.TestCase):
     # Check that there was no error.
     self.assertEmpty(response.error_details)
 
+  @parameterized.parameters(
+      (study_pb2.Study.State.COMPLETED,),
+      (study_pb2.Study.State.INACTIVE,),
+  )
+  def test_study_immutable(self, study_state):
+    trial_name = resources.TrialResource(self.owner_id, self.study_id, 1).name
+    study_name = resources.StudyResource(self.owner_id, self.study_id).name
+    study = test_util.generate_study(
+        self.owner_id, self.study_id, state=study_state
+    )
+    self.vs.datastore.create_study(study)
+
+    with self.assertRaises(ValueError):
+      self.vs.SuggestTrials(
+          vizier_service_pb2.SuggestTrialsRequest(parent=study_name)
+      )
+    with self.assertRaises(ValueError):
+      self.vs.CreateTrial(
+          vizier_service_pb2.CreateTrialRequest(
+              parent=study_name, trial=study_pb2.Trial()
+          )
+      )
+    with self.assertRaises(ValueError):
+      self.vs.AddTrialMeasurement(
+          vizier_service_pb2.AddTrialMeasurementRequest(
+              trial_name=trial_name, measurement=study_pb2.Measurement()
+          )
+      )
+    with self.assertRaises(ValueError):
+      self.vs.CompleteTrial(
+          vizier_service_pb2.CompleteTrialRequest(name=trial_name)
+      )
+    with self.assertRaises(ValueError):
+      self.vs.DeleteTrial(
+          vizier_service_pb2.DeleteTrialRequest(name=trial_name)
+      )
+    with self.assertRaises(ValueError):
+      self.vs.CheckTrialEarlyStoppingState(
+          vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
+              trial_name=trial_name
+          )
+      )
+    with self.assertRaises(ValueError):
+      self.vs.StopTrial(vizier_service_pb2.StopTrialRequest(name=trial_name))
+    with self.assertRaises(ValueError):
+      self.vs.UpdateMetadata(
+          vizier_service_pb2.UpdateMetadataRequest(name=study_name)
+      )
+
 
 if __name__ == '__main__':
   absltest.main()

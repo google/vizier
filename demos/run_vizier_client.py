@@ -135,8 +135,8 @@ def main(argv: Sequence[str]) -> None:
   )
   logging.info('Client created with study name: %s', study.resource_name)
 
+  # Evaluate the suggestion(s) and report the results to Vizier.
   for _ in range(FLAGS.max_num_iterations):
-    # Evaluate the suggestion(s) and report the results to Vizier.
     trials = study.suggest(count=FLAGS.suggestion_count)
     for trial in trials:
       materialized_trial = trial.materialize()
@@ -146,6 +146,10 @@ def main(argv: Sequence[str]) -> None:
           'Trial %d completed with metrics: %s', trial.id, measurement.metrics
       )
 
+  # Mark study as completed after finishing tuning.
+  study.set_state(vz.StudyState.COMPLETED)
+
+  # Obtain optimal trials found.
   optimal_trials = study.optimal_trials()
   for optimal_trial in optimal_trials:
     optimal_trial = optimal_trial.materialize(include_all_measurements=True)

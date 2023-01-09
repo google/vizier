@@ -29,14 +29,15 @@ message Study {
 
   // Describes the Study state.
   enum State {
-    // The study state is unspecified.
+    // The study state is unspecified by default. It is treated as ACTIVE.
     STATE_UNSPECIFIED = 0;
-    // The study is active.
+    // The study is active and its components can be modified. Every study
+    // created by the servicer starts as ACTIVE.
     ACTIVE = 1;
-    // The study is stopped due to an internal error.
+    // The study is stopped due to an internal error. Study is now immutable.
     INACTIVE = 2;
     // The study is done when the service exhausts the parameter search space
-    // or max_trial_count is reached.
+    // or max_trial_count is reached. Study is now immutable.
     COMPLETED = 3;
   }
   // The detailed state of a Study.
