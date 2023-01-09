@@ -360,8 +360,38 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
-    response = self._service.GetStudy(request)
-    return pyvizier.StudyConfig.from_proto(response.study_spec)
+    study = self._service.GetStudy(request)
+    return pyvizier.StudyConfig.from_proto(study.study_spec)
+
+  def get_study_state(
+      self, study_resource_name: Optional[str] = None
+  ) -> pyvizier.StudyState:
+    study_resource_name = study_resource_name or (
+        resources.StudyResource(self._owner_id, self._study_id).name
+    )
+    request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
+    study = self._service.GetStudy(request)
+    return pyvizier.StudyStateConverter.from_proto(study.state)
+
+  def set_study_state(
+      self,
+      state: pyvizier.StudyState,
+      study_resource_name: Optional[str] = None,
+  ) -> None:
+    """Sets the study to a given state."""
+    study_resource_name = study_resource_name or (
+        resources.StudyResource(self._owner_id, self._study_id).name
+    )
+    proto_state = pyvizier.StudyStateConverter.to_proto(state)
+    request = vizier_service_pb2.SetStudyStateRequest(
+        parent=study_resource_name, state=proto_state
+    )
+    self._service.SetStudyState(request)
+    logging.info(
+        'Study with resource name %s set to %s state.',
+        study_resource_name,
+        state,
+    )
 
   def update_metadata(
       self,

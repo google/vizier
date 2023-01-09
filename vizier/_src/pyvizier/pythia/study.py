@@ -25,6 +25,7 @@ from vizier._src.pyvizier.shared import base_study_config
 class StudyState(enum.Enum):
   ACTIVE = 'ACTIVE'
   ABORTED = 'ABORTED'
+  COMPLETED = 'COMPLETED'
 
 
 @attr.define

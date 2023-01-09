@@ -30,6 +30,7 @@ from vizier._src.pyvizier.oss.proto_converters import ParameterType
 from vizier._src.pyvizier.oss.proto_converters import ParameterValueConverter
 from vizier._src.pyvizier.oss.proto_converters import ProblemStatementConverter
 from vizier._src.pyvizier.oss.proto_converters import ScaleType
+from vizier._src.pyvizier.oss.proto_converters import StudyStateConverter
 from vizier._src.pyvizier.oss.proto_converters import SuggestConverter
 from vizier._src.pyvizier.oss.proto_converters import TrialConverter
 from vizier._src.pyvizier.oss.proto_converters import TrialSuggestionConverter

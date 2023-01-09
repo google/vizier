@@ -21,6 +21,7 @@ from absl import logging
 import attr
 
 from vizier._src.pyvizier.oss import proto_converters
+from vizier._src.pyvizier.pythia import study
 from vizier._src.pyvizier.shared import parameter_config as pc
 from vizier._src.pyvizier.shared import trial
 from vizier.service import study_pb2
@@ -35,28 +36,42 @@ Metric = trial.Metric
 Measurement = trial.Measurement
 
 
+class StudyStateConverterTest(absltest.TestCase):
+
+  def testReversibility(self):
+    for original_pyvizier_state in study.StudyState:
+      proto_state = proto_converters.StudyStateConverter.to_proto(
+          original_pyvizier_state
+      )
+      py_state = proto_converters.StudyStateConverter.from_proto(proto_state)
+      self.assertEqual(original_pyvizier_state, py_state)
+
+
 class MeasurementConverterTest(absltest.TestCase):
 
   def testMeasurementProtoWithEmptyNamedMetric(self):
     proto = study_pb2.Measurement()
-    proto.metrics.add(metric_id='', value=.8)
+    proto.metrics.add(metric_id='', value=0.8)
     measurement = proto_converters.MeasurementConverter.from_proto(proto)
-    self.assertEqual(measurement.metrics[''], Metric(value=.8))
+    self.assertEqual(measurement.metrics[''], Metric(value=0.8))
 
   def testMeasurementCreation(self):
     measurement = Measurement(
         metrics={
-            '': Metric(value=0
-                      ),  # The empty metric always exists in Measurement.
+            '': Metric(
+                value=0
+            ),  # The empty metric always exists in Measurement.
             'pr-auc': Metric(value=0.8),
-            'latency': Metric(value=32)
+            'latency': Metric(value=32),
         },
         elapsed_secs=12,
-        steps=12)
+        steps=12,
+    )
     proto = proto_converters.MeasurementConverter.to_proto(measurement)
     self.assertEqual(
         attr.asdict(proto_converters.MeasurementConverter.from_proto(proto)),
-        attr.asdict(measurement))
+        attr.asdict(measurement),
+    )
 
 
 ParameterValue = trial.ParameterValue
@@ -67,30 +82,42 @@ class ParameterValueConverterTest(parameterized.TestCase):
   def testToDoubleProto(self):
     value = ParameterValue(True)
     compare.assertProto2Equal(
-        self, proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
+        self,
+        proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
         study_pb2.Trial.Parameter(
-            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)))
+            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)
+        ),
+    )
 
   def testToDiscreteProto(self):
     value = ParameterValue(True)
     compare.assertProto2Equal(
-        self, proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
+        self,
+        proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
         study_pb2.Trial.Parameter(
-            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)))
+            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)
+        ),
+    )
 
   def testToStringProto(self):
     value = ParameterValue('category')
     compare.assertProto2Equal(
-        self, proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
+        self,
+        proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
         study_pb2.Trial.Parameter(
-            parameter_id='aa', value=struct_pb2.Value(string_value='category')))
+            parameter_id='aa', value=struct_pb2.Value(string_value='category')
+        ),
+    )
 
   def testToIntegerProto(self):
     value = ParameterValue(True)
     compare.assertProto2Equal(
-        self, proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
+        self,
+        proto_converters.ParameterValueConverter.to_proto(value, 'aa'),
         study_pb2.Trial.Parameter(
-            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)))
+            parameter_id='aa', value=struct_pb2.Value(number_value=1.0)
+        ),
+    )
 
 
 class TrialConverterTest(absltest.TestCase):
@@ -99,11 +126,14 @@ class TrialConverterTest(absltest.TestCase):
     proto = study_pb2.Trial(id=str(1))
     proto.state = study_pb2.Trial.State.SUCCEEDED
     proto.parameters.add(
-        parameter_id='float', value=struct_pb2.Value(number_value=1.0))
+        parameter_id='float', value=struct_pb2.Value(number_value=1.0)
+    )
     proto.parameters.add(
-        parameter_id='int', value=struct_pb2.Value(number_value=2))
+        parameter_id='int', value=struct_pb2.Value(number_value=2)
+    )
     proto.parameters.add(
-        parameter_id='str', value=struct_pb2.Value(string_value='3'))
+        parameter_id='str', value=struct_pb2.Value(string_value='3')
+    )
     proto.final_measurement.metrics.add(metric_id='pr-auc', value=0.8)
     proto.final_measurement.metrics.add(metric_id='latency', value=32)
 
@@ -133,24 +163,22 @@ class TrialConverterTest(absltest.TestCase):
 
     # Final measurement
     self.assertLen(test.final_measurement.metrics, 2)
-    self.assertEqual(test.final_measurement.metrics['pr-auc'].value, .8)
+    self.assertEqual(test.final_measurement.metrics['pr-auc'].value, 0.8)
     self.assertEqual(test.final_measurement.metrics['latency'].value, 32)
 
     # Intermediate measurement
     self.assertEqual(
         test.measurements[0],
         trial.Measurement(
-            metrics={
-                'pr-auc': 0.7,
-                'latency': 42
-            }, steps=10, elapsed_secs=15))
+            metrics={'pr-auc': 0.7, 'latency': 42}, steps=10, elapsed_secs=15
+        ),
+    )
     self.assertEqual(
         test.measurements[1],
         trial.Measurement(
-            metrics={
-                'pr-auc': 0.75,
-                'latency': 37
-            }, steps=20, elapsed_secs=30))
+            metrics={'pr-auc': 0.75, 'latency': 37}, steps=20, elapsed_secs=30
+        ),
+    )
 
     self.assertEqual(test.id, 1)
 
@@ -178,11 +206,14 @@ class TrialConverterTest(absltest.TestCase):
     proto = study_pb2.Trial(id=str(1))
     proto.state = study_pb2.Trial.State.INFEASIBLE
     proto.parameters.add(
-        parameter_id='float', value=struct_pb2.Value(number_value=1.0))
+        parameter_id='float', value=struct_pb2.Value(number_value=1.0)
+    )
     proto.parameters.add(
-        parameter_id='int', value=struct_pb2.Value(number_value=2))
+        parameter_id='int', value=struct_pb2.Value(number_value=2)
+    )
     proto.parameters.add(
-        parameter_id='str', value=struct_pb2.Value(string_value='3'))
+        parameter_id='str', value=struct_pb2.Value(string_value='3')
+    )
     proto.start_time.seconds = 1586649600
     proto.end_time.seconds = 1586649600 + 10
     proto.infeasible_reason = 'A reason'
@@ -196,9 +227,11 @@ class TrialConverterTest(absltest.TestCase):
   def testFromProtoInvalidTrial(self):
     proto = study_pb2.Trial(id=str(2))
     proto.parameters.add(
-        parameter_id='float', value=struct_pb2.Value(number_value=1.0))
+        parameter_id='float', value=struct_pb2.Value(number_value=1.0)
+    )
     proto.parameters.add(
-        parameter_id='float', value=struct_pb2.Value(number_value=2.0))
+        parameter_id='float', value=struct_pb2.Value(number_value=2.0)
+    )
     proto.state = study_pb2.Trial.State.ACTIVE
     proto.start_time.seconds = 1586649600
     with self.assertRaisesRegex(ValueError, 'Invalid trial proto'):
@@ -208,7 +241,8 @@ class TrialConverterTest(absltest.TestCase):
     proto = study_pb2.Trial(id=str(1))
     proto.state = study_pb2.Trial.ACTIVE
     proto.parameters.add(
-        parameter_id='float', value=struct_pb2.Value(number_value=1.0))
+        parameter_id='float', value=struct_pb2.Value(number_value=1.0)
+    )
     proto.metadata.add(key='key0', ns='x', value='namespace=x0')
     proto.metadata.add(key='key1', ns='x', value='namespace=x1')
     proto.metadata.add(key='key1', ns='', value='gets overwritten')
@@ -229,10 +263,12 @@ class TrialConverterTest(absltest.TestCase):
     self.assertEqual(test.metadata.abs_ns(['x'])['key1'], 'namespace=x1')
     self.assertEqual(
         test.metadata.get_proto('proto', cls=study_pb2.Trial),
-        study_pb2.Trial(id=str(999)))
+        study_pb2.Trial(id=str(999)),
+    )
     self.assertEqual(
         test.metadata.abs_ns(['t']).get_proto('proto', cls=study_pb2.Trial),
-        study_pb2.Trial(id=str(991)))
+        study_pb2.Trial(id=str(991)),
+    )
 
 
 class TrialConverterToProtoTest(absltest.TestCase):
@@ -242,20 +278,27 @@ class TrialConverterToProtoTest(absltest.TestCase):
     proto = study_pb2.Trial(
         name='owners/my_username/studies/cifar_10',
         id=str(2),
-        client_id='worker0')
+        client_id='worker0',
+    )
     proto.parameters.add(
-        parameter_id='activation', value=struct_pb2.Value(string_value='relu'))
+        parameter_id='activation', value=struct_pb2.Value(string_value='relu')
+    )
     proto.parameters.add(
-        parameter_id='synchronus', value=struct_pb2.Value(string_value='true'))
+        parameter_id='synchronus', value=struct_pb2.Value(string_value='true')
+    )
     proto.parameters.add(
-        parameter_id='batch_size', value=struct_pb2.Value(number_value=32))
+        parameter_id='batch_size', value=struct_pb2.Value(number_value=32)
+    )
     proto.parameters.add(
         parameter_id='floating_point_param',
-        value=struct_pb2.Value(number_value=32.))
+        value=struct_pb2.Value(number_value=32.0),
+    )
     proto.parameters.add(
-        parameter_id='learning_rate', value=struct_pb2.Value(number_value=0.5))
+        parameter_id='learning_rate', value=struct_pb2.Value(number_value=0.5)
+    )
     proto.parameters.add(
-        parameter_id='units', value=struct_pb2.Value(number_value=50))
+        parameter_id='units', value=struct_pb2.Value(number_value=50)
+    )
     proto.start_time.seconds = 1630505100
     return proto
 
@@ -271,7 +314,8 @@ class TrialConverterToProtoTest(absltest.TestCase):
     proto.start_time.seconds = 12456
     proto.end_time.seconds = 12456 + 10
     proto.parameters.add(
-        parameter_id='learning_rate', value=struct_pb2.Value(number_value=0.5))
+        parameter_id='learning_rate', value=struct_pb2.Value(number_value=0.5)
+    )
     proto.final_measurement.step_count = 101
     proto.final_measurement.elapsed_duration.seconds = 67
     proto.final_measurement.metrics.add(metric_id='loss', value=56.8)
@@ -284,7 +328,8 @@ class TrialConverterToProtoTest(absltest.TestCase):
 
   def testMeasurementBackToBackConversion(self):
     proto = study_pb2.Trial(
-        id=str(2), state=study_pb2.Trial.State.ACTIVE, client_id='worker0')
+        id=str(2), state=study_pb2.Trial.State.ACTIVE, client_id='worker0'
+    )
     proto.start_time.seconds = 1630505100
     proto.measurements.add(step_count=123)
     proto.measurements[-1].elapsed_duration.seconds = 22
@@ -310,14 +355,17 @@ class ParameterConfigConverterToProtoTest(absltest.TestCase):
         'name',
         feasible_values=feasible_values,
         scale_type=pc.ScaleType.LOG,
-        default_value=2)
+        default_value=2,
+    )
 
     proto = proto_converters.ParameterConfigConverter.to_proto(parameter_config)
     self.assertEqual(proto.parameter_id, 'name')
     self.assertEqual(proto.discrete_value_spec.values, [-1.0, 2.0, 3.0])
     self.assertEqual(proto.discrete_value_spec.default_value.value, 2)
-    self.assertEqual(proto.scale_type,
-                     study_pb2.StudySpec.ParameterSpec.ScaleType.UNIT_LOG_SCALE)
+    self.assertEqual(
+        proto.scale_type,
+        study_pb2.StudySpec.ParameterSpec.ScaleType.UNIT_LOG_SCALE,
+    )
 
 
 class ParameterConfigConverterFromProtoTest(absltest.TestCase):
@@ -328,9 +376,12 @@ class ParameterConfigConverterFromProtoTest(absltest.TestCase):
         parameter_id='name',
         discrete_value_spec=study_pb2.StudySpec.ParameterSpec.DiscreteValueSpec(
             values=[1.0, 2.0, 3.0],
-            default_value=wrappers_pb2.DoubleValue(value=2.0)))
+            default_value=wrappers_pb2.DoubleValue(value=2.0),
+        ),
+    )
     parameter_config = proto_converters.ParameterConfigConverter.from_proto(
-        proto)
+        proto
+    )
     self.assertEqual(parameter_config.name, proto.parameter_id)
     self.assertEqual(parameter_config.type, pc.ParameterType.DISCRETE)
     self.assertEqual(parameter_config.bounds, (1.0, 3.0))

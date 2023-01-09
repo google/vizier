@@ -113,6 +113,14 @@ class VizierClientTest(parameterized.TestCase):
     study_list_json = self.client.list_studies()
     self.assertLen(study_list_json, 1)
 
+  @parameterized.parameters(
+      (pyvizier.StudyState.ABORTED,),
+      (pyvizier.StudyState.ACTIVE,),
+  )
+  def test_set_and_get_study_state(self, state):
+    self.client.set_study_state(state)
+    self.assertEqual(self.client.get_study_state(), state)
+
   def test_delete_study(self):
     self.client.delete_study()
     empty_list_json = self.client.list_studies()

@@ -203,13 +203,10 @@ class Study(client_abc.StudyInterface):
     return self._client.get_study_config(self.resource_name)
 
   def set_state(self, state: vz.StudyState) -> None:
-    # TODO: Add support for study states.
-    if state == vz.StudyState.ABORTED:
-      raise NotImplementedError(f'Unsupported state: {state}')
-    elif state == vz.StudyState.ACTIVE:
-      raise NotImplementedError(f'Unsupported state: {state}')
-    else:
-      raise NotImplementedError(f'Unknown state: {state}')
+    self._client.set_study_state(state)
+
+  def materialize_state(self) -> vz.StudyState:
+    return self._client.get_study_state()
 
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
