@@ -69,7 +69,7 @@ def _create_local_vizier_servicer() -> (
 
 def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
   if endpoint == NO_ENDPOINT:
-    logging.info('No endpoint given; using cached local Vizier server.')
+    logging.info('No endpoint given; using cached local VizierServicer.')
     logging.warning('Python 3.8+ is required in this case.')
     return _create_local_vizier_servicer()
   return stubs_util.create_vizier_server_stub(endpoint)
@@ -79,7 +79,7 @@ def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
 class VizierClient:
   """Client for communicating with the Vizer Service via GRPC.
 
-  It can be initialized directly with a Vizier server class instance/stub, or
+  It can be initialized directly with a VizierService, or
   created from endpoint. See also `create_server_stub`.
   """
 
@@ -447,8 +447,8 @@ def create_or_load_study(
 
   Args:
       server_endpoint: Address of VizierService for creation of gRPC stub, e.g.
-        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local Vizier
-        server inside the client.
+        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local
+        VizierServicer inside the client.
       owner_id: An owner id.
       client_id: ID for the VizierClient. See class for notes.
       study_id: Each study is uniquely identified by the tuple (owner_id,

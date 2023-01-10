@@ -57,6 +57,12 @@ MAX_STUDY_ID = 2147483647  # Max int32 value.
 SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
 
 
+class ImmutableStudyError(ValueError):
+  """The study is now immutable and cannot be modified."""
+
+  pass
+
+
 # TODO: remove context = None
 # TODO: remove context = None
 class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
@@ -254,11 +260,14 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       A long-running operation associated with the generation of Trial
       suggestions. When this long-running operation succeeds, it will contain a
       [SuggestTrialsResponse].
+
+    Raises:
+      ImmutableStudyError: If study was already immutable.
     """
     # Convenient names and id's to be used below.
     study_name = request.parent
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot suggest trial.'.format(study_name)
       )
 
@@ -458,7 +467,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
   ) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
     if self._study_is_immutable(request.parent):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot create trial.'.format(request.parent)
       )
 
@@ -512,12 +521,15 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     Returns:
       Trial whose measurement was appended.
+
+    Raises:
+      ImmutableStudyError: If study was already immutable.
     """
     study_name = resources.TrialResource.from_name(
         request.trial_name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot add measurement.'.format(study_name)
       )
 
@@ -539,7 +551,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot complete trial.'.format(study_name)
       )
 
@@ -579,7 +591,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot delete trial.'.format(study_name)
       )
 
@@ -623,11 +635,14 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     Returns:
       A CheckTrialEarlyStoppingStateResponse, containing a bool to denote
       whether the requested trial should stop.
+
+    Raises:
+      ImmutableStudyError: If study was already immutable.
     """
     trial_resource = resources.TrialResource.from_name(request.trial_name)
     study_name = trial_resource.study_resource.name
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot early stop trial.'.format(study_name)
       )
     outer_op_name = trial_resource.early_stopping_operation_resource.name
@@ -753,7 +768,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot stop trial.'.format(study_name)
       )
 
@@ -842,7 +857,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
     if self._study_is_immutable(request.name):
-      raise ValueError(
+      raise ImmutableStudyError(
           'Study {} is immutable. Cannot update metadata.'.format(request.name)
       )
 
