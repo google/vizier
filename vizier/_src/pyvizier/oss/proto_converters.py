@@ -59,7 +59,9 @@ class StudyStateConverter:
       return vz.StudyState.ACTIVE
     else:
       raise ValueError(
-          'Proto Study state {} has no equivalent in PyVizier.'.format(proto)
+          'Proto Study state {} has no equivalent in PyVizier.'.format(
+              study_pb2.Study.State.Name(proto)
+          )
       )
 
 
