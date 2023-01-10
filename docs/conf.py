@@ -102,8 +102,8 @@ napolean_use_rtype = False
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = './assets/vizier_logo.png'
-html_favicon = './assets/vizier_logo.png'
+html_logo = './assets/vizier_logo2.png'
+html_favicon = './assets/vizier_logo2.png'
 
 # -- Options for myst --------------------------------------------------------
 
