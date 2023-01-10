@@ -88,16 +88,21 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def _example_trials(self) -> list[vz.Trial]:
     """Generates example trials."""
     trials = [
-        vz.Trial(parameters={
-            'float': 0.5
-        },).complete(vz.Measurement({'maximize_metric': 1.0})),
-        vz.Trial(parameters={
-            'float': 0.5
-        },).complete(vz.Measurement({'maximize_metric': 0.5})),
+        # Completed trial.
         vz.Trial(
             parameters={'float': 0.5},
-            measurements=[vz.Measurement({'maximize_metric': 0.7})]),
-        vz.Trial(parameters={'float': 0.5}, is_requested=True)
+        ).complete(vz.Measurement({'maximize_metric': 1.0})),
+        # Completed trial.
+        vz.Trial(
+            parameters={'float': 0.5},
+        ).complete(vz.Measurement({'maximize_metric': 0.5})),
+        # Requested trial, which will be made active below.
+        vz.Trial(
+            parameters={'float': 0.5},
+            measurements=[vz.Measurement({'maximize_metric': 0.7})],
+        ),
+        # Requested trial.
+        vz.Trial(parameters={'float': 0.5}, is_requested=True),
     ]
     for idx, t in enumerate(trials):
       t.metadata['future_id'] = str(idx + 1)  # id to be assigned
@@ -105,9 +110,13 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
 
   def create_test_study_with_trials(self, name: str) -> _StudyClient:
     study = self.create_test_study(name)
-    for t in self._example_trials():
+    trials = self._example_trials()
+    for i, t in enumerate(trials):
       # TODO: Remove this.
       study._add_trial(t)  # pylint: disable=protected-access
+      if i == 2:
+        # Make sure the requested trial becomes ACTIVE.
+        _ = study.suggest(count=1)
     return study
 
   @parameterized.parameters(list(state for state in vz.StudyState))
@@ -229,7 +238,12 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
 
   def test_complete_trial_no_measurements_infeasible(self):
     study = self.create_test_study_with_trials(self.id())
-    trial = study.get_trial(4)
+    # Delete trial 3 so it's not suggested.
+    trial = study.get_trial(3)
+    trial.delete()
+    # Ask Vizier to suggest the trial so it becomes ACTIVE.
+    trial = list(study.suggest(count=1))[0]
+    self.assertEqual(trial.id, 4)
     self.assertIsNone(trial.complete(infeasible_reason='just because'))
     self.assertTrue(trial.materialize().infeasible)
 

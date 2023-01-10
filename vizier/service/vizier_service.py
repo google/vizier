@@ -59,6 +59,11 @@ SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
 
 class ImmutableStudyError(ValueError):
   """The study is now immutable and cannot be modified."""
+  pass
+
+
+class ImmutableTrialError(ValueError):
+  """The trial is now immutable and cannot be modified."""
 
   pass
 
@@ -67,6 +72,12 @@ class ImmutableStudyError(ValueError):
 # TODO: remove context = None
 class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
   """Implements the GRPC functions outlined in vizier_service.proto."""
+
+  # Trial states in which a trial can be modified.
+  _TRIAL_MUTABLE_STATES = (
+      study_pb2.Trial.State.ACTIVE,
+      study_pb2.Trial.State.STOPPING,
+  )
 
   def __init__(
       self,
@@ -524,6 +535,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     Raises:
       ImmutableStudyError: If study was already immutable.
+      ImmutableTrialError: If the trial cannot be modified.
     """
     study_name = resources.TrialResource.from_name(
         request.trial_name
@@ -535,6 +547,13 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.trial_name)
+      if trial.state not in self._TRIAL_MUTABLE_STATES:
+        raise ImmutableTrialError(
+            'Trial {} has state {}. Measurements can only be added to trials in'
+            ' state ACTIVE or STOPPING'.format(
+                request.trial_name, study_pb2.Trial.State.Name(trial.state)
+            )
+        )
       trial.measurements.extend([request.measurement])
       self.datastore.update_trial(trial)
     return trial
@@ -557,21 +576,26 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
+      if trial.state not in self._TRIAL_MUTABLE_STATES:
+        raise ImmutableTrialError(
+            'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
+            'can be completed.'.format(
+                request.name, study_pb2.Trial.State.Name(trial.state)
+            )
+        )
 
+      trial.state = study_pb2.Trial.State.SUCCEEDED
       if request.final_measurement.metrics:
         trial.final_measurement.CopyFrom(request.final_measurement)
-        trial.state = study_pb2.Trial.State.SUCCEEDED
       elif not request.trial_infeasible:
         # Trial's final measurement auto-selected from latest reported
         # measurement.
-        trial.state = study_pb2.Trial.State.SUCCEEDED
-        if trial.measurements:
-          trial.final_measurement.CopyFrom(trial.measurements[-1])
-        else:
+        if not trial.measurements:
           raise ValueError(
               'Both the request and trial intermediate measurements are'
               " missing. Cannot determine trial's final_measurement."
           )
+        trial.final_measurement.CopyFrom(trial.measurements[-1])
 
       # Handle infeasibility.
       if request.trial_infeasible:
@@ -638,6 +662,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     Raises:
       ImmutableStudyError: If study was already immutable.
+      ImmutableTrialError: If the trial cannot be modified.
     """
     trial_resource = resources.TrialResource.from_name(request.trial_name)
     study_name = trial_resource.study_resource.name
@@ -645,8 +670,17 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       raise ImmutableStudyError(
           'Study {} is immutable. Cannot early stop trial.'.format(study_name)
       )
-    outer_op_name = trial_resource.early_stopping_operation_resource.name
 
+    with self._study_name_to_lock[study_name]:
+      trial = self.datastore.get_trial(request.trial_name)
+      if trial.state not in self._TRIAL_MUTABLE_STATES:
+        raise ImmutableTrialError(
+            'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
+            'can be completed.'.format(
+                request.trial_name, study_pb2.Trial.State.Name(trial.state)
+            )
+        )
+    outer_op_name = trial_resource.early_stopping_operation_resource.name
     # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.
     with self._operation_lock[study_name]:
@@ -764,6 +798,19 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.StopTrialRequest,
       context: Optional[grpc.ServicerContext] = None,
   ) -> study_pb2.Trial:
+    """Sets the trial state to STOPPING.
+
+    Args:
+      request:
+      context:
+
+    Returns:
+      The stopped Trial
+
+    Raises:
+      ImmutableStudyError: If study was already immutable.
+      ImmutableTrialError: If the trial cannot be modified.
+    """
     study_name = resources.TrialResource.from_name(
         request.name
     ).study_resource.name
@@ -774,6 +821,13 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
+      if trial.state not in self._TRIAL_MUTABLE_STATES:
+        raise ImmutableTrialError(
+            'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
+            'can be stopped.'.format(
+                request.name, study_pb2.Trial.State.Name(trial.state)
+            )
+        )
       trial.state = study_pb2.Trial.STOPPING
       self.datastore.update_trial(trial)
     return trial

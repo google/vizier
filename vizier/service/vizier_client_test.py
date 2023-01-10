@@ -192,12 +192,20 @@ class VizierClientTest(parameterized.TestCase):
     self.assertFalse(should_stop_again)
 
   def test_intermediate_measurement(self):
-    self.client.report_intermediate_objective_value(
+    updated_trial = self.client.report_intermediate_objective_value(
         step=5,
         elapsed_secs=3.0,
         metric_list=[{'example_metric': 5}],
         trial_id=1,
     )
+    self.assertLen(updated_trial.measurements, 1)
+    self.assertEqual(updated_trial.measurements[0].steps, 5)
+    self.assertEqual(updated_trial.measurements[0].elapsed_secs, 3.0)
+    self.assertEqual(
+        updated_trial.measurements[0].metrics['example_metric'],
+        pyvizier.Metric(value=5.0),
+    )
+    self.assertEqual(updated_trial.id, 1)
 
   def test_get_suggestions(self):
     suggestion_count = 2

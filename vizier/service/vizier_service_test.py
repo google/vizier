@@ -403,6 +403,41 @@ class VizierServicerTest(parameterized.TestCase):
     # Check that there was no error.
     self.assertEmpty(response.error_details)
 
+  def test_trial_immutable(self):
+    study = test_util.generate_study(
+        self.owner_id, self.study_id, state=study_pb2.Study.State.ACTIVE
+    )
+    self.vs.datastore.create_study(study)
+    trials = test_util.generate_trials(
+        trial_id_list=[1],
+        owner_id=self.owner_id,
+        study_id=self.study_id,
+        state=study_pb2.Trial.State.SUCCEEDED,
+    )
+    self.vs.datastore.create_trial(trials[0])
+    trial_name = resources.TrialResource(self.owner_id, self.study_id, 1).name
+
+    with self.assertRaises(vizier_service.ImmutableTrialError):
+      self.vs.CompleteTrial(
+          vizier_service_pb2.CompleteTrialRequest(
+              name=trial_name, final_measurement=study_pb2.Measurement()
+          )
+      )
+
+    with self.assertRaises(vizier_service.ImmutableTrialError):
+      self.vs.CheckTrialEarlyStoppingState(
+          vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
+              trial_name=trial_name
+          )
+      )
+
+    with self.assertRaises(ValueError):
+      self.vs.AddTrialMeasurement(
+          vizier_service_pb2.AddTrialMeasurementRequest(
+              trial_name=trial_name, measurement=study_pb2.Measurement()
+          )
+      )
+
   @parameterized.parameters(
       (study_pb2.Study.State.COMPLETED,),
       (study_pb2.Study.State.INACTIVE,),
