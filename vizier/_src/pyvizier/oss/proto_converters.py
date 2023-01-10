@@ -54,9 +54,13 @@ class StudyStateConverter:
   def from_proto(cls, proto: study_pb2.Study.State) -> vz.StudyState:
     if proto in cls._proto_to_pyvizier:
       return cls._proto_to_pyvizier[proto]
-    raise ValueError(
-        'Proto Study state {} has no equivalent in PyVizier.'.format(proto)
-    )
+    elif proto == study_pb2.Study.State.STATE_UNSPECIFIED:
+      # OSS Vizier server treats STATE_UNSPECIFIED as ACTIVE.
+      return vz.StudyState.ACTIVE
+    else:
+      raise ValueError(
+          'Proto Study state {} has no equivalent in PyVizier.'.format(proto)
+      )
 
 
 class _ScaleTypeMap:

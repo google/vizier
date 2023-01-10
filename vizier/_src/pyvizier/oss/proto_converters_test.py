@@ -46,6 +46,14 @@ class StudyStateConverterTest(absltest.TestCase):
       py_state = proto_converters.StudyStateConverter.from_proto(proto_state)
       self.assertEqual(original_pyvizier_state, py_state)
 
+  def testStudyStateNotSet(self):
+    self.assertEqual(
+        proto_converters.StudyStateConverter.from_proto(
+            study_pb2.Study.State.STATE_UNSPECIFIED
+        ),
+        study.StudyState.ACTIVE,
+    )
+
 
 class MeasurementConverterTest(absltest.TestCase):
 
