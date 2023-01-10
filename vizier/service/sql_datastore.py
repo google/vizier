@@ -22,6 +22,7 @@ from absl import logging
 
 import sqlalchemy as sqla
 
+from vizier.service import custom_errors
 from vizier.service import datastore
 from vizier.service import key_value_pb2
 from vizier.service import resources
@@ -104,7 +105,7 @@ class SQLDataStore(datastore.DataStore):
         self._connection.execute(study_query)
         return study_resource
       except sqla.exc.IntegrityError as integrity_error:
-        raise datastore.AlreadyExistsError(
+        raise custom_errors.AlreadyExistsError(
             'Study with name %s already exists.' % study.name
         ) from integrity_error
 
@@ -117,7 +118,7 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError(
+      raise custom_errors.NotFoundError(
           'Failed to find study name: %s' % study_name
       )
     return study_pb2.Study.FromString(row['serialized_study'])
@@ -143,7 +144,9 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Study %s does not exist.' % study.name)
+        raise custom_errors.NotFoundError(
+            'Study %s does not exist.' % study.name
+        )
       self._connection.execute(update_query)
     return study_resource
 
@@ -167,7 +170,9 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Study %s does not exist.' % study_name)
+        raise custom_errors.NotFoundError(
+            'Study %s does not exist.' % study_name
+        )
       self._connection.execute(delete_study_query)
       self._connection.execute(delete_trials_query)
 
@@ -185,7 +190,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Owner name %s does not exist.' % owner_name
         )
       result = self._connection.execute(list_query).fetchall()
@@ -209,7 +214,7 @@ class SQLDataStore(datastore.DataStore):
         self._connection.execute(query)
         return trial_resource
       except sqla.exc.IntegrityError as integrity_error:
-        raise datastore.AlreadyExistsError(
+        raise custom_errors.AlreadyExistsError(
             'Trial with name %s already exists.' % trial.name
         ) from integrity_error
 
@@ -222,7 +227,7 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError(
+      raise custom_errors.NotFoundError(
           'Failed to find trial name: %s' % trial_name
       )
     return study_pb2.Trial.FromString(row['serialized_trial'])
@@ -249,7 +254,9 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Trial %s does not exist.' % trial.name)
+        raise custom_errors.NotFoundError(
+            'Trial %s does not exist.' % trial.name
+        )
       self._connection.execute(update_query)
 
     return trial_resource
@@ -270,7 +277,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Study name %s does not exist.' % study_name
         )
       result = self._connection.execute(list_query)
@@ -291,7 +298,9 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Trial %s does not exist.' % trial_name)
+        raise custom_errors.NotFoundError(
+            'Trial %s does not exist.' % trial_name
+        )
       self._connection.execute(delete_query)
 
   def max_trial_id(self, study_name: str) -> int:
@@ -312,7 +321,9 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError('Study %s does not exist.' % study_name)
+        raise custom_errors.NotFoundError(
+            'Study %s does not exist.' % study_name
+        )
       potential_trial_id = self._connection.execute(trial_id_query).fetchone()[
           0
       ]
@@ -339,7 +350,7 @@ class SQLDataStore(datastore.DataStore):
         self._connection.execute(query)
       return resource
     except sqla.exc.IntegrityError as integrity_error:
-      raise datastore.AlreadyExistsError(
+      raise custom_errors.AlreadyExistsError(
           'Suggest Op with name %s already exists.' % operation.name
       ) from integrity_error
 
@@ -355,7 +366,7 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError(
+      raise custom_errors.NotFoundError(
           'Failed to find suggest op name: %s' % operation_name
       )
     return operations_pb2.Operation.FromString(row['serialized_op'])
@@ -388,7 +399,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Suggest op %s does not exist.' % operation.name
         )
       self._connection.execute(update_query)
@@ -416,7 +427,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Could not find (study_name, client_id):',
             (study_resource.name, client_id),
         )
@@ -471,7 +482,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Could not find (study_name, client_id):', (study_name, client_id)
         )
       return self._connection.execute(max_query).fetchone()[0]
@@ -495,7 +506,7 @@ class SQLDataStore(datastore.DataStore):
         self._connection.execute(query)
       return resource
     except sqla.exc.IntegrityError as integrity_error:
-      raise datastore.AlreadyExistsError(
+      raise custom_errors.AlreadyExistsError(
           'Early stopping op with name %s already exists.' % operation.name
       ) from integrity_error
 
@@ -511,7 +522,7 @@ class SQLDataStore(datastore.DataStore):
 
     row = result.fetchone()
     if not row:
-      raise datastore.NotFoundError(
+      raise custom_errors.NotFoundError(
           'Failed to find early stopping op name: %s' % operation_name
       )
     return vizier_oss_pb2.EarlyStoppingOperation.FromString(
@@ -548,7 +559,7 @@ class SQLDataStore(datastore.DataStore):
     with self._lock:
       exists = self._connection.execute(exists_query).fetchone()[0]
       if not exists:
-        raise datastore.NotFoundError(
+        raise custom_errors.NotFoundError(
             'Early stopping op %s does not exist.' % operation.name
         )
       self._connection.execute(update_query)
@@ -572,7 +583,7 @@ class SQLDataStore(datastore.DataStore):
       study_result = self._connection.execute(get_study_query)
       row = study_result.fetchone()
       if not row:
-        raise datastore.NotFoundError('No such study:', s_resource.name)
+        raise custom_errors.NotFoundError('No such study:', s_resource.name)
       original_study = study_pb2.Study.FromString(row['serialized_study'])
 
       # Store Study-related metadata into the database.
@@ -603,7 +614,7 @@ class SQLDataStore(datastore.DataStore):
         trial_result = self._connection.execute(original_trial_query)
         row = trial_result.fetchone()
         if not row:
-          raise datastore.NotFoundError('No such trial:', trial_name)
+          raise custom_errors.NotFoundError('No such trial:', trial_name)
         original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
 
         # Update Trial.

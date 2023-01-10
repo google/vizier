@@ -20,6 +20,7 @@ import random
 import string
 from typing import List
 
+from vizier.service import custom_errors
 from vizier.service import datastore
 from vizier.service import key_value_pb2
 from vizier.service import resources
@@ -43,11 +44,11 @@ class DataStoreTestCase(parameterized.TestCase):
   def assertStudyAPI(self, ds: datastore.DataStore, study: study_pb2.Study):
     """Tests if the datastore handles studies correctly."""
     ds.create_study(study)
-    with self.assertRaises(datastore.AlreadyExistsError):
+    with self.assertRaises(custom_errors.AlreadyExistsError):
       ds.create_study(study)  # Can't make another study w/ same name.
 
     copied_study = ds.load_study(study.name)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.load_study(study.name + 'does_not_exist')  # Non-existent study.
     self.assertEqual(copied_study, study)
     self.assertIsNot(copied_study, study)  # Check pass-by-value.
@@ -56,7 +57,7 @@ class DataStoreTestCase(parameterized.TestCase):
         study.name
     ).owner_resource.name
     list_of_one_study = ds.list_studies(owner_name)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.list_studies(owner_name + 'does_not_exist')  # Non-existent study.
     self.assertLen(list_of_one_study, 1)
     self.assertEqual(list_of_one_study[0], study)
@@ -66,7 +67,7 @@ class DataStoreTestCase(parameterized.TestCase):
     ds.update_study(study)
     self.assertEqual(ds.load_study(study.name), study)
     self.assertIsNot(ds.load_study(study.name), study)  # Check pass-by-value.
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       missing_study = copy.deepcopy(study)
       missing_study.name += str('i_dont_exist')
       ds.update_study(missing_study)  # Does not exist.
@@ -76,9 +77,9 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertNotEqual(study, copied_original_study)  # Check pass-by-value.
 
     ds.delete_study(study.name)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.delete_study(study.name)  # Deleting non-existent study.
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.load_study(study.name)  # Non-existent study.
 
     # Owner should be kept track of.
@@ -103,20 +104,20 @@ class DataStoreTestCase(parameterized.TestCase):
 
     for trial in trials:
       ds.create_trial(trial)
-      with self.assertRaises(datastore.AlreadyExistsError):
+      with self.assertRaises(custom_errors.AlreadyExistsError):
         ds.create_trial(trial)  # Already exists.
       copied_trial = ds.get_trial(trial.name)
-      with self.assertRaises(datastore.NotFoundError):
+      with self.assertRaises(custom_errors.NotFoundError):
         ds.get_trial(trial.name + str(num_trials))  # Does not exist.
       self.assertEqual(trial, copied_trial)
       self.assertIsNot(trial, copied_trial)  # Check pass-by-value.
 
     self.assertLen(trials, ds.max_trial_id(study.name))
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.max_trial_id(study.name + 'does_not_exist')  # Does not exist.
 
     list_of_trials = ds.list_trials(study.name)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.list_trials(study.name + 'does_not_exist')  # Does not exist.
     self.assertEqual(list_of_trials, trials)
     self.assertIsNot(list_of_trials, trials)  # Check pass-by-value.
@@ -124,7 +125,7 @@ class DataStoreTestCase(parameterized.TestCase):
     first_trial = trials[0]
     first_trial.infeasible_reason = make_random_string()
     ds.update_trial(first_trial)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       missing_trial = copy.deepcopy(first_trial)
       missing_trial.name += str(num_trials)
       ds.update_trial(missing_trial)  # Does not exist.
@@ -133,7 +134,7 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertIsNot(first_trial, new_first_trial)  # Check pass-by-value.
 
     ds.delete_trial(first_trial.name)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.delete_trial(first_trial.name)  # Already deleted.
       ds.delete_trial(first_trial.name + str(num_trials))  # Does not exist.
     leftover_trials = ds.list_trials(study.name)
@@ -153,7 +154,7 @@ class DataStoreTestCase(parameterized.TestCase):
     ds.create_study(study)
     for operation in suggestion_ops:
       ds.create_suggestion_operation(operation)
-      with self.assertRaises(datastore.AlreadyExistsError):
+      with self.assertRaises(custom_errors.AlreadyExistsError):
         ds.create_suggestion_operation(operation)  # Already exists.
 
     self.assertLen(
@@ -161,7 +162,7 @@ class DataStoreTestCase(parameterized.TestCase):
         ds.max_suggestion_operation_number(study_resource.name, client_id),
     )
 
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.max_suggestion_operation_number(
           study_resource.name, client_id + 'does_not_exist'
       )  # Client doesn't exist.
@@ -170,7 +171,7 @@ class DataStoreTestCase(parameterized.TestCase):
         study_resource.name, client_id
     )
     self.assertEqual(list_of_operations, suggestion_ops)
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.list_suggestion_operations(
           study_resource.name, client_id + 'does_not_exist'
       )  # Client doesn't exist.
@@ -186,7 +187,7 @@ class DataStoreTestCase(parameterized.TestCase):
     self.assertEqual(output_op, suggestion_ops[0])
     self.assertIsNot(output_op, suggestion_ops[0])  # Check pass-by-value.
 
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.get_suggestion_operation(
           resources.SuggestionOperationResource(
               study_resource.owner_id,
@@ -208,7 +209,7 @@ class DataStoreTestCase(parameterized.TestCase):
         client_id + 'does_not_exist',  # Client doesn't exist.
         operation_number=1,
     ).name
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.update_suggestion_operation(wrong_output_op)
 
   def assertEarlyStoppingAPI(
@@ -227,7 +228,7 @@ class DataStoreTestCase(parameterized.TestCase):
 
     for operation in early_stopping_ops:
       ds.create_early_stopping_operation(operation)
-      with self.assertRaises(datastore.AlreadyExistsError):
+      with self.assertRaises(custom_errors.AlreadyExistsError):
         ds.create_early_stopping_operation(operation)  # Op already exists.
 
     output_op = ds.get_early_stopping_operation(
@@ -243,7 +244,7 @@ class DataStoreTestCase(parameterized.TestCase):
         study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
         1,
     ).name
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.get_early_stopping_operation(wrong_op_name)
 
     output_op.failure_message = make_random_string()
@@ -257,7 +258,7 @@ class DataStoreTestCase(parameterized.TestCase):
         study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
         1,
     ).name
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.update_early_stopping_operation(wrong_output_op)
 
   def assertUpdateMetadataAPI(
@@ -314,5 +315,5 @@ class DataStoreTestCase(parameterized.TestCase):
     )
 
     study_not_exist_name = study.name + 'i_dont_exist'
-    with self.assertRaises(datastore.NotFoundError):
+    with self.assertRaises(custom_errors.NotFoundError):
       ds.update_metadata(study_not_exist_name, [], [])

@@ -26,6 +26,7 @@ import threading
 from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple
 from absl import logging
 
+from vizier.service import custom_errors
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -34,18 +35,6 @@ from vizier.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
 UnitMetadataUpdate = vizier_service_pb2.UnitMetadataUpdate
-
-
-class AlreadyExistsError(ValueError):
-  """The resource key already exists in the database."""
-
-  pass
-
-
-class NotFoundError(KeyError):
-  """The resource key does not exist in the database."""
-
-  pass
 
 
 class DataStore(abc.ABC):
@@ -371,7 +360,7 @@ class NestedDictRAMDataStore(DataStore):
         if resource.study_id not in study_dict:
           study_dict.update(temp_dict)
         else:
-          raise AlreadyExistsError(
+          raise custom_errors.AlreadyExistsError(
               'Study with that name already exists.', study.name
           )
     return resource
@@ -386,7 +375,7 @@ class NestedDictRAMDataStore(DataStore):
             .study_proto
         )
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not get Study with name:', resource.name
       ) from err
 
@@ -399,7 +388,7 @@ class NestedDictRAMDataStore(DataStore):
         ].study_proto.CopyFrom(study)
       return resource
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not update Study with name:', resource.name
       ) from err
 
@@ -409,7 +398,9 @@ class NestedDictRAMDataStore(DataStore):
       with self._lock:
         del self._owners[resource.owner_id].studies[resource.study_id]
     except KeyError as err:
-      raise NotFoundError('Study does not exist:', study_name) from err
+      raise custom_errors.NotFoundError(
+          'Study does not exist:', study_name
+      ) from err
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
@@ -420,7 +411,9 @@ class NestedDictRAMDataStore(DataStore):
             [study_node.study_proto for study_node in study_nodes]
         )
     except KeyError as err:
-      raise NotFoundError('Owner does not exist:', owner_name) from err
+      raise custom_errors.NotFoundError(
+          'Owner does not exist:', owner_name
+      ) from err
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
@@ -431,7 +424,9 @@ class NestedDictRAMDataStore(DataStore):
           .trial_protos
       )
       if resource.trial_id in trial_protos:
-        raise AlreadyExistsError('Trial %s already exists' % trial.name)
+        raise custom_errors.AlreadyExistsError(
+            'Trial %s already exists' % trial.name
+        )
       else:
         trial_protos[resource.trial_id] = copy.deepcopy(trial)
     return resource
@@ -446,7 +441,7 @@ class NestedDictRAMDataStore(DataStore):
             .trial_protos[resource.trial_id]
         )
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not get Trial with name:', resource.name
       ) from err
 
@@ -460,11 +455,13 @@ class NestedDictRAMDataStore(DataStore):
             .trial_protos
         )
         if resource.trial_id not in trial_protos:
-          raise NotFoundError('Trial %s does not exist.' % trial.name)
+          raise custom_errors.NotFoundError(
+              'Trial %s does not exist.' % trial.name
+          )
         trial_protos[resource.trial_id] = copy.deepcopy(trial)
       return resource
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not update Trial with name:', resource.name
       ) from err
 
@@ -480,7 +477,9 @@ class NestedDictRAMDataStore(DataStore):
             )
         )
     except KeyError as err:
-      raise NotFoundError('Study does not exist:', study_name) from err
+      raise custom_errors.NotFoundError(
+          'Study does not exist:', study_name
+      ) from err
 
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
@@ -492,7 +491,9 @@ class NestedDictRAMDataStore(DataStore):
             .trial_protos[resource.trial_id]
         )
     except KeyError as err:
-      raise NotFoundError('Trial does not exist:', trial_name) from err
+      raise custom_errors.NotFoundError(
+          'Trial does not exist:', trial_name
+      ) from err
 
   def max_trial_id(self, study_name: str) -> int:
     resource = resources.StudyResource.from_name(study_name)
@@ -506,7 +507,9 @@ class NestedDictRAMDataStore(DataStore):
             )
         )
     except KeyError as err:
-      raise NotFoundError('Study does not exist:', study_name) from err
+      raise custom_errors.NotFoundError(
+          'Study does not exist:', study_name
+      ) from err
 
     if trial_ids:
       return max(trial_ids)
@@ -535,7 +538,7 @@ class NestedDictRAMDataStore(DataStore):
       )
 
       if resource.operation_id in suggestion_operations:
-        raise AlreadyExistsError(
+        raise custom_errors.AlreadyExistsError(
             'Operation already exists:', resource.operation_id
         )
 
@@ -556,7 +559,7 @@ class NestedDictRAMDataStore(DataStore):
         )
 
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not find SuggestionOperation with name:', resource.name
       ) from err
 
@@ -573,7 +576,7 @@ class NestedDictRAMDataStore(DataStore):
         )
       return resource
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not update SuggestionOperation with name:', resource.name
       ) from err
 
@@ -595,7 +598,7 @@ class NestedDictRAMDataStore(DataStore):
             )
         )
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           '(study_name, client_id) does not exist:', (study_name, client_id)
       ) from err
 
@@ -618,7 +621,7 @@ class NestedDictRAMDataStore(DataStore):
         )
         return len(ops)
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           '(study_name, client_id) does not exist:', (study_name, client_id)
       ) from err
 
@@ -635,7 +638,7 @@ class NestedDictRAMDataStore(DataStore):
           .early_stopping_operations
       )
       if resource.operation_id in early_stopping_ops:
-        raise AlreadyExistsError(
+        raise custom_errors.AlreadyExistsError(
             'Operation already exists:', resource.operation_id
         )
 
@@ -656,7 +659,7 @@ class NestedDictRAMDataStore(DataStore):
             .early_stopping_operations[resource.operation_id]
         )
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not find EarlyStoppingOperation with name:', resource.name
       ) from err
 
@@ -675,7 +678,7 @@ class NestedDictRAMDataStore(DataStore):
         )
       return resource
     except KeyError as err:
-      raise NotFoundError(
+      raise custom_errors.NotFoundError(
           'Could not update EarlyStoppingOperation with name:', resource.name
       ) from err
 
@@ -703,7 +706,9 @@ class NestedDictRAMDataStore(DataStore):
             s_resource.study_id
         ]
       except KeyError as e:
-        raise NotFoundError('No such study:', s_resource.name) from e
+        raise custom_errors.NotFoundError(
+            'No such study:', s_resource.name
+        ) from e
       # Store Study-related metadata into the database.
       merge_study_metadata(
           study_node.study_proto.study_spec, copy.deepcopy(study_metadata)

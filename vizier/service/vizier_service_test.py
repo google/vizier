@@ -19,6 +19,7 @@ from __future__ import annotations
 # methods, instead of directly calling VizierService methods.
 import datetime
 import time
+from vizier.service import custom_errors
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -417,14 +418,14 @@ class VizierServicerTest(parameterized.TestCase):
     self.vs.datastore.create_trial(trials[0])
     trial_name = resources.TrialResource(self.owner_id, self.study_id, 1).name
 
-    with self.assertRaises(vizier_service.ImmutableTrialError):
+    with self.assertRaises(custom_errors.ImmutableTrialError):
       self.vs.CompleteTrial(
           vizier_service_pb2.CompleteTrialRequest(
               name=trial_name, final_measurement=study_pb2.Measurement()
           )
       )
 
-    with self.assertRaises(vizier_service.ImmutableTrialError):
+    with self.assertRaises(custom_errors.ImmutableTrialError):
       self.vs.CheckTrialEarlyStoppingState(
           vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
               trial_name=trial_name
@@ -450,39 +451,39 @@ class VizierServicerTest(parameterized.TestCase):
     )
     self.vs.datastore.create_study(study)
 
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.SuggestTrials(
           vizier_service_pb2.SuggestTrialsRequest(parent=study_name)
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.CreateTrial(
           vizier_service_pb2.CreateTrialRequest(
               parent=study_name, trial=study_pb2.Trial()
           )
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.AddTrialMeasurement(
           vizier_service_pb2.AddTrialMeasurementRequest(
               trial_name=trial_name, measurement=study_pb2.Measurement()
           )
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.CompleteTrial(
           vizier_service_pb2.CompleteTrialRequest(name=trial_name)
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.DeleteTrial(
           vizier_service_pb2.DeleteTrialRequest(name=trial_name)
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.CheckTrialEarlyStoppingState(
           vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
               trial_name=trial_name
           )
       )
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.StopTrial(vizier_service_pb2.StopTrialRequest(name=trial_name))
-    with self.assertRaises(vizier_service.ImmutableStudyError):
+    with self.assertRaises(custom_errors.ImmutableStudyError):
       self.vs.UpdateMetadata(
           vizier_service_pb2.UpdateMetadataRequest(name=study_name)
       )
