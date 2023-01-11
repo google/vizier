@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from absl import flags
 from absl import logging
-import grpc
 from vizier.client import client_abc_testing
 from vizier.service import clients
 from vizier.service import pyvizier as vz
@@ -30,17 +29,7 @@ FLAGS = flags.FLAGS
 
 
 class VizierClientTest(client_abc_testing.TestCase):
-  _server: vizier_server.DefaultVizierServer
   _owner: str
-  _channel: grpc.Channel
-
-  @classmethod
-  def setUpClass(cls):
-    logging.info('Test setup started.')
-    super().setUpClass()
-    cls._server = vizier_server.DefaultVizierServer()
-    clients.environment_variables.server_endpoint = cls._server.endpoint
-    logging.info('Test setup finished.')
 
   def create_study(
       self, problem: vz.ProblemStatement, study_id: str
@@ -63,9 +52,49 @@ class VizierClientTest(client_abc_testing.TestCase):
   def test_e2e_tuning(self):
     self.assertPassesE2ETuning()
 
+
+class VizierClientTestOnServicer(VizierClientTest):
+
+  @classmethod
+  def setUpClass(cls):
+    logging.info('Test setup started.')
+    super().setUpClass()
+    clients.environment_variables.server_endpoint = clients.NO_ENDPOINT
+    logging.info('Test setup finished.')
+
+
+class VizierClientTestOnDefaultServer(VizierClientTest):
+  _server: vizier_server.DefaultVizierServer
+
+  @classmethod
+  def setUpClass(cls):
+    logging.info('Test setup started.')
+    super().setUpClass()
+    cls._server = vizier_server.DefaultVizierServer()
+    clients.environment_variables.server_endpoint = cls._server.endpoint
+    logging.info('Test setup finished.')
+
   @classmethod
   def tearDownClass(cls):
     cls._server._server.stop(None)
+    super().tearDownClass()
+
+
+class VizierClientTestOnDistributedPythiaServer(VizierClientTest):
+  _server: vizier_server.DistributedPythiaVizierServer
+
+  @classmethod
+  def setUpClass(cls):
+    logging.info('Test setup started.')
+    super().setUpClass()
+    cls._server = vizier_server.DistributedPythiaVizierServer()
+    clients.environment_variables.server_endpoint = cls._server.endpoint
+    logging.info('Test setup finished.')
+
+  @classmethod
+  def tearDownClass(cls):
+    cls._server._server.stop(None)
+    cls._server._pythia_server.stop(None)
     super().tearDownClass()
 
 

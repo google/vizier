@@ -33,13 +33,19 @@ class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):
     self.client_id = 'client_0'
     self.datastore = datastore.NestedDictRAMDataStore()
     self.example_study = test_util.generate_study(self.owner_id, self.study_id)
-    self.example_trials = test_util.generate_trials([1, 2],
-                                                    owner_id=self.owner_id,
-                                                    study_id=self.study_id)
-    self.example_suggestion_operations = test_util.generate_suggestion_operations(
-        [1, 2, 3, 4], self.owner_id, self.study_id, self.client_id)
-    self.example_early_stopping_operations = test_util.generate_early_stopping_operations(
-        [1, 2], self.owner_id, self.study_id)
+    self.example_trials = test_util.generate_trials(
+        [1, 2], owner_id=self.owner_id, study_id=self.study_id
+    )
+    self.example_suggestion_operations = (
+        test_util.generate_suggestion_operations(
+            [1, 2, 3, 4], self.owner_id, self.study_id, self.client_id
+        )
+    )
+    self.example_early_stopping_operations = (
+        test_util.generate_early_stopping_operations(
+            [1, 2], self.owner_id, self.study_id
+        )
+    )
     super().setUp()
 
   def test_study_api(self):
@@ -49,17 +55,25 @@ class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):
     self.assertTrialAPI(self.datastore, self.example_study, self.example_trials)
 
   def test_suggestion_operation(self):
-    self.assertSuggestOpAPI(self.datastore, self.example_study, self.client_id,
-                            self.example_suggestion_operations)
+    self.assertSuggestOpAPI(
+        self.datastore,
+        self.example_study,
+        self.client_id,
+        self.example_suggestion_operations,
+    )
 
   def test_early_stopping_operation(self):
-    self.assertEarlyStoppingAPI(self.datastore, self.example_study,
-                                self.example_trials,
-                                self.example_early_stopping_operations)
+    self.assertEarlyStoppingAPI(
+        self.datastore,
+        self.example_study,
+        self.example_trials,
+        self.example_early_stopping_operations,
+    )
 
   def test_update_metadata(self):
-    self.assertUpdateMetadataAPI(self.datastore, self.example_study,
-                                 self.example_trials)
+    self.assertUpdateMetadataAPI(
+        self.datastore, self.example_study, self.example_trials
+    )
 
 
 if __name__ == '__main__':

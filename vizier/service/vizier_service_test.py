@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime
 import time
 from vizier.service import custom_errors
+from vizier.service import grpc_util
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -451,7 +452,7 @@ class VizierServicerTest(parameterized.TestCase):
     )
     self.vs.datastore.create_study(study)
 
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc_util.LocalRpcError):
       self.vs.SuggestTrials(
           vizier_service_pb2.SuggestTrialsRequest(parent=study_name)
       )

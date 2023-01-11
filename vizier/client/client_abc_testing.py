@@ -183,6 +183,13 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         msg=(f'worker1_trial_ids={worker1_trial_ids}\n'
              f'worker2_trial_ids={worker2_trial_ids}'))
 
+  def test_suggest_with_immutable_study(self):
+    # Given immutable study, suggestions should be empty.
+    study = self.create_test_study(self.id())
+    study.set_state(vz.StudyState.ABORTED)
+    trials = study.suggest(count=5, client_id='worker1')
+    self.assertEmpty(trials)
+
   def test_get_trial(self):
     study = self.create_test_study_with_trials(self.id())
     trial = study.get_trial(2).materialize()

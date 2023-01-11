@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 from absl import flags
 from absl import logging
 import attr
+import grpc
 
 from vizier.service import pyvizier
 from vizier.service import resources
@@ -172,7 +173,14 @@ class VizierClient:
         suggestion_count=suggestion_count,
         client_id=client_id,
     )
-    operation = self._service.SuggestTrials(request)
+    try:
+      operation = self._service.SuggestTrials(request)
+    except grpc.RpcError as rpc_error:
+      # If ImmutableStudyError occurs, we simply return empty suggestion list.
+      # Otherwise, halt the client and raise error.
+      if rpc_error.code() == grpc.StatusCode.FAILED_PRECONDITION:  # pytype:disable=attribute-error
+        return []
+      raise rpc_error
 
     num_attempts = 0
     while not operation.done:

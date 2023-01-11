@@ -29,6 +29,7 @@ from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.service import custom_errors
 from vizier.service import datastore
+from vizier.service import grpc_util
 from vizier.service import pythia_service
 from vizier.service import pyvizier as svz
 from vizier.service import resources
@@ -268,9 +269,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     # Convenient names and id's to be used below.
     study_name = request.parent
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot suggest trial.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     study_resource = resources.StudyResource.from_name(study_name)
     study_id = study_resource.study_id
