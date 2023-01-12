@@ -19,6 +19,7 @@ from __future__ import annotations
 # methods, instead of directly calling VizierService methods.
 import datetime
 import time
+import grpc
 from vizier.service import custom_errors
 from vizier.service import grpc_util
 from vizier.service import key_value_pb2
@@ -419,7 +420,7 @@ class VizierServicerTest(parameterized.TestCase):
     self.vs.datastore.create_trial(trials[0])
     trial_name = resources.TrialResource(self.owner_id, self.study_id, 1).name
 
-    with self.assertRaises(custom_errors.ImmutableTrialError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.CompleteTrial(
           vizier_service_pb2.CompleteTrialRequest(
               name=trial_name, final_measurement=study_pb2.Measurement()
@@ -433,7 +434,7 @@ class VizierServicerTest(parameterized.TestCase):
           )
       )
 
-    with self.assertRaises(ValueError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.AddTrialMeasurement(
           vizier_service_pb2.AddTrialMeasurementRequest(
               trial_name=trial_name, measurement=study_pb2.Measurement()
@@ -462,13 +463,13 @@ class VizierServicerTest(parameterized.TestCase):
               parent=study_name, trial=study_pb2.Trial()
           )
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.AddTrialMeasurement(
           vizier_service_pb2.AddTrialMeasurementRequest(
               trial_name=trial_name, measurement=study_pb2.Measurement()
           )
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.CompleteTrial(
           vizier_service_pb2.CompleteTrialRequest(name=trial_name)
       )

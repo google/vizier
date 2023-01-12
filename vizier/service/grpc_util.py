@@ -26,7 +26,7 @@ class LocalRpcError(grpc.RpcError):
   """Class for imitating both a `grpc.ServiceContext` and a `grpc.RpcError`."""
 
   _code: grpc.StatusCode = grpc.StatusCode.UNKNOWN
-  _details: str = ''
+  _details: Optional[str] = None
 
   def set_code(self, code: grpc.StatusCode) -> None:
     self._code = code
@@ -36,6 +36,9 @@ class LocalRpcError(grpc.RpcError):
 
   def code(self) -> grpc.StatusCode:
     return self._code
+
+  def details(self) -> Optional[str]:
+    return self._details
 
 
 # TODO: Use this for all service errors.

@@ -547,19 +547,24 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.trial_name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot add measurement.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.trial_name)
+      if trial.state == study_pb2.Trial.State.INFEASIBLE:
+        return trial
       if trial.state not in self._TRIAL_MUTABLE_STATES:
-        raise custom_errors.ImmutableTrialError(
+        e = custom_errors.ImmutableTrialError(
             'Trial {} has state {}. Measurements can only be added to trials in'
             ' state ACTIVE or STOPPING'.format(
                 request.trial_name, study_pb2.Trial.State.Name(trial.state)
             )
         )
+        grpc_util.handle_exception(e, context)
+
       trial.measurements.extend([request.measurement])
       self.datastore.update_trial(trial)
     return trial
@@ -576,19 +581,21 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot complete trial.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
       if trial.state not in self._TRIAL_MUTABLE_STATES:
-        raise custom_errors.ImmutableTrialError(
+        e = custom_errors.ImmutableTrialError(
             'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
             'can be completed.'.format(
                 request.name, study_pb2.Trial.State.Name(trial.state)
             )
         )
+        grpc_util.handle_exception(e, context)
 
       trial.state = study_pb2.Trial.State.SUCCEEDED
       if request.final_measurement.metrics:

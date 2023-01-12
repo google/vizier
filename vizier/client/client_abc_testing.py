@@ -36,8 +36,9 @@ _TrialClient = client_abc.TrialInterface
 class VizierClientTestMixin(abc.ABC):
 
   @abc.abstractmethod
-  def create_study(self, study_config: vz.ProblemStatement,
-                   name: str) -> _StudyClient:
+  def create_study(
+      self, study_config: vz.ProblemStatement, name: str
+  ) -> _StudyClient:
     """Create study given study config and study name."""
     pass
 
@@ -62,7 +63,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     problem.search_space.root.add_float_param('float', 0.0, 1.0)
     problem.metric_information.append(
         vz.MetricInformation(
-            name='maximize_metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
+            name='maximize_metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
     study = self.create_study(problem, name)
 
     # TODO: Put this line back once we have __eq__ well-defined.
@@ -74,8 +77,10 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     study2 = study.from_resource_name(study.resource_name)
     self.assertEqual(study.resource_name, study2.resource_name)
 
-    self.assertEqual(study.materialize_problem_statement(),
-                     study2.materialize_problem_statement())
+    self.assertEqual(
+        study.materialize_problem_statement(),
+        study2.materialize_problem_statement(),
+    )
 
   def test_delete_study(self):
     study = self.create_test_study(self.id())
@@ -127,8 +132,11 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     try:
       study.set_state(target_state)
     except NotImplementedError:
-      logging.exception('Set study state for %s is not implemented in %s',
-                        target_state, type(self))
+      logging.exception(
+          'Set study state for %s is not implemented in %s',
+          target_state,
+          type(self),
+      )
 
   def test_list_trials(self):
     study = self.create_test_study_with_trials(self.id())
@@ -137,8 +145,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_trials_iter_and_get_are_equal(self):
     study = self.create_test_study_with_trials(self.id())
     all_trials = study.trials()
-    self.assertEqual([t.id for t in all_trials],
-                     [t.id for t in all_trials.get()])
+    self.assertEqual(
+        [t.id for t in all_trials], [t.id for t in all_trials.get()]
+    )
 
   def test_optimal_trials_on_empty(self):
     study = self.create_test_study(self.id())
@@ -148,8 +157,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     study = self.create_test_study_with_trials(self.id())
     optimal_trials = list(study.optimal_trials())
     self.assertLen(optimal_trials, 1)
-    self.assertEqual(optimal_trials[0].materialize().status,
-                     vz.TrialStatus.COMPLETED)
+    self.assertEqual(
+        optimal_trials[0].materialize().status, vz.TrialStatus.COMPLETED
+    )
 
   def test_suggest_same_worker(self):
     # Given the same client id, should return the same trials.
@@ -166,8 +176,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     study.request(request)
     trials = list(study.suggest(count=5, client_id='worker1'))
     self.assertLen(trials, 5)
-    self.assertCountEqual(trials[0].parameters.items(),
-                          request.parameters.as_dict().items())
+    self.assertCountEqual(
+        trials[0].parameters.items(), request.parameters.as_dict().items()
+    )
 
   def test_suggest_different_workers(self):
     # Given different client ids, should generate new suggestions.
@@ -180,8 +191,11 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     worker2_trial_ids = {t.id for t in worker2_trials}
     self.assertEmpty(
         worker1_trial_ids.intersection(worker2_trial_ids),
-        msg=(f'worker1_trial_ids={worker1_trial_ids}\n'
-             f'worker2_trial_ids={worker2_trial_ids}'))
+        msg=(
+            f'worker1_trial_ids={worker1_trial_ids}\n'
+            f'worker2_trial_ids={worker2_trial_ids}'
+        ),
+    )
 
   def test_suggest_with_immutable_study(self):
     # Given immutable study, suggestions should be empty.
@@ -204,16 +218,17 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_parameters(self):
     study = self.create_test_study_with_trials(self.id())
     self.assertEqual(
-        study.get_trial(1).parameters,
-        study.get_trial(1).parameters)
+        study.get_trial(1).parameters, study.get_trial(1).parameters
+    )
 
   def test_study_update_metadata(self):
     """Checks for correct merge behavior."""
     study = self.create_test_study(self.id())
     delta_metadata = vz.Metadata({'bar': 'bar_v'}, foo='foo_v')
     study.update_metadata(delta_metadata)
-    self.assertEqual(study.materialize_problem_statement().metadata.get('bar'),
-                     'bar_v')
+    self.assertEqual(
+        study.materialize_problem_statement().metadata.get('bar'), 'bar_v'
+    )
 
     delta_metadata_2 = vz.Metadata({'bar': 'bar_w'})
     study.update_metadata(delta_metadata_2)
@@ -257,7 +272,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_complete_trial_manual_measurement(self):
     study = self.create_test_study_with_trials(self.id())
     trial = study.get_trial(3)
-    final_measurement = vz.Measurement(metrics={'maximize_metric': .1})
+    final_measurement = vz.Measurement(metrics={'maximize_metric': 0.1})
     self.assertEqual(trial.complete(final_measurement), final_measurement)
     self.assertEqual(trial.materialize().status, vz.TrialStatus.COMPLETED)
 
@@ -272,24 +287,50 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     trial = study.get_trial(3)
     before = trial.materialize()
     trial.add_measurement(
-        vz.Measurement(steps=2, metrics={'maximize_metric': 0.2}))
+        vz.Measurement(steps=2, metrics={'maximize_metric': 0.2})
+    )
     after = trial.materialize()
     self.assertLen(after.measurements, len(before.measurements) + 1)
+
+  def test_intermediate_measurement_infeasible(self):
+    study = self.create_test_study_with_trials(self.id())
+    trial = study.get_trial(3)
+    trial.complete(infeasible_reason='just because')
+    before = trial.materialize()
+    trial.add_measurement(
+        vz.Measurement(steps=2, metrics={'maximize_metric': 0.2})
+    )
+    after = trial.materialize()
+    # Can't add measurements to infeasible trials, but doing so isn't an error.
+    self.assertEqual(before, after)
+
+  def test_intermediate_measurement_completed(self):
+    study = self.create_test_study_with_trials(self.id())
+    trial = study.get_trial(3)
+    trial.complete(vz.Measurement(steps=1, metrics={'maximize_metric': 0.5}))
+    # Can't add measurements to completed trials; doing so is an error.
+    with self.assertRaises(Exception):
+      trial.add_measurement(
+          vz.Measurement(steps=2, metrics={'maximize_metric': 0.2})
+      )
 
   def test_study_property(self):
     study = self.create_test_study_with_trials(self.id())
     trial = study.get_trial(2)
-    self.assertEqual(trial.materialize(),
-                     trial.study.get_trial(2).materialize())
+    self.assertEqual(
+        trial.materialize(), trial.study.get_trial(2).materialize()
+    )
 
   def assertPassesE2ETuning(
       self,
       *,
-      study_factory: Optional[Callable[[vz.ProblemStatement],
-                                       _StudyClient]] = None,
+      study_factory: Optional[
+          Callable[[vz.ProblemStatement], _StudyClient]
+      ] = None,
       batch_size: int = 2,
       num_iterations: int = 5,
-      multi_objective: bool = False):
+      multi_objective: bool = False,
+  ):
     """Runs an e2e test.
 
     Args:
@@ -299,21 +340,27 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
       multi_objective:
     """
     study_factory = study_factory or functools.partial(
-        self.create_study, study_id=self.id())
+        self.create_study, study_id=self.id()
+    )
 
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param(
-        'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5)
+        'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5
+    )
     problem.search_space.root.add_int_param(
-        'num_layers', min_value=1, max_value=5)
+        'num_layers', min_value=1, max_value=5
+    )
     problem.metric_information = [
         vz.MetricInformation(
-            name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+            name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
     ]
     if multi_objective:
       problem.metric_information.append(
           vz.MetricInformation(
-              name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE))
+              name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE
+          )
+      )
 
     study: _StudyClient = study_factory(problem)
 
@@ -337,10 +384,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
               vz.Measurement(
                   steps=i,
                   elapsed_secs=0.1 * i,
-                  metrics={
-                      'accuracy': obj,
-                      'latency': 0.5 * num_layers
-                  }))
+                  metrics={'accuracy': obj, 'latency': 0.5 * num_layers},
+              )
+          )
         trial.complete()
         stored_curve = [
             m.metrics['accuracy'].value
@@ -352,7 +398,8 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
 
         # See if final_measurement is defaulted to end of curve.
         final_accuracy = (
-            trial.materialize().final_measurement.metrics['accuracy'].value)
+            trial.materialize().final_measurement.metrics['accuracy'].value
+        )
         self.assertEqual(evaluated_curve[-1], final_accuracy)
 
   def test_trial_update_metadata(self):
