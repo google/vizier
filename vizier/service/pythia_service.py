@@ -29,6 +29,8 @@ from vizier.service import service_policy_supporter
 from vizier.service import stubs_util
 from vizier.service import types
 
+from google.protobuf import empty_pb2
+
 
 class PolicyFactory(Protocol):
   """Protocol (PEP-544) for a Policy Factory."""
@@ -181,3 +183,10 @@ class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
     early_stopping_decisions = pythia_policy.early_stop(early_stop_request)
 
     return vz.EarlyStopConverter.to_decisions_proto(early_stopping_decisions)
+
+  def Ping(
+      self,
+      request: empty_pb2.Empty,
+      context: Optional[grpc.ServicerContext] = None,
+  ) -> empty_pb2.Empty:
+    return empty_pb2.Empty()

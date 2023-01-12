@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package vizier;
 
+import "google/protobuf/empty.proto";
 import "key_value.proto";
 import "study.proto";
 import "vizier_service.proto";
@@ -12,7 +13,10 @@ service PythiaService {
   // Vizier asks Pythia to decide which Trials should have their evaluation
   // stopped.
   rpc EarlyStop(EarlyStopRequest) returns (EarlyStopDecisions) {}
+  // Pings the Pythia server.
+  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
+
 message TrialSuggestion {
   repeated Trial.Parameter parameters = 1;
   repeated KeyValue metadata = 2;
