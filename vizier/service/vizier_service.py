@@ -162,12 +162,14 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     study = request.study
     owner_id = resources.OwnerResource.from_name(request.parent).owner_id
     if request.study.name:
-      raise ValueError(
-          'Study should not have a resource name. Study names can only be'
-          ' assigned by the Vizier service.'
+      e = ValueError(
+          'Maximum number of studies reached for owner {}.'.format(owner_id)
       )
+      grpc_util.handle_exception(e, context)
     if not request.study.display_name:
-      raise ValueError('Study display_name must be specified.')
+      grpc_util.handle_exception(
+          ValueError('Study display_name must be specified.'), context
+      )
 
     with self._owner_name_to_lock[request.parent]:
       # Database creates a new active study or loads existing study using the
@@ -179,9 +181,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
       # Check if all possible study_id's have been taken.
       if len(possible_candidate_studies) >= MAX_STUDY_ID:
-        raise ValueError(
+        e = ValueError(
             'Maximum number of studies reached for owner {}.'.format(owner_id)
         )
+        grpc_util.handle_exception(e, context)
 
       for candidate_study in possible_candidate_studies:
         if candidate_study.display_name == request.study.display_name:
@@ -484,9 +487,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
   ) -> study_pb2.Trial:
     """Adds user provided Trial to a Study and assigns the correct fields."""
     if self._study_is_immutable(request.parent):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot create trial.'.format(request.parent)
       )
+      grpc_util.handle_exception(e, context)
 
     trial = request.trial
     with self._study_name_to_lock[request.parent]:
@@ -604,10 +608,11 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         # Trial's final measurement auto-selected from latest reported
         # measurement.
         if not trial.measurements:
-          raise ValueError(
+          e = ValueError(
               'Both the request and trial intermediate measurements are'
               " missing. Cannot determine trial's final_measurement."
           )
+          grpc_util.handle_exception(e, context)
         trial.final_measurement.CopyFrom(trial.measurements[-1])
 
       # Handle infeasibility.
@@ -628,9 +633,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot delete trial.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     self.datastore.delete_trial(request.name)
     return empty_pb2.Empty()
@@ -680,19 +686,21 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     trial_resource = resources.TrialResource.from_name(request.trial_name)
     study_name = trial_resource.study_resource.name
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot early stop trial.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.trial_name)
       if trial.state not in self._TRIAL_MUTABLE_STATES:
-        raise custom_errors.ImmutableTrialError(
+        e = custom_errors.ImmutableTrialError(
             'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
             'can be completed.'.format(
                 request.trial_name, study_pb2.Trial.State.Name(trial.state)
             )
         )
+        grpc_util.handle_exception(e, context)
     outer_op_name = trial_resource.early_stopping_operation_resource.name
     # Don't allow simultaneous SuggestTrial or EarlyStopping calls to be
     # processed.
@@ -831,19 +839,21 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         request.name
     ).study_resource.name
     if self._study_is_immutable(study_name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot stop trial.'.format(study_name)
       )
+      grpc_util.handle_exception(e, context)
 
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
       if trial.state not in self._TRIAL_MUTABLE_STATES:
-        raise custom_errors.ImmutableTrialError(
+        e = custom_errors.ImmutableTrialError(
             'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
             'can be stopped.'.format(
                 request.name, study_pb2.Trial.State.Name(trial.state)
             )
         )
+        grpc_util.handle_exception(e, context)
       trial.state = study_pb2.Trial.STOPPING
       self.datastore.update_trial(trial)
     return trial
@@ -927,9 +937,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
   ) -> vizier_service_pb2.UpdateMetadataResponse:
     """Stores the supplied metadata in the database."""
     if self._study_is_immutable(request.name):
-      raise custom_errors.ImmutableStudyError(
+      e = custom_errors.ImmutableStudyError(
           'Study {} is immutable. Cannot update metadata.'.format(request.name)
       )
+      grpc_util.handle_exception(e, context)
 
     try:
       self.datastore.update_metadata(

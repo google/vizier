@@ -20,8 +20,6 @@ from __future__ import annotations
 import datetime
 import time
 import grpc
-from vizier.service import custom_errors
-from vizier.service import grpc_util
 from vizier.service import key_value_pb2
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -316,7 +314,7 @@ class VizierServicerTest(parameterized.TestCase):
       complete_trial_request.final_measurement.CopyFrom(final_measurement)
       self.vs.CompleteTrial(complete_trial_request)
     else:
-      with self.assertRaises(ValueError):
+      with self.assertRaises(grpc.RpcError):
         # trial and request both do not contain measurements.
         self.vs.CompleteTrial(complete_trial_request)
 
@@ -427,7 +425,7 @@ class VizierServicerTest(parameterized.TestCase):
           )
       )
 
-    with self.assertRaises(custom_errors.ImmutableTrialError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.CheckTrialEarlyStoppingState(
           vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
               trial_name=trial_name
@@ -453,11 +451,11 @@ class VizierServicerTest(parameterized.TestCase):
     )
     self.vs.datastore.create_study(study)
 
-    with self.assertRaises(grpc_util.LocalRpcError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.SuggestTrials(
           vizier_service_pb2.SuggestTrialsRequest(parent=study_name)
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.CreateTrial(
           vizier_service_pb2.CreateTrialRequest(
               parent=study_name, trial=study_pb2.Trial()
@@ -473,19 +471,19 @@ class VizierServicerTest(parameterized.TestCase):
       self.vs.CompleteTrial(
           vizier_service_pb2.CompleteTrialRequest(name=trial_name)
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.DeleteTrial(
           vizier_service_pb2.DeleteTrialRequest(name=trial_name)
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.CheckTrialEarlyStoppingState(
           vizier_service_pb2.CheckTrialEarlyStoppingStateRequest(
               trial_name=trial_name
           )
       )
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.StopTrial(vizier_service_pb2.StopTrialRequest(name=trial_name))
-    with self.assertRaises(custom_errors.ImmutableStudyError):
+    with self.assertRaises(grpc.RpcError):
       self.vs.UpdateMetadata(
           vizier_service_pb2.UpdateMetadataRequest(name=study_name)
       )
