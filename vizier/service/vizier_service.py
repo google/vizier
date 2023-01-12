@@ -76,7 +76,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
           seconds=60
       ),
-      policy_factory: pythia_service.PolicyFactory = pythia_service.default_policy_factory,
+      default_pythia_service: Optional[types.PythiaService] = None,
   ):
     """Initializes the service.
 
@@ -89,12 +89,14 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_recycle_period: Amount of time needed to pass before recycling
         an early stopping operation. See `CheckEarlyStoppingState` for more
         details.
-      policy_factory: Protocol/function, only passed when using a local
-        PythiaService instance.
+      default_pythia_service: Default PythiaService to use when
+        StudyConfig.pythia_endpoint is unset. If None, creates a local
+        PythiaServicer.
     """
-    # By default, uses a local PythiaService instance.
-    self._pythia_service: types.PythiaService = pythia_service.PythiaServicer(
-        vizier_service=self, policy_factory=policy_factory
+    # By default, uses a local PythiaServicer instance.
+    self.default_pythia_service: types.PythiaService = (
+        default_pythia_service
+        or pythia_service.PythiaServicer(vizier_service=self)
     )
 
     if database_url is None:
@@ -117,11 +119,19 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
     self._early_stop_recycle_period = early_stop_recycle_period
 
-  def connect_to_pythia(self, endpoint: str) -> None:
-    # This replaces the local PythiaService.
+  def _select_pythia_service(
+      self, endpoint: Optional[str] = None
+  ) -> types.PythiaService:
+    """Selects PythiaService to use."""
+    # TODO: Add test for StudyConfig endpointing.
+    if endpoint is None:
+      logging.info('Using default PythiaServicer.')
+      return self.default_pythia_service
+
     logging.info('Connecting to Pythia endpoint: %s', endpoint)
-    self._pythia_service = stubs_util.create_pythia_server_stub(endpoint)
-    logging.info('Created Pythia server stub: %s', self._pythia_service)
+    pythia_stub = stubs_util.create_pythia_server_stub(endpoint)
+    logging.info('Created Pythia Server stub: %s', pythia_stub)
+    return pythia_stub
 
   def _study_is_immutable(self, study_name: str) -> bool:
     """Checks if study is immutable to block study-related mutations."""
@@ -351,8 +361,9 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         return output_op
 
       # Still need more suggestions. Pythia begins computing missing amount.
+      study_config = svz.StudyConfig.from_proto(study.study_spec)
       study_descriptor = vz.StudyDescriptor(
-          config=svz.StudyConfig.from_proto(study.study_spec),
+          config=study_config,
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name),
       )
@@ -368,7 +379,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       suggest_request_proto.algorithm = study.study_spec.algorithm
 
       try:
-        suggest_decision_proto = self._pythia_service.Suggest(
+        temp_pythia_service = self._select_pythia_service(
+            study_config.pythia_endpoint
+        )
+        suggest_decision_proto = temp_pythia_service.Suggest(
             suggest_request_proto
         )
       # Pythia can raise any exception, captured inside grpc.RpcError.
@@ -716,9 +730,9 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         self.datastore.update_early_stopping_operation(output_operation)
 
       study = self.datastore.load_study(study_name)
-      pythia_sc = svz.StudyConfig.from_proto(study.study_spec)
+      study_config = svz.StudyConfig.from_proto(study.study_spec)
       study_descriptor = vz.StudyDescriptor(
-          config=pythia_sc,
+          config=study_config,
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name),
       )
@@ -731,7 +745,10 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_request_proto.algorithm = study.study_spec.algorithm
 
       # Send request to Pythia.
-      early_stopping_decisions_proto = self._pythia_service.EarlyStop(
+      temp_pythia_service = self._select_pythia_service(
+          study_config.pythia_endpoint
+      )
+      early_stopping_decisions_proto = temp_pythia_service.EarlyStop(
           early_stop_request_proto
       )
       early_stopping_decisions = svz.EarlyStopConverter.from_decisions_proto(

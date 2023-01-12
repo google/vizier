@@ -66,7 +66,6 @@ class DefaultVizierServer:
     self._servicer = vizier_service.VizierServicer(
         database_url=self._database_url,
         early_stop_recycle_period=self._early_stop_recycle_period,
-        policy_factory=self._policy_factory,
     )
     self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=30))
     vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
@@ -75,6 +74,12 @@ class DefaultVizierServer:
     self._server.add_secure_port(self.endpoint, grpc.local_server_credentials())
     self._server.start()
     self.stub = stubs_util.create_vizier_server_stub(self.endpoint)
+
+    # Re-set the default Pythia Service to allow custom policy factories.
+    default_pythia_service = pythia_service.PythiaServicer(
+        self._servicer, policy_factory=self._policy_factory
+    )
+    self._servicer.default_pythia_service = default_pythia_service
 
   def wait_for_early_stop_recycle_period(self) -> None:
     time.sleep(self._early_stop_recycle_period.total_seconds())
@@ -117,5 +122,5 @@ class DistributedPythiaVizierServer(DefaultVizierServer):
     )
 
     # Connect Vizier and Pythia servers together.
-    self._servicer.connect_to_pythia(self.pythia_endpoint)
+    self._servicer.default_pythia_service = self.pythia_stub
     self._pythia_servicer.connect_to_vizier(self.endpoint)
