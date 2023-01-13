@@ -29,6 +29,7 @@ jobs:
           pip install wheel
           pip install grpcio-tools==1.48.2
           pip install pytest pytest-xdist
+          pip install -r requirements-test.txt
       - name: Install Vizier
         run: |
           pip wheel -e .

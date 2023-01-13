@@ -1,12 +1,8 @@
 attrs==21.4.0
 absl-py>=1.0.0
 numpy>=1.21.5
-coverage>=4.5,<=6.4.2
 protobuf>=3.6,<4.0
-mock>=3.0,<=4.0.3
-pytype>=2022.10.26
 portpicker>=1.5.2
-pytest  # Use the latest version to match github workflow.
 grpcio>=1.35.0,<=1.48.2
 grpcio-tools>=1.35.0,<=1.48.2
 googleapis-common-protos>=1.56.4
