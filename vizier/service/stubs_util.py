@@ -27,9 +27,9 @@ from vizier.service import vizier_service_pb2_grpc
 def _create_channel(endpoint: str) -> grpc.Channel:
   """Creates GRPC channel."""
   logging.info('Securing channel to %s.', endpoint)
-  channel = grpc.secure_channel(endpoint, grpc.local_channel_credentials())
+  channel = grpc.insecure_channel(endpoint)
   grpc.channel_ready_future(channel).result()
-  logging.info('Secured channel to %s.', endpoint)
+  logging.info('Created channel to %s.', endpoint)
   return channel
 
 

@@ -71,7 +71,7 @@ class DefaultVizierServer:
     vizier_service_pb2_grpc.add_VizierServiceServicer_to_server(
         self._servicer, self._server
     )
-    self._server.add_secure_port(self.endpoint, grpc.local_server_credentials())
+    self._server.add_insecure_port(self.endpoint)
     self._server.start()
     self.stub = stubs_util.create_vizier_server_stub(self.endpoint)
 
@@ -113,9 +113,7 @@ class DistributedPythiaVizierServer(DefaultVizierServer):
     pythia_service_pb2_grpc.add_PythiaServiceServicer_to_server(
         self._pythia_servicer, self._pythia_server
     )
-    self._pythia_server.add_secure_port(
-        self.pythia_endpoint, grpc.local_server_credentials()
-    )
+    self._pythia_server.add_insecure_port(self.pythia_endpoint)
     self._pythia_server.start()
     self.pythia_stub = stubs_util.create_pythia_server_stub(
         self.pythia_endpoint
