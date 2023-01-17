@@ -64,8 +64,9 @@ which will also install the dependencies:
 * `requirements-tf.txt`: Tensorflow libraries shared by both algorithms and benchmarks.
 * `requirements-algorithms.txt`: Additional repositories (e.g. Emukit) for algorithms.
 * `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
+* `requirements-test.txt`: Libraries needed for testing code.
 
-Check if all unit tests work by running `run_tests.sh`. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
+Check if all unit tests work by running `run_tests.sh` after a full installation. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
 
 
 ## Citing Vizier <a name="citing_vizier"></a>
