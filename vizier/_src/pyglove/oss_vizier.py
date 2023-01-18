@@ -86,7 +86,11 @@ class _OSSVizierTuner(client.VizierTuner):
   def __init__(
       self, endpoint: Optional[str] = None, pythia_port: Optional[int] = None
   ):
-    endpoint = endpoint or vizier_client.NO_ENDPOINT
+    if endpoint:
+      pyvizier_clients.environment_variables.server_endpoint = endpoint
+    else:
+      endpoint = vizier_client.NO_ENDPOINT
+
     self._vizier_service = vizier_client.create_vizier_servicer_or_stub(
         endpoint
     )

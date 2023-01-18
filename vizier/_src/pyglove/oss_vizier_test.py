@@ -28,15 +28,25 @@ from __future__ import annotations
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tests for pyglove.tuner.vizier2.oss_vizier_test."""
+import os
 from absl import logging
 from vizier._src.pyglove import oss_vizier as vizier
 from vizier._src.pyglove import vizier_test_lib
+
+from vizier.service import vizier_server
+
 from absl.testing import absltest
+
+server = None
 
 
 def setUpModule():
+  hostname = os.uname()[1]
+  global server
+  server = vizier_server.DefaultVizierServer(host=hostname)
+  logging.info(server.endpoint)
   vizier._global_states.vizier_tuner = None
-  vizier.init()
+  vizier.init(vizier_endpoint=server.endpoint)
   logging.info('Setupmodule done!')
 
 
