@@ -50,7 +50,8 @@ one that simulates the stochasticity of natural evaluation processes.
 """
 
 import abc
-from typing import Optional, Sequence, Protocol
+import time
+from typing import Optional, Protocol, Sequence
 
 from absl import logging
 import attr
@@ -59,6 +60,7 @@ from vizier import pythia
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.runners import algorithm_suggester
+
 
 AlgorithmSuggester = algorithm_suggester.AlgorithmSuggester
 
@@ -110,12 +112,15 @@ class DesignerBenchmarkStateFactory(BenchmarkStateFactory):
         experimenter=self.experimenter,
         algorithm=algorithm_suggester.DesignerSuggester(
             designer=self.designer_factory(problem, seed),
-            local_supporter=pythia.InRamPolicySupporter(problem)))
+            local_supporter=pythia.InRamPolicySupporter(problem),
+        ),
+    )
 
 
 @attr.define(frozen=True)
 class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
   """Factory class to generate new BenchmarkState from policy factory."""
+
   policy_factory: SeedPolicyFactory
 
   def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
@@ -125,7 +130,9 @@ class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
         experimenter=self.experimenter,
         algorithm=algorithm_suggester.PolicySuggester(
             policy=self.policy_factory(problem, seed),
-            local_supporter=pythia.InRamPolicySupporter(problem)))
+            local_supporter=pythia.InRamPolicySupporter(problem),
+        ),
+    )
 
 
 class BenchmarkSubroutine(abc.ABC):
@@ -150,14 +157,19 @@ class GenerateAndEvaluate(BenchmarkSubroutine):
 
   # Number of total suggestions as a batch.
   batch_size: int = attr.field(
-      default=1, validator=attr.validators.instance_of(int))
+      default=1, validator=attr.validators.instance_of(int)
+  )
 
   def run(self, state: BenchmarkState) -> None:
     suggestions = state.algorithm.suggest(self.batch_size)
     if not suggestions:
       logging.info(
-          'Algorithm did not generate %d suggestions'
-          'because it returned nothing.', self.batch_size)
+          (
+              'Algorithm did not generate %d suggestions'
+              'because it returned nothing.'
+          ),
+          self.batch_size,
+      )
     state.experimenter.evaluate(list(suggestions))
     # Only needed for Designers.
     state.algorithm.post_completion_callback(vza.CompletedTrials(suggestions))
@@ -169,14 +181,19 @@ class GenerateSuggestions(BenchmarkSubroutine):
 
   # Number of total suggestions as a batch.
   batch_size: int = attr.field(
-      default=1, validator=attr.validators.instance_of(int))
+      default=1, validator=attr.validators.instance_of(int)
+  )
 
   def run(self, state: BenchmarkState) -> None:
     suggestions = state.algorithm.suggest(self.batch_size)
     if not suggestions:
       logging.info(
-          'Suggestions did not generate %d suggestions'
-          'because designer returned nothing.', self.batch_size)
+          (
+              'Suggestions did not generate %d suggestions'
+              'because designer returned nothing.'
+          ),
+          self.batch_size,
+      )
 
 
 @attr.define
@@ -188,17 +205,19 @@ class EvaluateActiveTrials(BenchmarkSubroutine):
 
   def run(self, state: BenchmarkState) -> None:
     active_trials = state.algorithm.supporter.GetTrials(
-        status_matches=vz.TrialStatus.ACTIVE)
+        status_matches=vz.TrialStatus.ACTIVE
+    )
 
     if self.num_evaluations is None:
       evaluated_trials = active_trials
     else:
-      evaluated_trials = active_trials[:self.num_evaluations]
+      evaluated_trials = active_trials[: self.num_evaluations]
 
     state.experimenter.evaluate(evaluated_trials)
     # Only needed for Designers.
     state.algorithm.post_completion_callback(
-        vza.CompletedTrials(evaluated_trials))
+        vza.CompletedTrials(evaluated_trials)
+    )
 
 
 @attr.define
@@ -209,10 +228,19 @@ class BenchmarkRunner(BenchmarkSubroutine):
   benchmark_subroutines: Sequence[BenchmarkSubroutine] = attr.field()
   # Number of times to repeat applying benchmark_subroutines.
   num_repeats: int = attr.field(
-      default=1, validator=attr.validators.instance_of(int))
+      default=1, validator=attr.validators.instance_of(int)
+  )
 
   def run(self, state: BenchmarkState) -> None:
     """Run algorithm with benchmark subroutines with repetitions."""
-    for _ in range(self.num_repeats):
+    for iteration in range(self.num_repeats):
+      start = time.time()
       for subroutine in self.benchmark_subroutines:
         subroutine.run(state)
+      total_time = time.time() - start
+      logging.info(
+          'Completed BenchmarkRunner iteration %d out of %d (%f seconds)',
+          iteration,
+          self.num_repeats,
+          total_time,
+      )
