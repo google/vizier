@@ -84,38 +84,48 @@ from vizier.pyvizier import converters
 
 @attr.define
 class EagleStrategyConfig:
-  """Eagle Strategy Optimizer Config.
+  """Eagle Strategy optimizer config.
 
   Attributes:
     visibility: The sensetivity to distance between flies when computing pulls.
     gravity: The maximum amount of attraction pull.
     negative_gravity: The maximum amount of repulsion pull.
     perturbation: The default amount of noise for perturbation.
+    categorical_perturbation_factor: A factor to apply on categorical params.
+    pure_categorical_perturbation_factor: A factor on purely categorical space.
     perturbation_lower_bound: The threshold below flies are removed from pool.
     penalize_factor: The perturbation decrease for unsuccessful flies.
+    pool_size_exponent: An exponent for computing pool size based on search
+      space size.
+    pool_size: An optional way to set the pool size. If not 0, this takes
+      precedent over the programatic pool size computation.
+    mutate_normalization_type: The type of force mutation normalizatoin used for
+      damping down the force intensity to stay within reasonable bounds.
+    normalization_scale: A mutation force scale-factor to control intensity.
+    prior_trials_pool_pct: The percentage of the pool populated by prior trials.
   """
 
   # Visibility
-  visibility: float = 3.0
+  visibility: float = 0.45
   # Gravity
-  gravity: float = 1.0
-  negative_gravity: float = 0.02
+  gravity: float = 1.5
+  negative_gravity: float = 0.008
   # Perturbation
-  perturbation: float = 0.01
+  perturbation: float = 0.16
   categorical_perturbation_factor: float = 25
   pure_categorical_perturbation_factor: float = 30
   # Penalty
-  perturbation_lower_bound: float = 0.001
-  penalize_factor: float = 0.9
+  perturbation_lower_bound: float = 7e-5
+  penalize_factor: float = 7e-1
   # Pool size
   pool_size_exponent: float = 1.2
   pool_size: int = 0
   # Force normalization mode
   mutate_normalization_type: str = "mean"
   # Multiplier factor when using normalized modes.
-  normalization_scale: float = 1.0
+  normalization_scale: float = 0.5
   # The percentage of the firefly pool to be populated with prior trials.
-  prior_trials_pool_pct: float = 0.7
+  prior_trials_pool_pct: float = 0.96
 
 
 @attr.define(frozen=True)
