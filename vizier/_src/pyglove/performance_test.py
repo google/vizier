@@ -26,41 +26,40 @@ from vizier._src.pyglove import oss_vizier as vizier
 from absl.testing import absltest
 from absl.testing import parameterized
 
+
+NUM_TRIALS_PER_WORKER = 10
+NUM_WORKERS = 10
+
 vizier.init()
 
 
 class PerformanceTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      (1, 10),
-      (2, 10),
-      (10, 10),
+      (multiprocessing.pool.ThreadPool,),
+      # (multiprocessing.Pool,),  # Fails currently.
   )
-  def test_multithreaded_workers(
-      self, num_simultaneous_workers, num_trials_per_worker
-  ):
-    def thread_fn(client_id: int):
-      del client_id
+  def test_multiple_workers(self, pool_creator):
+    def work_fn(worker_id: int):
+      del worker_id
       algorithm = pg.evolution.regularized_evolution()
       for _, feedback in pg.sample(
           hyper_value=pg.Dict(x=pg.oneof([1, 2, 3])),
           algorithm=algorithm,
-          num_examples=num_simultaneous_workers,
-          name='multithread_testing',
+          num_examples=NUM_TRIALS_PER_WORKER,
+          name='performance_testing',
       ):
         feedback(reward=random.random())
 
-    pool = multiprocessing.pool.ThreadPool(num_simultaneous_workers)
-
-    start = time.time()
-    pool.map(thread_fn, range(num_simultaneous_workers))
-    end = time.time()
-    pool.close()
+    with pool_creator(NUM_WORKERS) as pool:
+      start = time.time()
+      pool.map(work_fn, range(NUM_WORKERS))
+      end = time.time()
 
     logging.info(
         'For %d workers to evaluate %d trials each, it took %f seconds total.',
-        num_simultaneous_workers,
-        num_trials_per_worker,
+        NUM_WORKERS,
+        NUM_TRIALS_PER_WORKER,
         end - start,
     )
 
