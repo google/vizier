@@ -54,6 +54,29 @@ class TrialToArrayConverterTest(absltest.TestCase):
                              converter.to_parameters(
                                  converter.to_features(self._trials)))
 
+  def test_parameter_continuify(self):
+    space = pyvizier.SearchSpace()
+    root = space.root
+    root.add_float_param('double', -2.0, 2.0)
+    root.add_int_param('integer', -2, 2)
+    root.add_categorical_param('categorical', ['b', 'c'])
+    root.add_discrete_param('discrete', [-1.0, 2.0, 3.0])
+
+    converter = core.TrialToArrayConverter.from_study_config(
+        pyvizier.ProblemStatement(search_space=space)
+    )
+    trial = pyvizier.Trial(
+        parameters={
+            'double': pyvizier.ParameterValue(3.0),
+            'integer': pyvizier.ParameterValue(-1),
+            'discrete': pyvizier.ParameterValue(2.0),
+            'categorical': pyvizier.ParameterValue('d'),
+        }
+    )
+    # Scaled outputs + 1 hot embedding for categoricals.
+    expected = np.array([[1.25, 0.25, 0, 0, 1, 0.75]])
+    np.testing.assert_equal(converter.to_features([trial]), expected)
+
 
 class DictToArrayTest(absltest.TestCase):
 

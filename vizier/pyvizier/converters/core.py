@@ -1134,7 +1134,8 @@ class TrialToArrayConverter:
         non-CONTINUOUS parameters.
       max_discrete_indices: For DISCRETE and INTEGER types that have more than
         this many feasible values will be continuified. When generating
-        suggestions, values are rounded to the nearest feasible value.
+        suggestions, values are rounded to the nearest feasible value. Note this
+        default is different from the default in DefaultModelInputConverter.
       flip_sign_for_minimization_metrics: If True, flips the metric signs so
         that every metric maximizes.
       dtype: dtype
