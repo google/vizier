@@ -86,6 +86,7 @@ class _OSSVizierTuner(client.VizierTuner):
   def __init__(
       self, endpoint: Optional[str] = None, pythia_port: Optional[int] = None
   ):
+    super().__init__()
     if endpoint:
       pyvizier_clients.environment_variables.server_endpoint = endpoint
     else:
@@ -101,7 +102,7 @@ class _OSSVizierTuner(client.VizierTuner):
     del algorithm
     return self._get_pythia_endpoint()
 
-  def start_pythia_service(
+  def _start_pythia_service(
       self, policy_cache: dict[StudyKey, TunerPolicy]
   ) -> bool:
     """See parent class."""

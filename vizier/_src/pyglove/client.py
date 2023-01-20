@@ -17,6 +17,7 @@ from __future__ import annotations
 """Abstraction for Vizier Tuner."""
 
 import abc
+import threading
 from typing import NewType, Union
 
 import attrs
@@ -49,13 +50,24 @@ class VizierTuner(abc.ABC):
   """
   # NOTE(chansoo): All of the methods can technically become a classmethod.
 
+  def __init__(self):
+    self._pythia_lock = threading.Lock()
+
   @abc.abstractmethod
   def get_tuner_id(self, algorithm: pg.DNAGenerator) -> str:
     """Get identifier of this tuner instance."""
 
-  @abc.abstractmethod
   def start_pythia_service(
-      self, policy_cache: dict[StudyKey, pg_pythia.TunerPolicy]) -> bool:
+      self, policy_cache: dict[StudyKey, pg_pythia.TunerPolicy]
+  ) -> bool:
+    """Start pythia service on current machine."""
+    with self._pythia_lock:
+      self._start_pythia_service(policy_cache)
+
+  @abc.abstractmethod
+  def _start_pythia_service(
+      self, policy_cache: dict[StudyKey, pg_pythia.TunerPolicy]
+  ) -> bool:
     """Starts pythia service _only if_ there is no pythia service running.
 
     Args:
@@ -101,4 +113,3 @@ class VizierTuner(abc.ABC):
       self, study: client_abc.StudyInterface
   ) -> pythia.PolicySupporter:
     """Creates a pythia policy supporter for this study."""
-

@@ -31,6 +31,7 @@ from __future__ import annotations
 import enum
 import getpass
 import time
+
 from typing import Any, Optional, Sequence, Union
 
 from absl import logging
@@ -226,23 +227,24 @@ class VizierBackend(pg.tuning.Backend):
           name,
       )
       # Study exists.
-      if (mode != TunerMode.SECONDARY) and (
-          not self.tuner.ping_tuner(self._get_chief_tuner_id())
-      ):
-        # NOTE(daiyip): there could be a race condition that multiple workers
-        # elect themselves as the new primary, and all of them regard
-        # themselves as the elected. When this happens, multiple workers
-        # may be hosting the Pythia service for this study. However, the study
-        # will use one address (BNS of the latest elected worker) as the
-        # Pythia endpoint. Besides, all states are stored in the study,
-        # restart of workers will pick up these states from the study.
-        # This is done by replaying existing trials to recompute the states of
-        # the search algorithm. Therefore, it does not matter which worker is
-        # chosen to serve the study, which should work equally well.
-        # On the other hand, it is cheap to serve a PythiaService without
-        # incoming queries. Therefore, we do not handle this race conditions
-        # with expensive distributed locks.
-        mode = TunerMode.PRIMARY
+      if mode == TunerMode.AUTO:
+        if self.tuner.ping_tuner(self._get_chief_tuner_id()):
+          mode = TunerMode.SECONDARY
+        else:
+          # NOTE(daiyip): there could be a race condition that multiple workers
+          # elect themselves as the new primary, and all of them regard
+          # themselves as the elected. When this happens, multiple workers
+          # may be hosting the Pythia service for this study. However, the study
+          # will use one address (BNS of the latest elected worker) as the
+          # Pythia endpoint. Besides, all states are stored in the study,
+          # restart of workers will pick up these states from the study.
+          # This is done by replaying existing trials to recompute the states of
+          # the search algorithm. Therefore, it does not matter which worker is
+          # chosen to serve the study, which should work equally well.
+          # On the other hand, it is cheap to serve a PythiaService without
+          # incoming queries. Therefore, we do not handle this race conditions
+          # with expensive distributed locks.
+          mode = TunerMode.PRIMARY
     except KeyError:
       # Study does not exist.
       if mode == TunerMode.SECONDARY:
@@ -250,17 +252,28 @@ class VizierBackend(pg.tuning.Backend):
       else:
         mode = TunerMode.PRIMARY  # We will make this a chief
         problem = self._converter.problem_or_dummy
+        local_tuner_id = self.tuner.get_tuner_id(self._algorithm)
         problem.metadata.ns(constants.METADATA_NAMESPACE)[
             constants.STUDY_METADATA_KEY_TUNER_ID
-        ] = self.tuner.get_tuner_id(self._algorithm)
+        ] = local_tuner_id
         self._study = self.tuner.create_study(
             problem, self._converter, study_owner, name, self._algorithm
         )
-        if add_prior_trials:
-          # Trials are added to the study directly upon creation.
-          trials: Sequence[vz.Trial] = self._load_prior_trials(prior_study_ids)
-          for trial in trials:
-            self._study._add_trial(trial)
+        if local_tuner_id == self._get_chief_tuner_id():
+          # For multi-thread scenario, `local_tuner_id` will be the same for
+          # all the worker threads, therefore there is a chance that multiple
+          # worker threads consider themselves as PRIMARY. This does not matter
+          # since there is only one Pythia service shared across them.
+          mode = TunerMode.PRIMARY  # We will make this a chief
+          if add_prior_trials:
+            # Trials are added to the study directly upon creation.
+            trials: Sequence[vz.Trial] = self._load_prior_trials(
+                prior_study_ids
+            )
+            for trial in trials:
+              self._study._add_trial(trial)
+        else:
+          mode = TunerMode.SECONDARY
 
     # Set up the generator.
     def _suggestion_generator():
