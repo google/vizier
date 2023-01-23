@@ -21,7 +21,7 @@ import copy
 import dataclasses
 import enum
 import itertools
-from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
 import attr
@@ -42,31 +42,38 @@ class NumpyArraySpecType(enum.Enum):
   DISCRETE: Discrete/integer/categorical parameter
   ONEHOT_EMBEDDING: One-hot embedding of DISCRETE.
   """
+
   CONTINUOUS = 'CONTINUOUS'
   DISCRETE = 'DISCRETE'
   ONEHOT_EMBEDDING = 'ONEHOT_EMBEDDING'
 
   @classmethod
-  def default_factory(cls,
-                      pc: pyvizier.ParameterConfig) -> 'NumpyArraySpecType':
+  def default_factory(
+      cls, pc: pyvizier.ParameterConfig
+  ) -> 'NumpyArraySpecType':
     """SpecType when encoding discretes as integer indices."""
     if pc.type == pyvizier.ParameterType.DOUBLE:
       return NumpyArraySpecType.CONTINUOUS
-    elif pc.type in (pyvizier.ParameterType.DISCRETE,
-                     pyvizier.ParameterType.CATEGORICAL,
-                     pyvizier.ParameterType.INTEGER):
+    elif pc.type in (
+        pyvizier.ParameterType.DISCRETE,
+        pyvizier.ParameterType.CATEGORICAL,
+        pyvizier.ParameterType.INTEGER,
+    ):
       return NumpyArraySpecType.DISCRETE
     raise ValueError(f'Unknown type {pc.type}')
 
   @classmethod
-  def embedding_factory(cls,
-                        pc: pyvizier.ParameterConfig) -> 'NumpyArraySpecType':
+  def embedding_factory(
+      cls, pc: pyvizier.ParameterConfig
+  ) -> 'NumpyArraySpecType':
     """SpecType when encoding discretes as onehot embedding."""
     if pc.type == pyvizier.ParameterType.DOUBLE:
       return NumpyArraySpecType.CONTINUOUS
-    elif pc.type in (pyvizier.ParameterType.DISCRETE,
-                     pyvizier.ParameterType.CATEGORICAL,
-                     pyvizier.ParameterType.INTEGER):
+    elif pc.type in (
+        pyvizier.ParameterType.DISCRETE,
+        pyvizier.ParameterType.CATEGORICAL,
+        pyvizier.ParameterType.INTEGER,
+    ):
       return NumpyArraySpecType.ONEHOT_EMBEDDING
     raise ValueError(f'Unknown type {pc.type}')
 
@@ -106,6 +113,7 @@ class NumpyArraySpec:
     num_oovs: Number of out-of-vocabulary items, for non-continuous type.
     scale: Scaling of the values.
   """
+
   type: NumpyArraySpecType
   dtype: np.dtype
   bounds: Union[Tuple[float, float], Tuple[int, int]]
@@ -115,20 +123,22 @@ class NumpyArraySpec:
   scale: Optional[pyvizier.ScaleType] = None
 
   def __attrs_post_init__(self):
-    object.__setattr__(self, 'bounds',
-                       tuple(np.array(self.bounds, dtype=self.dtype)))
+    object.__setattr__(
+        self, 'bounds', tuple(np.array(self.bounds, dtype=self.dtype))
+    )
 
   @classmethod
   def from_parameter_config(
       cls,
       pc: pyvizier.ParameterConfig,
       type_factory: Callable[
-          [pyvizier.ParameterConfig],
-          NumpyArraySpecType] = NumpyArraySpecType.default_factory,
+          [pyvizier.ParameterConfig], NumpyArraySpecType
+      ] = NumpyArraySpecType.default_factory,
       floating_dtype: np.dtype = np.float32,
       int_dtype: np.dtype = np.int32,
       *,
-      pad_oovs: bool = True) -> 'NumpyArraySpec':
+      pad_oovs: bool = True,
+  ) -> 'NumpyArraySpec':
     """Factory function.
 
     Args:
@@ -153,7 +163,8 @@ class NumpyArraySpec:
           num_dimensions=1,
           scale=pc.scale_type,
           name=pc.name,
-          num_oovs=0)
+          num_oovs=0,
+      )
     elif the_type == NumpyArraySpecType.DISCRETE:
       return NumpyArraySpec(
           the_type,
@@ -161,19 +172,21 @@ class NumpyArraySpec:
           bounds=(0, len(pc.feasible_values)),
           num_dimensions=1,
           name=pc.name,
-          num_oovs=1 if pad_oovs else 0)
+          num_oovs=1 if pad_oovs else 0,
+      )
     elif the_type == NumpyArraySpecType.ONEHOT_EMBEDDING:
       return NumpyArraySpec(
           the_type,
           floating_dtype,
-          bounds=(0., 1.),
+          bounds=(0.0, 1.0),
           num_dimensions=len(pc.feasible_values) + 1,
           name=pc.name,
-          num_oovs=1 if pad_oovs else 0)
+          num_oovs=1 if pad_oovs else 0,
+      )
     raise ValueError(f'Unknown type {type}')
 
 
-def dict_to_array(array_dict: Mapping[str, np.ndarray]) -> np.ndarray:
+def dict_to_array(array_dict: Mapping[Any, np.ndarray]) -> np.ndarray:
   r"""Converts a dict of (..., D_i) arrays to a (..., \sum_i D_i) array."""
   return np.concatenate(list(array_dict.values()), axis=-1)
 
@@ -195,11 +208,14 @@ class DictOf2DArrays(Mapping[str, np.ndarray]):
       if shape is None:
         shape = v.shape
         if len(shape) != 2:
-          raise ValueError(f'{k} has shape {v.shape} which is not length 2.'
-                           'DictOf2DArrays only supports 2D numpy arrays.')
+          raise ValueError(
+              f'{k} has shape {v.shape} which is not length 2.'
+              'DictOf2DArrays only supports 2D numpy arrays.'
+          )
       if shape[0] != v.shape[0]:
         raise ValueError(
-            f'{k} has shape {v.shape} which is not equal to {shape}.')
+            f'{k} has shape {v.shape} which is not equal to {shape}.'
+        )
     self._size = shape[0]
 
   def __getitem__(self, key: str) -> np.ndarray:
@@ -218,7 +234,8 @@ class DictOf2DArrays(Mapping[str, np.ndarray]):
       # We don't check the keys because it's too slow.
       raise ValueError('Two arrays have different length!')
     return DictOf2DArrays(
-        {k: np.concatenate([self[k], other[k]], axis=0) for k in self})
+        {k: np.concatenate([self[k], other[k]], axis=0) for k in self}
+    )
 
   @property
   def size(self) -> int:
@@ -354,7 +371,8 @@ class ModelInputConverter(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
   def to_parameter_values(
-      self, array: np.ndarray) -> List[Optional[pyvizier.ParameterValue]]:
+      self, array: np.ndarray
+  ) -> List[Optional[pyvizier.ParameterValue]]:
     """Convert to parameter values."""
     pass
 
@@ -362,6 +380,7 @@ class ModelInputConverter(metaclass=abc.ABCMeta):
 @dataclasses.dataclass
 class ModelInputArrayBijector:
   """Transformations on the numpy arrays generated by ModelInputConverter."""
+
   forward_fn: Callable[[np.ndarray], np.ndarray]
   backward_fn: Callable[[np.ndarray], np.ndarray]
   output_spec: NumpyArraySpec  # Spec after forward_fn is applied.
@@ -381,8 +400,11 @@ class ModelInputArrayBijector:
       def backward_fn(y):
         return np.where(np.isfinite(y), np.zeros_like(y) + low, y)
 
-      return cls(lambda x: np.where(np.isfinite(x), np.zeros_like(x), x),
-                 backward_fn, attr.evolve(spec, bounds=(.0, 1.), scale=None))
+      return cls(
+          lambda x: np.where(np.isfinite(x), np.zeros_like(x), x),
+          backward_fn,
+          attr.evolve(spec, bounds=(0.0, 1.0), scale=None),
+      )
 
     if spec.scale == pyvizier.ScaleType.LOG:
       low, high = np.log(low), np.log(high)
@@ -403,10 +425,11 @@ class ModelInputArrayBijector:
 
       def unscale_fn(x, high=high, low=low, original_sum=original_sum):
         return original_sum - np.exp(high - (high - low) * x)
+
     else:
       if not (spec.scale == pyvizier.ScaleType.LINEAR or spec.scale is None):
         logging.warning('Unknown scale type %s. Applying LINEAR', spec.scale)
-      denom = (high - low)
+      denom = high - low
       if denom < 1e-6:
         logging.warning('Unusually small range detected for %s', spec)
       if denom == 1.0 and low == 0:
@@ -414,16 +437,14 @@ class ModelInputArrayBijector:
       scale_fn = lambda x, high=high, low=low: (x - low) / (high - low)
       unscale_fn = lambda x, high=high, low=low: x * (high - low) + low
 
-    return cls(scale_fn, unscale_fn,
-               attr.evolve(spec, bounds=(.0, .1), scale=None))
+    return cls(
+        scale_fn, unscale_fn, attr.evolve(spec, bounds=(0.0, 0.1), scale=None)
+    )
 
   @classmethod
-  def onehot_embedder_from_spec(cls,
-                                spec: NumpyArraySpec,
-                                *,
-                                dtype=np.float32,
-                                pad_oovs: bool = True
-                               ) -> 'ModelInputArrayBijector':
+  def onehot_embedder_from_spec(
+      cls, spec: NumpyArraySpec, *, dtype=np.float32, pad_oovs: bool = True
+  ) -> 'ModelInputArrayBijector':
     """Given a discrete spec, one-hot embeds it."""
     if spec.type != NumpyArraySpecType.DISCRETE:
       return cls.identity(spec)
@@ -432,27 +453,30 @@ class ModelInputArrayBijector:
     output_spec = NumpyArraySpec(
         NumpyArraySpecType.ONEHOT_EMBEDDING,
         dtype,
-        bounds=(0., 1.),
+        bounds=(0.0, 1.0),
         num_dimensions=int(spec.bounds[1] - spec.bounds[0] + num_oovs),
         name=spec.name,
         num_oovs=num_oovs,
-        scale=None)
+        scale=None,
+    )
 
     def embed_fn(x: np.ndarray, output_spec=output_spec):
       """x is integer array of [N, 1]."""
-      return np.eye(
-          output_spec.num_dimensions, dtype=output_spec.dtype)[x.flatten()]
+      return np.eye(output_spec.num_dimensions, dtype=output_spec.dtype)[
+          x.flatten()
+      ]
 
     def unembed_fn(x: np.ndarray, spec=spec, output_spec=output_spec):
       return np.argmax(
-          x[:, :output_spec.num_dimensions - output_spec.num_oovs],
-          axis=1).astype(spec.dtype)
+          x[:, : output_spec.num_dimensions - output_spec.num_oovs], axis=1
+      ).astype(spec.dtype)
 
     return cls(embed_fn, unembed_fn, output_spec)
 
 
 def _create_default_getter(
-    pconfig: pyvizier.ParameterConfig) -> Callable[[pyvizier.Trial], Any]:
+    pconfig: pyvizier.ParameterConfig,
+) -> Callable[[pyvizier.Trial], Any]:
   """Create a default getter for the given parameter config."""
 
   def getter(trial, pconfig=pconfig):
@@ -482,16 +506,18 @@ class DefaultModelInputConverter(ModelInputConverter):
   `parameter_config.feasible_points` as int32.
   """
 
-  def __init__(self,
-               parameter_config: pyvizier.ParameterConfig,
-               getter: Optional[Callable[[pyvizier.Trial], Any]] = None,
-               *,
-               float_dtype: np.dtype = np.float32,
-               max_discrete_indices: int = 10,
-               scale: bool = False,
-               onehot_embed: bool = False,
-               converts_to_parameter: bool = True,
-               pad_oovs: bool = True):
+  def __init__(
+      self,
+      parameter_config: pyvizier.ParameterConfig,
+      getter: Optional[Callable[[pyvizier.Trial], Any]] = None,
+      *,
+      float_dtype: np.dtype = np.float32,
+      max_discrete_indices: int = 10,
+      scale: bool = False,
+      onehot_embed: bool = False,
+      converts_to_parameter: bool = True,
+      pad_oovs: bool = True,
+  ):
     """Init.
 
     Given B trials, convert() always converts to (B, 1) array. The returned
@@ -515,9 +541,11 @@ class DefaultModelInputConverter(ModelInputConverter):
     """
     self._converts_to_parameter = converts_to_parameter
     self._parameter_config = copy.deepcopy(parameter_config)
-    if parameter_config.type in (
-        pyvizier.ParameterType.INTEGER, pyvizier.ParameterType.DISCRETE
-    ) and parameter_config.num_feasible_values > max_discrete_indices:
+    if (
+        parameter_config.type
+        in (pyvizier.ParameterType.INTEGER, pyvizier.ParameterType.DISCRETE)
+        and parameter_config.num_feasible_values > max_discrete_indices
+    ):
       parameter_config = parameter_config.continuify()
 
     # TODO: Make the default getter raise an Error if they encounter an
@@ -527,18 +555,24 @@ class DefaultModelInputConverter(ModelInputConverter):
     self._getter_spec = NumpyArraySpec.from_parameter_config(
         parameter_config,
         NumpyArraySpecType.default_factory,
-        floating_dtype=float_dtype)
+        floating_dtype=float_dtype,
+    )
 
     # Optionally scale and onehot embed.
     spec = self._getter_spec
     self.scaler = (
         ModelInputArrayBijector.scaler_from_spec(spec)
-        if scale else ModelInputArrayBijector.identity(spec))
+        if scale
+        else ModelInputArrayBijector.identity(spec)
+    )
     spec = self.scaler.output_spec
-    self.onehot_encoder = (
-        ModelInputArrayBijector.onehot_embedder_from_spec(
-            spec, dtype=float_dtype, pad_oovs=pad_oovs)
-        if onehot_embed else ModelInputArrayBijector.identity(spec))
+    if onehot_embed:
+      self.onehot_encoder = ModelInputArrayBijector.onehot_embedder_from_spec(
+          spec, dtype=float_dtype, pad_oovs=pad_oovs
+      )
+    else:
+      self.onehot_encoder = ModelInputArrayBijector.identity(spec)
+
     spec = self.onehot_encoder.output_spec
 
     self._output_spec = spec
@@ -561,19 +595,22 @@ class DefaultModelInputConverter(ModelInputConverter):
         * IMPUTE: Returns `len(feasible_values)`.
     """
     if not trials:
-      return np.zeros([0, self.output_spec.num_dimensions],
-                      dtype=self.output_spec.dtype)
+      return np.zeros(
+          [0, self.output_spec.num_dimensions], dtype=self.output_spec.dtype
+      )
 
     value_converter = (
-        self._convert_index if self._getter_spec.type
-        == NumpyArraySpecType.DISCRETE else self._convert_continuous)
+        self._convert_index
+        if self._getter_spec.type == NumpyArraySpecType.DISCRETE
+        else self._convert_continuous
+    )
     values = [value_converter(t) for t in trials]
     array = np.asarray(values, dtype=self._getter_spec.dtype).reshape([-1, 1])
     return self.onehot_encoder.forward_fn(self.scaler.forward_fn(array))
 
   def _to_parameter_value(
-      self, value: Union['np.float', float,
-                         int]) -> Optional[pyvizier.ParameterValue]:
+      self, value: Union['np.float', float, int]
+  ) -> Optional[pyvizier.ParameterValue]:
     """Converts to a single parameter value.
 
     Be aware that the value is automatically truncated.
@@ -592,22 +629,32 @@ class DefaultModelInputConverter(ModelInputConverter):
       # Input parameter was DOUBLE. Output is also DOUBLE.
       return pyvizier.ParameterValue(
           float(
-              np.clip(value, self._parameter_config.bounds[0],
-                      self._parameter_config.bounds[1])))
+              np.clip(
+                  value,
+                  self._parameter_config.bounds[0],
+                  self._parameter_config.bounds[1],
+              )
+          )
+      )
     elif self.output_spec.type == NumpyArraySpecType.CONTINUOUS:
       # The parameter config is originally discrete, but continuified.
       # Round to the closest number.
       return pyvizier.ParameterValue(
-          min(self.parameter_config.feasible_values,
-              key=lambda feasible_value: abs(feasible_value - value)))
+          min(
+              self.parameter_config.feasible_values,
+              key=lambda feasible_value: abs(feasible_value - value),
+          )
+      )
     elif value >= len(self.parameter_config.feasible_values):
       return None
     else:
       return pyvizier.ParameterValue(
-          self.parameter_config.feasible_values[value])
+          self.parameter_config.feasible_values[value]
+      )
 
   def to_parameter_values(
-      self, array: np.ndarray) -> List[Optional[pyvizier.ParameterValue]]:
+      self, array: np.ndarray
+  ) -> List[Optional[pyvizier.ParameterValue]]:
     """Convert and clip to the nearest feasible parameter values."""
     array = self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
     return [self._to_parameter_value(v) for v in list(array.flatten())]
@@ -659,8 +706,9 @@ class ModelOutputConverter(metaclass=abc.ABCMeta):
     pass
 
   @abc.abstractmethod
-  def to_metrics(self,
-                 labels: np.ndarray) -> Sequence[Optional[pyvizier.Metric]]:
+  def to_metrics(
+      self, labels: np.ndarray
+  ) -> Sequence[Optional[pyvizier.Metric]]:
     """Returns a list of pyvizier metrics.
 
     The metrics are converted from an array of labels with shape (len(metrics),)
@@ -694,13 +742,15 @@ class ModelOutputConverter(metaclass=abc.ABCMeta):
 class DefaultModelOutputConverter(ModelOutputConverter):
   """Converts measurements into numpy arrays."""
 
-  def __init__(self,
-               metric_information: pyvizier.MetricInformation,
-               *,
-               flip_sign_for_minimization_metrics: bool = False,
-               shift_safe_metrics: bool = True,
-               dtype: np.dtype = np.float32,
-               raise_errors_for_missing_metrics: bool = False):
+  def __init__(
+      self,
+      metric_information: pyvizier.MetricInformation,
+      *,
+      flip_sign_for_minimization_metrics: bool = False,
+      shift_safe_metrics: bool = True,
+      dtype: Union[Type[float], Type[int], np.dtype] = np.float32,
+      raise_errors_for_missing_metrics: bool = False,
+  ):
     """Init.
 
     Args:
@@ -724,13 +774,15 @@ class DefaultModelOutputConverter(ModelOutputConverter):
 
   @property
   def _should_flip_sign(self) -> bool:
-    return (self._original_metric_information.goal
-            == pyvizier.ObjectiveMetricGoal.MINIMIZE and
-            self.flip_sign_for_minimization_metrics)
+    return (
+        self._original_metric_information.goal
+        == pyvizier.ObjectiveMetricGoal.MINIMIZE
+        and self.flip_sign_for_minimization_metrics
+    )
 
   def convert(
-      self,
-      measurements: Sequence[Optional[pyvizier.Measurement]]) -> np.ndarray:
+      self, measurements: Sequence[Optional[pyvizier.Measurement]]
+  ) -> np.ndarray:
     """Returns a (len(measurements), 1) array."""
     if not measurements:
       return np.zeros([0, 1], dtype=self.dtype)
@@ -748,13 +800,16 @@ class DefaultModelOutputConverter(ModelOutputConverter):
           for metrics in all_metrics
       ]
     labels = np.asarray(labels, dtype=self.dtype)[:, np.newaxis]
-    if (self.shift_safe_metrics and
-        self._original_metric_information.type.is_safety):
+    if (
+        self.shift_safe_metrics
+        and self._original_metric_information.type.is_safety
+    ):
       labels -= self._original_metric_information.safety_threshold
     return labels * (-1 if self._should_flip_sign else 1)
 
-  def to_metrics(self,
-                 labels: np.ndarray) -> Sequence[Optional[pyvizier.Metric]]:
+  def to_metrics(
+      self, labels: np.ndarray
+  ) -> Sequence[Optional[pyvizier.Metric]]:
     """Converts an array of labels to pyvizier Metrics.
 
     Args:
@@ -769,8 +824,10 @@ class DefaultModelOutputConverter(ModelOutputConverter):
       raise ValueError('The input array must be of shape (num,) or (num, 1).')
 
     labels = labels.flatten()
-    if (self.shift_safe_metrics and
-        self._original_metric_information.type.is_safety):
+    if (
+        self.shift_safe_metrics
+        and self._original_metric_information.type.is_safety
+    ):
       labels -= self._original_metric_information.safety_threshold
 
     labels = labels * (-1 if self._should_flip_sign else 1)
@@ -783,8 +840,8 @@ class DefaultModelOutputConverter(ModelOutputConverter):
   def metric_information(self) -> pyvizier.MetricInformation:
     """Returns a copy that reflects how the converter treats the metric."""
     metric_information = copy.deepcopy(self._original_metric_information)
-    if (self.shift_safe_metrics and metric_information.type.is_safety):
-      metric_information.safety_threshold = 0.
+    if self.shift_safe_metrics and metric_information.type.is_safety:
+      metric_information.safety_threshold = 0.0
     if self._should_flip_sign:
       metric_information = metric_information.flip_goal()
     return metric_information
@@ -802,9 +859,11 @@ class DefaultTrialConverter(TrialToNumpyDict):
   flexibility, inject parameter_converters and metric_converters on your own.
   """
 
-  def __init__(self,
-               parameter_converters: Collection[ModelInputConverter],
-               metric_converters: Collection[ModelOutputConverter] = tuple()):
+  def __init__(
+      self,
+      parameter_converters: Collection[ModelInputConverter],
+      metric_converters: Collection[ModelOutputConverter] = tuple(),
+  ):
     self.parameter_converters = list(parameter_converters)
     self._parameter_converters_dict = {
         pc.parameter_config.name: pc for pc in self.parameter_converters
@@ -814,8 +873,9 @@ class DefaultTrialConverter(TrialToNumpyDict):
         mc.metric_information.name: mc for mc in self.metric_converters
     }
 
-  def to_features(self,
-                  trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
+  def to_features(
+      self, trials: Sequence[pyvizier.Trial]
+  ) -> Dict[str, np.ndarray]:
     """Shorthand for to_xy(trials))[0]."""
     result_dict = dict()
     for converter in self.parameter_converters:
@@ -825,8 +885,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
   def to_trials(
       self,
       features: Mapping[str, np.ndarray],
-      labels: Optional[Mapping[str,
-                               np.ndarray]] = None) -> List[pyvizier.Trial]:
+      labels: Optional[Mapping[str, np.ndarray]] = None,
+  ) -> List[pyvizier.Trial]:
     """Inverse of `to_features` and optionally the inverse of `to_labels`.
 
     We assume that label values are already normalized and their signs are
@@ -863,7 +923,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
     if labels.size != features.size:
       raise ValueError(
-          'The number of features and labels observations do not match.')
+          'The number of features and labels observations do not match.'
+      )
     parameters = self.to_parameters(features)
     measurements = self._to_measurements(labels)
     for m in measurements:
@@ -880,7 +941,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
     return trials
 
   def _to_measurements(
-      self, labels: Mapping[str, np.ndarray]) -> List[pyvizier.Measurement]:
+      self, labels: Mapping[str, np.ndarray]
+  ) -> List[pyvizier.Measurement]:
     """Converts a dictionary of labels into a list of pyvizier measurements.
 
     Each key in the dictionary corresponds to a metric and the length of the
@@ -914,7 +976,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
     return measurements
 
   def to_parameters(
-      self, features: Mapping[str, np.ndarray]) -> List[pyvizier.ParameterDict]:
+      self, features: Mapping[str, np.ndarray]
+  ) -> List[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs trigger errors."""
     # TODO: NaNs should be ignored instead of triggering errors.
     # TODO: Add a boolean flag to disable automatic clipping.
@@ -933,13 +996,15 @@ class DefaultTrialConverter(TrialToNumpyDict):
           param_dict[key] = value
     return parameters
 
-  def to_labels(self,
-                trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
+  def to_labels(
+      self, trials: Sequence[pyvizier.Trial]
+  ) -> Dict[str, np.ndarray]:
     """Shorthand for to_xy(trials))[1]."""
     result_dict = dict()
     for converter in self.metric_converters:
       result_dict[converter.metric_information.name] = converter.convert(
-          [t.final_measurement for t in trials])
+          [t.final_measurement for t in trials]
+      )
     return result_dict
 
   def to_labels_array(self, trials: Sequence[pyvizier.Trial]) -> np.ndarray:
@@ -998,7 +1063,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
       study_configs: Sequence[pyvizier.ProblemStatement],
       metric_information: Collection[pyvizier.MetricInformation],
       *,
-      use_study_id_feature: bool = True) -> 'DefaultTrialConverter':
+      use_study_id_feature: bool = True,
+  ) -> 'DefaultTrialConverter':
     """Creates a converter from a list of study configs.
 
     Args:
@@ -1014,10 +1080,12 @@ class DefaultTrialConverter(TrialToNumpyDict):
     # Traverse through all parameter configs and merge the same-named ones.
     parameter_configs: Dict[str, pyvizier.ParameterConfig] = dict()
     for study_config in study_configs:
-      all_parameter_configs = itertools.chain.from_iterable([
-          top_level_config.traverse()
-          for top_level_config in study_config.search_space.parameters
-      ])
+      all_parameter_configs = itertools.chain.from_iterable(
+          [
+              top_level_config.traverse()
+              for top_level_config in study_config.search_space.parameters
+          ]
+      )
       for parameter_config in all_parameter_configs:
         name = parameter_config.name  # Alias
         existing_config = parameter_configs.get(name, None)
@@ -1025,7 +1093,8 @@ class DefaultTrialConverter(TrialToNumpyDict):
           parameter_configs[name] = parameter_config
         else:
           parameter_configs[name] = pyvizier.ParameterConfig.merge(
-              existing_config, parameter_config)
+              existing_config, parameter_config
+          )
 
     parameter_converters = []
     for pc in parameter_configs.values():
@@ -1043,17 +1112,21 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
       # Validate.
       if not study_ids:
-        logging.error('use_study_id_feature was True, but none of the studies '
-                      'had study id configured.')
+        logging.error(
+            'use_study_id_feature was True, but none of the studies '
+            'had study id configured.'
+        )
         use_study_id_feature = False
       elif STUDY_ID_FIELD in parameter_configs:
-        raise ValueError('Dataset name conflicts with a ParameterConfig '
-                         'that already exists: {}'.format(
-                             parameter_configs[STUDY_ID_FIELD]))
+        raise ValueError(
+            'Dataset name conflicts with a ParameterConfig '
+            'that already exists: {}'.format(parameter_configs[STUDY_ID_FIELD])
+        )
 
       # Create new parameter config.
       parameter_config = pyvizier.ParameterConfig.factory(
-          STUDY_ID_FIELD, feasible_values=list(study_ids))
+          STUDY_ID_FIELD, feasible_values=list(study_ids)
+      )
       parameter_configs[STUDY_ID_FIELD] = parameter_config
       logging.info('Created a new ParameterConfig %s', parameter_config)
 
@@ -1062,16 +1135,22 @@ class DefaultTrialConverter(TrialToNumpyDict):
           DefaultModelInputConverter(
               parameter_config,
               lambda t: t.metadata.get(STUDY_ID_FIELD, None),
-              converts_to_parameter=False))
+              converts_to_parameter=False,
+          )
+      )
 
-    return cls(parameter_converters,
-               [DefaultModelOutputConverter(m) for m in metric_information])
+    return cls(
+        parameter_converters,
+        [DefaultModelOutputConverter(m) for m in metric_information],
+    )
 
   @classmethod
   def from_study_config(cls, study_config: pyvizier.ProblemStatement):
-    return cls.from_study_configs([study_config],
-                                  study_config.metric_information,
-                                  use_study_id_feature=False)
+    return cls.from_study_configs(
+        [study_config],
+        study_config.metric_information,
+        use_study_id_feature=False,
+    )
 
 
 class TrialToArrayConverter:
@@ -1088,17 +1167,19 @@ class TrialToArrayConverter:
   have functions that return shape or metric informations. Use it at your own
   risk.
   """
+
   _experimental_override = 'I am aware that this code may break at any point.'
 
-  def __init__(self,
-               impl: DefaultTrialConverter,
-               experimental_override: str = ''):
+  def __init__(
+      self, impl: DefaultTrialConverter, experimental_override: str = ''
+  ):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
 
     if experimental_override != self._experimental_override:
       raise ValueError(
           'Set "experimental_override" if you want to call __init__ directly. '
-          'Otherwise, use TrialToArrayConverter.from_study_config.')
+          'Otherwise, use TrialToArrayConverter.from_study_config.'
+      )
     self._impl = impl
 
   def to_features(self, trials) -> np.ndarray:
@@ -1117,14 +1198,16 @@ class TrialToArrayConverter:
     return self._impl.to_parameters(arrformat.dict_like(arr))
 
   @classmethod
-  def from_study_config(cls,
-                        study_config: pyvizier.ProblemStatement,
-                        *,
-                        scale: bool = True,
-                        pad_oovs: bool = True,
-                        max_discrete_indices: int = 0,
-                        flip_sign_for_minimization_metrics: bool = True,
-                        dtype=np.float64) -> 'TrialToArrayConverter':
+  def from_study_config(
+      cls,
+      study_config: pyvizier.ProblemStatement,
+      *,
+      scale: bool = True,
+      pad_oovs: bool = True,
+      max_discrete_indices: int = 0,
+      flip_sign_for_minimization_metrics: bool = True,
+      dtype=np.float64,
+  ) -> 'TrialToArrayConverter':
     """From study config.
 
     Args:
@@ -1151,18 +1234,21 @@ class TrialToArrayConverter:
           max_discrete_indices=max_discrete_indices,
           onehot_embed=True,
           float_dtype=dtype,
-          pad_oovs=pad_oovs)
+          pad_oovs=pad_oovs,
+      )
 
     def create_output_converter(metric):
       return DefaultModelOutputConverter(
           metric,
           flip_sign_for_minimization_metrics=flip_sign_for_minimization_metrics,
-          dtype=dtype)
+          dtype=dtype,
+      )
 
     sc = study_config  # alias, to keep pylint quiet in the next line.
     converter = DefaultTrialConverter(
         [create_input_converter(p) for p in sc.search_space.parameters],
-        [create_output_converter(m) for m in sc.metric_information])
+        [create_output_converter(m) for m in sc.metric_information],
+    )
 
     return cls(converter, cls._experimental_override)
 
