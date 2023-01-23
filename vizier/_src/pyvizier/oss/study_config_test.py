@@ -17,7 +17,9 @@ from __future__ import annotations
 """Tests for vizier.pyvizier.oss.study_config."""
 import datetime
 
-from vizier.service import pyvizier
+from vizier.service import constants
+from vizier.service import key_value_pb2
+from vizier.service import pyvizier as vz
 from vizier.service import study_pb2
 
 from google.protobuf import struct_pb2
@@ -52,17 +54,29 @@ class StudyConfigTest(parameterized.TestCase):
         metrics=[
             study_pb2.StudySpec.MetricSpec(
                 metric_id='pr-auc',
-                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE,
+            )
         ],
-        default_stopping_spec=expected_automated_stopping_config)
+        default_stopping_spec=expected_automated_stopping_config,
+        metadata=[
+            key_value_pb2.KeyValue(
+                key='foo',
+                ns=vz.Namespace(['ns_bar']).encode(),
+                value='val',
+            )
+        ],
+    )
 
     study_config_proto.parameters.extend(self.pconfigs)
     # Test all proprties.
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
-    expected = pyvizier.MetricsConfig([
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    sc = vz.StudyConfig.from_proto(study_config_proto)
+    expected = vz.MetricsConfig(
+        [
+            vz.MetricInformation(
+                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     self.assertEqual(sc.metric_information, expected)
     self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
     self.assertIsNone(sc.pythia_endpoint)
@@ -72,7 +86,7 @@ class StudyConfigTest(parameterized.TestCase):
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+    _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
   @parameterized.parameters([
       ('my custom algorithm'),
@@ -89,44 +103,42 @@ class StudyConfigTest(parameterized.TestCase):
     # Test the algorithm when pythia endpoint is not specified.
     # This can be used when a pythia service is injected directly to the Vizier
     # service class.
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    sc = vz.StudyConfig.from_proto(study_config_proto)
     self.assertEqual(sc.algorithm, algorithm)
     self.assertIsNone(sc.pythia_endpoint)
 
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+    _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
-  def testCreationFromAndToProtoStudyStringAlgorithmPythiaEndpoint(self):
+  @parameterized.parameters([
+      'my custom algorithm',
+      'QUASI_RANDOM_SEARCH',
+  ])
+  def testCreationFromAndToProtoStudyStringAlgorithmPythiaEndpoint(
+      self, algorithm
+  ):
     study_config_proto = study_pb2.StudySpec(
         metrics=[
             study_pb2.StudySpec.MetricSpec(
                 metric_id='pr-auc',
-                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
+                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE,
+            )
         ],
-        algorithm='my custom algorithm',
-        pythia_endpoint='localhost:8888')
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
-    self.assertEqual(sc.algorithm, 'my custom algorithm')
+        algorithm=algorithm,
+        metadata=[
+            key_value_pb2.KeyValue(
+                key=constants.PYTHIA_ENDPOINT_KEY,
+                ns=vz.Namespace([constants.PYTHIA_ENDPOINT_NAMESPACE]).encode(),
+                value='localhost:8888',
+            )
+        ],
+    )
+    sc = vz.StudyConfig.from_proto(study_config_proto)
+    self.assertEqual(sc.algorithm, algorithm)
     self.assertEqual(sc.pythia_endpoint, 'localhost:8888')
 
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
-
-  def testCreationFromAndToProtoStudyAlgorithmPythiaEndpoint(self):
-    study_config_proto = study_pb2.StudySpec(
-        metrics=[
-            study_pb2.StudySpec.MetricSpec(
-                metric_id='pr-auc',
-                goal=study_pb2.StudySpec.MetricSpec.GoalType.MAXIMIZE)
-        ],
-        algorithm='QUASI_RANDOM_SEARCH',
-        pythia_endpoint='localhost:8888')
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
-    self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
-    self.assertEqual(sc.pythia_endpoint, 'localhost:8888')
-
-    compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+    _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
   def testCreationFromAndToProtoMultiObjectiveStudy(self):
     study_config_proto = study_pb2.StudySpec(
@@ -140,13 +152,13 @@ class StudyConfigTest(parameterized.TestCase):
         ],)
     study_config_proto.parameters.extend(self.pconfigs)
     # Test all proprties.
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    sc = vz.StudyConfig.from_proto(study_config_proto)
 
-    expected = pyvizier.MetricsConfig([
-        pyvizier.MetricInformation(
-            name='loss', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE),
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
+    expected = vz.MetricsConfig([
+        vz.MetricInformation(name='loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
+        vz.MetricInformation(
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        ),
     ])
     self.assertEqual(sc.metric_information, expected)
     self.assertIsNone(sc.single_objective_metric_name)
@@ -155,7 +167,7 @@ class StudyConfigTest(parameterized.TestCase):
     round_trip_proto = sc.to_proto()
     compare.assertProto2SameElements(self, study_config_proto, round_trip_proto)
 
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+    _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
   def testCreationFromAndToProtoSafeStudy(self):
     expected_automated_stopping_config = (
@@ -177,15 +189,17 @@ class StudyConfigTest(parameterized.TestCase):
 
     study_config_proto.parameters.extend(self.pconfigs)
     # Test all proprties.
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
-    expected = pyvizier.MetricsConfig([
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
-        pyvizier.MetricInformation(
+    sc = vz.StudyConfig.from_proto(study_config_proto)
+    expected = vz.MetricsConfig([
+        vz.MetricInformation(
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        ),
+        vz.MetricInformation(
             name='privacy-safety',
-            goal=pyvizier.ObjectiveMetricGoal.MINIMIZE,
+            goal=vz.ObjectiveMetricGoal.MINIMIZE,
             safety_threshold=0.2,
-            desired_min_safe_trials_fraction=0.8)
+            desired_min_safe_trials_fraction=0.8,
+        ),
     ])
     self.assertEqual(sc.metric_information, expected)
     self.assertEqual(sc.algorithm, 'QUASI_RANDOM_SEARCH')
@@ -196,20 +210,22 @@ class StudyConfigTest(parameterized.TestCase):
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
-    _ = pyvizier.StudyConfig.from_problem(sc.to_problem())  # smoke test.
+    _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
   def testCreationFromProtoNoGoalRaises(self):
     study_config_proto = study_pb2.StudySpec()
 
-    sc = pyvizier.StudyConfig.from_proto(study_config_proto)
+    sc = vz.StudyConfig.from_proto(study_config_proto)
     self.assertEmpty(sc.metric_information)
 
   def testMetadata(self):
     empty_trial = study_pb2.Trial(id=str(1))
-    sc = pyvizier.StudyConfig()
+    sc = vz.StudyConfig()
     sc.metric_information.append(
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
+        vz.MetricInformation(
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
     sc.metadata.abs_ns(['ns'])['key'] = 'ns-value'
     sc.metadata.abs_ns()['key'] = 'value'
     sc.metadata['proto'] = empty_trial
@@ -238,25 +254,32 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertCountEqual(sc.metadata, from_proto)
 
   def testCreation(self):
-    sc = pyvizier.StudyConfig()
-    sc.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
+    sc = vz.StudyConfig()
+    sc.algorithm = vz.Algorithm.RANDOM_SEARCH
     sc.metric_information.append(
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
+        vz.MetricInformation(
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
     root = sc.search_space.root
     root.add_float_param(
-        'learning_rate', 0.00001, 1.0, scale_type=pyvizier.ScaleType.LINEAR)
+        'learning_rate', 0.00001, 1.0, scale_type=vz.ScaleType.LINEAR
+    )
     root.add_categorical_param('optimizer', ['adagrad', 'adam', 'experimental'])
 
     sc.automated_stopping_config = (
-        pyvizier.AutomatedStoppingConfig.default_stopping_spec())
+        vz.AutomatedStoppingConfig.default_stopping_spec()
+    )
 
     # Test all proprties.
     self.assertEqual(sc.algorithm, 'RANDOM_SEARCH')
-    expected = pyvizier.MetricsConfig([
-        pyvizier.MetricInformation(
-            name='pr-auc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    expected = vz.MetricsConfig(
+        [
+            vz.MetricInformation(
+                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     self.assertEqual(sc.metric_information, expected)
     self.assertEqual(sc.single_objective_metric_name, 'pr-auc')
     self.assertTrue(sc.is_single_objective)
@@ -277,13 +300,16 @@ class StudyConfigTest(parameterized.TestCase):
 
   @absltest.skip('???')
   def testTrialToDict(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
-    root.add_int_param('units', 10, 1000, scale_type=pyvizier.ScaleType.LOG)
+    root.add_int_param('units', 10, 1000, scale_type=vz.ScaleType.LOG)
     root.add_discrete_param('batch_size', [8, 16, 32])
     root.add_discrete_param(
         'floating_point_param', [8., 16., 32.], auto_cast=False)
@@ -319,27 +345,30 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertIsInstance(parameters['floating_point_param'], float)
 
   def testPyTrialToDict(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
-    root.add_int_param('units', 10, 1000, scale_type=pyvizier.ScaleType.LOG)
+    root.add_int_param('units', 10, 1000, scale_type=vz.ScaleType.LOG)
     root.add_discrete_param('batch_size', [8, 16, 32])
     root.add_discrete_param(
         'floating_point_param', [8., 16., 32.], auto_cast=False)
     root.add_categorical_param('activation', ['tanh', 'relu'])
     root.add_bool_param('synchronous')
 
-    pytrial = pyvizier.Trial(id=1)
+    pytrial = vz.Trial(id=1)
     pytrial.parameters = {
-        'activation': pyvizier.ParameterValue(value='relu'),
-        'synchronous': pyvizier.ParameterValue(value=True),
-        'batch_size': pyvizier.ParameterValue(value=32),
-        'floating_point_param': pyvizier.ParameterValue(value=32.),
-        'learning_rate': pyvizier.ParameterValue(value=0.5),
-        'units': pyvizier.ParameterValue(value=50)
+        'activation': vz.ParameterValue(value='relu'),
+        'synchronous': vz.ParameterValue(value=True),
+        'batch_size': vz.ParameterValue(value=32),
+        'floating_point_param': vz.ParameterValue(value=32.0),
+        'learning_rate': vz.ParameterValue(value=0.5),
+        'units': vz.ParameterValue(value=50),
     }
     parameters = py_study_config._pytrial_parameters(pytrial)
     expected = {
@@ -385,12 +414,14 @@ class StudyConfigTest(parameterized.TestCase):
         parameter_id='training_steps',
         value=struct_pb2.Value(number_value=10000.0))
 
-    py_study_config = pyvizier.StudyConfig.from_proto(proto)
-    self.assertEqual(py_study_config.observation_noise,
-                     pyvizier.ObservationNoise.HIGH)
+    py_study_config = vz.StudyConfig.from_proto(proto)
+    self.assertEqual(
+        py_study_config.observation_noise, vz.ObservationNoise.HIGH
+    )
     parameters = py_study_config.trial_parameters(trial_proto)
-    self.assertEqual(py_study_config.observation_noise,
-                     pyvizier.ObservationNoise.HIGH)
+    self.assertEqual(
+        py_study_config.observation_noise, vz.ObservationNoise.HIGH
+    )
     expected = {
         'batch_size': 128,
         'learning_rate': 1.2137854406366652E-4,
@@ -403,15 +434,19 @@ class StudyConfigTest(parameterized.TestCase):
 
   @absltest.skip('???')
   def testTrialToDictMultidimensional(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     for index in (0, 1):
       root.add_float_param('learning_rate', 0.01, 3.0, index=index)
       root.add_int_param(
-          'units', 10, 1000, scale_type=pyvizier.ScaleType.LOG, index=index)
+          'units', 10, 1000, scale_type=vz.ScaleType.LOG, index=index
+      )
       root.add_categorical_param('activation', ['tanh', 'relu'], index=index)
       root.add_bool_param('synchronous', index=index)
       root.add_discrete_param('batch_size', [8, 16, 32], index=index)
@@ -461,34 +496,38 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual(expected, parameters)
 
   def testPyTrialToDictMultidimensional(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     for index in (0, 1):
       root.add_float_param('learning_rate', 0.01, 3.0, index=index)
       root.add_int_param(
-          'units', 10, 1000, scale_type=pyvizier.ScaleType.LOG, index=index)
+          'units', 10, 1000, scale_type=vz.ScaleType.LOG, index=index
+      )
       root.add_categorical_param('activation', ['tanh', 'relu'], index=index)
       root.add_bool_param('synchronous', index=index)
       root.add_discrete_param('batch_size', [8, 16, 32], index=index)
     root.add_discrete_param(
         'floating_point_param', [8., 16., 32.], auto_cast=False)
 
-    pytrial = pyvizier.Trial(id=2)
+    pytrial = vz.Trial(id=2)
     pytrial.parameters = {
-        'learning_rate[0]': pyvizier.ParameterValue(value=0.5),
-        'learning_rate[1]': pyvizier.ParameterValue(value=0.1),
-        'units[0]': pyvizier.ParameterValue(value=50),
-        'units[1]': pyvizier.ParameterValue(value=200),
-        'activation[0]': pyvizier.ParameterValue(value='relu'),
-        'activation[1]': pyvizier.ParameterValue(value='relu'),
-        'synchronous[0]': pyvizier.ParameterValue(value=True),
-        'synchronous[1]': pyvizier.ParameterValue(value=False),
-        'batch_size[0]': pyvizier.ParameterValue(value=32.0),
-        'batch_size[1]': pyvizier.ParameterValue(value=8.0),
-        'floating_point_param': pyvizier.ParameterValue(value=16.)
+        'learning_rate[0]': vz.ParameterValue(value=0.5),
+        'learning_rate[1]': vz.ParameterValue(value=0.1),
+        'units[0]': vz.ParameterValue(value=50),
+        'units[1]': vz.ParameterValue(value=200),
+        'activation[0]': vz.ParameterValue(value='relu'),
+        'activation[1]': vz.ParameterValue(value='relu'),
+        'synchronous[0]': vz.ParameterValue(value=True),
+        'synchronous[1]': vz.ParameterValue(value=False),
+        'batch_size[0]': vz.ParameterValue(value=32.0),
+        'batch_size[1]': vz.ParameterValue(value=8.0),
+        'floating_point_param': vz.ParameterValue(value=16.0),
     }
     parameters = py_study_config._pytrial_parameters(pytrial)
     expected = {
@@ -502,10 +541,13 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual(expected, parameters)
 
   def testGinConfigMultiDimensional(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     block_categories = [
         'block_3x3', 'block_4x4', 'block_1x3_3x1', 'block_1x3_3x1_dw',
@@ -546,10 +588,13 @@ class StudyConfigTest(parameterized.TestCase):
 
   @absltest.skip('???')
   def testTrialToDictConditional(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
 
     model_type = root.add_categorical_param('model_type', ['dnn', 'linear'])
@@ -584,10 +629,13 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual(expected, parameters)
 
   def testPyTrialToDictConditional(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
 
     model_type = root.add_categorical_param('model_type', ['dnn', 'linear'])
@@ -599,15 +647,16 @@ class StudyConfigTest(parameterized.TestCase):
     model_type.select_values(['linear'
                              ]).add_float_param('learning_rate', 0.01, 1.0)
 
-    pytrial = pyvizier.Trial(
+    pytrial = vz.Trial(
         id=1,
         parameters={
-            'model_type': pyvizier.ParameterValue(value='dnn'),
-            'learning_rate': pyvizier.ParameterValue(value=2.1),
-            'units[0]': pyvizier.ParameterValue(value=49),
-            'units[1]': pyvizier.ParameterValue(value=79),
-            'activation': pyvizier.ParameterValue(value='relu'),
-        })
+            'model_type': vz.ParameterValue(value='dnn'),
+            'learning_rate': vz.ParameterValue(value=2.1),
+            'units[0]': vz.ParameterValue(value=49),
+            'units[1]': vz.ParameterValue(value=79),
+            'activation': vz.ParameterValue(value='relu'),
+        },
+    )
     parameters = py_study_config._pytrial_parameters(pytrial)
     expected = {
         'model_type': 'dnn',
@@ -618,10 +667,13 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual(expected, parameters)
 
   def testTrialToDictRaisesDuplicateParameters(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     trial_proto = study_pb2.Trial()
     trial_proto.id = str(1)
     trial_proto.parameters.add(
@@ -635,10 +687,13 @@ class StudyConfigTest(parameterized.TestCase):
       py_study_config.trial_parameters(trial_proto)
 
   def testTrialToDictRaisesInvalidTrial(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
@@ -652,10 +707,13 @@ class StudyConfigTest(parameterized.TestCase):
       py_study_config.trial_parameters(trial_proto)
 
   def testTrialToDictWithFinalMetricsSingleObjective(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
@@ -678,25 +736,31 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual({'objective': 77.7, 'loss': 56.8}, metrics)
 
   def testPyTrialToDictWithFinalMetricsSingleObjective(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
-    pytrial = pyvizier.Trial(
+    pytrial = vz.Trial(
         id=1,
         completion_time=datetime.datetime(
-            year=2021, month=12, day=2, hour=7, minute=31),
-        parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
-        final_measurement=pyvizier.Measurement(
+            year=2021, month=12, day=2, hour=7, minute=31
+        ),
+        parameters={'learning_rate': vz.ParameterValue(0.5)},
+        final_measurement=vz.Measurement(
             metrics={
-                'loss': pyvizier.Metric(value=56.8),
-                'objective': pyvizier.Metric(value=77.7)
+                'loss': vz.Metric(value=56.8),
+                'objective': vz.Metric(value=77.7),
             },
             elapsed_secs=67,
-            steps=101))
+            steps=101,
+        ),
+    )
     parameters = py_study_config._pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     metrics = py_study_config._pytrial_metrics(pytrial)
@@ -709,10 +773,13 @@ class StudyConfigTest(parameterized.TestCase):
     # Throw a Trial that has inconsistent field values.
     # (ACTIVE but has final measurement).
     # Pyvizier fixes the state.
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
@@ -732,10 +799,13 @@ class StudyConfigTest(parameterized.TestCase):
         py_study_config.trial_metrics(trial_proto, include_all_metrics=True), 2)
 
   def testTrialToDictWithFinalMetricsInfeasible(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
@@ -756,26 +826,32 @@ class StudyConfigTest(parameterized.TestCase):
         py_study_config.trial_metrics(trial_proto, include_all_metrics=True))
 
   def testPyTrialToDictWithFinalMetricsInfeasible(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
-    pytrial = pyvizier.Trial(
+    pytrial = vz.Trial(
         id=1,
         infeasibility_reason='just because',
         completion_time=datetime.datetime(
-            year=2021, month=12, day=2, hour=7, minute=31),
-        parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
-        final_measurement=pyvizier.Measurement(
+            year=2021, month=12, day=2, hour=7, minute=31
+        ),
+        parameters={'learning_rate': vz.ParameterValue(0.5)},
+        final_measurement=vz.Measurement(
             metrics={
-                'loss': pyvizier.Metric(value=56.8),
-                'other': pyvizier.Metric(value=77.7)
+                'loss': vz.Metric(value=56.8),
+                'other': vz.Metric(value=77.7),
             },
             elapsed_secs=67,
-            steps=101))
+            steps=101,
+        ),
+    )
     parameters = py_study_config._pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     self.assertEmpty(py_study_config._pytrial_metrics(pytrial))
@@ -783,12 +859,16 @@ class StudyConfigTest(parameterized.TestCase):
         py_study_config._pytrial_metrics(pytrial, include_all_metrics=True))
 
   def testTrialToDictWithFinalMetricsMultiObjective(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
-        pyvizier.MetricInformation(
-            name='objective2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            ),
+            vz.MetricInformation(
+                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE
+            ),
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
@@ -817,28 +897,35 @@ class StudyConfigTest(parameterized.TestCase):
     }, metrics)
 
   def testPyTrialToDictWithFinalMetricsMultiObjective(self):
-    py_study_config = pyvizier.StudyConfig(metric_information=[
-        pyvizier.MetricInformation(
-            name='objective', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE),
-        pyvizier.MetricInformation(
-            name='objective2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE)
-    ])
+    py_study_config = vz.StudyConfig(
+        metric_information=[
+            vz.MetricInformation(
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            ),
+            vz.MetricInformation(
+                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE
+            ),
+        ]
+    )
     root = py_study_config.search_space.root
     root.add_float_param('learning_rate', 0.01, 3.0)
 
-    pytrial = pyvizier.Trial(
+    pytrial = vz.Trial(
         id=1,
         completion_time=datetime.datetime(
-            year=2021, month=12, day=2, hour=7, minute=31),
-        parameters={'learning_rate': pyvizier.ParameterValue(0.5)},
-        final_measurement=pyvizier.Measurement(
+            year=2021, month=12, day=2, hour=7, minute=31
+        ),
+        parameters={'learning_rate': vz.ParameterValue(0.5)},
+        final_measurement=vz.Measurement(
             metrics={
-                'loss': pyvizier.Metric(value=56.8),
-                'objective': pyvizier.Metric(value=77.7),
-                'objective2': pyvizier.Metric(value=-0.2)
+                'loss': vz.Metric(value=56.8),
+                'objective': vz.Metric(value=77.7),
+                'objective2': vz.Metric(value=-0.2),
             },
             elapsed_secs=67,
-            steps=101))
+            steps=101,
+        ),
+    )
     parameters = py_study_config._pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     metrics = py_study_config._pytrial_metrics(pytrial)
@@ -852,20 +939,20 @@ class StudyConfigTest(parameterized.TestCase):
     }, metrics)
 
   def testSearchSpacesNotShared(self):
-    sc1 = pyvizier.StudyConfig()
+    sc1 = vz.StudyConfig()
     sc1.search_space.root.add_float_param('x', 1, 2)
-    sc2 = pyvizier.StudyConfig()
+    sc2 = vz.StudyConfig()
     sc2.search_space.root.add_float_param('x', 1, 2)
     self.assertLen(sc1.search_space.parameters, 1)
     self.assertLen(sc2.search_space.parameters, 1)
 
   def testHasConditionalParametersFlatSpace(self):
-    sc = pyvizier.StudyConfig()
+    sc = vz.StudyConfig()
     sc.search_space.root.add_float_param('x', 1, 2)
     self.assertFalse(sc.search_space.is_conditional)
 
   def testHasConditionalParameters(self):
-    sc = pyvizier.StudyConfig()
+    sc = vz.StudyConfig()
     root = sc.search_space.root
     model_type = root.add_categorical_param('model_type', ['linear', 'dnn'])
     _ = model_type.select_values(['dnn']).add_float_param(
@@ -873,7 +960,8 @@ class StudyConfigTest(parameterized.TestCase):
         0.1,
         1.0,
         default_value=0.001,
-        scale_type=pyvizier.ScaleType.LOG)
+        scale_type=vz.ScaleType.LOG,
+    )
     self.assertTrue(sc.search_space.is_conditional)
 
 

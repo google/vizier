@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import List
 from absl import logging
 
+from vizier.service import constants
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import study_pb2
@@ -312,7 +313,7 @@ class VizierClientTest(parameterized.TestCase):
 
     # Check if server is stored in client.
     local_client1 = vizier_client.create_or_load_study(
-        server_endpoint=vizier_client.NO_ENDPOINT,
+        server_endpoint=constants.NO_ENDPOINT,
         owner_id=self.owner_id,
         client_id='local_client1',
         study_id=study_id,
@@ -324,7 +325,7 @@ class VizierClientTest(parameterized.TestCase):
 
     # Check if the local server is shared.
     local_client2 = vizier_client.VizierClient.from_endpoint(
-        server_endpoint=vizier_client.NO_ENDPOINT,
+        server_endpoint=constants.NO_ENDPOINT,
         study_resource_name=study_resource_name,
         client_id='local_client2',
     )
@@ -334,7 +335,7 @@ class VizierClientTest(parameterized.TestCase):
     del local_client1
     del local_client2
     local_client3 = vizier_client.VizierClient.from_endpoint(
-        server_endpoint=vizier_client.NO_ENDPOINT,
+        server_endpoint=constants.NO_ENDPOINT,
         study_resource_name=study_resource_name,
         client_id='local_client3',
     )

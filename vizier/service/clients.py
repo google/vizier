@@ -22,12 +22,13 @@ from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optio
 import attr
 
 from vizier.client import client_abc
+from vizier.service import constants
 from vizier.service import pyvizier as vz
 from vizier.service import resources
 from vizier.service import vizier_client
 
 # Redeclared so users do not have to also import client_abc and vizier_client.
-NO_ENDPOINT = vizier_client.NO_ENDPOINT
+NO_ENDPOINT = constants.NO_ENDPOINT
 ResourceNotFoundError = client_abc.ResourceNotFoundError
 
 

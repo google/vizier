@@ -43,6 +43,15 @@ class MetadataUtilTest(absltest.TestCase):
     self.assertIsNone(
         metadata_util.get_proto(trial, key='TYPO', ns='', cls=study_pb2.Trial))
 
+  def test_assign(self):
+    trial = study_pb2.Trial(id='trial')
+    metadata_util.assign(trial, key='k', ns='', value='value')
+    self.assertEqual(metadata_util.get(trial, key='k', ns=''), 'value')
+    metadata_util.assign(
+        trial, key='k', ns='', value='222', mode='insert_or_assign'
+    )
+    self.assertEqual(metadata_util.get(trial, key='k', ns=''), '222')
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -29,6 +29,7 @@ from absl import logging
 import attr
 import grpc
 
+from vizier.service import constants
 from vizier.service import pyvizier
 from vizier.service import resources
 from vizier.service import stubs_util
@@ -56,8 +57,6 @@ FLAGS = flags.FLAGS
 
 Metadata = Mapping[Tuple[str, str], Any]
 
-NO_ENDPOINT = 'NO_ENDPOINT'
-
 
 @functools.lru_cache(maxsize=None)
 def _create_local_vizier_servicer() -> (
@@ -69,7 +68,7 @@ def _create_local_vizier_servicer() -> (
 
 
 def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
-  if endpoint == NO_ENDPOINT:
+  if endpoint == constants.NO_ENDPOINT:
     logging.info('No endpoint given; using cached local VizierServicer.')
     logging.warning('Python 3.8+ is required in this case.')
     return _create_local_vizier_servicer()

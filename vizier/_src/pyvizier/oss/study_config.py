@@ -38,6 +38,7 @@ from vizier import pyvizier as vz
 from vizier._src.pyvizier.oss import automated_stopping
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.oss import proto_converters
+from vizier.service import constants
 from vizier.service import study_pb2
 
 ################### PyTypes ###################
@@ -77,7 +78,10 @@ class Algorithm(enum.Enum):
 
 class ObservationNoise(enum.Enum):
   """Valid Values for StudyConfig.ObservationNoise."""
-  OBSERVATION_NOISE_UNSPECIFIED = study_pb2.StudySpec.ObservationNoise.OBSERVATION_NOISE_UNSPECIFIED
+
+  OBSERVATION_NOISE_UNSPECIFIED = (
+      study_pb2.StudySpec.ObservationNoise.OBSERVATION_NOISE_UNSPECIFIED
+  )
   LOW = study_pb2.StudySpec.ObservationNoise.LOW
   HIGH = study_pb2.StudySpec.ObservationNoise.HIGH
 
@@ -192,10 +196,6 @@ class StudyConfig(vz.ProblemStatement):
     """
     algorithm = proto.algorithm
 
-    pythia_endpoint = None
-    if proto.HasField('pythia_endpoint'):
-      pythia_endpoint = proto.pythia_endpoint
-
     metric_information = vz.MetricsConfig(
         sorted([
             proto_converters.MetricInformationConverter.from_proto(m)
@@ -207,13 +207,25 @@ class StudyConfig(vz.ProblemStatement):
     if not oneof_name:
       automated_stopping_config = None
     else:
-      automated_stopping_config = automated_stopping.AutomatedStoppingConfig.from_proto(
-          getattr(proto, oneof_name))
+      automated_stopping_config = (
+          automated_stopping.AutomatedStoppingConfig.from_proto(
+              getattr(proto, oneof_name)
+          )
+      )
 
     metadata = vz.Metadata()
     for kv in proto.metadata:
       metadata.abs_ns(vz.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value)
+
+    # Store the pythia_endpoint as a property for convenience.
+    pythia_endpoint = None
+    try:
+      pythia_endpoint = metadata.ns(constants.PYTHIA_ENDPOINT_NAMESPACE)[
+          constants.PYTHIA_ENDPOINT_KEY
+      ]
+    except KeyError:
+      pass  # Pythia endpoint doesn't exist.
 
     return cls(
         search_space=proto_converters.SearchSpaceConverter.from_proto(proto),
@@ -229,8 +241,6 @@ class StudyConfig(vz.ProblemStatement):
     """Serializes this object to a StudyConfig proto."""
     proto = copy.deepcopy(self._study_config)
     proto.algorithm = self.algorithm
-    if self.pythia_endpoint is not None:
-      proto.pythia_endpoint = self.pythia_endpoint
     proto.observation_noise = self.observation_noise.value
 
     del proto.metrics[:]
@@ -249,11 +259,22 @@ class StudyConfig(vz.ProblemStatement):
                     study_pb2.StudySpec.DefaultEarlyStoppingSpec):
         proto.default_stopping_spec.CopyFrom(auto_stop_proto)
 
+    # The internally stored proto already contains metadata.
+    proto.ClearField('metadata')
     for ns in self.metadata.namespaces():
       ns_string = ns.encode()
       ns_layer = self.metadata.abs_ns(ns)
       for key, value in ns_layer.items():
         metadata_util.assign(proto, key=key, ns=ns_string, value=value)
+    if self.pythia_endpoint is not None:
+      ns = vz.Namespace([constants.PYTHIA_ENDPOINT_NAMESPACE])
+      metadata_util.assign(
+          proto,
+          key=constants.PYTHIA_ENDPOINT_KEY,
+          ns=ns.encode(),
+          value=self.pythia_endpoint,
+          mode='insert_or_assign',
+      )
     return proto
 
   def _trial_to_external_values(
@@ -336,8 +357,9 @@ class StudyConfig(vz.ProblemStatement):
     # multi_dim_params: Dict[str, List[Tuple[int, ParameterValueSequence]]]
     multi_dim_params = collections.defaultdict(list)
     for name in trial_external_values:
-      base_index = vz.SearchSpaceSelector.parse_multi_dimensional_parameter_name(
-          name)
+      base_index = (
+          vz.SearchSpaceSelector.parse_multi_dimensional_parameter_name(name)
+      )
       if base_index is None:
         trial_final_values[name] = trial_external_values[name]
       else:

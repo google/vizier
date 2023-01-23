@@ -33,12 +33,12 @@ from concurrent import futures
 import os
 import threading
 from typing import Optional, Union
+
 from absl import logging
 import attr
 import grpc
 import portpicker
 import pyglove as pg
-
 from vizier import pythia
 from vizier import pyvizier as vz
 from vizier._src.pyglove import algorithms
@@ -48,6 +48,7 @@ from vizier._src.pyglove import converters
 from vizier._src.pyglove import pythia as pyglove_pythia
 from vizier.client import client_abc
 from vizier.service import clients as pyvizier_clients
+from vizier.service import constants
 from vizier.service import pythia_service
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as svz
@@ -56,6 +57,7 @@ from vizier.service import service_policy_supporter
 from vizier.service import stubs_util
 from vizier.service import types as vizier_types
 from vizier.service import vizier_client
+
 from google.protobuf import empty_pb2
 
 TunerPolicy = pyglove_pythia.TunerPolicy
@@ -90,7 +92,7 @@ class _OSSVizierTuner(client.VizierTuner):
     if endpoint:
       pyvizier_clients.environment_variables.server_endpoint = endpoint
     else:
-      endpoint = vizier_client.NO_ENDPOINT
+      endpoint = constants.NO_ENDPOINT
 
     self._vizier_service = vizier_client.create_vizier_servicer_or_stub(
         endpoint

@@ -348,12 +348,9 @@ message StudySpec {
   // See pyvizier.Algorithm for a list of native Vizier algorithms.
   string algorithm = 3;
 
-  // The Pythia endpoint, for custom algorithms, or a Pythia service running
-  // as a separate binary.
-  optional string pythia_endpoint = 8;
 
   // Use the deault early stopping policy.
-  reserved 4, 5;
+  reserved 4, 5, 8;
   message DefaultEarlyStoppingSpec {}
 
   oneof automated_stopping_spec {
