@@ -17,6 +17,7 @@ from __future__ import annotations
 """Utility functions for creating GRPC stubs."""
 
 import functools
+from typing import Optional
 from absl import logging
 import grpc
 
@@ -24,18 +25,20 @@ from vizier.service import pythia_service_pb2_grpc
 from vizier.service import vizier_service_pb2_grpc
 
 
-def _create_channel(endpoint: str) -> grpc.Channel:
+def _create_channel(
+    endpoint: str, timeout: Optional[float] = None
+) -> grpc.Channel:
   """Creates GRPC channel."""
   logging.info('Securing channel to %s.', endpoint)
   channel = grpc.insecure_channel(endpoint)
-  grpc.channel_ready_future(channel).result()
+  grpc.channel_ready_future(channel).result(timeout=timeout)
   logging.info('Created channel to %s.', endpoint)
   return channel
 
 
 @functools.lru_cache(maxsize=128)
 def create_pythia_server_stub(
-    endpoint: str,
+    endpoint: str, timeout: Optional[float] = None
 ) -> pythia_service_pb2_grpc.PythiaServiceStub:
   """Creates the GRPC stub.
 
@@ -45,12 +48,15 @@ def create_pythia_server_stub(
   for unit tests.
 
   Args:
-    endpoint:
+    endpoint: Pythia server endpoint.
+    timeout: Timeout in second. If None, no timeout will be used.
 
   Returns:
     Pythia Server stub at endpoint.
   """
-  return pythia_service_pb2_grpc.PythiaServiceStub(_create_channel(endpoint))
+  return pythia_service_pb2_grpc.PythiaServiceStub(
+      _create_channel(endpoint, timeout)
+  )
 
 
 @functools.lru_cache(maxsize=128)

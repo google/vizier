@@ -113,3 +113,7 @@ class VizierTuner(abc.ABC):
       self, study: client_abc.StudyInterface
   ) -> pythia.PolicySupporter:
     """Creates a pythia policy supporter for this study."""
+
+  @abc.abstractmethod
+  def use_pythia_for_study(self, study: client_abc.StudyInterface) -> None:
+    """Uses current Pythia service to serve the input study."""

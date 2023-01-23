@@ -196,7 +196,7 @@ class _OSSVizierTuner(client.VizierTuner):
 
   def ping_tuner(self, tuner_id: str) -> bool:
     # We treat `tuner_id` as the Pythia endpoint.
-    pythia_stub = stubs_util.create_pythia_server_stub(tuner_id)
+    pythia_stub = stubs_util.create_pythia_server_stub(tuner_id, timeout=3)
     try:
       pythia_stub.Ping(empty_pb2.Empty())
       return True
@@ -209,6 +209,11 @@ class _OSSVizierTuner(client.VizierTuner):
     return service_policy_supporter.ServicePolicySupporter(
         study.resource_name, self._vizier_service
     )
+
+  def use_pythia_for_study(self, study: client_abc.StudyInterface) -> None:
+    pythia_endpoint = self._get_pythia_endpoint()
+    metadata = svz.StudyConfig.pythia_endpoint_metadata(pythia_endpoint)
+    study.update_metadata(metadata)
 
 
 def init(

@@ -245,6 +245,7 @@ class VizierBackend(pg.tuning.Backend):
           # incoming queries. Therefore, we do not handle this race conditions
           # with expensive distributed locks.
           mode = TunerMode.PRIMARY
+          self._register_self_as_primary()
     except KeyError:
       # Study does not exist.
       if mode == TunerMode.SECONDARY:
@@ -361,6 +362,7 @@ class VizierBackend(pg.tuning.Backend):
         constants.STUDY_METADATA_KEY_TUNER_ID
     ] = self.tuner.get_tuner_id(self._algorithm)
     self._study.update_metadata(metadata)
+    self.tuner.use_pythia_for_study(self._study)
     return tuner_id
 
   def next(self) -> pg.tuning.Feedback:

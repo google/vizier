@@ -185,6 +185,15 @@ class StudyConfig(vz.ProblemStatement):
 
   # Public attributes, methods and properties.
   @classmethod
+  def pythia_endpoint_metadata(cls, pythia_endpoint: str) -> vz.Metadata:
+    """Returns the MetaData for updating the pythia endpoint."""
+    metadata = vz.Metadata()
+    metadata.ns(constants.PYTHIA_ENDPOINT_NAMESPACE)[
+        constants.PYTHIA_ENDPOINT_KEY
+    ] = pythia_endpoint
+    return metadata
+
+  @classmethod
   def from_proto(cls, proto: study_pb2.StudySpec) -> 'StudyConfig':
     """Converts a StudyConfig proto to a StudyConfig object.
 
