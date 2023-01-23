@@ -30,9 +30,9 @@ from __future__ import annotations
 """Tests for pyglove.tuner.vizier2.oss_vizier_test."""
 import os
 from absl import logging
+
 from vizier._src.pyglove import oss_vizier as vizier
 from vizier._src.pyglove import vizier_test_lib
-
 from vizier.service import vizier_server
 
 from absl.testing import absltest

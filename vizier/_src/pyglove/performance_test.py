@@ -16,12 +16,14 @@ from __future__ import annotations
 
 """Large-scale stress tests (multiple workers, multithreading) for PyGlove-Vizier integration."""
 import multiprocessing.pool
+import os
 import random
 import time
 from absl import logging
 import pyglove as pg
 
 from vizier._src.pyglove import oss_vizier as vizier
+from vizier.service import vizier_server
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -30,7 +32,17 @@ from absl.testing import parameterized
 NUM_TRIALS_PER_WORKER = 10
 NUM_WORKERS = 10
 
-vizier.init()
+_server = None
+
+
+def setUpModule():
+  hostname = os.uname()[1]
+  global _server
+  _server = vizier_server.DefaultVizierServer(host=hostname)
+  logging.info(_server.endpoint)
+  vizier._global_states.vizier_tuner = None
+  vizier.init(vizier_endpoint=_server.endpoint)
+  logging.info('Setupmodule done!')
 
 
 class PerformanceTest(parameterized.TestCase):
