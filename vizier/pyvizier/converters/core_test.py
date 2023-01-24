@@ -82,6 +82,33 @@ class TrialToArrayConverterTest(absltest.TestCase):
     expected = np.array([[1.25, 0.25, 0, 0, 1, 0.75]])
     np.testing.assert_equal(converter.to_features([trial]), expected)
 
+  def test_onehot_embedding(self):
+    space = pyvizier.SearchSpace()
+    root = space.root
+    root.add_categorical_param('c1', ['0', '1', '2'])
+    root.add_categorical_param('c2', ['0', '1', '2', '3'])
+
+    converter = core.TrialToArrayConverter.from_study_config(
+        pyvizier.ProblemStatement(search_space=space)
+    )
+    n_trials = 10
+    n_repeat_check = 50
+    for _ in range(n_repeat_check):
+      trials = []
+      for _ in range(n_trials):
+        trials.append(
+            pyvizier.Trial(
+                parameters={
+                    'c1': pyvizier.ParameterValue(str(np.random.randint(0, 3))),
+                    'c2': pyvizier.ParameterValue(str(np.random.randint(0, 4))),
+                }
+            )
+        )
+      features = converter.to_features(trials)
+      np.testing.assert_equal(
+          np.sum(features, axis=1), np.array([2] * n_trials)
+      )
+
 
 class DictToArrayTest(absltest.TestCase):
 
