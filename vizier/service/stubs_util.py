@@ -38,7 +38,7 @@ def _create_channel(
 
 @functools.lru_cache(maxsize=128)
 def create_pythia_server_stub(
-    endpoint: str, timeout: Optional[float] = None
+    endpoint: str, timeout: Optional[float] = 10.0
 ) -> pythia_service_pb2_grpc.PythiaServiceStub:
   """Creates the GRPC stub.
 
@@ -49,7 +49,7 @@ def create_pythia_server_stub(
 
   Args:
     endpoint: Pythia server endpoint.
-    timeout: Timeout in second. If None, no timeout will be used.
+    timeout: Timeout in seconds. If None, no timeout will be used.
 
   Returns:
     Pythia Server stub at endpoint.
@@ -61,7 +61,7 @@ def create_pythia_server_stub(
 
 @functools.lru_cache(maxsize=128)
 def create_vizier_server_stub(
-    endpoint: str,
+    endpoint: str, timeout: Optional[float] = 10.0
 ) -> vizier_service_pb2_grpc.VizierServiceStub:
   """Creates the GRPC stub.
 
@@ -71,9 +71,12 @@ def create_vizier_server_stub(
   for unit tests.
 
   Args:
-    endpoint:
+    endpoint: Vizier server endpoint.
+    timeout: Timeout in seconds. If None, no timeout will be used.
 
   Returns:
     Vizier Server stub at endpoint.
   """
-  return vizier_service_pb2_grpc.VizierServiceStub(_create_channel(endpoint))
+  return vizier_service_pb2_grpc.VizierServiceStub(
+      _create_channel(endpoint, timeout)
+  )
