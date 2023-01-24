@@ -196,11 +196,12 @@ class _OSSVizierTuner(client.VizierTuner):
 
   def ping_tuner(self, tuner_id: str) -> bool:
     # We treat `tuner_id` as the Pythia endpoint.
-    pythia_stub = stubs_util.create_pythia_server_stub(tuner_id, timeout=3)
     try:
-      pythia_stub.Ping(empty_pb2.Empty())
+      stubs_util.create_pythia_server_stub(tuner_id, timeout=3).Ping(
+          empty_pb2.Empty()
+      )
       return True
-    except grpc.RpcError:
+    except (grpc.RpcError, grpc.FutureTimeoutError):
       return False
 
   def pythia_supporter(
