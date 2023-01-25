@@ -43,8 +43,6 @@ class _EnviromentVariables:
 
 environment_variables = _EnviromentVariables()
 
-_UNUSED_CLIENT_ID = 'Unused client id.'
-
 
 @attr.define
 class Trial(client_abc.TrialInterface):
@@ -216,7 +214,7 @@ class Study(client_abc.StudyInterface):
             environment_variables.server_endpoint
         ),
         name,
-        _UNUSED_CLIENT_ID,
+        constants.UNUSED_CLIENT_ID,
     )
     try:
       _ = client.get_study_config()  # Make sure study exists.
@@ -266,7 +264,7 @@ class Study(client_abc.StudyInterface):
         vizier_client.create_or_load_study(
             environment_variables.server_endpoint,
             owner_id=owner,
-            client_id=_UNUSED_CLIENT_ID,
+            client_id=constants.UNUSED_CLIENT_ID,
             study_id=study_id,
             study_config=config,
         )

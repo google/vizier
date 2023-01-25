@@ -24,3 +24,6 @@ PYTHIA_ENDPOINT_KEY = 'PYTHIA_ENDPOINT'
 
 # A hard coded value which indicates that the Pythia endpoint is not set.
 NO_ENDPOINT = 'NO_ENDPOINT'
+
+# Default client ID.
+UNUSED_CLIENT_ID = 'Unused client id.'
