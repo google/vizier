@@ -62,7 +62,7 @@ pip install google-vizier[extra]
 which will also install the dependencies:
 
 * `requirements-jax.txt`: Jax libraries shared by both algorithms and benchmarks.
-* `requirements-tf.txt`: Tensorflow libraries shared by both algorithms and benchmarks.
+* `requirements-tf.txt`: Tensorflow libraries used by benchmarks.
 * `requirements-algorithms.txt`: Additional repositories (e.g. Emukit) for algorithms.
 * `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
 * `requirements-test.txt`: Libraries needed for testing code.
