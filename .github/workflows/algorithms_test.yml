@@ -42,4 +42,4 @@ jobs:
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier/_src/algorithms/ vizier/_src/pyglove/
+          pytest -n auto vizier/_src/algorithms/ vizier/_src/pyglove/ vizier/_src/jax/
