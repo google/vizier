@@ -1,3 +1,4 @@
 # Optional Jax library.
 jax>=0.3.16
 jaxlib>=0.3.15
+jaxopt>=0.5.5
