@@ -39,7 +39,7 @@ def loss_fn(inputs):
                                                   (xs - 0.5)**2)), dict()
 
 
-def setup(rng):
+def optimizer_setup(rng):
   rng1, rng2 = jax.random.split(rng, 2)
   return {
       'x1': jax.random.uniform(rng1, shape=(1,), minval=-3, maxval=3),
@@ -71,7 +71,7 @@ class OptimizersTest(parameterized.TestCase):
       constraints = sp.Constraint.create((lb, ub), tfb.SoftClip)
 
     optimal_params, metrics = optimize(
-        setup, loss_fn, jax.random.PRNGKey(1), constraints=constraints
+        optimizer_setup, loss_fn, jax.random.PRNGKey(1), constraints=constraints
     )
     logging.info('Optimal: %s', optimal_params)
     # Thanks to restarts, we can find the optimum.
@@ -94,7 +94,7 @@ class OptimizersTest(parameterized.TestCase):
         best_n=5)
     constraint_fn = tfb.JointMap({'x1': tfb.Exp(), 'x2': tfb.Softplus()})
     optimal_params, _ = optimize(
-        setup,
+        optimizer_setup,
         loss_fn,
         jax.random.PRNGKey(0),
         # Optax uses the bijector and not the bounds, so it is safe to pass only
@@ -121,7 +121,7 @@ class OptimizersTest(parameterized.TestCase):
       constraints = sp.Constraint.create(bounds, tfb.SoftClip)
     optimize = optimizers.JaxoptLbfgsB(random_restarts=10, best_n=5)
     optimal_params, _ = optimize(
-        setup, loss_fn, jax.random.PRNGKey(0), constraints=constraints
+        optimizer_setup, loss_fn, jax.random.PRNGKey(0), constraints=constraints
     )
     logging.info('Optimal: %s', optimal_params)
 
