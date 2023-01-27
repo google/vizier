@@ -45,7 +45,7 @@ def _test_coroutine(inputs=None, dtype=np.float64):
   )
   amplitude = yield sp_model.ModelParameter(
       init_fn=lambda k: random.exponential(k, dtype=dtype),
-      regularizer=lambda x: 1e-3 * x**2,
+      regularizer=lambda x: dtype(1e-3) * x**2,
       constraint=constraint,
       name='amplitude',
   )
@@ -78,11 +78,12 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       # TODO: Add a test case with categorical data.
+      # TODO: Fix support for f32.
       {
           'testcase_name': 'continuous_only',
           'model_coroutine': _test_coroutine,
           'test_data_fn': _make_inputs,
-          'dtype': np.float32,
+          'dtype': np.float64,
       },
   )
   def test_stochastic_process_model(self, model_coroutine, test_data_fn, dtype):

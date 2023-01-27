@@ -37,7 +37,7 @@ class GaussianProcessARDTest(absltest.TestCase):
         use_tfp_runtime_validation=True)
 
     obs_key, coro_key, sample_key = random.split(random.PRNGKey(0), num=3)
-    x = random.uniform(obs_key, shape=(num_obs, dim))
+    x = random.uniform(obs_key, shape=(num_obs, dim), dtype=np.float32)
     gp, param_vals = _run_coroutine(coro(x), seed=coro_key)
     samples = gp.sample(100, seed=sample_key)
     self.assertSequenceEqual(gp.event_shape, [num_obs])
