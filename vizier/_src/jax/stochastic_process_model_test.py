@@ -74,7 +74,7 @@ def _make_inputs(key, dtype):
   return x_observed, y_observed, x_predictive
 
 
-class StochasticProcessModelTest(absltest.TestCase, parameterized.TestCase):
+class StochasticProcessModelTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       # TODO: Add a test case with categorical data.
@@ -250,7 +250,7 @@ class ModelParameterTest(absltest.TestCase):
     self.assertTrue((param.constraint.bijector(x) > 0.0).all())
 
 
-class ConstraintTest(absltest.TestCase, parameterized.TestCase):
+class ConstraintTest(parameterized.TestCase):
 
   @parameterized.parameters(
       (-1.0, None),
