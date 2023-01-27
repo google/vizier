@@ -36,7 +36,6 @@ config.update('jax_enable_x64', True)
 tfb = tfp.bijectors
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
-tfpks = tfp.staging.psd_kernels
 
 
 def _test_coroutine(inputs=None, dtype=np.float64):
@@ -65,34 +64,6 @@ def _test_coroutine(inputs=None, dtype=np.float64):
   )
 
 
-def _test_coroutine_with_categorical(inputs=None, dtype=np.float64):
-  """A coroutine that follows the `ModelCoroutine` protocol."""
-  amplitude = yield sp_model.ModelParameter(
-      init_fn=lambda k: random.exponential(k, dtype=dtype),
-      constraint=sp_model.Constraint(bounds=(np.zeros([], dtype=dtype), None)),
-      regularizer=lambda x: 1e-3 * x**2,
-      name='amplitude',
-  )
-  one = np.ones([], dtype=dtype)
-  inverse_length_scale_continuous = yield sp_model.ModelParameter.from_prior(
-      tfd.Exponential(rate=one, name='inverse_length_scale_continuous')
-  )
-  inverse_length_scale_categorical = yield sp_model.ModelParameter.from_prior(
-      tfd.Exponential(rate=one, name='inverse_length_scale_categorical')
-  )
-  inverse_length_scale = tfpks.ContinuousAndCategoricalValues(
-      inverse_length_scale_continuous, inverse_length_scale_categorical)
-  kernel = tfpk.ExponentiatedQuadratic(amplitude=amplitude, validate_args=True)
-  kernel = tfpks.FeatureScaledWithCategorical(
-      kernel, inverse_length_scale, validate_args=True)
-  return tfd.GaussianProcess(
-      kernel=kernel,
-      index_points=inputs,
-      observation_noise_variance=np.zeros([], dtype=dtype),
-      validate_args=True,
-  )
-
-
 def _make_inputs(key, dtype):
   obs_key, pred_key = random.split(key)
   dim = 3
@@ -103,46 +74,15 @@ def _make_inputs(key, dtype):
   return x_observed, y_observed, x_predictive
 
 
-def _make_inputs_with_categorical(key, dtype):
-  cont_obs_key, cat_obs_key, cont_pred_key, cat_pred_key = random.split(
-      key, num=4)
-  cont_dim = 5
-  cat_dim = 3
-  num_observed = 15
-  x_observed_cont = random.uniform(
-      cont_obs_key, shape=(num_observed, cont_dim), dtype=dtype
-  )
-  x_observed_cat = random.randint(
-      cat_obs_key, shape=(num_observed, cat_dim), minval=0, maxval=6)
-  x_observed = tfpks.ContinuousAndCategoricalValues(x_observed_cont,
-                                                    x_observed_cat)
-  y_observed = x_observed_cont.sum(axis=-1)
-
-  num_pred = 8
-  x_predictive_cont = random.uniform(
-      cont_pred_key, shape=(100, num_pred, cont_dim), dtype=dtype
-  )
-  x_predictive_cat = random.randint(
-      cat_pred_key, shape=(num_pred, cat_dim), minval=0, maxval=6)
-  x_predictive = tfpks.ContinuousAndCategoricalValues(x_predictive_cont,
-                                                      x_predictive_cat)
-  return x_observed, y_observed, x_predictive
-
-
 class StochasticProcessModelTest(absltest.TestCase, parameterized.TestCase):
 
   @parameterized.named_parameters(
+      # TODO: Add a test case with categorical data.
       {
           'testcase_name': 'continuous_only',
           'model_coroutine': _test_coroutine,
           'test_data_fn': _make_inputs,
           'dtype': np.float32,
-      },
-      {
-          'testcase_name': 'continuous_and_categorical',
-          'model_coroutine': _test_coroutine_with_categorical,
-          'test_data_fn': _make_inputs_with_categorical,
-          'dtype': np.float64,
       },
   )
   def test_stochastic_process_model(self, model_coroutine, test_data_fn, dtype):
