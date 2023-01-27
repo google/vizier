@@ -106,6 +106,7 @@ class OptimizersTest(parameterized.TestCase):
     self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
     self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
 
+  @absltest.skip("Test breaks externally due to JaxOpt.")
   @parameterized.parameters(
       (None,),
       ((-4.0, None),),
