@@ -35,7 +35,6 @@ jobs:
           pip wheel -e .
           pip install -e .
           pip install -r requirements-jax.txt
-          pip install -r requirements-tf.txt
           pip install -r requirements-algorithms.txt
       - name: Print installed dependencies
         run: |
