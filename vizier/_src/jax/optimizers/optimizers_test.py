@@ -53,7 +53,7 @@ def _make_constraint_array(b):
   return {'x1': jnp.array([b]), 'x2': jnp.array([b, b])}
 
 
-class OptimizersTest(absltest.TestCase, parameterized.TestCase):
+class OptimizersTest(parameterized.TestCase):
 
   @parameterized.parameters(
       (None,),
