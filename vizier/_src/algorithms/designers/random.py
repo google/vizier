@@ -43,6 +43,7 @@ class RandomDesigner(vza.Designer):
       seed: Any valid seed for np.random.RandomState.
     """
     if search_space.is_conditional:
+      # TODO: Add conditional sampling case.
       raise ValueError(
           f'This designer {self} does not support conditional search.')
 
