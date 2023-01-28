@@ -141,7 +141,7 @@ class OptaxTrainWithRandomRestarts(Optimizer):
       rng: PRNGKey,
       *,
       constraints: Optional[sp.Constraint] = None,
-  ) -> Params:
+  ) -> tuple[Params, dict[str, Array]]:
     if constraints is None or constraints.bijector is None:
       bijector = None
       unconstrained_loss_fn = loss_fn
@@ -252,7 +252,7 @@ class JaxoptLbfgsB(Optimizer):
       rng: chex.PRNGKey,
       *,
       constraints: Optional[sp.Constraint] = None,
-  ) -> Params:
+  ) -> tuple[Params, dict[str, Array]]:
     # L-BFGS-B may be used on unconstrained problems (in which case it is
     # slightly different from L-BFGS, in that it uses the Cauchy point/subspace
     # minimization to choose the line search direction). Bounds must be None or
