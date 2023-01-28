@@ -2,4 +2,6 @@
 jax>=0.4.2
 jaxlib>=0.4.2
 jaxopt>=0.5.5
+flax>=0.6.4
+optax>=0.1.4
 tfp-nightly[jax]
