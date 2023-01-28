@@ -270,7 +270,7 @@ class JaxoptLbfgsB(Optimizer):
       if b is None:
         # Scalar `inf` will broadcast to the parameter vector.
         return inf
-      if is_leaf(b):
+      elif is_leaf(b):
         # Scalar bound will broadcast to the parameter vector.
         return b
       else:
