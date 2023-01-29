@@ -54,7 +54,11 @@ def default_policy_factory(
   """Creates a policy."""
   del study_name
 
-  if algorithm in ('DEFAULT', 'ALGORITHM_UNSPECIFIED', 'RANDOM_SEARCH'):
+  if algorithm in ('DEFAULT', 'ALGORITHM_UNSPECIFIED'):
+    from vizier._src.algorithms.designers import gp_bandit
+
+    return dp.DesignerPolicy(policy_supporter, gp_bandit.VizierGPBandit)
+  elif algorithm == 'RANDOM_SEARCH':
     from vizier._src.algorithms.policies import random_policy
 
     return random_policy.RandomPolicy(policy_supporter)
