@@ -14,94 +14,14 @@
 
 from __future__ import annotations
 
-"""Grid Search Designer which searches over a discretized grid of Trial parameter values.
-"""
-from typing import List, Mapping, Optional, Sequence
+"""Grid Search Designer which searches over a discretized grid of Trial parameter values."""
+import random
+from typing import List, Optional, Sequence
 import numpy as np
+
 from vizier import algorithms
 from vizier import pyvizier
-
-# TODO: Make this a user settable parameter.
-GRID_RESOLUTION = 10  # For double parameters.
-
-
-def _grid_points_from_parameter_config(
-    parameter_config: pyvizier.ParameterConfig
-) -> List[pyvizier.ParameterValue]:
-  """Produces grid points from a parameter_config."""
-  if parameter_config.type == pyvizier.ParameterType.DOUBLE:
-    min_value, max_value = parameter_config.bounds
-
-    if min_value == max_value:
-      return [pyvizier.ParameterValue(value=min_value)]
-
-    grid_scalars = np.linspace(min_value, max_value, num=GRID_RESOLUTION)
-    return [pyvizier.ParameterValue(value=value) for value in grid_scalars]
-
-  elif parameter_config.type == pyvizier.ParameterType.INTEGER:
-    min_value, max_value = parameter_config.bounds
-    return [
-        pyvizier.ParameterValue(value=value)
-        for value in range(min_value, max_value + 1)
-    ]
-
-  elif parameter_config.type == pyvizier.ParameterType.CATEGORICAL:
-    return [
-        pyvizier.ParameterValue(value=value)
-        for value in parameter_config.feasible_values
-    ]
-
-  elif parameter_config.type == pyvizier.ParameterType.DISCRETE:
-    return [
-        pyvizier.ParameterValue(value=value)
-        for value in parameter_config.feasible_values
-    ]
-  else:
-    raise ValueError(
-        f'ParameterConfig type is not one of the supported primitives for ParameterConfig: {parameter_config}'
-    )
-
-
-def _make_grid_values(
-    search_space: pyvizier.SearchSpace
-) -> Mapping[str, List[pyvizier.ParameterValue]]:
-  """Makes the grid values for every parameter."""
-  grid_values = {}
-  for parameter_config in search_space.parameters:
-    grid_values[parameter_config.name] = _grid_points_from_parameter_config(
-        parameter_config)
-  return grid_values
-
-
-def _make_grid_search_parameters(
-    indices: Sequence[int],
-    search_space: pyvizier.SearchSpace) -> List[pyvizier.ParameterDict]:
-  """Selects the specific parameters from an index and study_spec based on the natural ordering over a Cartesian Product.
-
-  This is looped over a sequence of indices. For a given `index`, this is
-  effectively equivalent to itertools.product(list_of_lists)[index].
-
-  Args:
-    indices: Index over Cartesian Product.
-    search_space: SearchSpace to produce the Cartesian Product. Ordering decided
-      alphabetically over the parameter names.
-
-  Returns:
-    ParameterDict for a trial suggestion.
-  """
-  # TODO: Add conditional sampling case.
-  grid_values = _make_grid_values(search_space)
-  parameter_dicts = []
-  for index in indices:
-    parameter_dict = pyvizier.ParameterDict()
-    temp_index = index
-    for p_name in grid_values:
-      p_length = len(grid_values[p_name])
-      p_index = temp_index % p_length
-      parameter_dict[p_name] = grid_values[p_name][p_index]
-      temp_index = temp_index // p_length
-    parameter_dicts.append(parameter_dict)
-  return parameter_dicts
+from vizier.pyvizier import converters
 
 
 class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
@@ -109,24 +29,52 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
 
   This designer searches over a grid of hyper-parameter values.
 
-  NOTE: The grid search index (i.e. which grid point to output) is calculated
-  according to the number of suggestions created so far (regardless of
-  completion or not). This means the class must be wrapped via
-  `PartiallySerializableDesignerPolicy` for use in Pythia, thus requiring
-  load/dump implementations.
+  NOTE: The grid search index (i.e. which grid point to output) is based the
+  number of suggestions created so far (regardless of completion or not). This
+  means the class must be wrapped via `PartiallySerializableDesignerPolicy` for
+  use in Pythia, thus requiring load/dump implementations.
   """
 
-  def __init__(self, search_space: pyvizier.SearchSpace):
+  def __init__(
+      self,
+      search_space: pyvizier.SearchSpace,
+      shuffle_seed: Optional[int] = None,
+      *,
+      double_grid_resolution: int = 10,
+  ):
     """Init.
 
     Args:
       search_space: Must be a flat search space.
+      shuffle_seed: Whether to shuffle the grid ordering. If None, uses the
+        given ordering from original search space.
+      double_grid_resolution: Number of grid points for DOUBLE parameters.
     """
     if search_space.is_conditional:
       raise ValueError(
-          f'This designer {self} does not support conditional search.')
+          f'This designer {self} does not support conditional search.'
+      )
     self._search_space = search_space
+    self._double_grid_resolution = double_grid_resolution
     self._current_index = 0
+
+    # Makes the grid values for every parameter.
+    self._grid_values = {}
+    for parameter_config in self._search_space.parameters:
+      self._grid_values[parameter_config.name] = (
+          self._grid_points_from_parameter_config(parameter_config)
+      )
+
+    # Shuffle the grid if specified.
+    if shuffle_seed is not None:
+      rng = random.Random(shuffle_seed)
+      # Shuffle dict keys.
+      shuffled_items = list(self._grid_values.items())
+      rng.shuffle(shuffled_items)
+      self._grid_values = dict(shuffled_items)
+      # Shuffle dict value lists.
+      for param_name in self._grid_values:
+        rng.shuffle(self._grid_values[param_name])
 
   @classmethod
   def from_problem(cls, problem: pyvizier.ProblemStatement):
@@ -137,7 +85,8 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     pass
 
   def suggest(
-      self, count: Optional[int] = None) -> Sequence[pyvizier.TrialSuggestion]:
+      self, count: Optional[int] = None
+  ) -> Sequence[pyvizier.TrialSuggestion]:
     """Make new suggestions.
 
     Args:
@@ -148,9 +97,21 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
       New suggestions.
     """
     count = count or 1
-    parameter_dicts = _make_grid_search_parameters(
-        range(self._current_index, self._current_index + count),
-        self._search_space)
+
+    parameter_dicts = []
+    for index in range(self._current_index, self._current_index + count):
+      # Use index to select parameters via Cartesian Product ordering.
+      # Effectively equivalent to itertools.product(list_of_lists)[index]`,
+      # without the memory blowup.
+      parameter_dict = pyvizier.ParameterDict()
+      temp_index = index
+      for p_name in self._grid_values:
+        p_length = len(self._grid_values[p_name])
+        p_index = temp_index % p_length
+        parameter_dict[p_name] = self._grid_values[p_name][p_index]
+        temp_index = temp_index // p_length
+      parameter_dicts.append(parameter_dict)
+
     self._current_index += len(parameter_dicts)
     return [pyvizier.TrialSuggestion(parameters=p) for p in parameter_dicts]
 
@@ -163,3 +124,41 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     metadata = pyvizier.Metadata()
     metadata.ns('grid')['current_index'] = str(self._current_index)
     return metadata
+
+  def _grid_points_from_parameter_config(
+      self,
+      parameter_config: pyvizier.ParameterConfig,
+  ) -> List[pyvizier.ParameterValue]:
+    """Produces grid points from a parameter_config."""
+    if parameter_config.type == pyvizier.ParameterType.DOUBLE:
+      min_value, max_value = parameter_config.bounds
+      if min_value == max_value:
+        return [pyvizier.ParameterValue(value=min_value)]
+
+      converter = converters.DefaultModelInputConverter(
+          parameter_config, scale=True
+      )
+      grid_scalars = np.linspace(0.0, 1.0, num=self._double_grid_resolution)
+      return converter.to_parameter_values(grid_scalars)  # pytype:disable=bad-return-type
+
+    elif parameter_config.type == pyvizier.ParameterType.INTEGER:
+      min_value, max_value = parameter_config.bounds
+      return [
+          pyvizier.ParameterValue(value=value)
+          for value in range(min_value, max_value + 1)
+      ]
+
+    elif parameter_config.type in [
+        pyvizier.ParameterType.DISCRETE,
+        pyvizier.ParameterType.CATEGORICAL,
+    ]:
+      return [
+          pyvizier.ParameterValue(value=value)
+          for value in parameter_config.feasible_values
+      ]
+
+    else:
+      raise ValueError(
+          'ParameterConfig type is not one of the supported primitives for'
+          f' ParameterConfig: {parameter_config}'
+      )
