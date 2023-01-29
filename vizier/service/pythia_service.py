@@ -15,13 +15,12 @@
 from __future__ import annotations
 
 """Separate Pythia service for handling algorithmic logic."""
-# pylint:disable=g-import-not-at-top
-from typing import Optional, Protocol
+from typing import Optional
 from absl import logging
+import attr
 import grpc
 
-from vizier import pythia
-from vizier._src.algorithms.policies import designer_policy as dp
+from vizier.service import policy_factory as policy_factory_lib
 from vizier.service import pythia_service_pb2
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as vz
@@ -32,100 +31,20 @@ from vizier.service import types
 from google.protobuf import empty_pb2
 
 
-class PolicyFactory(Protocol):
-  """Protocol (PEP-544) for a Policy Factory."""
-
-  def __call__(
-      self,
-      problem_statement: vz.ProblemStatement,
-      algorithm: str,
-      policy_supporter: pythia.PolicySupporter,
-      study_name: str,
-  ) -> pythia.Policy:
-    """Creates a Pythia Policy."""
-
-
-def default_policy_factory(
-    problem_statement: vz.ProblemStatement,
-    algorithm: str,
-    policy_supporter: pythia.PolicySupporter,
-    study_name: str,
-) -> pythia.Policy:
-  """Creates a policy."""
-  del study_name
-
-  if algorithm in ('DEFAULT', 'ALGORITHM_UNSPECIFIED'):
-    from vizier._src.algorithms.designers import gp_bandit
-
-    return dp.DesignerPolicy(policy_supporter, gp_bandit.VizierGPBandit)
-  elif algorithm == 'RANDOM_SEARCH':
-    from vizier._src.algorithms.policies import random_policy
-
-    return random_policy.RandomPolicy(policy_supporter)
-  elif algorithm == 'QUASI_RANDOM_SEARCH':
-    from vizier._src.algorithms.designers import quasi_random
-
-    return dp.PartiallySerializableDesignerPolicy(
-        problem_statement,
-        policy_supporter,
-        quasi_random.QuasiRandomDesigner.from_problem,
-    )
-  elif algorithm == 'GRID_SEARCH':
-    from vizier._src.algorithms.designers import grid
-
-    return dp.PartiallySerializableDesignerPolicy(
-        problem_statement,
-        policy_supporter,
-        grid.GridSearchDesigner.from_problem,
-    )
-  elif algorithm == 'NSGA2':
-    from vizier._src.algorithms.evolution import nsga2
-
-    return dp.PartiallySerializableDesignerPolicy(
-        problem_statement, policy_supporter, nsga2.create_nsga2
-    )
-  elif algorithm == 'EMUKIT_GP_EI':
-    from vizier._src.algorithms.designers import emukit
-
-    return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
-  elif algorithm == 'BOCS':
-    from vizier._src.algorithms.designers import bocs
-
-    return dp.DesignerPolicy(policy_supporter, bocs.BOCSDesigner)
-  elif algorithm == 'HARMONICA':
-    from vizier._src.algorithms.designers import harmonica
-
-    return dp.DesignerPolicy(policy_supporter, harmonica.HarmonicaDesigner)
-  elif algorithm == 'CMA_ES':
-    from vizier._src.algorithms.designers import cmaes
-
-    return dp.PartiallySerializableDesignerPolicy(
-        problem_statement, policy_supporter, cmaes.CMAESDesigner
-    )
-  else:
-    raise ValueError(f'Algorithm {algorithm} is not registered.')
-
-
+@attr.define
 class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
   """Implements the GRPC functions outlined in pythia_service.proto."""
 
-  def __init__(
-      self,
-      vizier_service: Optional[types.VizierService] = None,
-      policy_factory: PolicyFactory = default_policy_factory,
-  ):
-    """Initialization.
-
-    Args:
-      vizier_service: Can be either an actual VizierService object or a stub. An
-        actual VizierService should be passed only for local testing/local
-        development.
-      policy_factory: Factory for creating policies. Defaulted to OSS
-        Vizier-specific policies, but allows use of external package (e.g.
-        PyGlove) poliices.
-    """
-    self._vizier_service = vizier_service
-    self._policy_factory = policy_factory
+  # Can be either an actual VizierService object or a stub. An actual
+  # VizierService should be passed only for local testing/local development.
+  _vizier_service: Optional[types.VizierService] = attr.field(
+      init=True, default=None
+  )
+  # Factory for creating policies. Defaulted to OSS Vizier-specific policies,
+  # but allows use of external package (e.g. PyGlove) poliices.
+  _policy_factory: policy_factory_lib.PolicyFactory = attr.field(
+      init=True, factory=policy_factory_lib.DefaultPolicyFactory
+  )
 
   def connect_to_vizier(self, endpoint: str) -> None:
     """Only needs to be called if VizierService wasn't passed in init."""

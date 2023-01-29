@@ -77,9 +77,13 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
         rng.shuffle(self._grid_values[param_name])
 
   @classmethod
-  def from_problem(cls, problem: pyvizier.ProblemStatement):
+  def from_problem(
+      cls,
+      problem: pyvizier.ProblemStatement,
+      shuffle_seed: Optional[int] = None,
+  ):
     """For wrapping via `PartiallySerializableDesignerPolicy`."""
-    return GridSearchDesigner(problem.search_space)
+    return GridSearchDesigner(problem.search_space, shuffle_seed)
 
   def update(self, _) -> None:
     pass

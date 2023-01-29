@@ -58,6 +58,8 @@ class Algorithm(enum.Enum):
   GAUSSIAN_PROCESS_BANDIT = 'GAUSSIAN_PROCESS_BANDIT'
   # Grid search within the feasible space.
   GRID_SEARCH = 'GRID_SEARCH'
+  # Grid search, but with parameters and values shuffled.
+  SHUFFLED_GRID_SEARCH = 'SHUFFLED_GRID_SEARCH'
   # Random search within the feasible space.
   RANDOM_SEARCH = 'RANDOM_SEARCH'
   # Quasi-random search using Halton sequences.

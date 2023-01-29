@@ -49,6 +49,7 @@ from vizier._src.pyglove import pythia as pyglove_pythia
 from vizier.client import client_abc
 from vizier.service import clients as pyvizier_clients
 from vizier.service import constants
+from vizier.service import policy_factory as policy_factory_lib
 from vizier.service import pythia_service
 from vizier.service import pythia_service_pb2_grpc
 from vizier.service import pyvizier as svz
@@ -66,6 +67,8 @@ BuiltinAlgorithm = algorithms.BuiltinAlgorithm
 ExpandedStudyName = client.ExpandedStudyName
 StudyKey = client.StudyKey
 
+PolicyCache = dict[StudyKey, TunerPolicy]
+
 
 @attr.define
 class _GlobalStates:
@@ -75,6 +78,34 @@ class _GlobalStates:
 
 
 _global_states = _GlobalStates()
+
+
+class PyGlovePolicyFactory(policy_factory_lib.PolicyFactory):
+  """PolicyFactory for OSSVizierTuner."""
+
+  def __init__(self, policy_cache: PolicyCache):
+    self._policy_cache = policy_cache
+
+  def __call__(
+      self, problem_statement, algorithm, policy_supporter, study_name
+  ):
+    study_resource = resources.StudyResource.from_name(study_name)
+    study_key = StudyKey(
+        study_resource.owner_id, ExpandedStudyName(study_resource.study_id)
+    )
+    if study_key in self._policy_cache:
+      logging.info(
+          'StudyKey %s was found in cache. Using it as the policy.', study_key
+      )
+      return self._policy_cache[study_key]
+
+    # Use default Vizier algorithms if not using PyGlove poliices.
+    logging.info(
+        'StudyKey %s was not found in cache. Using default policy factory.'
+    )
+    return policy_factory_lib.DefaultPolicyFactory()(
+        problem_statement, algorithm, policy_supporter, study_name
+    )
 
 
 class _OSSVizierTuner(client.VizierTuner):
@@ -104,27 +135,11 @@ class _OSSVizierTuner(client.VizierTuner):
     del algorithm
     return self._get_pythia_endpoint()
 
-  def _start_pythia_service(
-      self, policy_cache: dict[StudyKey, TunerPolicy]
-  ) -> bool:
+  def _start_pythia_service(self, policy_cache: PolicyCache) -> bool:
     """See parent class."""
 
     if not self._pythia_server:
-      def policy_factory(
-          problem_statement, algorithm, policy_supporter, study_name  # pylint:disable=unused-argument
-      ):
-        study_resource = resources.StudyResource.from_name(study_name)
-        study_key = StudyKey(
-            study_resource.owner_id, ExpandedStudyName(study_resource.study_id)
-        )
-        if study_key in policy_cache:
-          return policy_cache[study_key]
-
-        # Use default Vizier algorithms if not using PyGlove poliices.
-        return pythia_service.default_policy_factory(
-            problem_statement, algorithm, policy_supporter, study_name
-        )
-
+      policy_factory = PyGlovePolicyFactory(policy_cache)
       self._pythia_servicer = pythia_service.PythiaServicer(
           self._vizier_service, policy_factory
       )
