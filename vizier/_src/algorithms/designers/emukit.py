@@ -46,7 +46,7 @@ def _create_constrained_gp(features: np.ndarray, labels: np.ndarray):
       logging.logging.CRITICAL)
 
   class LogGaussian:
-    """Multi-variate version of Loggaussian.
+    """Multi-variate version of Log-Gaussian.
 
     GPy surprisingly doesn't have this. The expected API of lnpdf and lnpdf_grad
     are not precisely defined, so this handwaves a lot of stuff based on how
@@ -149,7 +149,11 @@ class EmukitDesigner(vza.Designer):
     # Emukit pipeline's model and acquisition optimizer use the same
     # representation. We need to remove the oov dimensions.
     self._converter = converters.TrialToArrayConverter.from_study_config(
-        study_config, pad_oovs=False)
+        study_config,
+        scale=True,
+        flip_sign_for_minimization_metrics=True,
+        pad_oovs=False,
+    )
     self._trials = tuple()
     self._emukit_space = core.ParameterSpace(
         [_to_emukit_parameter(spec) for spec in self._converter.output_specs])
@@ -179,7 +183,7 @@ class EmukitDesigner(vza.Designer):
                         count: Optional[int] = None
                        ) -> Sequence[vz.TrialSuggestion]:
     features, labels = self._converter.to_xy(self._trials)
-    # emukit minimizes. Flip the signs.
+    # emukit minimizes. Flip the signs again (converter flips for minimization).
     labels = -labels
 
     if self._version == Version.DEFAULT_EI:

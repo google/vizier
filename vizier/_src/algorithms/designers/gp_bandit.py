@@ -111,7 +111,11 @@ class VizierGPBandit(vza.Designer):
     # Extra initializations.
     # Discrete parameters are continuified to account for their actual values.
     self._converter = converters.TrialToArrayConverter.from_study_config(
-        self._problem, max_discrete_indices=0, pad_oovs=True, scale=True
+        self._problem,
+        scale=True,
+        pad_oovs=True,
+        max_discrete_indices=0,
+        flip_sign_for_minimization_metrics=True,
     )
     self._quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         self._problem.search_space
