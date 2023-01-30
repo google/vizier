@@ -45,25 +45,35 @@ Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedo
 
 
 ## Installation <a name="installation"></a>
-To install the **core API**, the simplest way is to run:
+**Most common:** To tune objectives using our default state-of-the-art JAX-based Bayesian Optimizer, run:
+
+```
+pip install google-vizier[jax]
+```
+
+To install a **minimal version** that consists of only the core service and client API from `requirements.txt`, run:
 
 ```
 pip install google-vizier
 ```
 
-which will install the necessary dependencies from `requirements.txt`.
-
-For **full installation** (to support **all algorithms and benchmarks**), run:
+For **full installation** to support all algorithms and benchmarks, run:
 
 ```
 pip install google-vizier[extra]
 ```
 
-which will also install the dependencies:
+For **specific installations**, you can run:
+
+```
+pip install google-vizier[X]
+```
+
+which will install additional packages from `requirements-X.txt`, such as:
 
 * `requirements-jax.txt`: Jax libraries shared by both algorithms and benchmarks.
 * `requirements-tf.txt`: Tensorflow libraries used by benchmarks.
-* `requirements-algorithms.txt`: Additional repositories (e.g. Emukit) for algorithms.
+* `requirements-algorithms.txt`: Additional repositories (e.g. EvoJAX) for algorithms.
 * `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
 * `requirements-test.txt`: Libraries needed for testing code.
 

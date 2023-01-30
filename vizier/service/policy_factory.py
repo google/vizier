@@ -49,7 +49,11 @@ class DefaultPolicyFactory(PolicyFactory):
       study_name: str,
   ) -> pythia.Policy:
     del study_name
-    if algorithm in ('DEFAULT', 'ALGORITHM_UNSPECIFIED'):
+    if algorithm in (
+        'DEFAULT',
+        'ALGORITHM_UNSPECIFIED',
+        'GAUSSIAN_PROCESS_BANDIT',
+    ):
       from vizier._src.algorithms.designers import gp_bandit
 
       return dp.DesignerPolicy(policy_supporter, gp_bandit.VizierGPBandit)

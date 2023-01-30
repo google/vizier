@@ -52,7 +52,7 @@ ParameterValueSequence = Union[vz.ParameterValueTypes, Sequence[int],
 
 class Algorithm(enum.Enum):
   """Valid Values for StudyConfig.Algorithm."""
-  # Let Vizier choose the algorithm. Currently defaults to RANDOM_SEARCH.
+  # Let Vizier choose algorithm. Currently defaults to GAUSSIAN_PROCESS_BANDIT.
   ALGORITHM_UNSPECIFIED = 'ALGORITHM_UNSPECIFIED'
   # Gaussian Process Bandit.
   GAUSSIAN_PROCESS_BANDIT = 'GAUSSIAN_PROCESS_BANDIT'
@@ -133,7 +133,7 @@ class StudyConfig(vz.ProblemStatement):
       validator=attr.validators.instance_of((Algorithm, str)),
       converter=lambda x: x.value if isinstance(x, enum.Enum) else x,
       on_setattr=[attr.setters.convert, attr.setters.validate],
-      default='RANDOM_SEARCH',
+      default='ALGORITHM_UNSPECIFIED',
       kw_only=True)
 
   pythia_endpoint: Optional[str] = attr.field(

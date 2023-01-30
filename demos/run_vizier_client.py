@@ -128,7 +128,7 @@ def main(argv: Sequence[str]) -> None:
   if FLAGS.multiobjective:
     study_config.algorithm = vz.Algorithm.NSGA2
   else:
-    study_config.algorithm = vz.Algorithm.EMUKIT_GP_EI
+    study_config.algorithm = vz.Algorithm.GAUSSIAN_PROCESS_BANDIT
 
   study = clients.Study.from_study_config(
       study_config, owner='my_name', study_id='cifar10'
