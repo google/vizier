@@ -268,13 +268,12 @@ class JaxoptLbfgsB(Optimizer):
     def _none_to_inf(b, inf):
       """Converts None bounds to inf or -inf to pass to the optimizer."""
       if b is None:
-        # Scalar `inf` will broadcast to the parameter vector.
-        return inf
+        b = inf
       if is_leaf(b):
-        # Scalar bound will broadcast to the parameter vector.
-        return b
+        # Broadcast scalars to the parameter structure.
+        return tree.map_structure(lambda x: b * jnp.ones_like(x), p)
       else:
-        # For structured bounds, replace Nones in the structure with inf.
+        # For structured bounds, replace `None`s in the structure with `inf`.
         return tree.map_structure(
             lambda b_, x: jnp.ones_like(x) * (inf if b_ is None else b_), b, p
         )

@@ -67,7 +67,7 @@ class OptimizersTest(parameterized.TestCase):
     if bounds is None:
       constraints = None
     else:
-      lb, ub = jax.tree_util.tree_map(_make_constraint_array, bounds)
+      lb, ub = tree.map_structure(_make_constraint_array, bounds)
       constraints = sp.Constraint.create((lb, ub), tfb.SoftClip)
 
     optimal_params, metrics = optimize(
@@ -106,7 +106,6 @@ class OptimizersTest(parameterized.TestCase):
     self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
     self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
 
-  @absltest.skip("Test breaks externally due to JaxOpt.")
   @parameterized.parameters(
       (None,),
       ((-4.0, None),),
@@ -118,7 +117,7 @@ class OptimizersTest(parameterized.TestCase):
       constraints = None
     else:
       if nest_constraint:
-        bounds = jax.tree_util.tree_map(_make_constraint_array, bounds)
+        bounds = tree.map_structure(_make_constraint_array, bounds)
       constraints = sp.Constraint.create(bounds, tfb.SoftClip)
     optimize = optimizers.JaxoptLbfgsB(random_restarts=10, best_n=5)
     optimal_params, _ = optimize(
