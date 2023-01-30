@@ -109,7 +109,7 @@ def _to_emukit_parameter(spec: converters.NumpyArraySpec) -> core.Parameter:
 
 
 def _to_emukit_parameters(search_space: vz.SearchSpace) -> core.ParameterSpace:
-  parameters = [_to_emukit_parameter(pc) for pc in search_space.parameters]
+  parameters = [_to_emukit_parameter(pc) for pc in search_space.parameters]  # pytype: disable=wrong-arg-types  # always-use-return-annotations
   return core.ParameterSpace(parameters)
 
 
