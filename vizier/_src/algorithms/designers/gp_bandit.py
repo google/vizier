@@ -132,6 +132,12 @@ class VizierGPBandit(vza.Designer):
       self, count: Optional[int] = None
   ) -> Sequence[vz.TrialSuggestion]:
     count = count or 1
+    if count > 1:
+      logging.warning(
+          'GAUSSIAN_PROCESS_BANDIT currently is not optimized for batched'
+          ' suggestions. Suggestions in the batch are likely to be very'
+          ' similar.'
+      )
     if len(self._trials) < self._num_seed_trials:
       seed_suggestions = []
       if not self._trials:
