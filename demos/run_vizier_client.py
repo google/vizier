@@ -57,7 +57,7 @@ flags.DEFINE_integer(
 )
 flags.DEFINE_integer(
     'suggestion_count',
-    5,
+    1,
     (
         'Number of suggestions to evaluate per iteration. Useful for batched'
         ' evaluations.'
