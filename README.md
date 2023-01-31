@@ -3,7 +3,6 @@
 </figure>
 
 # Open Source Vizier: Reliable and Flexible Black-Box Optimization.
-
 [![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
 ![Continuous Integration (Core)](https://github.com/google/vizier/workflows/pytest_core/badge.svg)
 ![Continuous Integration (Clients)](https://github.com/google/vizier/workflows/pytest_clients/badge.svg)
@@ -11,13 +10,12 @@
 ![Continuous Integration (Benchmarks)](https://github.com/google/vizier/workflows/pytest_benchmarks/badge.svg)
 ![Continuous Integration (Docs)](https://github.com/google/vizier/workflows/docs/badge.svg)
 
-[**Documentation**](https://oss-vizier.readthedocs.io/)
+  [**Getting Started**](#getting_started)
+| [**Documentation**](#documentation)
 | [**Installation**](#installation)
 | [**Citing Vizier**](#citing_vizier)
 
-
 ## What is Open Source (OSS) Vizier?
-
 [OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for black-box optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
 
 <figure>
@@ -28,6 +26,36 @@
 </p>
 </figure>
 
+## Getting Started <a name="getting_started"></a>
+Basic example for users:
+
+```
+from vizier.service import clients
+from vizier.service import pyvizier as vz
+
+# Objective function to maximize.
+def evaluate(x: float, y: float) -> float:
+  return x**2 - y**2
+
+# Search space, metrics, and algorithm.
+study_config = vz.StudyConfig()
+study_config.search_space.root.add_float_param('x', 0.0, 1.0)
+study_config.search_space.root.add_float_param('y', 0.0, 1.0)
+study_config.metric_information.append(vz.MetricInformation('metric_name', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
+study_config.algorithm = vz.Algorithm.GAUSSIAN_PROCESS_BANDIT
+
+# Setup client and begin optimization. Vizier Service will be implicitly created.
+study = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
+for i in range(10):
+  suggestions = study_client.suggest(count=1)
+  for suggestion in suggestions:
+    x = suggestion.parameters['x']
+    y = suggestion.parameters['y']
+    objective = evaluate(x, y)
+    suggestion.complete(vz.Measurement({'metric_name': objective}))
+```
+
+## Documentation <a name="documentation"></a>
 OSS Vizier's interface consists of [three main APIs](https://oss-vizier.readthedocs.io/en/latest/guides/index.html):
 
 * [**User API:**](https://oss-vizier.readthedocs.io/en/latest/guides/index.html#for-users) Allows a user to setup an OSS Vizier Server, which can host black-box optimization algorithms to serve multiple clients simultaneously in a fault-tolerant manner to tune their objective functions.
@@ -40,9 +68,6 @@ Additionally, it contains [advanced API](https://oss-vizier.readthedocs.io/en/la
 * [**PyGlove:**](https://oss-vizier.readthedocs.io/en/latest/advanced_topics/index.html#pyglove) For large-scale evolutionary experimentation and program search using OSS Vizier as a distributed backend.
 
 Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
-
-
-
 
 ## Installation <a name="installation"></a>
 **Most common:** To tune objectives using our default state-of-the-art JAX-based Bayesian Optimizer, run:
@@ -78,7 +103,6 @@ which will install additional packages from `requirements-X.txt`, such as:
 * `requirements-test.txt`: Libraries needed for testing code.
 
 Check if all unit tests work by running `run_tests.sh` after a full installation. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
-
 
 ## Citing Vizier <a name="citing_vizier"></a>
 If you found this code useful, please consider citing the [OSS Vizier paper](https://arxiv.org/abs/2207.13676) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
