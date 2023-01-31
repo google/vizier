@@ -32,7 +32,7 @@ import enum
 import getpass
 import time
 
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 from absl import logging
 import attrs
@@ -72,118 +72,21 @@ class TunerMode(enum.Enum):
   SECONDARY = 2
 
 
+# Global policy cache.
+_global_policy_cache: Dict[StudyKey, TunerPolicy] = dict()
+
+
 @attrs.define(auto_attribs=False)
 class VizierBackend(pg.tuning.Backend):
   """Vizier backend."""
 
-  # ------------------------------------
-  # Class-level methods and variables begin here.
-  # ------------------------------------
-
+  # Class-level variables.
   default_owner: str = getpass.getuser()
   default_study_prefix: Optional[str] = None
-  policy_cache: dict[StudyKey, TunerPolicy] = dict()
-  tuner: client.VizierTuner
+  tuner_cls: Type[client.VizierTuner] = attrs.field()
 
-  @classmethod
-  def _wait_for_study(
-      cls, owner: str, name: ExpandedStudyName
-  ) -> client_abc.StudyInterface:
-    """Wait for the study in a loop."""
-    while True:
-      try:
-        return cls.tuner.load_study(owner, name)
-      except KeyError:
-        logging.info(
-            'Study %s (owner=%s) does not exist. Retrying after 10 seconds.',
-            name,
-            owner,
-        )
-        time.sleep(10)
-      except Exception as e:  # pylint:disable=broad-except
-        logging.warn(
-            'Could not look up study: %s. Retrying after 60 seconds', e
-        )
-        time.sleep(60)
-
-  @classmethod
-  def _load_prior_trials(
-      cls, prior_study_ids: Optional[Sequence[str]]
-  ) -> list[vz.Trial]:
-    trials = []
-    for prior in prior_study_ids:
-      trials.extend(
-          cls.tuner.load_prior_study(prior)
-          .trials(vz.TrialFilter(status=vz.TrialStatus.COMPLETED))
-          .get()
-      )
-    return trials
-
-  @classmethod
-  def _expand_name(cls, name: Optional[str]) -> ExpandedStudyName:
-    """Expand the pyglove study name into the full name in Vizier DB.
-
-    Args:
-      name: Name as passed into pyglove.
-
-    Returns:
-      Study name to use for Vizier interactions.
-    """
-    components = []
-    if cls.default_study_prefix:
-      components.append(cls.default_study_prefix)
-    if name:
-      components.append(name)
-    return ExpandedStudyName('.'.join(components))
-
-  @classmethod
-  def _register(
-      cls, owner: str, name: ExpandedStudyName, policy: TunerPolicy
-  ) -> None:
-    """Registers the algorithm for a specific study."""
-    study_key = StudyKey(owner, name)
-
-    if study_key in cls.policy_cache:
-      existing = cls.policy_cache[study_key]
-      if existing.algorithm != policy.algorithm:
-        raise ValueError(
-            f'Different algorithms are used for the same study {study_key!r}. '
-            f'Previous: {existing.algorithm!r}, Current: {policy.algorithm!r}.'
-        )
-      if existing.early_stopping_policy != policy.early_stopping_policy:
-        raise ValueError(
-            'Different early stopping policy are used for the same study '
-            f'{study_key!r}. Previous: {existing.early_stopping_policy!r}, '
-            f'Current: {policy.early_stopping_policy!r}.'
-        )
-
-    cls.policy_cache[study_key] = policy
-
-  @classmethod
-  def _get_study_resource_name(cls, name: str) -> str:
-    """Use for testing only."""
-    return cls.tuner.load_study(
-        owner=cls.default_owner,
-        name=ExpandedStudyName(name),
-    ).resource_name
-
-  @classmethod
-  def use_study_prefix(cls, study_prefix: Optional[str]):
-    cls.default_study_prefix = study_prefix or ''
-
-  @classmethod
-  def poll_result(
-      cls, name: str, study_owner: Optional[str] = None
-  ) -> pg.tuning.Result:
-    """Gets tuning result by a unique tuning identifier."""
-    name = cls._expand_name(name)
-    return core.Result.from_study(
-        cls.tuner.load_study(study_owner or cls.default_owner, name)
-    )
-
-  # ------------------------------------
-  # Instance-level methods and variables begin here.
-  # ------------------------------------
+  # Instance-level variables.
+  _tuner: client.VizierTuner
   _name: str = attrs.field()
   _study: client_abc.StudyInterface = attrs.field()
   _converter: converters.VizierConverter = attrs.field()
@@ -204,6 +107,7 @@ class VizierBackend(pg.tuning.Backend):
       add_prior_trials: bool = False,
       is_chief: Optional[bool] = None,
   ):
+    self._tuner = self.tuner_cls()
     self._algorithm = algorithm
     study_owner = study_owner or self.default_owner
     prior_study_ids = prior_study_ids or tuple()
@@ -222,13 +126,10 @@ class VizierBackend(pg.tuning.Backend):
 
     # Load or create study.
     try:
-      self._study = self.tuner.load_study(
-          study_owner,
-          name,
-      )
+      self._study = self._tuner.load_study(study_owner, name)
       # Study exists.
       if mode == TunerMode.AUTO:
-        if self.tuner.ping_tuner(self._get_chief_tuner_id()):
+        if self._tuner.ping_tuner(self._get_chief_tuner_id()):
           mode = TunerMode.SECONDARY
         else:
           # NOTE(daiyip): there could be a race condition that multiple workers
@@ -253,11 +154,11 @@ class VizierBackend(pg.tuning.Backend):
       else:
         mode = TunerMode.PRIMARY  # We will make this a chief
         problem = self._converter.problem_or_dummy
-        local_tuner_id = self.tuner.get_tuner_id(self._algorithm)
+        local_tuner_id = self._tuner.get_tuner_id(self._algorithm)
         problem.metadata.ns(constants.METADATA_NAMESPACE)[
             constants.STUDY_METADATA_KEY_TUNER_ID
         ] = local_tuner_id
-        self._study = self.tuner.create_study(
+        self._study = self._tuner.create_study(
             problem, self._converter, study_owner, name, self._algorithm
         )
         if local_tuner_id == self._get_chief_tuner_id():
@@ -282,7 +183,7 @@ class VizierBackend(pg.tuning.Backend):
           num_examples is None or len(list(self._study.trials())) < num_examples
       ):
         trials = self._study.suggest(
-            count=1, client_id=self.tuner.get_group_id(group)
+            count=1, client_id=self._tuner.get_group_id(group)
         )
         if not trials:
           return
@@ -298,7 +199,8 @@ class VizierBackend(pg.tuning.Backend):
       return
 
     # Start pythia service.
-    self.tuner.start_pythia_service(VizierBackend.policy_cache)
+    self._tuner.start_pythia_service(_global_policy_cache)
+
     # Set up the policy.
     self._algorithm.setup(dna_spec)
     prior_trials = tuple()
@@ -338,7 +240,7 @@ class VizierBackend(pg.tuning.Backend):
       self._algorithm.recover(get_trial_history(prior_trials))
 
     return TunerPolicy(
-        self.tuner.pythia_supporter(self._study),
+        self._tuner.pythia_supporter(self._study),
         self._converter,
         self._algorithm,
         early_stopping_policy=early_stopping_policy,
@@ -357,15 +259,113 @@ class VizierBackend(pg.tuning.Backend):
 
   def _register_self_as_primary(self) -> str:
     metadata = vz.Metadata()
-    tuner_id = self.tuner.get_tuner_id(self._algorithm)
+    tuner_id = self._tuner.get_tuner_id(self._algorithm)
     metadata.ns(constants.METADATA_NAMESPACE)[
         constants.STUDY_METADATA_KEY_TUNER_ID
-    ] = self.tuner.get_tuner_id(self._algorithm)
+    ] = self._tuner.get_tuner_id(self._algorithm)
     self._study.update_metadata(metadata)
-    self.tuner.use_pythia_for_study(self._study)
+    self._tuner.use_pythia_for_study(self._study)
     return tuner_id
 
   def next(self) -> pg.tuning.Feedback:
     """Gets the next tuning feedback object."""
     trial = next(self._suggestion_generator)  # pytype: disable=wrong-arg-types
     return core.Feedback(self._study.get_trial(trial.id), self._converter)
+
+  def _wait_for_study(
+      self, owner: str, name: ExpandedStudyName
+  ) -> client_abc.StudyInterface:
+    """Wait for the study in a loop."""
+    while True:
+      try:
+        return self._tuner.load_study(owner, name)
+      except KeyError:
+        logging.info(
+            'Study %s (owner=%s) does not exist. Retrying after 10 seconds.',
+            name,
+            owner,
+        )
+        time.sleep(10)
+      except Exception as e:  # pylint:disable=broad-except
+        logging.warn(
+            'Could not look up study: %s. Retrying after 60 seconds', e
+        )
+        time.sleep(60)
+
+  def _load_prior_trials(
+      self, prior_study_ids: Optional[Sequence[str]]
+  ) -> list[vz.Trial]:
+    trials = []
+    for prior in prior_study_ids:
+      trials.extend(
+          self._tuner.load_prior_study(prior)
+          .trials(vz.TrialFilter(status=vz.TrialStatus.COMPLETED))
+          .get()
+      )
+    return trials
+
+  def _register(
+      self, owner: str, name: ExpandedStudyName, policy: TunerPolicy
+  ) -> None:
+    """Registers the algorithm for a specific study."""
+    study_key = StudyKey(owner, name)
+
+    if study_key in _global_policy_cache:
+      existing = _global_policy_cache[study_key]
+      if existing.algorithm != policy.algorithm:
+        raise ValueError(
+            f'Different algorithms are used for the same study {study_key!r}. '
+            f'Previous: {existing.algorithm!r}, Current: {policy.algorithm!r}.'
+        )
+      if existing.early_stopping_policy != policy.early_stopping_policy:
+        raise ValueError(
+            'Different early stopping policy are used for the same study '
+            f'{study_key!r}. Previous: {existing.early_stopping_policy!r}, '
+            f'Current: {policy.early_stopping_policy!r}.'
+        )
+
+    _global_policy_cache[study_key] = policy
+
+  #
+  # Class methods.
+  #
+
+  @classmethod
+  def use_study_prefix(cls, study_prefix: Optional[str]):
+    cls.default_study_prefix = study_prefix or ''
+
+  @classmethod
+  def _expand_name(cls, name: Optional[str]) -> ExpandedStudyName:
+    """Expand the pyglove study name into the full name in Vizier DB.
+
+    Args:
+      name: Name as passed into pyglove.
+
+    Returns:
+      Study name to use for Vizier interactions.
+    """
+    components = []
+    if cls.default_study_prefix:
+      components.append(cls.default_study_prefix)
+    if name:
+      components.append(name)
+    return ExpandedStudyName('.'.join(components))
+
+  @classmethod
+  def _get_study_resource_name(cls, name: str) -> str:
+    """Use for testing only."""
+    return cls.tuner_cls.load_study(
+        owner=cls.default_owner,
+        name=ExpandedStudyName(name),
+    ).resource_name
+
+  @classmethod
+  def poll_result(
+      cls, name: str, study_owner: Optional[str] = None
+  ) -> pg.tuning.Result:
+    """Polls result of a study."""
+    return core.Result.from_study(
+        cls.tuner_cls.load_study(
+            study_owner or cls.default_owner, cls._expand_name(name)
+        )
+    )

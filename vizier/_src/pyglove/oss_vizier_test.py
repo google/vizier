@@ -37,20 +37,18 @@ from vizier.service import vizier_server
 
 from absl.testing import absltest
 
-server = None
-
-
-def setUpModule():
-  hostname = os.uname()[1]
-  global server
-  server = vizier_server.DefaultVizierServer(host=hostname)
-  logging.info(server.endpoint)
-  vizier._global_states.vizier_tuner = None
-  vizier.init(vizier_endpoint=server.endpoint)
-  logging.info('Setupmodule done!')
-
 
 class OSSVizierSampleTest(vizier_test_lib.SampleTest):
+
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    server = vizier_server.DefaultVizierServer(host=os.uname()[1])
+    logging.info(server.endpoint)
+    vizier._services.reset_for_testing()
+    vizier.init(vizier_endpoint=server.endpoint)
+    cls.server = server
+    logging.info('Vizier service has been set up!')
 
   def __init__(self, *args, **kwargs):
     super().__init__(

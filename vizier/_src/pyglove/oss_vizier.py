@@ -45,7 +45,6 @@ from vizier._src.pyglove import algorithms
 from vizier._src.pyglove import backend
 from vizier._src.pyglove import client
 from vizier._src.pyglove import converters
-from vizier._src.pyglove import pythia as pyglove_pythia
 from vizier.client import client_abc
 from vizier.service import clients as pyvizier_clients
 from vizier.service import constants
@@ -61,23 +60,10 @@ from vizier.service import vizier_client
 
 from google.protobuf import empty_pb2
 
-TunerPolicy = pyglove_pythia.TunerPolicy
 BuiltinAlgorithm = algorithms.BuiltinAlgorithm
-
 ExpandedStudyName = client.ExpandedStudyName
+PolicyCache = client.PolicyCache
 StudyKey = client.StudyKey
-
-PolicyCache = dict[StudyKey, TunerPolicy]
-
-
-@attr.define
-class _GlobalStates:
-  """Global settings for all backends."""
-
-  vizier_tuner: Optional[client.VizierTuner] = attr.field(default=None)
-
-
-_global_states = _GlobalStates()
 
 
 class PyGlovePolicyFactory(policy_factory_lib.PolicyFactory):
@@ -108,62 +94,113 @@ class PyGlovePolicyFactory(policy_factory_lib.PolicyFactory):
     )
 
 
+@attr.define
+class _VizierServices:
+  """Vizier services hub.
+
+  This class is intended to be used as a singleton and not directly exposed to
+  the user. Instead, users should always call `vizier.pyglove.init` to set up
+  the vizier services stub, which calls `_VizierServices.use_vizier_service` and
+  `_VizierServices.set_pythia_port` underlying.
+  """
+
+  _vizier_endpoint: Optional[str] = None
+  _vizier_service: Optional[vizier_types.VizierService] = None
+  _pythia_port: Optional[int] = None
+  _pythia_server: Optional[grpc.Server] = None
+  _pythia_servicer: Optional[pythia_service.PythiaServicer] = None
+
+  def reset_for_testing(self) -> None:
+    """Resets the services for testing purpose."""
+    self._vizier_endpoint = None
+    self._vizier_service = None
+    self._pythia_port = None
+    self._pythia_server = None
+    self._pythia_servicer = None
+
+  def use_vizier_service(self, endpoint: Optional[None]) -> None:
+    """Uses vizier service specified by endpoint."""
+    endpoint = endpoint or constants.NO_ENDPOINT
+    if self._vizier_endpoint is not None and self._vizier_endpoint != endpoint:
+      raise ValueError(
+          'Cannot use different vizier endpoints in the same process. '
+          f'Previous={self._vizier_endpoint}, New={endpoint}.'
+      )
+    self._vizier_endpoint = endpoint
+    if self._vizier_service is not None:
+      return
+    if endpoint != constants.NO_ENDPOINT:
+      pyvizier_clients.environment_variables.server_endpoint = (
+          self._vizier_endpoint
+      )
+    self._vizier_service = vizier_client.create_vizier_servicer_or_stub(
+        self._vizier_endpoint
+    )
+
+  @property
+  def vizier_service(self) -> vizier_types.VizierService:
+    """Returns current vizier service."""
+    assert self._vizier_service, 'call `use_vizier_service` first.'
+    return self._vizier_service
+
+  def set_pythia_port(self, pythia_port: Optional[int] = None) -> None:
+    if (
+        self._pythia_port is not None
+        and pythia_port is not None
+        and self._pythia_port != pythia_port
+    ):
+      raise ValueError(
+          'Cannot use different pythia ports in the same process. '
+          f'Previous={self._pythia_port}, New={pythia_port}'
+      )
+    self._pythia_port = pythia_port or portpicker.pick_unused_port()
+
+  @property
+  def pythia_endpoint(self) -> str:
+    """Returns the endpoint for Pythia service."""
+    assert self._pythia_port is not None, 'Please call `set_pythia_port` first.'
+    return f'{os.uname()[1]}:{self._pythia_port}'
+
+  def start_pythia_service(self, policy_cache: PolicyCache) -> None:
+    """Start pythia service with a policy cache."""
+    if self._pythia_server is not None:
+      return
+
+    policy_factory = PyGlovePolicyFactory(policy_cache)
+    self._pythia_servicer = pythia_service.PythiaServicer(
+        self._vizier_service, policy_factory
+    )
+    self._pythia_server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
+    pythia_service_pb2_grpc.add_PythiaServiceServicer_to_server(
+        self._pythia_servicer, self._pythia_server
+    )
+    self._pythia_server.add_insecure_port(self.pythia_endpoint)
+    self._pythia_server.start()
+
+
+# Global vizier services hub.
+_services = _VizierServices()
+
+
 class _OSSVizierTuner(client.VizierTuner):
   """OSS Vizier tuner for pyglove."""
-
-  _vizier_service: vizier_types.VizierService
-  _pythia_port: int = 9999
-  _pythia_servicer: Optional[pythia_service.PythiaServicer] = None
-  _pythia_server: Optional[grpc.Server] = None
-
-  def __init__(
-      self, endpoint: Optional[str] = None, pythia_port: Optional[int] = None
-  ):
-    super().__init__()
-    if endpoint:
-      pyvizier_clients.environment_variables.server_endpoint = endpoint
-    else:
-      endpoint = constants.NO_ENDPOINT
-
-    self._vizier_service = vizier_client.create_vizier_servicer_or_stub(
-        endpoint
-    )
-    self._pythia_port = pythia_port or portpicker.pick_unused_port()
 
   def get_tuner_id(self, algorithm: pg.DNAGenerator) -> str:
     """See parent class."""
     del algorithm
-    return self._get_pythia_endpoint()
+    return _services.pythia_endpoint
 
-  def _start_pythia_service(self, policy_cache: PolicyCache) -> bool:
+  def _start_pythia_service(self, policy_cache: PolicyCache) -> None:
     """See parent class."""
-
-    if not self._pythia_server:
-      policy_factory = PyGlovePolicyFactory(policy_cache)
-      self._pythia_servicer = pythia_service.PythiaServicer(
-          self._vizier_service, policy_factory
-      )
-      self._pythia_server = grpc.server(
-          futures.ThreadPoolExecutor(max_workers=1)
-      )
-      pythia_service_pb2_grpc.add_PythiaServiceServicer_to_server(
-          self._pythia_servicer, self._pythia_server
-      )
-      self._pythia_server.add_insecure_port(self._get_pythia_endpoint())
-      self._pythia_server.start()
-      return True
-    else:
-      return False
-
-  def _get_pythia_endpoint(self) -> str:
-    return f'{os.uname()[1]}:{self._pythia_port}'
+    _services.start_pythia_service(policy_cache)
 
   def load_prior_study(self, resource_name: str) -> client_abc.StudyInterface:
     """See parent class."""
     return pyvizier_clients.Study.from_resource_name(resource_name)
 
+  @classmethod
   def load_study(
-      self, owner: str, name: ExpandedStudyName
+      cls, owner: str, name: ExpandedStudyName
   ) -> client_abc.StudyInterface:
     """See parent class."""
     return pyvizier_clients.Study.from_owner_and_id(owner, name)
@@ -223,11 +260,11 @@ class _OSSVizierTuner(client.VizierTuner):
       self, study: client_abc.StudyInterface
   ) -> pythia.PolicySupporter:
     return service_policy_supporter.ServicePolicySupporter(
-        study.resource_name, self._vizier_service
+        study.resource_name, _services.vizier_service
     )
 
   def use_pythia_for_study(self, study: client_abc.StudyInterface) -> None:
-    pythia_endpoint = self._get_pythia_endpoint()
+    pythia_endpoint = _services.pythia_endpoint
     metadata = svz.StudyConfig.pythia_endpoint_metadata(pythia_endpoint)
     study.update_metadata(metadata)
 
@@ -251,10 +288,9 @@ def init(
     pythia_port: An optional port used for hosting the Pythia service. If None,
       the port will be automatically picked.
   """
-  if _global_states.vizier_tuner is not None:
-    raise ValueError('`vizier.pyglove.init` should be called only once.')
-  backend.VizierBackend.default_study_prefix = study_prefix
-  _global_states.vizier_tuner = _OSSVizierTuner(vizier_endpoint, pythia_port)
+  _services.use_vizier_service(vizier_endpoint)
+  _services.set_pythia_port(pythia_port)
+  backend.VizierBackend.use_study_prefix(study_prefix)
   pg.tuning.set_default_backend('oss_vizier')
 
 
@@ -262,11 +298,4 @@ def init(
 class OSSVizierBackend(backend.VizierBackend):
   """PyGlove backend that uses OSS Vizier."""
 
-  @classmethod
-  @property
-  def tuner(cls) -> client.VizierTuner:
-    if _global_states.vizier_tuner is None:
-      raise ValueError(
-          '`vizier.pyglove.init` must be called before `pg.sample`.'
-      )
-    return _global_states.vizier_tuner
+  tuner_cls = _OSSVizierTuner

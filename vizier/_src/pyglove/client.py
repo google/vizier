@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import abc
 import threading
-from typing import NewType, Union
+from typing import Dict, NewType, Union
 
 import attrs
 import pyglove as pg
@@ -42,6 +42,9 @@ class StudyKey:
   _name: ExpandedStudyName
 
 
+PolicyCache = Dict[StudyKey, pg_pythia.TunerPolicy]
+
+
 class VizierTuner(abc.ABC):
   """Abstraction for Vizier tuner.
 
@@ -57,9 +60,7 @@ class VizierTuner(abc.ABC):
   def get_tuner_id(self, algorithm: pg.DNAGenerator) -> str:
     """Get identifier of this tuner instance."""
 
-  def start_pythia_service(
-      self, policy_cache: dict[StudyKey, pg_pythia.TunerPolicy]
-  ) -> bool:
+  def start_pythia_service(self, policy_cache: PolicyCache) -> None:
     """Start pythia service on current machine."""
     with self._pythia_lock:
       self._start_pythia_service(policy_cache)
@@ -67,27 +68,18 @@ class VizierTuner(abc.ABC):
   @abc.abstractmethod
   def _start_pythia_service(
       self, policy_cache: dict[StudyKey, pg_pythia.TunerPolicy]
-  ) -> bool:
+  ) -> None:
     """Starts pythia service _only if_ there is no pythia service running.
 
     Args:
       policy_cache: The pythia service will have the reference to policies
         created by the backend. It is expected to use the study keys to find
         the policies, instead of creating new ones from scratch.
-
-    Returns:
-      True if a new pythia service was started. False otherwise.
     """
 
   @abc.abstractmethod
   def load_prior_study(self, resource_name: str) -> client_abc.StudyInterface:
     """Loads prior study identified by the resource name."""
-
-  @abc.abstractmethod
-  def load_study(
-      self, owner: str, name: ExpandedStudyName
-  ) -> client_abc.StudyInterface:
-    """Loads a study identified by (owner, name) pair."""
 
   @abc.abstractmethod
   def create_study(
@@ -117,3 +109,10 @@ class VizierTuner(abc.ABC):
   @abc.abstractmethod
   def use_pythia_for_study(self, study: client_abc.StudyInterface) -> None:
     """Uses current Pythia service to serve the input study."""
+
+  @classmethod
+  @abc.abstractmethod
+  def load_study(
+      cls, owner: str, name: ExpandedStudyName
+  ) -> client_abc.StudyInterface:
+    """Loads a study identified by (owner, name) pair."""
