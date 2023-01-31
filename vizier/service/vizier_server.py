@@ -14,7 +14,10 @@
 
 from __future__ import annotations
 
-"""Classes for starting the Vizier Server."""
+"""Classes for starting the Vizier Server.
+
+Extensive tests can be found in `clients_test.py`.
+"""
 
 from concurrent import futures
 import datetime

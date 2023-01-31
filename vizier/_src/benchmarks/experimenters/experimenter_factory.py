@@ -44,7 +44,7 @@ class BBOBExperimenterFactory(ExperimenterFactory):
       validator=[attr.validators.instance_of(int),
                  attr.validators.gt(0)])
 
-  def __call__(self) -> experimenter.Experimenter:
+  def __call__(self) -> numpy_experimenter.NumpyExperimenter:
     bbob_function = getattr(bbob, self.name, None)
     if bbob_function is None:
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')

@@ -35,12 +35,14 @@ class PerformanceTest(parameterized.TestCase):
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    cls.server = vizier_server.DistributedPythiaVizierServer()
+    cls.server = vizier_server.DefaultVizierServer()
 
   @parameterized.parameters(
       (1, 10, 2),
       (2, 10, 2),
       (10, 10, 2),
+      (50, 5, 2),
+      (100, 5, 2),
   )
   def test_multiple_clients_basic(
       self, num_simultaneous_clients, num_trials_per_client, dimension
