@@ -29,7 +29,7 @@
 ## Getting Started <a name="getting_started"></a>
 Basic example for users:
 
-```
+```python
 from vizier.service import clients
 from vizier.service import pyvizier as vz
 
