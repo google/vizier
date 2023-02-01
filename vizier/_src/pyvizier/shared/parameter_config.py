@@ -1214,10 +1214,10 @@ class SearchSpace:
       set1 = set(pc.name for pc in self._parameter_configs.values())
       set2 = set(parameters)
       raise InvalidParameterError(
-          f'Search space has {len(self._parameter_configs.values())} parameters '
-          f'but only {len(parameters)} were given. '
-          f'Missing in search space: {set2 - set1}. '
-          f'Missing in parameters: {set1 - set2}.')
+          f'Search space has {len(self._parameter_configs.values())} parameters'
+          f' but only {len(parameters)} were given. Missing in search space:'
+          f' {set2 - set1}. Missing in parameters: {set1 - set2}.'
+      )
     for pc in self._parameter_configs.values():
       if pc.name not in parameters:
         raise InvalidParameterError(f'{pc.name} is missing in {parameters}.')
@@ -1225,3 +1225,9 @@ class SearchSpace:
         raise InvalidParameterError(
             f'{parameters[pc.name]} is not feasible in {pc}')
     return True
+
+  def num_parameters(self, param_type: Optional[ParameterType] = None) -> int:
+    """Counts number of parameters with the param_type (if given)."""
+    if param_type is None:
+      return len(self.parameters)
+    return [pc.type for pc in self.parameters].count(param_type)

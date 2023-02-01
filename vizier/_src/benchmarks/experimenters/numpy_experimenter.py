@@ -80,7 +80,7 @@ class NumpyExperimenter(experimenter.Experimenter):
         flip_sign_for_minimization_metrics=False)
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
-    return copy.deepcopy(self._problem_statement)
+    return self._problem_statement
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     # Features has shape (num_trials, num_features).

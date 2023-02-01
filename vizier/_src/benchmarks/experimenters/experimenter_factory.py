@@ -20,8 +20,10 @@ from typing import Optional, Protocol
 
 import attr
 import numpy as np
+from vizier._src.benchmarks.experimenters import discretizing_experimenter
 from vizier._src.benchmarks.experimenters import experimenter
 from vizier._src.benchmarks.experimenters import noisy_experimenter
+from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
 from vizier._src.benchmarks.experimenters import shifting_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
@@ -61,6 +63,19 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
   shift: Optional[np.ndarray] = attr.field(default=None)
   # Should be one of the noise types in noisy_experimenter.py
   noise_type: Optional[str] = attr.field(default=None)
+  # Number of normalization samples. If zero, no normalization is done.
+  num_normalization_samples: int = attr.field(default=0)
+  # Dictionary of parameter indices to discretize in a grid.
+  # Key = index of parameter to be discretize and Value = Number of feasible
+  # points to discretize to. For example, {0: 3, 2 : 2} discretizes the first
+  # parameter to 3 feasible points and the third to 2 feasible points.
+  # Note: Generally, this should be used only when base_factory generates
+  # only continuous parameters.
+  discrete_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
+  # Dictionary of parameter indices to categorize in a grid.
+  # Key = index of parameter to be categorize and Value = Number of feasible
+  # points to categorize to. See discrete_dict.
+  categorical_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
 
   def __call__(self) -> experimenter.Experimenter:
     """Creates the SingleObjective Experimenter."""
@@ -68,7 +83,40 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
     if self.shift is not None:
       exptr = shifting_experimenter.ShiftingExperimenter(
           exptr, shift=self.shift)
+    if self.num_normalization_samples:
+      exptr = normalizing_experimenter.NormalizingExperimenter(
+          exptr, num_normalization_samples=self.num_normalization_samples
+      )
+
+    # Discretization and categorization.
+    if self.discrete_dict.keys() & self.categorical_dict.keys():
+      raise ValueError(
+          f'{self.discrete_dict} discretizing indicies overlap with '
+          f'{self.categorical_dict} categorical indicies'
+      )
+
+    pcs = list(exptr.problem_statement().search_space.parameters)
+    if self.discrete_dict:
+      discretization = {
+          pcs[idx].name: points for idx, points in self.discrete_dict.items()
+      }
+      exptr = (
+          discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+              exptr, discretization, convert_to_str=False
+          )
+      )
+
+    if self.categorical_dict:
+      categorization = {
+          pcs[idx].name: points for idx, points in self.categorical_dict.items()
+      }
+      exptr = (
+          discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+              exptr, categorization, convert_to_str=True
+          )
+      )
     if self.noise_type is not None:
       exptr = noisy_experimenter.NoisyExperimenter(
           exptr, noise_type=self.noise_type.upper())
+
     return exptr

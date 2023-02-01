@@ -80,6 +80,80 @@ class DiscretizingExperimenterTest(parameterized.TestCase):
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
     self.assertDictEqual(t.parameters.as_dict(), parameters)
 
+  def testGridCreation(self):
+    dim = 3
+    func = bbob.Sphere
+    problem_statement = bbob.DefaultBBOBProblemStatement(dim)
+    # Mutate the last parameter.
+    parameters = list(problem_statement.search_space.parameters)
+    log_param = problem_statement.search_space.pop(parameters[-1].name)
+    problem_statement.search_space.add(
+        pyvizier.ParameterConfig.factory(
+            log_param.name,
+            scale_type=pyvizier.ScaleType.LOG,
+            bounds=(0.01, 10.0),
+        )
+    )
+    exptr = numpy_experimenter.NumpyExperimenter(func, problem_statement)
+
+    parameters = list(exptr.problem_statement().search_space.parameters)
+    self.assertLen(parameters, dim)
+
+    discretization = {parameters[0].name: 3, parameters[-1].name: 4}
+
+    dis_exptr = (
+        discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+            exptr, discretization
+        )
+    )
+    search_space = dis_exptr.problem_statement().search_space
+    self.assertEqual(search_space.num_parameters(), dim)
+    self.assertEqual(
+        search_space.num_parameters(pyvizier.ParameterType.DISCRETE), 2
+    )
+    self.assertLen(search_space.parameters[0].feasible_values, 3)
+    self.assertSequenceEqual(
+        search_space.parameters[0].feasible_values, [-5, 0, 5]
+    )
+    self.assertLen(search_space.parameters[-1].feasible_values, 4)
+    self.assertSequenceAlmostEqual(
+        search_space.parameters[-1].feasible_values,
+        [0.01, 0.1, 1.0, 10.0],
+        places=5,
+    )
+
+  def testGridCreationError(self):
+    dim = 3
+    func = bbob.Sphere
+    exptr = numpy_experimenter.NumpyExperimenter(
+        func, bbob.DefaultBBOBProblemStatement(dim)
+    )
+    discretization = {'not_found_error': 3}
+
+    with self.assertRaisesRegex(ValueError, 'not in search space'):
+      discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+          exptr, discretization
+      )
+
+  def testGridCreationErrorNonDouble(self):
+    dim = 5
+    func = bbob.Sphere
+    problem_statement = bbob.DefaultBBOBProblemStatement(dim)
+    exptr = numpy_experimenter.NumpyExperimenter(func, problem_statement)
+    parameters = list(exptr.problem_statement().search_space.parameters)
+    discretization = {parameters[0].name: 3, parameters[1].name: 4}
+
+    dis_exptr = (
+        discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+            exptr, discretization
+        )
+    )
+
+    with self.assertRaisesRegex(ValueError, 'Non-double parameters'):
+      discretizing_experimenter.DiscretizingExperimenter.create_with_grid(
+          dis_exptr, discretization
+      )
+
 
 if __name__ == '__main__':
   absltest.main()

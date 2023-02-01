@@ -74,6 +74,42 @@ class ExperimenterFactoryTest(parameterized.TestCase):
     exptr.evaluate([t])
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 
+  def testSingleObjectiveFactoryDiscrete(self):
+    dim = 5
+    bbob_factory = experimenter_factory.BBOBExperimenterFactory(
+        name='Sphere', dim=dim
+    )
+    exptr_factory = experimenter_factory.SingleObjectiveExperimenterFactory(
+        base_factory=bbob_factory,
+        shift=np.asarray(1.9),
+        noise_type='moderate_gaussian',
+        num_normalization_samples=10,
+        discrete_dict={0: 3, 1: 5},
+        categorical_dict={4: 4},
+    )
+    exptr = exptr_factory()
+
+    self.assertIn('Shifting', str(exptr))
+    self.assertIn('Noisy', str(exptr))
+    self.assertIn('Discretizing', str(exptr))
+    self.assertIn('Normalizing', str(exptr))
+
+    space = exptr.problem_statement().search_space
+    self.assertEqual(space.num_parameters(pyvizier.ParameterType.DISCRETE), 2)
+    self.assertEqual(
+        space.num_parameters(pyvizier.ParameterType.CATEGORICAL), 1
+    )
+
+    parameters = {}
+    for param in space.parameters:
+      if param.type == pyvizier.ParameterType.DOUBLE:
+        parameters[param.name] = param.bounds[0]
+      else:
+        parameters[param.name] = param.feasible_values[0]
+    t = pyvizier.Trial(parameters=parameters)
+    exptr.evaluate([t])
+    self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
+
   def testSingleObjectiveFactoryError(self):
     dim = 4
     bbob_factory = experimenter_factory.BBOBExperimenterFactory(
@@ -83,6 +119,22 @@ class ExperimenterFactoryTest(parameterized.TestCase):
       experimenter_factory.SingleObjectiveExperimenterFactory(
           base_factory=bbob_factory, shift=np.asarray(1.9),
           noise_type='ERROR')()
+
+  def testDiscreteSingleObjectiveFactoryError(self):
+    dim = 4
+    bbob_factory = experimenter_factory.BBOBExperimenterFactory(
+        name='Sphere', dim=dim
+    )
+
+    with self.assertRaisesRegex(ValueError, 'overlap'):
+      experimenter_factory.SingleObjectiveExperimenterFactory(
+          base_factory=bbob_factory,
+          shift=np.asarray(1.9),
+          noise_type='moderate_gaussian',
+          num_normalization_samples=10,
+          discrete_dict={0: 3, 1: 5},
+          categorical_dict={1: 4},
+      )()
 
 
 if __name__ == '__main__':
