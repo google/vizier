@@ -122,9 +122,9 @@ class EagleStrategyConfig:
   pool_size: int = 0
   # Force normalization mode
   mutate_normalization_type: str = "mean"
-  # Multiplier factor when using normalized modes.
+  # Multiplier factor when using normalized modes
   normalization_scale: float = 0.5
-  # The percentage of the firefly pool to be populated with prior trials.
+  # The percentage of the firefly pool to be populated with prior trials
   prior_trials_pool_pct: float = 0.96
 
 
