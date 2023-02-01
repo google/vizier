@@ -209,8 +209,11 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       request: vizier_service_pb2.GetStudyRequest,
       context: Optional[grpc.ServicerContext] = None,
   ) -> study_pb2.Study:
-    """Gets a Study by name. If the study does not exist, return error."""
-    return self.datastore.load_study(request.name)
+    """Gets a Study by name. If the study does not exist, raise error."""
+    try:
+      return self.datastore.load_study(request.name)
+    except custom_errors.NotFoundError as e:
+      grpc_util.handle_exception(e, context)  # pytype:disable=bad-return-type
 
   def ListStudies(
       self,
