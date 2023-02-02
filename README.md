@@ -27,31 +27,31 @@
 </figure>
 
 ## Getting Started <a name="getting_started"></a>
-Basic example for users:
+Basic example for users using all flat search space primitives:
 
 ```python
 from vizier.service import clients
 from vizier.service import pyvizier as vz
 
 # Objective function to maximize.
-def evaluate(x: float, y: float) -> float:
-  return x**2 - y**2
+def evaluate(w: float, x: int, y: float, z: str) -> float:
+  return w**2 - y**2 + x * ord(z)
 
-# Search space, metrics, and algorithm.
-study_config = vz.StudyConfig()
-study_config.search_space.root.add_float_param('x', 0.0, 1.0)
-study_config.search_space.root.add_float_param('y', 0.0, 1.0)
+# Algorithm, search space, and metrics.
+study_config = vz.StudyConfig(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT)
+study_config.search_space.root.add_float_param('w', 0.0, 5.0)
+study_config.search_space.root.add_int_param('x', -2, 2)
+study_config.search_space.root.add_discrete_param('y', [0.3, 7.2])
+study_config.search_space.root.add_categorical_param('z', ['a', 'g', 'k'])
 study_config.metric_information.append(vz.MetricInformation('metric_name', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
-study_config.algorithm = vz.Algorithm.GAUSSIAN_PROCESS_BANDIT
 
 # Setup client and begin optimization. Vizier Service will be implicitly created.
 study = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
 for i in range(10):
   suggestions = study_client.suggest(count=1)
   for suggestion in suggestions:
-    x = suggestion.parameters['x']
-    y = suggestion.parameters['y']
-    objective = evaluate(x, y)
+    params = suggestion.parameters
+    objective = evaluate(params['w'], params['x'], params['y'], params['z'])
     suggestion.complete(vz.Measurement({'metric_name': objective}))
 ```
 
@@ -72,25 +72,25 @@ Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedo
 ## Installation <a name="installation"></a>
 **Most common:** To tune objectives using our default state-of-the-art JAX-based Bayesian Optimizer, run:
 
-```
+```bash
 pip install google-vizier[jax]
 ```
 
 To install a **minimal version** that consists of only the core service and client API from `requirements.txt`, run:
 
-```
+```bash
 pip install google-vizier
 ```
 
 For **full installation** to support all algorithms and benchmarks, run:
 
-```
+```bash
 pip install google-vizier[extra]
 ```
 
 For **specific installations**, you can run:
 
-```
+```bash
 pip install google-vizier[X]
 ```
 
