@@ -27,7 +27,7 @@
 </figure>
 
 ## Getting Started <a name="getting_started"></a>
-Basic example for users using all flat search space primitives:
+As a basic example for users, below shows how to tune a simple objective using all flat search space types:
 
 ```python
 from vizier.service import clients
