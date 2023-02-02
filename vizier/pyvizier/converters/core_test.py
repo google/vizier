@@ -1095,6 +1095,22 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     expected = np.asarray([[0], [1], [3], [3], [3]], dtype=np.float32)
     np.testing.assert_equal(expected, actual)
 
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64'),
+  ])
+  def test_bounds(self, dtype):
+    input_converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory('x1', bounds=(-3.0, 3.0)),
+        scale=True,
+        onehot_embed=False,
+        float_dtype=dtype,
+    )
+    self.assertEqual(input_converter.output_spec.bounds[0], 0.0)
+    self.assertEqual(input_converter.output_spec.bounds[1], 1.0)
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -344,7 +344,7 @@ class ModelInputConverter(metaclass=abc.ABCMeta):
   """Interface for extracting inputs to the model."""
 
   @abc.abstractmethod
-  def convert(self, trials: Sequence[pyvizier.Trial]) -> np.ndarray:
+  def convert(self, trials: Sequence[pyvizier.TrialSuggestion]) -> np.ndarray:
     """Returns an array of shape (number of trials, feature dimension).
 
     Args:
@@ -438,7 +438,7 @@ class ModelInputArrayBijector:
       unscale_fn = lambda x, high=high, low=low: x * (high - low) + low
 
     return cls(
-        scale_fn, unscale_fn, attr.evolve(spec, bounds=(0.0, 0.1), scale=None)
+        scale_fn, unscale_fn, attr.evolve(spec, bounds=(0.0, 1.0), scale=None)
     )
 
   @classmethod
@@ -476,7 +476,7 @@ class ModelInputArrayBijector:
 
 def _create_default_getter(
     pconfig: pyvizier.ParameterConfig,
-) -> Callable[[pyvizier.Trial], Any]:
+) -> Callable[[pyvizier.TrialSuggestion], Any]:
   """Create a default getter for the given parameter config."""
 
   def getter(trial, pconfig=pconfig):
@@ -509,7 +509,7 @@ class DefaultModelInputConverter(ModelInputConverter):
   def __init__(
       self,
       parameter_config: pyvizier.ParameterConfig,
-      getter: Optional[Callable[[pyvizier.Trial], Any]] = None,
+      getter: Optional[Callable[[pyvizier.TrialSuggestion], Any]] = None,
       *,
       float_dtype: np.dtype = np.float32,
       max_discrete_indices: int = 10,
@@ -577,7 +577,7 @@ class DefaultModelInputConverter(ModelInputConverter):
 
     self._output_spec = spec
 
-  def convert(self, trials: Sequence[pyvizier.Trial]) -> np.ndarray:
+  def convert(self, trials: Sequence[pyvizier.TrialSuggestion]) -> np.ndarray:
     """Returns an array of shape [len(trials), output_spec.num_dimensions].
 
     Args:
@@ -659,7 +659,7 @@ class DefaultModelInputConverter(ModelInputConverter):
     array = self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
     return [self._to_parameter_value(v) for v in list(array.flatten())]
 
-  def _convert_index(self, trial: pyvizier.Trial):
+  def _convert_index(self, trial: pyvizier.TrialSuggestion):
     """Called by `convert()` if configured for a non-continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value in self.parameter_config.feasible_values:
@@ -668,7 +668,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       # Return the catch-all missing index.
       return len(self.parameter_config.feasible_values)
 
-  def _convert_continuous(self, trial: pyvizier.Trial):
+  def _convert_continuous(self, trial: pyvizier.TrialSuggestion):
     """Called by `convert()` if configured for a continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value is None:
@@ -865,7 +865,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
       metric_converters: Collection[ModelOutputConverter] = tuple(),
   ):
     self.parameter_converters = list(parameter_converters)
-    self._parameter_converters_dict = {
+    self.parameter_converters_dict = {
         pc.parameter_config.name: pc for pc in self.parameter_converters
     }
     self.metric_converters = list(metric_converters)
@@ -874,7 +874,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
     }
 
   def to_features(
-      self, trials: Sequence[pyvizier.Trial]
+      self, trials: Sequence[pyvizier.TrialSuggestion]
   ) -> Dict[str, np.ndarray]:
     """Shorthand for to_xy(trials))[0]."""
     result_dict = dict()
@@ -989,7 +989,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
     # Iterate through parameter names and convert them.
     for key, values in features.items():
-      parameter_converter = self._parameter_converters_dict[key]
+      parameter_converter = self.parameter_converters_dict[key]
       parameter_values = parameter_converter.to_parameter_values(values)
       for param_dict, value in zip(parameters, parameter_values):
         if value is not None:
@@ -1215,8 +1215,8 @@ class TrialToArrayConverter:
       scale: If True, scales the parameters to [0, 1] range.
       pad_oovs: If True, add an extra dimension for out-of-vocabulary values for
         non-CONTINUOUS parameters.
-      max_discrete_indices: For DISCRETE and INTEGER types that have more than
-        this many feasible values will be continuified. When generating
+      max_discrete_indices: For DISCRETE and INTEGER parameters that have more
+        than this many feasible values will be continuified. When generating
         suggestions, values are rounded to the nearest feasible value. Note this
         default is different from the default in DefaultModelInputConverter.
       flip_sign_for_minimization_metrics: If True, flips the metric signs so
