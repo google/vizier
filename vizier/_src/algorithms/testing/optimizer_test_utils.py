@@ -48,7 +48,7 @@ def assert_passes_on_random_single_metric_function(
     problem.search_space.assert_contains(suggestion.parameters)
 
 
-def assert_passes_on_random_double_metric_function(
+def assert_passes_on_random_multi_metric_function(
     self,
     search_space: vz.SearchSpace,
     optimizer: vza.GradientFreeOptimizer,
@@ -75,7 +75,7 @@ def assert_passes_on_random_double_metric_function(
   def mock_score(trials):
     return {
         'acquisition_1': rng.uniform(size=[len(trials), 1]),
-        'acquisition_2': rng.uniform(size=[len(trials) * 2, 1]),
+        'acquisition_2': rng.uniform(size=[len(trials), 1]),
     }
 
   suggestions = optimizer.optimize(mock_score, problem, count=5)

@@ -41,17 +41,9 @@ class DesignerOptimizerTest(absltest.TestCase):
   def test_bi_objective(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('a', 0, 1)
-    problem.metric_information.extend([
-        vz.MetricInformation(
-            name='acquisition_1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        ),
-        vz.MetricInformation(
-            name='acquisition_2', goal=vz.ObjectiveMetricGoal.MINIMIZE
-        ),
-    ])
 
     designer_factory = nsga2.create_nsga2
-    optimizer_test_utils.assert_passes_on_random_double_metric_function(
+    optimizer_test_utils.assert_passes_on_random_multi_metric_function(
         self,
         problem.search_space,
         designer_optimizer.DesignerAsOptimizer(designer_factory),

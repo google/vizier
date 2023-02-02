@@ -73,6 +73,13 @@ class DesignerAsOptimizer(base.GradientFreeOptimizer):
       if not trials:
         break
       scores = score_fn(trials)
+      # Check that scores are (N, 1) arrays as in BatchTrialScoreFunction.
+      for k, v in scores.items():
+        if v.shape != (len(trials), 1):
+          raise ValueError(
+              f'Incorrect shape {v.shape} in scores {scores[k]}\n'
+              f'Expected shape is {(len(trials), 1)}'
+          )
       for i, trial in enumerate(trials):
         # TODO: Decide what to do with NaNs scores.
         trial.complete(
