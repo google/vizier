@@ -10,7 +10,8 @@
 ![Continuous Integration (Benchmarks)](https://github.com/google/vizier/workflows/pytest_benchmarks/badge.svg)
 ![Continuous Integration (Docs)](https://github.com/google/vizier/workflows/docs/badge.svg)
 
-  [**Getting Started**](#getting_started)
+  [**Google AI Blog**](https://ai.googleblog.com/2023/02/open-source-vizier-towards-reliable-and.html)
+| [**Getting Started**](#getting_started)
 | [**Documentation**](#documentation)
 | [**Installation**](#installation)
 | [**Citing Vizier**](#citing_vizier)
