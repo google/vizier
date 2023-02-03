@@ -24,7 +24,6 @@ from tensorflow_probability.substrates import jax as tfp
 from vizier.pyvizier import converters
 
 tfd = tfp.distributions
-tfp_bo = tfp.staging.bayesopt
 
 
 class AcquisitionFunction(Protocol):
@@ -48,18 +47,6 @@ class UCB(AcquisitionFunction):
   ) -> chex.Array:
     del features, labels
     return dist.mean() + 1.8 * dist.stddev()
-
-
-class EI(AcquisitionFunction):
-
-  def __call__(
-      self,
-      dist: tfd.Distribution,
-      features: Optional[chex.ArrayTree] = None,
-      labels: Optional[chex.Array] = None,
-  ) -> chex.Array:
-    del features
-    return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
 # TODO: Support discretes and categoricals.
