@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 """Acquisition functions implementations."""
-from typing import Sequence
+from typing import Sequence, Optional, Protocol
 
 import chex
 from jax import numpy as jnp
@@ -24,6 +24,42 @@ from tensorflow_probability.substrates import jax as tfp
 from vizier.pyvizier import converters
 
 tfd = tfp.distributions
+tfp_bo = tfp.staging.bayesopt
+
+
+class AcquisitionFunction(Protocol):
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[chex.ArrayTree] = None,
+      labels: Optional[chex.Array] = None,
+  ) -> chex.Array:
+    pass
+
+
+class UCB(AcquisitionFunction):
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[chex.ArrayTree] = None,
+      labels: Optional[chex.Array] = None,
+  ) -> chex.Array:
+    del features, labels
+    return dist.mean() + 1.8 * dist.stddev()
+
+
+class EI(AcquisitionFunction):
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[chex.ArrayTree] = None,
+      labels: Optional[chex.Array] = None,
+  ) -> chex.Array:
+    del features
+    return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
 # TODO: Support discretes and categoricals.
