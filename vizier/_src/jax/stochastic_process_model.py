@@ -430,8 +430,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     Returns:
       Predictive distribution on x_predictive.
     """
-    with jax.ensure_compile_time_eval():
-      self.precompute_predictive(x_observed, y_observed)
+    self.precompute_predictive(x_observed, y_observed)
     return self.predict(x_predictive)
 
   def predict(self, x_predictive: _In) -> _D:
