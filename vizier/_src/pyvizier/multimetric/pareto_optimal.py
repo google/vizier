@@ -215,7 +215,7 @@ class FastParetoOptimalAlgorithm(BaseParetoOptimalAlgorithm):
   def is_pareto_optimal(self, points: np.ndarray) -> np.ndarray:
     """Fast DC algorithm to find the Pareto frontier. See base class."""
 
-    # Base case naive algorthm for find Pareto optimality.
+    # Base case naive algorithm for find Pareto optimality.
     if len(points) <= self._recursive_threshold:
       return np.array(
           self._base_algorithm.is_pareto_optimal(points), dtype=bool)
