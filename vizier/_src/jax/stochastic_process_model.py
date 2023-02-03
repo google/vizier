@@ -407,33 +407,6 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
         'predictive', 'distribution', predictive_dist, reduce_fn=lambda _, b: b
     )
 
-  def posterior(self, x_predictive: _In, x_observed: _In,
-                y_observed: Array) -> _D:
-    """Returns the posterior predictive distribution.
-
-    Recommended usage:
-      Jit it as a function that takes only one argument. As long as x_observed
-      and y_observed are the same, precompute_predicitve runs only once.
-
-      ```python
-      @jax.jit
-      def posterior(x):
-        return model.apply(params, x, x_observed, y_observed,
-                           mutable=('predictive',), method=model.posterior)
-      ```
-
-    Args:
-      x_predictive: predictive index points.
-      x_observed: observed index points.
-      y_observed: observed labels.
-
-    Returns:
-      Predictive distribution on x_predictive.
-    """
-    with jax.ensure_compile_time_eval():
-      self.precompute_predictive(x_observed, y_observed)
-    return self.predict(x_predictive)
-
   def predict(self, x_predictive: _In) -> _D:
     """Returns a posterior predictive stochastic process.
 

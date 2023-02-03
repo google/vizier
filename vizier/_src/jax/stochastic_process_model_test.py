@@ -142,28 +142,6 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
     self.assertIs(_get_cholesky(pp_dist.kernel), _get_cholesky(pp_dist2.kernel))
 
-    # pylint: disable=g-long-lambda
-    posterior_fn = jax.jit(
-        lambda x: model.apply(
-            {'params': params},
-            x,
-            x_observed,
-            y_observed,
-            mutable=('predictive',),
-            method=model.posterior,
-        )[0]
-    )
-    pp_dist3 = posterior_fn(x_predictive)
-    pp_dist4 = posterior_fn(x_predictive)
-    # Assert no Cholesky recomputation.
-    pp_dist3_cholesky = _get_cholesky(pp_dist3.kernel)
-    pp_dist4_cholesky = _get_cholesky(pp_dist4.kernel)
-    if pp_dist3_cholesky is None and pp_dist4_cholesky is None:
-      self.assertIs(pp_dist3_cholesky, pp_dist4_cholesky)
-    else:
-      self.assertEqual(pp_dist3_cholesky.unsafe_buffer_pointer(),
-                       pp_dist4_cholesky.unsafe_buffer_pointer())
-
   def test_stochastic_process_model_with_mean_fn(self):
 
     obs_key, pred_key, init_key, vmap_key = random.split(
