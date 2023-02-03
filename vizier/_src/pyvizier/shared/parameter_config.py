@@ -155,7 +155,8 @@ class FidelityConfig:
 class ParameterConfig:
   """A Vizier ParameterConfig.
 
-  Use ParameterConfig.factory to create a valid instance.
+  Please use ParameterConfig.factory() to create an instance instead of calling
+  the constructor directly.
   """
   _name: str = attr.ib(
       init=True, validator=attr.validators.instance_of(str), kw_only=True)
