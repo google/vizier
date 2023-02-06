@@ -246,7 +246,7 @@ class DataStore(abc.ABC):
 
     Raises:
       NotFoundError: If the update fails because of an attempt to attach
-        metadata to a nonexistant Trial.
+        metadata to a nonexistent Trial.
     """
 
 
