@@ -39,7 +39,7 @@ def evaluate(w: float, x: int, y: float, z: str) -> float:
   return w**2 - y**2 + x * ord(z)
 
 # Algorithm, search space, and metrics.
-study_config = vz.StudyConfig(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT)
+study_config = vz.StudyConfig(algorithm='GAUSSIAN_PROCESS_BANDIT')
 study_config.search_space.root.add_float_param('w', 0.0, 5.0)
 study_config.search_space.root.add_int_param('x', -2, 2)
 study_config.search_space.root.add_discrete_param('y', [0.3, 7.2])
