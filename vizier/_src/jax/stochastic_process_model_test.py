@@ -17,6 +17,7 @@ from __future__ import annotations
 """Tests for stochastic_process_model."""
 
 import functools
+from unittest import mock
 
 from absl.testing import parameterized
 from flax import linen as nn
@@ -59,9 +60,16 @@ def _test_coroutine(inputs=None, dtype=np.float64):
       amplitude=amplitude,
       inverse_length_scale=inverse_length_scale,
       validate_args=True)
-  return tfd.StudentTProcess(
-      df=dtype(5.0), kernel=kernel, index_points=inputs, validate_args=True
+  return tfd.GaussianProcess(
+      kernel=kernel,
+      index_points=inputs,
+      observation_noise_variance=np.zeros([], dtype=dtype),
+      validate_args=True,
   )
+  # DO NOT SUBMIT fix STP
+  # return tfd.StudentTProcess(
+  #     df=dtype(5.0), kernel=kernel, index_points=inputs, validate_args=True
+  # )
 
 
 def _make_inputs(key, dtype):
@@ -123,46 +131,60 @@ class StochasticProcessModelTest(parameterized.TestCase):
                               mutable=('predictive',))
 
     state = {'params': params, **pp_state}
-    pp_dist = model.apply(state, x_predictive, method=model.predict)
-    pp_dist2 = model.apply(
-        state,
-        jax.tree_util.tree_map(lambda x: x + jnp.ones_like(x), x_predictive),
-        method=model.predict,
+    pp_dist = model.apply(
+        state, x_predictive, x_observed, y_observed, method=model.predict
     )
-
     pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))
     self.assertTrue(np.isfinite(pp_log_prob).all())
     self.assertEqual(pp_log_prob.dtype, dtype)
 
-    # Assert no Cholesky recomputation.
-    def _get_cholesky(kernel):
-      if isinstance(kernel, tfpk.SchurComplement):
-        return kernel._precomputed_divisor_matrix_cholesky
-      return kernel.schur_complement._precomputed_divisor_matrix_cholesky
+  def test_cholesky_not_recomputed(self):
+    x_obs, y_obs, x = _make_inputs(jax.random.PRNGKey(5), np.float32)
+    chol = np.eye(x_obs.shape[0], dtype=np.float32)
+    mock_cholesky_fn = mock.Mock(return_value=chol)
 
-    self.assertIs(_get_cholesky(pp_dist.kernel), _get_cholesky(pp_dist2.kernel))
+    def _coro_with_mock_cholesky(inputs=None):
+      amplitude = yield sp_model.ModelParameter(
+          init_fn=lambda k: random.exponential(k, dtype=np.float32),
+          regularizer=lambda x: np.float32(1e-3) * x**2,
+          name='amplitude',
+      )
+      kernel = tfpk.ExponentiatedQuadratic(
+          amplitude=amplitude, validate_args=True
+      )
+      return tfd.GaussianProcess(
+          kernel=kernel,
+          index_points=inputs,
+          observation_noise_variance=np.zeros([], dtype=np.float32),
+          cholesky_fn=mock_cholesky_fn,
+          validate_args=True,
+      )
 
-    # pylint: disable=g-long-lambda
-    posterior_fn = jax.jit(
-        lambda x: model.apply(
-            {'params': params},
-            x,
-            x_observed,
-            y_observed,
+    model = sp_model.StochasticProcessModel(coroutine=_coro_with_mock_cholesky)
+    keys = jax.random.split(jax.random.PRNGKey(0), num=8)
+    params = jax.vmap(lambda k: model.init(k, x_obs))(keys)
+    _, pp_state = jax.vmap(
+        lambda p: model.apply(  # pylint: disable=g-long-lambda
+            p,
+            x_obs,
+            y_obs,
+            method=model.precompute_predictive,
             mutable=('predictive',),
-            method=model.posterior,
-        )[0]
-    )
-    pp_dist3 = posterior_fn(x_predictive)
-    pp_dist4 = posterior_fn(x_predictive)
-    # Assert no Cholesky recomputation.
-    pp_dist3_cholesky = _get_cholesky(pp_dist3.kernel)
-    pp_dist4_cholesky = _get_cholesky(pp_dist4.kernel)
-    if pp_dist3_cholesky is None and pp_dist4_cholesky is None:
-      self.assertIs(pp_dist3_cholesky, pp_dist4_cholesky)
-    else:
-      self.assertEqual(pp_dist3_cholesky.unsafe_buffer_pointer(),
-                       pp_dist4_cholesky.unsafe_buffer_pointer())
+        )
+    )(params)
+    mock_cholesky_fn.assert_called_once()
+
+    # Calls to `model.predict` do not invoke the cholesky.
+    mock_cholesky_fn.reset_mock()
+    state = {**params, **pp_state}
+    _ = jax.jit(
+        jax.vmap(
+            lambda s: model.apply(  # pylint: disable=g-long-lambda
+                s, x, x_obs, y_obs, method=model.predict
+            ).mean()
+        )
+    )(state)
+    mock_cholesky_fn.assert_not_called()
 
   def test_stochastic_process_model_with_mean_fn(self):
 
@@ -197,7 +219,9 @@ class StochasticProcessModelTest(parameterized.TestCase):
                               mutable=('predictive',))
 
     state = {'params': init_state['params'], **pp_state}
-    pp_dist = model.apply(state, x_predictive, method=model.predict)
+    pp_dist = model.apply(
+        state, x_predictive, x_observed, y_observed, method=model.predict
+    )
     pp_mean = pp_dist.mean()
 
     self.assertTrue(

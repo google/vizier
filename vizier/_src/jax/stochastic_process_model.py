@@ -350,7 +350,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       # the Flax parameters.
       pass
 
-  def __call__(self, x: _In) -> _D:
+  def __call__(self, x: Optional[_In] = None) -> _D:
     """Returns a stochastic process distribution.
 
     If the Flax module's `apply` method is called with `mutable=True` or
@@ -396,46 +396,33 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       x_observed: Index points on which to condition the posterior predictive.
       y_observed: Observations on which to condition the posterior predictive.
     """
-    # Call the `tfd.Distribution` object's `predict` method. This
+    # Call the `tfd.Distribution` object's `posterior_predictive` method. This
     # triggers an expensive computation, typically a Cholesky decomposition, and
     # returns a new `tfd.Distribution` representing the posterior predictive.
     # This distribution is stored in the `predictive_distribution` Flax variable
     # and returned as auxiliary output.
     predictive_dist = self(x_observed).posterior_predictive(
         index_points=None, observations=y_observed)
+    # pylint: disable=protected-access
+    cached_predictive_intermediates = {
+        '_precomputed_divisor_matrix_cholesky': (
+            predictive_dist._precomputed_divisor_matrix_cholesky
+        ),
+        '_precomputed_solve_on_observation': (
+            predictive_dist._precomputed_solve_on_observation
+        ),
+    }
+    # pylint: enable=protected-access
     self.sow(
-        'predictive', 'distribution', predictive_dist, reduce_fn=lambda _, b: b
+        'predictive',
+        'distribution',
+        cached_predictive_intermediates,
+        reduce_fn=lambda _, b: b,
     )
 
-  def posterior(self, x_predictive: _In, x_observed: _In,
-                y_observed: Array) -> _D:
-    """Returns the posterior predictive distribution.
-
-    Recommended usage:
-      Jit it as a function that takes only one argument. As long as x_observed
-      and y_observed are the same, precompute_predicitve runs only once.
-
-      ```python
-      @jax.jit
-      def posterior(x):
-        return model.apply(params, x, x_observed, y_observed,
-                           mutable=('predictive',), method=model.posterior)
-      ```
-
-    Args:
-      x_predictive: predictive index points.
-      x_observed: observed index points.
-      y_observed: observed labels.
-
-    Returns:
-      Predictive distribution on x_predictive.
-    """
-    # TODO: Remove `ensure_compile_time_eval`.
-    with jax.ensure_compile_time_eval():
-      self.precompute_predictive(x_observed, y_observed)
-    return self.predict(x_predictive)
-
-  def predict(self, x_predictive: _In) -> _D:
+  def predict(
+      self, x_predictive: _In, x_observed: _In, y_observed: Array
+  ) -> _D:
     """Returns a posterior predictive stochastic process.
 
     The mutable variable in `predictive/distribution`, typically containing a
@@ -447,6 +434,8 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
 
     Args:
       x_predictive: Predictive index points.
+      x_observed: Index points on which to condition the posterior predictive.
+      y_observed: Observations on which to condition the posterior predictive.
 
     Returns:
       pp_dist: The posterior predictive distribution over `x_predictive`.
@@ -458,8 +447,15 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
                        'the class docstring for an example.')
     # Access the `tfd.Distribution` stored in the Flax variable, and copy the
     # distribution object with new index points (avoiding recomputation).
-    return self.get_variable('predictive', 'distribution').copy(
-        index_points=x_predictive
+    cached_intermediates = self.get_variable('predictive', 'distribution')
+    return (
+        self()
+        .copy(index_points=x_observed)
+        .posterior_predictive(
+            observations=y_observed,
+            predictive_index_points=x_predictive,
+            **cached_intermediates,
+        )
     )
 
 
