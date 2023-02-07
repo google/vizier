@@ -196,16 +196,30 @@ class VizierGPBandit(vza.Designer):
     logging.info('All losses: %s', ard_all_losses)
     ard_best_loss = ard_all_losses.flatten()[0].item()
 
-    def predict_on_array_one_model(
-        params: chex.ArrayTree, *, xs: chex.Array
-    ) -> chex.ArrayTree:
-      predictive, _ = model.apply(
+    @jax.jit
+    def precompute_cholesky(params):
+      return model.apply(
           {'params': params},
+          features,
+          labels,
+          method=model.precompute_predictive,
+          mutable=('predictive',),
+      )
+
+    if self._ard_optimizer is not self.default_ard_optimizer_noensemble:
+      precompute_cholesky = jax.vmap(precompute_cholesky)
+
+    _, pp_state = precompute_cholesky(optimal_params)
+
+    def predict_on_array_one_model(
+        state: chex.ArrayTree, *, xs: chex.Array
+    ) -> chex.ArrayTree:
+      predictive = model.apply(
+          state,
           xs,
           features,
           labels,
-          method=model.posterior,
-          mutable=True,
+          method=model.predict,
       )
       return {'mean': predictive.mean(), 'stddev': predictive.stddev()}
 
@@ -219,7 +233,7 @@ class VizierGPBandit(vza.Designer):
         return {'mean': pp['mean'], 'stddev': pp['stddev']}
       predict_fn = jax.vmap(predict_fn)
       pp = predict_fn(
-          optimal_params,
+          {'params': optimal_params, **pp_state},
       )
       batched_normal = tfd.Normal(pp['mean'].T, pp['stddev'].T)
       mixture = tfd.MixtureSameFamily(
