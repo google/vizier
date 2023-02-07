@@ -13,6 +13,8 @@ Articles
 -  `MarkTechPost <https://www.marktechpost.com/2023/02/04/google-ai-open-sources-vizier-a-standalone-python-package-designed-for-managing-and-optimizing-machine-learning-experiments-at-scale/>`__
 -  `The Sequence <https://thesequence.substack.com/p/the-chatgpt-challengers>`__
 -  `ML News by Weights & Biases <https://wandb.ai/vincenttu/blog_posts/reports/ChatGPT-the-Catalyst--VmlldzozNDg1Nzc2>`__
+-  `WebBigdata (Japanese) <https://webbigdata.jp/post-17645/>`__
+-  `RandomAccess (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
 
 Videos/Talks
 ------------
