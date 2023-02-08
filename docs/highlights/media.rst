@@ -15,6 +15,7 @@ Articles
 -  `ML News by Weights & Biases <https://wandb.ai/vincenttu/blog_posts/reports/ChatGPT-the-Catalyst--VmlldzozNDg1Nzc2>`__
 -  `WebBigdata (Japanese) <https://webbigdata.jp/post-17645/>`__
 -  `RandomAccess (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
+-  `ElectronicSmith <https://electronicsmith.com/web-stories/google-ai-open-sources-vizier/>`__
 
 Videos/Talks
 ------------
