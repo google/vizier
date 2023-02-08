@@ -17,6 +17,7 @@ from __future__ import annotations
 """Tests for stochastic_process_model."""
 
 import functools
+from unittest import mock
 
 from absl.testing import parameterized
 from flax import linen as nn
@@ -60,17 +61,22 @@ def _test_coroutine(inputs=None, dtype=np.float64):
       inverse_length_scale=inverse_length_scale,
       validate_args=True)
   return tfd.StudentTProcess(
-      df=dtype(5.0), kernel=kernel, index_points=inputs, validate_args=True
+      df=dtype(5.0),
+      kernel=kernel,
+      index_points=inputs,
+      observation_noise_variance=np.zeros([], dtype=dtype),
+      validate_args=True,
   )
 
 
-def _make_inputs(key, dtype):
+def _make_inputs(key, dtype, num_observed=20, num_predictive=5):
   obs_key, pred_key = random.split(key)
   dim = 3
-  num_observed = 20
   x_observed = random.uniform(obs_key, shape=(num_observed, dim), dtype=dtype)
   y_observed = x_observed.sum(axis=-1)
-  x_predictive = random.uniform(pred_key, shape=(100, 5, dim), dtype=dtype)
+  x_predictive = random.uniform(
+      pred_key, shape=(100, num_predictive, dim), dtype=dtype
+  )
   return x_observed, y_observed, x_predictive
 
 
@@ -123,46 +129,88 @@ class StochasticProcessModelTest(parameterized.TestCase):
                               mutable=('predictive',))
 
     state = {'params': params, **pp_state}
-    pp_dist = model.apply(state, x_predictive, method=model.predict)
-    pp_dist2 = model.apply(
-        state,
-        jax.tree_util.tree_map(lambda x: x + jnp.ones_like(x), x_predictive),
-        method=model.predict,
+    pp_dist = model.apply(
+        state, x_predictive, x_observed, y_observed, method=model.predict
     )
-
     pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))
     self.assertTrue(np.isfinite(pp_log_prob).all())
     self.assertEqual(pp_log_prob.dtype, dtype)
 
-    # Assert no Cholesky recomputation.
-    def _get_cholesky(kernel):
-      if isinstance(kernel, tfpk.SchurComplement):
-        return kernel._precomputed_divisor_matrix_cholesky
-      return kernel.schur_complement._precomputed_divisor_matrix_cholesky
-
-    self.assertIs(_get_cholesky(pp_dist.kernel), _get_cholesky(pp_dist2.kernel))
-
-    # pylint: disable=g-long-lambda
-    posterior_fn = jax.jit(
-        lambda x: model.apply(
-            {'params': params},
-            x,
-            x_observed,
-            y_observed,
-            mutable=('predictive',),
-            method=model.posterior,
-        )[0]
+  def test_cholesky_not_recomputed(self):
+    # Need num_observed == num_predictive so the mock Cholesky works for both
+    # observed and predictive.
+    x_obs, y_obs, x = _make_inputs(
+        jax.random.PRNGKey(5), np.float32, num_observed=12, num_predictive=12
     )
-    pp_dist3 = posterior_fn(x_predictive)
-    pp_dist4 = posterior_fn(x_predictive)
-    # Assert no Cholesky recomputation.
-    pp_dist3_cholesky = _get_cholesky(pp_dist3.kernel)
-    pp_dist4_cholesky = _get_cholesky(pp_dist4.kernel)
-    if pp_dist3_cholesky is None and pp_dist4_cholesky is None:
-      self.assertIs(pp_dist3_cholesky, pp_dist4_cholesky)
-    else:
-      self.assertEqual(pp_dist3_cholesky.unsafe_buffer_pointer(),
-                       pp_dist4_cholesky.unsafe_buffer_pointer())
+    chol = np.eye(12, dtype=np.float32)
+    mock_cholesky_fn = mock.Mock(return_value=chol)
+
+    def _coro_with_mock_cholesky(inputs=None):
+      stp = yield from _test_coroutine(inputs=inputs, dtype=np.float32)
+      # The `copy` method of TFP distributions rebuilds the distribution object
+      # with the given constructor kwarg(s) replaced.
+      return stp.copy(cholesky_fn=mock_cholesky_fn)
+
+    model = sp_model.StochasticProcessModel(coroutine=_coro_with_mock_cholesky)
+    keys = jax.random.split(jax.random.PRNGKey(0), num=8)
+    params = jax.vmap(lambda k: model.init(k, x_obs))(keys)
+    _, pp_state = jax.vmap(
+        lambda p: model.apply(  # pylint: disable=g-long-lambda
+            p,
+            x_obs,
+            y_obs,
+            method=model.precompute_predictive,
+            mutable=('predictive',),
+        )
+    )(params)
+    mock_cholesky_fn.assert_called_once()
+
+    # Sampling from the posterior predictive should invoke cholesky_fn only
+    # once (on the kernel matrix for the predictive index points).
+    mock_cholesky_fn.reset_mock()
+    state = {**params, **pp_state}
+    _ = jax.jit(
+        jax.vmap(
+            lambda s: model.apply(  # pylint: disable=g-long-lambda
+                s, x, x_obs, y_obs, method=model.predict
+            ).sample(seed=jax.random.PRNGKey(0))
+        )
+    )(state)
+    mock_cholesky_fn.assert_called_once()
+
+    # Sample new data and compute the posterior predictive.
+    mock_cholesky_fn.reset_mock()
+    x_obs2, y_obs2, x2 = _make_inputs(
+        jax.random.PRNGKey(6), np.float32, num_observed=12, num_predictive=12
+    )
+    params2 = model.init(jax.random.PRNGKey(7), x_obs2)
+    _, pp_state2 = model.apply(
+        params2,
+        x_obs2,
+        y_obs2,
+        method=model.precompute_predictive,
+        mutable=('predictive',),
+    )
+    _ = jax.jit(
+        lambda s: model.apply(  # pylint: disable=g-long-lambda
+            s, x2, x_obs2, y_obs2, method=model.predict
+        ).sample(seed=jax.random.PRNGKey(0))
+    )({**params2, **pp_state2})
+    # Two Cholesky calls; one for observed, one for predictive.
+    self.assertEqual(mock_cholesky_fn.call_count, 2)
+
+    # Assert that `model.predict`, when called on the original dataset, does not
+    # recompute the Cholesky.
+    mock_cholesky_fn.reset_mock()
+    state = {**params, **pp_state}
+    _ = jax.jit(
+        jax.vmap(
+            lambda s: model.apply(  # pylint: disable=g-long-lambda
+                s, x, x_obs, y_obs, method=model.predict
+            ).sample(seed=jax.random.PRNGKey(0))
+        )
+    )(state)
+    mock_cholesky_fn.assert_called_once()
 
   def test_stochastic_process_model_with_mean_fn(self):
 
@@ -197,7 +245,9 @@ class StochasticProcessModelTest(parameterized.TestCase):
                               mutable=('predictive',))
 
     state = {'params': init_state['params'], **pp_state}
-    pp_dist = model.apply(state, x_predictive, method=model.predict)
+    pp_dist = model.apply(
+        state, x_predictive, x_observed, y_observed, method=model.predict
+    )
     pp_mean = pp_dist.mean()
 
     self.assertTrue(
