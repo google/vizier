@@ -47,7 +47,7 @@ study_config.search_space.root.add_categorical_param('z', ['a', 'g', 'k'])
 study_config.metric_information.append(vz.MetricInformation('metric_name', goal=vz.ObjectiveMetricGoal.MAXIMIZE))
 
 # Setup client and begin optimization. Vizier Service will be implicitly created.
-study = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
+study_client = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
 for i in range(10):
   suggestions = study_client.suggest(count=1)
   for suggestion in suggestions:
