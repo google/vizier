@@ -14,12 +14,13 @@ Articles
 -  `The Sequence <https://thesequence.substack.com/p/the-chatgpt-challengers>`__
 -  `ML News by Weights & Biases <https://wandb.ai/vincenttu/blog_posts/reports/ChatGPT-the-Catalyst--VmlldzozNDg1Nzc2>`__
 -  `WebBigdata (Japanese) <https://webbigdata.jp/post-17645/>`__
--  `RandomAccess (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
--  `ElectronicSmith <https://electronicsmith.com/web-stories/google-ai-open-sources-vizier/>`__
+-  `Random Access (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
+-  `Electronic Smith <https://electronicsmith.com/web-stories/google-ai-open-sources-vizier/>`__
 
 Videos/Talks
 ------------
 
+-  `(Upcoming) AutoML Seminar 2023 Talk <https://automl-seminars.github.io/schedule/>`__
 -  `AutoML Conference 2022 Paper Presentation <https://youtu.be/b5hemgM16tM>`__
 -  `AutoML Conference 2022 AutoRL Tutorial <https://youtu.be/9FDqUsByRiQ>`__
 -  `ML News by Yannic Kilcher <https://youtu.be/TOo-HnjjuhU>`__
