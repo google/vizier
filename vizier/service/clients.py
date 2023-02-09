@@ -86,6 +86,9 @@ class Trial(client_abc.TrialInterface):
   def check_early_stopping(self) -> bool:
     return self._client.should_trial_stop(self._id)
 
+  def stop(self) -> None:
+    return self._client.stop_trial(self._id)
+
   def add_measurement(self, measurement: vz.Measurement) -> None:
     self._client.report_intermediate_objective_value(
         int(measurement.steps),

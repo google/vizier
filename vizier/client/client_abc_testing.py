@@ -282,6 +282,19 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     trial = study.get_trial(3)
     self.assertIsInstance(trial.check_early_stopping(), bool)
 
+  def test_trial_stop(self):
+    """Checks for correct stopping behavior."""
+    study = self.create_test_study_with_trials(self.id())
+    active_trial = list(study.suggest(count=1))[0]
+    active_trial.stop()
+    self.assertEqual(active_trial.materialize().status, vz.TrialStatus.STOPPING)
+
+    completed_trial = study.get_trial(2)
+    completed_trial.stop()  # Should do nothing.
+    self.assertEqual(
+        completed_trial.materialize().status, vz.TrialStatus.COMPLETED
+    )
+
   def test_intermediate_measurement(self):
     study = self.create_test_study_with_trials(self.id())
     trial = study.get_trial(3)

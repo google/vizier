@@ -40,6 +40,7 @@ _T = TypeVar('_T')
 # all vizier clients have the same error handling logic.
 class ResourceNotFoundError(LookupError):
   """Error raised by Vizier clients when resource is not found."""
+
   pass
 
 
@@ -92,7 +93,8 @@ class TrialInterface(abc.ABC):
       self,
       measurement: Optional[vz.Measurement] = None,
       *,
-      infeasible_reason: Optional[str] = None) -> Optional[vz.Measurement]:
+      infeasible_reason: Optional[str] = None,
+  ) -> Optional[vz.Measurement]:
     """Completes the trial and #materializes the measurement.
 
     * If `measurement` is provided, then Vizier writes it as the trial's final
@@ -129,6 +131,15 @@ class TrialInterface(abc.ABC):
     Returns:
       True if trial is already in STOPPING state or entered STOPPING as a
       result of this method invocation.
+    """
+    pass
+
+  @abc.abstractmethod
+  def stop(self) -> None:
+    """Asks to change the trial status to STOPPING.
+
+    Should be called only if the trial status is ACTIVE. If the trial is
+    STOPPING or COMPLETED, this is a no-op.
     """
     pass
 
@@ -187,10 +198,8 @@ class StudyInterface(abc.ABC):
 
   @abc.abstractmethod
   def suggest(
-      self,
-      *,
-      count: Optional[int] = None,
-      client_id: str = 'default_client_id') -> Collection[TrialInterface]:
+      self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
+  ) -> Collection[TrialInterface]:
     """Returns Trials to be evaluated by client_id.
 
     Args:
@@ -244,8 +253,9 @@ class StudyInterface(abc.ABC):
     """Adds a trial to the Study. For testing only."""
 
   @abc.abstractmethod
-  def trials(self,
-             trial_filter: Optional[vz.TrialFilter] = None) -> TrialIterable:
+  def trials(
+      self, trial_filter: Optional[vz.TrialFilter] = None
+  ) -> TrialIterable:
     """Fetches a collection of trials. Default uses vz.TrialFilter()."""
 
   @abc.abstractmethod
@@ -299,4 +309,5 @@ class StudyInterface(abc.ABC):
   def materialize_state(self) -> vz.StudyState:
     """#Materializes the study state."""
     raise NotImplementedError(
-        f'materialize_state is not implemented in {type(self)}!')
+        f'materialize_state is not implemented in {type(self)}!'
+    )

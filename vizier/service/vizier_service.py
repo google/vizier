@@ -847,13 +847,15 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     with self._study_name_to_lock[study_name]:
       trial = self.datastore.get_trial(request.name)
       if trial.state not in self._TRIAL_MUTABLE_STATES:
-        e = custom_errors.ImmutableTrialError(
-            'Trial {} has state {}. Only trials in state ACTIVE or STOPPING '
-            'can be stopped.'.format(
-                request.name, study_pb2.Trial.State.Name(trial.state)
-            )
+        logging.warn(
+            (
+                'Trial %s has state %s. Only trials in state ACTIVE or STOPPING'
+                ' can be stopped.'
+            ),
+            request.name,
+            study_pb2.Trial.State.Name(trial.state),
         )
-        grpc_util.handle_exception(e, context)
+        return trial
       trial.state = study_pb2.Trial.STOPPING
       self.datastore.update_trial(trial)
     return trial
