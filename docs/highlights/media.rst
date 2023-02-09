@@ -16,6 +16,7 @@ Articles
 -  `WebBigdata (Japanese) <https://webbigdata.jp/post-17645/>`__
 -  `Random Access (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
 -  `Electronic Smith <https://electronicsmith.com/web-stories/google-ai-open-sources-vizier/>`__
+-  `Deep Learning Weekly <https://open.substack.com/pub/deeplearningweekly/p/deep-learning-weekly-issue-287?utm_campaign=post&utm_medium=web>`__
 
 Videos/Talks
 ------------
