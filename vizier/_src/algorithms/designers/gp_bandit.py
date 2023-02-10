@@ -322,7 +322,7 @@ class VizierGPBandit(vza.Designer):
               'ard_best_loss': ard_best_loss,
               'mean': predict_mean[i],
               'stddev': predict_stddev[i],
-              'acquisiton': acquisition,
+              'acquisition': acquisition,
               'trust_radius': tr.trust_radius,
               'params': optimal_params,
           },
