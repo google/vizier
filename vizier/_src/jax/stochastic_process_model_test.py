@@ -157,7 +157,11 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
     state = {'params': params, **pp_state}
     pp_dist = model.apply(
-        state, x_predictive, x_observed, y_observed, method=model.predict
+        state,
+        x_predictive,
+        x_observed,
+        y_observed,
+        method=model.posterior_predictive,
     )
     pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))
     self.assertTrue(np.isfinite(pp_log_prob).all())
@@ -225,7 +229,11 @@ class StochasticProcessModelTest(parameterized.TestCase):
     @jax.vmap
     def _posterior_sample_and_log_prob(s):
       dist = model.apply(
-          s, x_predictive, x_observed, y_observed, method=model.predict
+          s,
+          x_predictive,
+          x_observed,
+          y_observed,
+          method=model.posterior_predictive,
       )[0]
       sample = dist.sample(seed=post_key)
       return dist.log_prob(sample)
@@ -275,7 +283,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     _ = jax.jit(
         jax.vmap(
             lambda s: model.apply(  # pylint: disable=g-long-lambda
-                s, x, x_obs, y_obs, method=model.predict
+                s, x, x_obs, y_obs, method=model.posterior_predictive
             ).sample(seed=jax.random.PRNGKey(0))
         )
     )(state)
@@ -296,20 +304,20 @@ class StochasticProcessModelTest(parameterized.TestCase):
     )
     _ = jax.jit(
         lambda s: model.apply(  # pylint: disable=g-long-lambda
-            s, x2, x_obs2, y_obs2, method=model.predict
+            s, x2, x_obs2, y_obs2, method=model.posterior_predictive
         ).sample(seed=jax.random.PRNGKey(0))
     )({**params2, **pp_state2})
     # Two Cholesky calls; one for observed, one for predictive.
     self.assertEqual(mock_cholesky_fn.call_count, 2)
 
-    # Assert that `model.predict`, when called on the original dataset, does not
-    # recompute the Cholesky.
+    # Assert that `model.posterior_predictive`, when called on the original
+    # dataset, does not recompute the Cholesky.
     mock_cholesky_fn.reset_mock()
     state = {**params, **pp_state}
     _ = jax.jit(
         jax.vmap(
             lambda s: model.apply(  # pylint: disable=g-long-lambda
-                s, x, x_obs, y_obs, method=model.predict
+                s, x, x_obs, y_obs, method=model.posterior_predictive
             ).sample(seed=jax.random.PRNGKey(0))
         )
     )(state)
@@ -349,7 +357,11 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
     state = {'params': init_state['params'], **pp_state}
     pp_dist = model.apply(
-        state, x_predictive, x_observed, y_observed, method=model.predict
+        state,
+        x_predictive,
+        x_observed,
+        y_observed,
+        method=model.posterior_predictive,
     )
     pp_mean = pp_dist.mean()
 

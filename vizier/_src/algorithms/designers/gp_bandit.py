@@ -212,8 +212,9 @@ class VizierGPBandit(vza.Designer):
     # `pp_state` contains intermediates that are expensive to compute, depend
     # only on observed (not predictive) index points, and are needed to compute
     # the posterior predictive GP (i.e. the Cholesky factor of the kernel matrix
-    # over observed index points). `pp_state` is passed to `model.predict` to
-    # avoid re-computing the intermediates unnecessarily.
+    # over observed index points). `pp_state` is passed to
+    # `model.posterior_predictive` to avoid re-computing the intermediates
+    # unnecessarily.
     _, pp_state = precompute_cholesky(optimal_params)
 
     def predict_on_array_one_model(
@@ -224,7 +225,7 @@ class VizierGPBandit(vza.Designer):
           xs,
           features,
           labels,
-          method=model.predict,
+          method=model.posterior_predictive,
       )
       return {'mean': predictive.mean(), 'stddev': predictive.stddev()}
 
