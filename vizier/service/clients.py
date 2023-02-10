@@ -18,7 +18,7 @@ from __future__ import annotations
 
 # TODO: Raise vizier-specific exceptions.
 
-from typing import Callable, Iterator, Iterable, Any, Collection, Mapping, Optional, Type
+from typing import Any, Callable, Iterable, Iterator, List, Mapping, Optional, Type
 import attr
 
 from vizier.client import client_abc
@@ -35,13 +35,13 @@ ResourceNotFoundError = client_abc.ResourceNotFoundError
 # TODO: Consider if user should set a one-line flag explicitly to
 # denote local NO_ENDPOINT server will be used.
 @attr.define
-class _EnviromentVariables:
+class _EnvironmentVariables:
   server_endpoint: str = attr.field(
       default=NO_ENDPOINT, validator=attr.validators.instance_of(str)
   )
 
 
-environment_variables = _EnviromentVariables()
+environment_variables = _EnvironmentVariables()
 
 
 @attr.define
@@ -147,7 +147,7 @@ class Study(client_abc.StudyInterface):
 
   def suggest(
       self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
-  ) -> Collection[Trial]:
+  ) -> List[Trial]:
     return [
         self._trial_client(t)
         for t in self._client.get_suggestions(

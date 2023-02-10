@@ -174,7 +174,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     study = self.create_test_study(self.id())
     request = vz.TrialSuggestion(parameters={'float': 0.11112})
     study.request(request)
-    trials = list(study.suggest(count=5, client_id='worker1'))
+    trials = study.suggest(count=5, client_id='worker1')
     self.assertLen(trials, 5)
     self.assertCountEqual(
         trials[0].parameters.items(), request.parameters.as_dict().items()
@@ -264,7 +264,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     trial = study.get_trial(3)
     trial.delete()
     # Ask Vizier to suggest the trial so it becomes ACTIVE.
-    trial = list(study.suggest(count=1))[0]
+    trial = study.suggest(count=1)[0]
     self.assertEqual(trial.id, 4)
     self.assertIsNone(trial.complete(infeasible_reason='just because'))
     self.assertTrue(trial.materialize().infeasible)
@@ -285,7 +285,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_trial_stop(self):
     """Checks for correct stopping behavior."""
     study = self.create_test_study_with_trials(self.id())
-    active_trial = list(study.suggest(count=1))[0]
+    active_trial = study.suggest(count=1)[0]
     active_trial.stop()
     self.assertEqual(active_trial.materialize().status, vz.TrialStatus.STOPPING)
 

@@ -29,7 +29,7 @@ Modifying the returned object does not update the Vizier service.
 """
 
 import abc
-from typing import Any, Collection, Iterator, Mapping, Optional, Type, TypeVar
+from typing import Any, Iterator, List, Mapping, Optional, Type, TypeVar
 
 from vizier import pyvizier as vz
 
@@ -199,7 +199,7 @@ class StudyInterface(abc.ABC):
   @abc.abstractmethod
   def suggest(
       self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
-  ) -> Collection[TrialInterface]:
+  ) -> List[TrialInterface]:
     """Returns Trials to be evaluated by client_id.
 
     Args:
