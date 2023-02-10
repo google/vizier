@@ -37,9 +37,11 @@ config.update('jax_enable_x64', True)
 tfb = tfp.bijectors
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
+tfde = tfp.experimental.distributions
+tfpke = tfp.experimental.psd_kernels
 
 
-def _test_coroutine(inputs=None, dtype=np.float64):
+def _test_coroutine(inputs=None, num_tasks=1, dtype=np.float64):
   """A coroutine that follows the `ModelCoroutine` protocol."""
   constraint = sp_model.Constraint(
       bounds=(np.zeros([], dtype=dtype), None), bijector=tfb.Exp()
@@ -60,20 +62,31 @@ def _test_coroutine(inputs=None, dtype=np.float64):
       amplitude=amplitude,
       inverse_length_scale=inverse_length_scale,
       validate_args=True)
-  return tfd.StudentTProcess(
-      df=dtype(5.0),
-      kernel=kernel,
+
+  if num_tasks == 1:
+    return tfd.StudentTProcess(
+        df=dtype(5.0),
+        kernel=kernel,
+        index_points=inputs,
+        observation_noise_variance=np.ones([], dtype=dtype),
+        validate_args=True,
+    )
+
+  multi_task_kernel = tfpke.Independent(num_tasks=num_tasks, base_kernel=kernel)
+  return tfde.MultiTaskGaussianProcess(
+      kernel=multi_task_kernel,
       index_points=inputs,
-      observation_noise_variance=np.zeros([], dtype=dtype),
+      observation_noise_variance=np.ones([], dtype=dtype),
       validate_args=True,
   )
 
 
-def _make_inputs(key, dtype, num_observed=20, num_predictive=5):
-  obs_key, pred_key = random.split(key)
+def _make_inputs(key, dtype, num_tasks=1, num_observed=20, num_predictive=5):
+  x_key, y_key, pred_key = random.split(key, num=3)
   dim = 3
-  x_observed = random.uniform(obs_key, shape=(num_observed, dim), dtype=dtype)
-  y_observed = x_observed.sum(axis=-1)
+  y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
+  x_observed = random.uniform(x_key, shape=(num_observed, dim), dtype=dtype)
+  y_observed = random.uniform(y_key, shape=y_shape, dtype=dtype)
   x_predictive = random.uniform(
       pred_key, shape=(100, num_predictive, dim), dtype=dtype
   )
@@ -89,14 +102,28 @@ class StochasticProcessModelTest(parameterized.TestCase):
           'testcase_name': 'continuous_only',
           'model_coroutine': _test_coroutine,
           'test_data_fn': _make_inputs,
+          'num_tasks': 1,
+          'dtype': np.float64,
+      },
+      {
+          'testcase_name': 'multitask_continuous',
+          'model_coroutine': _test_coroutine,
+          'test_data_fn': _make_inputs,
+          'num_tasks': 3,
           'dtype': np.float64,
       },
   )
-  def test_stochastic_process_model(self, model_coroutine, test_data_fn, dtype):
+  def test_stochastic_process_model(
+      self, model_coroutine, test_data_fn, num_tasks, dtype
+  ):
     init_key, data_key, sample_key = jax.random.split(random.PRNGKey(0), num=3)
-    x_observed, y_observed, x_predictive = test_data_fn(data_key, dtype)
+    x_observed, y_observed, x_predictive = test_data_fn(
+        data_key, dtype=dtype, num_tasks=num_tasks
+    )
     model = sp_model.StochasticProcessModel(
-        coroutine=functools.partial(model_coroutine, dtype=dtype)
+        coroutine=functools.partial(
+            model_coroutine, num_tasks=num_tasks, dtype=dtype
+        )
     )
 
     init_state = model.init(init_key, x_observed)
@@ -106,7 +133,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     self.assertEqual(lp.dtype, dtype)
 
     # Check regularization loss values.
-    gen = model_coroutine(dtype=dtype)
+    gen = model_coroutine(num_tasks=num_tasks, dtype=dtype)
     p = next(gen)
     params = dict(init_state['params'])
     losses = dict(losses['losses'])
@@ -135,6 +162,82 @@ class StochasticProcessModelTest(parameterized.TestCase):
     pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))
     self.assertTrue(np.isfinite(pp_log_prob).all())
     self.assertEqual(pp_log_prob.dtype, dtype)
+
+  @parameterized.named_parameters(
+      {
+          'testcase_name': 'continuous_only',
+          'num_tasks': 1,
+      },
+      {
+          'testcase_name': 'multitask_continuous',
+          'num_tasks': 3,
+      },
+  )
+  def test_jax_transformations(self, num_tasks):
+    init_key, data_key, prior_key, post_key = jax.random.split(
+        random.PRNGKey(0), num=4
+    )
+    num_observed = 20
+    x_observed, y_observed, x_predictive = _make_inputs(
+        data_key,
+        num_tasks=num_tasks,
+        num_observed=num_observed,
+        dtype=np.float32,
+    )
+    model = sp_model.StochasticProcessModel(
+        coroutine=functools.partial(
+            _test_coroutine, num_tasks=num_tasks, dtype=np.float32
+        )
+    )
+
+    batch_size = 10
+    keys = jax.random.split(init_key, num=batch_size)
+    init_state = jax.vmap(lambda k: model.init(k, x_observed))(keys)
+    s = jax.jit(
+        jax.vmap(
+            lambda s: model.apply(  # pylint: disable=g-long-lambda
+                s, x_observed, mutable=('losses',)
+            )[0].sample(seed=prior_key)
+        )
+    )(init_state)
+    sample_shape = (
+        (batch_size, num_observed)
+        if num_tasks == 1
+        else (batch_size, num_observed, num_tasks)
+    )
+    self.assertEqual(s.shape, sample_shape)
+
+    _, pp_state = jax.jit(
+        jax.vmap(
+            lambda p: model.apply(  # pylint: disable=g-long-lambda
+                p,
+                x_observed,
+                y_observed,
+                method=model.precompute_predictive,
+                mutable=('predictive',),
+            )
+        )
+    )(init_state)
+
+    state = {**init_state, **pp_state}
+
+    @jax.jit
+    @jax.vmap
+    def _posterior_sample_and_log_prob(s):
+      dist = model.apply(
+          s, x_predictive, x_observed, y_observed, method=model.predict
+      )[0]
+      sample = dist.sample(seed=post_key)
+      return dist.log_prob(sample)
+
+    pp_log_prob = _posterior_sample_and_log_prob(state)
+    log_prob_grad = jax.grad(
+        lambda s: jnp.sum(_posterior_sample_and_log_prob(s))
+    )(state)
+    for g in log_prob_grad['params'].values():
+      self.assertTrue(np.isfinite(g).all())
+    self.assertTrue(np.isfinite(pp_log_prob).all())
+    self.assertEqual(pp_log_prob.shape, (batch_size,))
 
   def test_cholesky_not_recomputed(self):
     # Need num_observed == num_predictive so the mock Cholesky works for both

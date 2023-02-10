@@ -335,7 +335,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
   """
 
   coroutine: ModelCoroutine
-  mean_fn: Callable[[_In], Array] = lambda _: 0.0
+  mean_fn: Optional[Callable[[_In], Array]] = None  # `None` implies zero-mean.
 
   def setup(self):
     """Builds module parameters."""
@@ -366,7 +366,8 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     """
     gen = self.coroutine(inputs=x)
     if self.is_initializing() and isinstance(self.mean_fn, nn.Module):
-      _ = self.mean_fn(x)  # Call mean_fn so its parameters are initialized.
+      # If mean_fn is a module, call it so its parameters are initialized.
+      _ = self.mean_fn(x)  # pylint: disable=not-callable
     try:
       p: ModelParameter = next(gen)
       while True:
