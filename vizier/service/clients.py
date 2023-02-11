@@ -18,7 +18,7 @@ from __future__ import annotations
 
 # TODO: Raise vizier-specific exceptions.
 
-from typing import Any, Callable, Iterable, Iterator, List, Mapping, Optional, Type
+from typing import Any, Dict, Callable, Iterable, Iterator, List, Optional, Type
 import attr
 
 from vizier.client import client_abc
@@ -60,7 +60,7 @@ class Trial(client_abc.TrialInterface):
     return self._id
 
   @property
-  def parameters(self) -> Mapping[str, Any]:
+  def parameters(self) -> Dict[str, Any]:
     trial = self.materialize(include_all_measurements=False)
     study_config = self._client.get_study_config()
     return study_config.trial_parameters(vz.TrialConverter.to_proto(trial))

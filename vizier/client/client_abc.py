@@ -29,7 +29,7 @@ Modifying the returned object does not update the Vizier service.
 """
 
 import abc
-from typing import Any, Iterator, List, Mapping, Optional, Type, TypeVar
+from typing import Any, Dict, Iterator, List, Optional, Type, TypeVar
 
 from vizier import pyvizier as vz
 
@@ -57,7 +57,7 @@ class TrialInterface(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def parameters(self) -> Mapping[str, Any]:
+  def parameters(self) -> Dict[str, Any]:
     """#Materializes the parameters of the trial.
 
     The parameters are parsed to the external types. The values in the returned
