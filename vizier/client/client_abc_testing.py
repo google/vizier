@@ -289,11 +289,16 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
     active_trial.stop()
     self.assertEqual(active_trial.materialize().status, vz.TrialStatus.STOPPING)
 
-    completed_trial = study.get_trial(2)
-    completed_trial.stop()  # Should do nothing.
-    self.assertEqual(
-        completed_trial.materialize().status, vz.TrialStatus.COMPLETED
-    )
+    # COMPLETED, STOPPING
+    noop_trials = [study.get_trial(2), active_trial]
+    original_statuses = [trial.materialize().status for trial in noop_trials]
+    for trial, status in zip(noop_trials, original_statuses):
+      trial.stop()  # Should do nothing.
+      self.assertEqual(trial.materialize().status, status)
+
+    requested_trial = study.get_trial(4)
+    with self.assertRaises(Exception):
+      requested_trial.stop()
 
   def test_intermediate_measurement(self):
     study = self.create_test_study_with_trials(self.id())
