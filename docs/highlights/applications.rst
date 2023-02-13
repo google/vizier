@@ -19,3 +19,8 @@ Papers
    Transformers <https://arxiv.org/abs/2205.13320>`__
 -  `Task Selection for AutoML System
    Evaluation <https://arxiv.org/abs/2208.12754>`__
+
+Guides
+------
+
+-  `Deep Learning Tuning Playbook <https://github.com/google-research/tuning_playbook>`__
