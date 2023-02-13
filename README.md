@@ -49,7 +49,7 @@ study_config.metric_information.append(vz.MetricInformation('metric_name', goal=
 # Setup client and begin optimization. Vizier Service will be implicitly created.
 study = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
 for i in range(10):
-  suggestions = study_client.suggest(count=1)
+  suggestions = study.suggest(count=1)
   for suggestion in suggestions:
     params = suggestion.parameters
     objective = evaluate(params['w'], params['x'], params['y'], params['z'])
