@@ -41,8 +41,7 @@ tfde = tfp.experimental.distributions
 tfpke = tfp.experimental.psd_kernels
 
 
-def _test_coroutine(inputs=None, num_tasks=1, dtype=np.float64):
-  """A coroutine that follows the `ModelCoroutine` protocol."""
+def _continuous_kernel_coroutine(dtype=np.float64):
   constraint = sp_model.Constraint(
       bounds=(np.zeros([], dtype=dtype), None), bijector=tfb.Exp()
   )
@@ -58,11 +57,44 @@ def _test_coroutine(inputs=None, num_tasks=1, dtype=np.float64):
       ),
       constraint=constraint,
   )
-  kernel = tfpk.ExponentiatedQuadratic(
+  return tfpk.ExponentiatedQuadratic(
       amplitude=amplitude,
       inverse_length_scale=inverse_length_scale,
-      validate_args=True)
+      validate_args=True,
+  )
 
+
+def _categorical_kernel_coroutine(dtype=np.float64):
+  amplitude = yield sp_model.ModelParameter(
+      init_fn=lambda k: random.exponential(k, dtype=dtype),
+      constraint=sp_model.Constraint(bounds=(np.zeros([], dtype=dtype), None)),
+      regularizer=lambda x: 1e-3 * x**2,
+      name='amplitude',
+  )
+  one = np.ones([], dtype=dtype)
+  inverse_length_scale_continuous = yield sp_model.ModelParameter.from_prior(
+      tfd.Exponential(rate=one, name='inverse_length_scale_continuous')
+  )
+  inverse_length_scale_categorical = yield sp_model.ModelParameter.from_prior(
+      tfd.Exponential(rate=one, name='inverse_length_scale_categorical')
+  )
+  inverse_length_scale = tfpke.ContinuousAndCategoricalValues(
+      inverse_length_scale_continuous, inverse_length_scale_categorical
+  )
+  kernel = tfpk.ExponentiatedQuadratic(amplitude=amplitude, validate_args=True)
+  return tfpke.FeatureScaledWithCategorical(
+      kernel, inverse_length_scale, validate_args=True
+  )
+
+
+def _test_coroutine(
+    inputs=None,
+    kernel_coroutine=_continuous_kernel_coroutine,
+    num_tasks=1,
+    dtype=np.float64,
+):
+  """A coroutine that follows the `ModelCoroutine` protocol."""
+  kernel = yield from kernel_coroutine(dtype=dtype)
   if num_tasks == 1:
     return tfd.StudentTProcess(
         df=dtype(5.0),
@@ -93,6 +125,38 @@ def _make_inputs(key, dtype, num_tasks=1, num_observed=20, num_predictive=5):
   return x_observed, y_observed, x_predictive
 
 
+def _make_inputs_with_categorical(
+    key, dtype, num_tasks=1, num_observed=15, num_predictive=8
+):
+  cont_obs_key, cat_obs_key, cont_pred_key, cat_pred_key, y_key = random.split(
+      key, num=5
+  )
+  cont_dim = 5
+  cat_dim = 3
+  x_observed_cont = random.uniform(
+      cont_obs_key, shape=(num_observed, cont_dim), dtype=dtype
+  )
+  x_observed_cat = random.randint(
+      cat_obs_key, shape=(num_observed, cat_dim), minval=0, maxval=6
+  )
+  x_observed = tfpke.ContinuousAndCategoricalValues(
+      x_observed_cont, x_observed_cat
+  )
+  y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
+  y_observed = random.uniform(y_key, shape=y_shape, dtype=dtype)
+
+  x_predictive_cont = random.uniform(
+      cont_pred_key, shape=(100, num_predictive, cont_dim), dtype=dtype
+  )
+  x_predictive_cat = random.randint(
+      cat_pred_key, shape=(num_predictive, cat_dim), minval=0, maxval=6
+  )
+  x_predictive = tfpke.ContinuousAndCategoricalValues(
+      x_predictive_cont, x_predictive_cat
+  )
+  return x_observed, y_observed, x_predictive
+
+
 class StochasticProcessModelTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
@@ -100,31 +164,47 @@ class StochasticProcessModelTest(parameterized.TestCase):
       # TODO: Fix support for f32.
       {
           'testcase_name': 'continuous_only',
-          'model_coroutine': _test_coroutine,
+          'kernel_coroutine': _continuous_kernel_coroutine,
           'test_data_fn': _make_inputs,
           'num_tasks': 1,
           'dtype': np.float64,
       },
       {
           'testcase_name': 'multitask_continuous',
-          'model_coroutine': _test_coroutine,
+          'kernel_coroutine': _continuous_kernel_coroutine,
           'test_data_fn': _make_inputs,
           'num_tasks': 3,
           'dtype': np.float64,
       },
+      {
+          'testcase_name': 'continuous_categorical',
+          'kernel_coroutine': _categorical_kernel_coroutine,
+          'test_data_fn': _make_inputs_with_categorical,
+          'num_tasks': 1,
+          'dtype': np.float64,
+      },
+      {
+          'testcase_name': 'continuous_categorical_multitask',
+          'kernel_coroutine': _categorical_kernel_coroutine,
+          'test_data_fn': _make_inputs_with_categorical,
+          'num_tasks': 1,
+          'dtype': np.float64,
+      },
   )
   def test_stochastic_process_model(
-      self, model_coroutine, test_data_fn, num_tasks, dtype
+      self, kernel_coroutine, test_data_fn, num_tasks, dtype
   ):
     init_key, data_key, sample_key = jax.random.split(random.PRNGKey(0), num=3)
     x_observed, y_observed, x_predictive = test_data_fn(
         data_key, dtype=dtype, num_tasks=num_tasks
     )
-    model = sp_model.StochasticProcessModel(
-        coroutine=functools.partial(
-            model_coroutine, num_tasks=num_tasks, dtype=dtype
-        )
+    model_coroutine = functools.partial(
+        _test_coroutine,
+        kernel_coroutine=kernel_coroutine,
+        num_tasks=num_tasks,
+        dtype=dtype,
     )
+    model = sp_model.StochasticProcessModel(coroutine=model_coroutine)
 
     init_state = model.init(init_key, x_observed)
     dist, losses = model.apply(init_state, x_observed, mutable=('losses',))
@@ -133,7 +213,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     self.assertEqual(lp.dtype, dtype)
 
     # Check regularization loss values.
-    gen = model_coroutine(num_tasks=num_tasks, dtype=dtype)
+    gen = model_coroutine()
     p = next(gen)
     params = dict(init_state['params'])
     losses = dict(losses['losses'])
@@ -171,18 +251,28 @@ class StochasticProcessModelTest(parameterized.TestCase):
       {
           'testcase_name': 'continuous_only',
           'num_tasks': 1,
+          'kernel_coroutine': _continuous_kernel_coroutine,
+          'test_data_fn': _make_inputs,
       },
       {
           'testcase_name': 'multitask_continuous',
           'num_tasks': 3,
+          'kernel_coroutine': _continuous_kernel_coroutine,
+          'test_data_fn': _make_inputs,
+      },
+      {
+          'testcase_name': 'multitask_continuous_categorical',
+          'num_tasks': 3,
+          'kernel_coroutine': _categorical_kernel_coroutine,
+          'test_data_fn': _make_inputs_with_categorical,
       },
   )
-  def test_jax_transformations(self, num_tasks):
+  def test_jax_transformations(self, num_tasks, kernel_coroutine, test_data_fn):
     init_key, data_key, prior_key, post_key = jax.random.split(
         random.PRNGKey(0), num=4
     )
     num_observed = 20
-    x_observed, y_observed, x_predictive = _make_inputs(
+    x_observed, y_observed, x_predictive = test_data_fn(
         data_key,
         num_tasks=num_tasks,
         num_observed=num_observed,
@@ -190,7 +280,10 @@ class StochasticProcessModelTest(parameterized.TestCase):
     )
     model = sp_model.StochasticProcessModel(
         coroutine=functools.partial(
-            _test_coroutine, num_tasks=num_tasks, dtype=np.float32
+            _test_coroutine,
+            kernel_coroutine=kernel_coroutine,
+            num_tasks=num_tasks,
+            dtype=np.float32,
         )
     )
 
