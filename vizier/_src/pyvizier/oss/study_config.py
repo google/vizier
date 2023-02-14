@@ -76,6 +76,8 @@ class Algorithm(enum.Enum):
   HARMONICA = 'HARMONICA'
   # CMA-ES (https://arxiv.org/abs/1604.00772) for DOUBLE search spaces only
   CMA_ES = 'CMA_ES'
+  # Eagle Strategy (https://doi.org/10.1007/978-3-642-04944-6_14).
+  EAGLE_STRATEGY = 'EAGLE_STRATEGY'
 
 
 class ObservationNoise(enum.Enum):

@@ -113,5 +113,13 @@ class DefaultPolicyFactory(PolicyFactory):
       return dp.PartiallySerializableDesignerPolicy(
           problem_statement, policy_supporter, cmaes.CMAESDesigner
       )
+    elif algorithm == 'EAGLE_STRATEGY':
+      from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
+
+      return dp.PartiallySerializableDesignerPolicy(
+          problem_statement,
+          policy_supporter,
+          eagle_strategy.EagleStrategyDesigner,
+      )
     else:
       raise ValueError(f'Algorithm {algorithm} is not registered.')
