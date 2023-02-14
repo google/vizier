@@ -8,8 +8,8 @@ Codebases
 
 -  `Vertex AI <https://github.com/googleapis/python-aiplatform>`__
 -  `PyGlove <https://github.com/google/pyglove>`__
--  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `OptFormer <https://github.com/google-research/optformer>`__
+-  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `CFU-Playground <https://github.com/google/CFU-Playground>`__
 
 Papers
