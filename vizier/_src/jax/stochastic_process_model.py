@@ -312,7 +312,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       mutable=('losses',))
 
   # Run the expensive computation (often a Cholesky decomposition) necessary to
-  # compute the GP posterior predictive, and return the predictive distribution
+  # compute the GP posterior predictive, and return the expensive intermediates
   # as mutable state.
   _, pp_state = gp_model.apply(
       {'params': init_state['params']},
@@ -330,7 +330,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       x_predicted,
       x_observed,
       y_observed,
-      method=gp_model.predict)
+      method=gp_model.posterior_predictive)
   ```
   """
 
@@ -392,8 +392,9 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     """Builds a stochastic process regression model conditioned on observations.
 
     The mutable variable returned by this method as auxillary output should be
-    passed as state to `predict`. This avoids repeated, expensive operations
-    (often Cholesky decompositions) when computing the posterior predictive.
+    passed as state to `posterior_predictive`. This avoids repeated, expensive
+    operations (often Cholesky decompositions) when computing the posterior
+    predictive.
 
     Args:
       x_observed: Index points on which to condition the posterior predictive.
@@ -423,17 +424,18 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
         reduce_fn=lambda _, b: b,
     )
 
-  def predict(
+  def posterior_predictive(
       self, x_predictive: _In, x_observed: _In, y_observed: Array
   ) -> _D:
     """Returns a posterior predictive stochastic process.
 
-    The mutable variable in `predictive/distribution`, typically containing a
-    `tfd.GaussianProcessRegressionModel` or
-    `tfd.StudentTProcessRegressionModel`, is copied with the new predictive
-    index points to avoid repeated, expensive computation (often Cholesky
-    decompositions) in the distribution's constructor. See the class docstring
-    for how to use `precompute_predictive` in combination with `predict`.
+    The posterior predictive distribution over the function values at
+    `x_predictive`, typically a `tfd.GaussianProcessRegressionModel` or
+    `tfd.StudentTProcessRegressionModel`, is built using the mutable variable in
+    `predictive/precomputed_cholesky`. This avoids repeated, expensive
+    computation (often Cholesky decompositions of the kernel matrix for observed
+    data). See the class docstring for how to use `precompute_predictive` in
+    combination with `posterior_predictive`.
 
     Args:
       x_predictive: Predictive index points.
@@ -449,8 +451,9 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
           '`precompute_predictive` must be passed into `predict`. '
           'See the class docstring for an example.'
       )
-    # Access the `tfd.Distribution` stored in the Flax variable, and copy the
-    # distribution object with new index points (avoiding recomputation).
+    # Access the precomputed values stored in the Flax variable, and build the
+    # distribution object over the predictive index points (avoiding
+    # recomputation).
     cached_intermediates = self.get_variable(
         'predictive', 'precomputed_cholesky'
     )
