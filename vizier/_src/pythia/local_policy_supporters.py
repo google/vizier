@@ -155,7 +155,16 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
       algorithm = multimetric.FastParetoOptimalAlgorithm()
       is_optimal = algorithm.is_pareto_optimal(
           points=converter.to_labels(self._trials))
-      return list(np.asarray(self._trials)[is_optimal][:count])
+      # TODO: Improve selection of Pareto frontier points.
+      optimal_count = np.sum(is_optimal)
+      if optimal_count >= count:
+        return list(np.asarray(self._trials)[is_optimal])[0:count]
+      else:
+        return list(np.asarray(self._trials)[is_optimal]) + list(
+            np.random.choice(
+                np.asarray(self._trials)[is_optimal],
+                size=count - optimal_count,
+                replace=np.sum(is_optimal) < count))
 
   def AddTrials(self, trials: Sequence[vz.Trial]) -> None:
     """(Re-)assigns ids to the trials and add them to the study."""
