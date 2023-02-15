@@ -56,8 +56,8 @@ class AlgorithmSuggester(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def supporter(self) -> pythia.InRamPolicySupporter:
-    """Returns the InRamPolicySupporter, which acts as a local client."""
+  def supporter(self) -> pythia.PolicySupporter:
+    """Returns the PolicySupporter, which acts as a local client."""
 
 
 @attr.define
@@ -65,10 +65,10 @@ class DesignerSuggester(AlgorithmSuggester):
   """Wraps a Designer into a AlgorithmSuggester.
 
   Designers return Suggestions which don't have ids assigned to them. We use
-  InRamPolicySupporter to manage Trial ids.
+  PolicySupporter to manage Trial ids.
   """
   _designer: vza.Designer = attr.field()
-  _local_supporter: pythia.InRamPolicySupporter = attr.field()
+  _local_supporter: pythia.PolicySupporter = attr.field()
 
   def suggest(self, batch_size: Optional[int]) -> Collection[vz.Trial]:
     suggestions: Collection[vz.TrialSuggestion] = self._designer.suggest(
@@ -82,7 +82,7 @@ class DesignerSuggester(AlgorithmSuggester):
     return self._designer.update(completed)
 
   @property
-  def supporter(self) -> pythia.InRamPolicySupporter:
+  def supporter(self) -> pythia.PolicySupporter:
     return self._local_supporter
 
 
@@ -90,7 +90,7 @@ class DesignerSuggester(AlgorithmSuggester):
 class PolicySuggester(AlgorithmSuggester):
   """Wraps a Policy into a AlgorithmSuggester."""
   _policy: pythia.Policy = attr.field()
-  _local_supporter: pythia.InRamPolicySupporter = attr.field()
+  _local_supporter: pythia.PolicySupporter = attr.field()
 
   def suggest(self, batch_size: Optional[int]) -> Collection[vz.Trial]:
     return self._local_supporter.SuggestTrials(
@@ -101,5 +101,5 @@ class PolicySuggester(AlgorithmSuggester):
     pass
 
   @property
-  def supporter(self) -> pythia.InRamPolicySupporter:
+  def supporter(self) -> pythia.PolicySupporter:
     return self._local_supporter
