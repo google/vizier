@@ -56,8 +56,8 @@ class AlgorithmSuggester(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def supporter(self) -> pythia.InRamPolicySupporter:
-    """Returns the InRamPolicySupporter, which acts as a local client."""
+  def supporter(self) -> pythia.PolicySupporter:
+    """Returns the PolicySupporter, which acts as a local client."""
 
 
 @attr.define
