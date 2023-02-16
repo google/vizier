@@ -57,6 +57,7 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
   _feature_dim: int
   _use_retrying_cholesky: bool = attr.field(default=True, kw_only=True)
   _boundary_epsilon: float = attr.field(default=1e-12, kw_only=True)
+  _batch_shape: tuple[int, ...] = attr.field(default=(), kw_only=True)
 
   @classmethod
   def model_and_loss_fn(
@@ -65,10 +66,13 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
       labels: chex.Array,
       *,
       use_retrying_cholesky: bool = True,
+      batch_shape=()
   ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
     """Returns the model and loss function."""
     gp_coroutine = VizierGaussianProcess(
-        features.shape[-1], use_retrying_cholesky=use_retrying_cholesky
+        features.shape[-1],
+        use_retrying_cholesky=use_retrying_cholesky,
+        batch_shape=batch_shape,
     )
     model = sp.StochasticProcessModel(gp_coroutine)
 
@@ -126,7 +130,9 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     length_scale_bounds = (ones * (1e-2 - eps), ones * 1e2 + eps)
 
     signal_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*amplitude_bounds),
+        init_fn=self._log_uniform_init(
+            *amplitude_bounds, shape=self._batch_shape
+        ),
         constraint=sp.Constraint(
             amplitude_bounds,
             tfb.SoftClip(*amplitude_bounds, hinge_softness=1e-2),
@@ -138,19 +144,21 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
 
     length_scale = yield sp.ModelParameter(
         init_fn=self._log_uniform_init(
-            *length_scale_bounds, shape=(self._feature_dim,)
+            *length_scale_bounds, shape=self._batch_shape + (self._feature_dim,)
         ),
         constraint=sp.Constraint(
             length_scale_bounds,
             tfb.SoftClip(*length_scale_bounds, hinge_softness=1e-2),
         ),
-        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2),
+        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2, axis=-1),
         name='length_scale_squared',
     )
     kernel = tfpk.FeatureScaled(kernel, scale_diag=jnp.sqrt(length_scale))
 
     observation_noise_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*observation_noise_bounds),
+        init_fn=self._log_uniform_init(
+            *observation_noise_bounds, shape=self._batch_shape
+        ),
         constraint=sp.Constraint(
             observation_noise_bounds,
             tfb.SoftClip(*observation_noise_bounds, hinge_softness=1e-2),
