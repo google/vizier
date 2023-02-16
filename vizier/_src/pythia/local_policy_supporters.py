@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime
 from typing import Iterable, List, Optional, Sequence
 
+from absl import logging
 import attr
 import numpy as np
 from vizier import pyvizier as vz
@@ -82,18 +83,28 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
       min_trial_id: Optional[int] = None,
       max_trial_id: Optional[int] = None,
       status_matches: Optional[vz.TrialStatus] = None,
-      include_intermediate_measurements: bool = True) -> List[vz.Trial]:
-    self._check_study_guid(study_guid)
-    min_trial_id = min_trial_id or 1
-    max_trial_id = max_trial_id or (len(self._trials))
-    trials = [
-        t for t in self._trials[min_trial_id - 1:max_trial_id]
-        if (status_matches is None or t.status == status_matches)
-    ]
+      include_intermediate_measurements: bool = True,
+  ) -> List[vz.Trial]:
+    self.CheckCancelled('GetTrials')
     if trial_ids is not None:
-      trial_ids = set(trial_ids)
-      trials = [t for t in trials if t.id in trial_ids]
-    return trials
+      trial_id_set = set(trial_ids)
+    output: List[vz.Trial] = []
+    for t in self.trials:
+      if status_matches is not None and t.status != status_matches:
+        continue
+      if min_trial_id is not None and t.id < min_trial_id:
+        continue
+      if max_trial_id is not None and t.id > max_trial_id:
+        continue
+      if trial_ids is not None and t.id not in trial_id_set:
+        continue
+      # NOTE: we ignore include_intermediate_measurements and always enclude
+      # them.  That should be safe, and avoids a nasty conflict with the
+      # pass-by-reference philosophy for Trials (you can't delete the
+      # intermediate measurements without deleting them everywhere, and you
+      # can't copy the trial without breaking desired reference connections).
+      output.append(t)
+    return output
 
   def CheckCancelled(self, note: Optional[str] = None) -> None:
     pass
@@ -159,9 +170,16 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
 
   def AddTrials(self, trials: Sequence[vz.Trial]) -> None:
     """(Re-)assigns ids to the trials and add them to the study."""
+    max_trial_id = len(self.trials)
     for i, trial in enumerate(trials):
-      trial.id = i + len(self.trials) + 1
-    self._trials.extend(trials)
+      if trial.id > 0:
+        logging.warning(
+            'Trial already has ID assigned: %s; will be set to %d.',
+            trial.id,
+            i + max_trial_id + 1,
+        )
+      trial.id = i + max_trial_id + 1
+      self._trials.append(trial)
 
   def AddSuggestions(
       self, suggestions: Iterable[vz.TrialSuggestion]) -> Sequence[vz.Trial]:
@@ -169,7 +187,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     trials = []
     for suggestion in suggestions:
       # Assign temporary ids, which will be overwritten by AddTrials() method.
-      trials.append(suggestion.to_trial(-1))
+      trials.append(suggestion.to_trial(0))
     self.AddTrials(trials)
     return trials
 
