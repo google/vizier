@@ -89,15 +89,24 @@ def _parse(arg: str) -> Tuple[str, ...]:
 class Namespace(abc.Sequence):
   r"""A namespace for the Metadata class.
 
-  Namespaces form a tree; a particular namespace can be thought of as a tuple of
-  namespace components.
+  Namespaces represent a tree of Metadata; each namespace object can be thought
+  of as a tuple of components obtained by walking the tree from the root.
+  This makes it easy to give each part of your algorithm its own namespace,
+  to avoid name collisions.  E.g. if your algorithm A uses sub-algorithms B and
+  C, you might have namespaces ":A", ":A:B", and ":A:C".
 
-  You can create a Namespace from a string, with Namespace.decode(s), where
-  the string is parsed into components, splitting at colons; decode('a:b') gives
-  you a two-component namespace: ('a', 'b').
-  Or, you can create that same Namespace from a tuple of strings/components
-  e.g. by constructing Namespace(('a', 'b')).  In the tuple case, the strings
-  are not parsed and colons are ordinary characters.
+  NOTE: The empty namespace is writeable by users via a RPC in Vizier's
+    user-facing API; other namespaces are writeable only by Pythia algorithms.
+    (Users can read all namespaces.) So, to minimize collisions, please avoid
+    the empty namespace unless your algorithm needs to read user data.
+
+  You can create a Namespace from a tuple of strings, e.g.
+  Namespace(('a', 'b')).  Or, you can create a Namespace from a single string
+  with Namespace.decode(s); this parses the string into components, splitting at
+  colons.  For instance Namespace.decode(':a:b') gives you a two-component
+  namespace, equivalent to Namespace(('a', 'b')).
+  (Note that in the tuple case, the strings are not parsed and colons are
+  treated as ordinary characters.)
 
   TLDR: If you decode() a namespace from a string, then ":" is a
     reserved character, but when constructing from a tuple, there are no
@@ -107,10 +116,10 @@ class Namespace(abc.Sequence):
   * Initial colons don't matter: Namespace.decode(':a') == Namespace('a');
     this is a single-component namespace.
   * Colons separate components:
-    Namespace.decode('a:b') == Namespace(['a', 'b']).
+    Namespace.decode('a:b') == Namespace(('a', 'b')).
     (This is a two-component namespace.)
   * Colons are encoded as r'\:':
-    Namespace.decode('a\\:b') == Namespace(('a:b')).
+    Namespace.decode('a\\:b') == Namespace(('a:b',)).
     (This is a single-component namespace.)
 
   Conversions: For a Namespace x,
@@ -126,7 +135,7 @@ class Namespace(abc.Sequence):
     """Generates a Namespace from its component strings.
 
     Args:
-      arg: a tuple representation of a namespace.
+      arg: typically, a tuple of strings.
     """
     arg = tuple(arg)
     self.__attrs_init__(as_tuple=arg)
@@ -190,7 +199,17 @@ class Namespace(abc.Sequence):
     return f'Namespace({self.encode()})'
 
   def startswith(self, prefix: Iterable[str]) -> bool:
-    """Returns True if this namespace starts with prefix."""
+    """Returns True if this namespace starts with $prefix.
+
+    So, if the current namespace is "a:b:c", then startswith() will return True
+    when called with prefix=(), ('a',), ('a', 'b'), and ('a', 'b', 'c');
+    otherwise False.
+
+    Args:
+      prefix: namespace components or a Namespace object.
+
+    Returns:
+    """
     ns_prefix = Namespace(prefix)
     return self[:len(ns_prefix)] == ns_prefix
 
@@ -214,30 +233,37 @@ class Metadata(abc.MutableMapping):
     mm.update({'a': 'A'}, gleep='Gleep')
 
   1. Keys are namespaced. Each Metadata object only interacts with one
-    Namespace, but a metadata object and its children share a
-    common set of (namespace, key, value) triplets.
+    Namespace.
 
     Namespaces form a tree, and you can walk down the tree.  There are two
-    namespace operators: ns(s) which adds component(s) on to the namespace, and
-    abs_ns() which specifies the entire namespace.
+    namespace operators: ns(s) which adds one component on to the current
+    namespace, and abs_ns() which specifies the entire namespace.
 
     A Metadata() object is always created at the root of the namespace tree,
-    and the root is special (it's the only namespace that Vizier users can write
-    or conveniently read).  Pythia algorithm developers should avoid the root
-    namespace, unless they intend to pass data to/from Vizier users.
+    and the root is special (it's the only namespace that Vizier users can
+    write).  Pythia algorithm developers should avoid the root namespace,
+    unless they intend to pass data to/from Vizier users.
 
     mm = Metadata({'foo': 'foofoo'})
+    # $mm is created with its current namespace equal to the root/empty
+    # namespace.
     mm.ns('NewName')['bar'] = 'Bar'
-    mm['foo']               # Returns 'foofoo'
-    mm['bar']               # Throws a KeyError
-    mm.ns('NewName')['foo'] # Throws a KeyError
-    mm.ns('NewName')['bar'] # Returns 'Bar'
+    # We've added an item in the ":NewName" namespace, but $mm's current
+    # namespace is unchanged.
+    mm.ns('NewName').ns('NewName2')['bar'] = 'Bar2'
+    # We've added an item in the ":NewName:NewName2" namespace, but $mm's
+    # current namespace is still unchanged.
+    mm['foo']         # Returns 'foofoo', which is in mm's current ns.
+    mm['bar']         # Throws a KeyError, because we're looking in the root ns.
+    mm.ns('NewName')['foo']     # Throws a KeyError.
+    mm.ns('NewName')['bar']     # Returns 'Bar'
     mm.ns('NewName').get('bar') # Returns 'Bar'
-
+    #
     # Use of abs_ns().
-    mm = Metadata()
-    mm.abs_ns(Namespace(('NewName',)))['bar'] = 'Bar'
     mm.abs_ns(Namespace(('NewName',)))  # returns 'Bar'
+    mm.abs_ns(Namespace(('NewName', 'NewName2')))  # returns 'Bar2'
+    mmx = mm.ns('x')
+    mmx.abs_ns(Namespace(('NewName', 'NewName2')))  # returns 'Bar2'
 
     # Multi-component namespaces.
     mm = Metadata()
@@ -305,39 +331,41 @@ class Metadata(abc.MutableMapping):
     self._store.update(*args, **kwargs)
 
   def abs_ns(self, namespace: Iterable[str] = ()) -> 'Metadata':
-    """Switches to a specified absolute namespace.
+    """Returns a metadata object set to the specified absolute namespace.
 
     All the Metadata object's data is shared between $self and the returned
-    object, but the new Metadata object will have a different default
-    namespace.
+    object, but the new Metadata object will have a different current
+    namespace.  (Note that $self is not modified, and the current namespace of
+    $self doesn't matter.)
 
     Args:
       namespace: a list of Namespace components.  (Defaults to the root, empty
-      Namespace.)
+        Namespace.)
 
     Returns:
-      A new Metadata object in the specified namespace; the new object shares
-      data (except the namespace) with $self.
+      A new Metadata object that shares data with $self, but the current
+      namespace is one level deeper.
     """
     return self._copy_core(Namespace(namespace))
 
   def ns(self, component: str) -> 'Metadata':
     r"""Switches to a deeper namespace by appending a component.
 
-    All the metadata is shared between $self and the returned value, but they
-    have a different current namespace.
+    The entire tree of metadata is shared between $self and the returned value,
+    but they have a different current namespace.  ($self is not modified.)
 
     Args:
-      component: one component to be added to the current namespace.
+      component: one component to be appended to the current namespace.
 
     Returns:
       A new Metadata object in the specified namespace; the new object shares
-      metadata (except the choice of namespace) with $self.
+      metadata with $self.
     """
     new_ns: Namespace = self._namespace + (component,)
     return self._copy_core(new_ns)
 
   def __repr__(self) -> str:
+    """Prints items in all namespaces."""
     itemlist: List[str] = []
     for namespace, store in self._stores.items():
       item_string = f'(namespace:{namespace}, items: {store})'
@@ -346,6 +374,7 @@ class Metadata(abc.MutableMapping):
                                                        self._namespace.encode())
 
   def __str__(self) -> str:
+    """Prints items in the current namespace."""
     return 'namespace: {} items: {}'.format(str(self._namespace), self._store)
 
   def get_proto(self, key: str, *, cls: Type[M]) -> Optional[M]:
@@ -369,7 +398,8 @@ class Metadata(abc.MutableMapping):
     """Gets the metadata as type `cls`, or raises a KeyError.
 
     This acts like the square bracket operator, except that
-    it lets you specify a class.
+    it lets you specify a class; it gets the metadata from the current
+    namespace.
 
     Examples with string metadata:
       metadata = common.Metadata({'key': 'value'})
@@ -427,6 +457,7 @@ class Metadata(abc.MutableMapping):
 
     This returns $default if the specified metadata item is not found.
     Note that there's always a default value, and the $default defaults to None.
+    This gets the data from the current namespace.
 
     For string values, this function behaves exactly like a
     regular string-to-string dict (within its namespace).
@@ -479,13 +510,9 @@ class Metadata(abc.MutableMapping):
       return default
 
   # TODO: Rename to `abs_namespaces`
-  def namespaces(self) -> Tuple[Namespace, ...]:
-    """Get all namespaces for which there is at least one key.
-
-    Returns:
-      For all `ns` in `md.namespaces()`, `md.abs_ns(ns)` is not empty.
-    """
-    return tuple([ns for ns, store in self._stores.items() if store])
+  def namespaces(self) -> List[Namespace]:
+    """List all namespaces for which there is at least one key."""
+    return [ns for ns, store in self._stores.items() if store]
 
   # TODO: Rename to `namespaces`
   def subnamespaces(self) -> Tuple[Namespace, ...]:
