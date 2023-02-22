@@ -51,9 +51,6 @@ class CompletedTrials:
 class ActiveTrials:
   """A group of active (a.k.a pending) trials.
 
-  For more details about incorporating ACTIVE trails into designer please refer
-  to the design doc go/vizier-active-trials.
-
   Attributes:
     trials: Active Trials.
   """
@@ -131,8 +128,6 @@ class Designer(_SuggestionAlgorithm):
 
     In both production and benchmarking, 'all_active' refers to ALL the current
     ACTIVE trials.
-
-    For more details please refer to go/vizier-pending-trials.
 
     Arguments:
       completed: COMPLETED trials.
