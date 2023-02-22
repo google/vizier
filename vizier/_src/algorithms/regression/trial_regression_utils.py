@@ -194,17 +194,17 @@ class GBMAutoRegressor(object):
   def is_trained(self) -> bool:
     return self._model is not None
 
-  def train(self, trials: vza.CompletedTrials) -> None:
+  def train(self, completed: vza.CompletedTrials) -> None:
     """Trains a GBDT combined models for auto-regression given completed trials.
 
     Args:
-      trials: Sequence of completed trials.
+      completed: Sequence of completed trials.
 
     Returns:
       Nothing. Updated `_model` and `_best_params` members of the class.
     """
     completed_trials = []
-    for trial in trials.completed:
+    for trial in completed.trials:
       completed_trials.append(
           TrialData.from_trial(
               trial,
@@ -372,17 +372,17 @@ class GBMTrialHallucinator():
     # Decide whether to update stopped trials or not based on
     # `update_all_stopped_trials` flag and if there are enough train trials.
     # Finally, training an autoregressive model if the conditions are met.
-    has_enough_data = (
-        len(train_trials.completed) >= max(
-            self._options.autoregressive_order + 1,
-            self._options.min_completed_trials))
+    has_enough_data = len(train_trials.trials) >= max(
+        self._options.autoregressive_order + 1,
+        self._options.min_completed_trials,
+    )
     if not has_enough_data:
       logging.info("Not enough train trials.")
       return
 
     self._max_steps = self._max_steps or int(
-        np.percentile([len(t.measurements) for t in train_trials.completed],
-                      95))
+        np.percentile([len(t.measurements) for t in train_trials.trials], 95)
+    )
 
     # If min_steps was not set, take 1/10th of the max_num_steps as its
     # value.

@@ -78,7 +78,7 @@ class Nsga2Test(absltest.TestCase):
     trial4.complete(vz.Measurement({'m1': .3, 'm2': -.3, 's1': 2., 's2': .0}))
 
     trials = vza.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
-    algorithm.update(trials)
+    algorithm.update(trials, vza.ActiveTrials())
     self.assertSetEqual(set(algorithm.population.trial_ids), {0, 1, 2})
 
   def test_survival_by_crowding_distance(self):
@@ -105,7 +105,7 @@ class Nsga2Test(absltest.TestCase):
     trial4.complete(vz.Measurement({'m1': .0, 'm2': -1., 's1': 2., 's2': .9}))
 
     trials = vza.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
-    algorithm.update(trials)
+    algorithm.update(trials, vza.ActiveTrials())
     self.assertSetEqual(set(algorithm.population.trial_ids), {0, 1, 3, 4})
 
   def test_survival_by_safety(self):
@@ -124,7 +124,7 @@ class Nsga2Test(absltest.TestCase):
     trial4.complete(vz.Measurement({'m1': .0, 'm2': .0, 's1': .0, 's2': 2.}))
 
     trials = vza.CompletedTrials([trial1, trial2, trial3, trial4])
-    algorithm.update(trials)
+    algorithm.update(trials, vza.ActiveTrials())
     self.assertSetEqual(set(algorithm.population.trial_ids), {1, 2, 4})
 
   def test_comprehensive_sanity_check(self):
@@ -158,7 +158,7 @@ class Nsga2Test(absltest.TestCase):
       tick = datetime.datetime.now()
       logging.info('Suggesitons evaluated: %s',
                    '\n'.join(repr(t) for t in trials))
-      algorithm.update(vza.CompletedTrials(trials))
+      algorithm.update(vza.CompletedTrials(trials), vza.ActiveTrials())
       tock = datetime.datetime.now()
       logging.info(
           'Iteration %s: Update took %s.\nPopulation(in array format):%s\nAges:%s',

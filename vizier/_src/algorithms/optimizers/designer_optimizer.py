@@ -84,7 +84,9 @@ class DesignerAsOptimizer(base.GradientFreeOptimizer):
         # TODO: Decide what to do with NaNs scores.
         trial.complete(
             vz.Measurement({k: v[i].item() for k, v in scores.items()}))
-      self._designer.update(abstractions.CompletedTrials(trials))
+      self._designer.update(
+          abstractions.CompletedTrials(trials), abstractions.ActiveTrials()
+      )
     logging.info(
         'Finished running the optimization study. Extracting the best trials...'
     )

@@ -16,8 +16,6 @@ from __future__ import annotations
 
 """Tests for designer_policy."""
 
-import copy
-
 from typing import Optional, Sequence
 from vizier import algorithms as vza
 from vizier import pythia
@@ -27,55 +25,97 @@ from vizier.interfaces import serializable
 from absl.testing import absltest
 
 
-class _FakeSerializableDesigner(vza.PartiallySerializableDesigner,
-                                vza.SerializableDesigner):
-  # If set, load() and recover() raise the provided Exception.
-  _error_on_load: Optional[Exception] = None
+class _FakeDesigner(vza.Designer):
 
   def __init__(self):
-    self._num_incorporated_trials = 0
+    self.num_incorporated_completed_trials = 0
+    self._num_incorporated_active_trials = 0
+    self.last_completed = []
+    self.last_active = []
+
+  def suggest(
+      self, count: Optional[int] = None
+  ) -> Sequence[vz.TrialSuggestion]:
+    return [vz.TrialSuggestion(vz.ParameterDict())] * count
+
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    self.last_completed = completed.trials
+    self.last_active = all_active.trials
+    self.num_incorporated_completed_trials += len(completed.trials)
+    self._num_incorporated_active_trials += len(all_active.trials)
+
+
+class _FakeSerializableDesigner(vza.PartiallySerializableDesigner,
+                                vza.SerializableDesigner):
+
+  def __init__(self):
+    self.num_incorporated_completed_trials = 0
+    self.num_incorporated_active_trials = 0
+    self.last_completed = []
+    self.last_active = []
 
     # For debugging and testing. Not stored in the metadata.
-    self._last_delta = None
+    self.last_completed = None
 
   def suggest(self,
               count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
     return [vz.TrialSuggestion(vz.ParameterDict())] * count
 
-  def update(self, delta: vza.CompletedTrials):
-    self._last_delta = delta
-    self._num_incorporated_trials += len(delta.completed)
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ):
+    self.last_completed = completed.trials
+    self.last_active = all_active.trials
+    self.num_incorporated_completed_trials += len(completed.trials)
+    self.num_incorporated_active_trials += len(all_active.trials)
 
   def dump(self) -> vz.Metadata:
     md = vz.Metadata()
     md.ns('ns1')['foo1'] = 'bar1'
     md.ns('ns1').ns('ns11')['foo11'] = 'bar11'
-    md['num_incorporated_trials'] = str(self._num_incorporated_trials)
+    md['num_incorporated_completed_trials'] = str(
+        self.num_incorporated_completed_trials
+    )
     return md
 
   @classmethod
   def recover(cls, md: vz.Metadata) -> '_FakeSerializableDesigner':
-    if cls._error_on_load is not None:
-      raise cls._error_on_load  # pylint:disable=raising-bad-type
     try:
       designer = cls()
-      designer._num_incorporated_trials = int(md['num_incorporated_trials'])
+      designer.num_incorporated_completed_trials = int(
+          md['num_incorporated_completed_trials']
+      )
       return designer
     except KeyError as e:
       raise KeyError(f'Cannot find in {md}') from e
 
   def load(self, md: vz.Metadata):
-    if self._error_on_load is not None:
-      raise self._error_on_load  # pylint:disable=raising-bad-type
     try:
-      self._num_incorporated_trials = int(md['num_incorporated_trials'])
+      self.num_incorporated_completed_trials = int(
+          md['num_incorporated_completed_trials']
+      )
     except KeyError as e:
       raise serializable.DecodeError(f'Cannot find in {md}') from e
 
 
-# TODO: Add more tests
-
 _NUM_INITIAL_COMPLETED_TRIALS = 10
+_NUM_INITIAL_ACTIVE_TRIALS = 2
+
+
+def _create_runner() -> pythia.InRamPolicySupporter:
+  """Creates the default runner with completed and active trials."""
+  runner = pythia.InRamPolicySupporter(vz.ProblemStatement())
+  runner.AddTrials(
+      [
+          vz.Trial().complete(vz.Measurement())
+          for _ in range(_NUM_INITIAL_COMPLETED_TRIALS)
+      ]
+  )
+  # The default status is ACTIVE.
+  runner.AddTrials([vz.Trial() for _ in range(_NUM_INITIAL_ACTIVE_TRIALS)])
+  return runner
 
 
 class DesignerPolicyNormalOperationTest(absltest.TestCase):
@@ -84,91 +124,117 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
     self.maxDiff = None  # pylint: disable=invalid-name
-    problem_statement = vz.ProblemStatement()
-    designer = _FakeSerializableDesigner()
-    runner = pythia.InRamPolicySupporter(problem_statement)
-    runner.AddTrials([
-        vz.Trial().complete(vz.Measurement())
-        for _ in range(_NUM_INITIAL_COMPLETED_TRIALS)
-    ])
 
-    # Run with a policy
-    policy = dp.PartiallySerializableDesignerPolicy(
-        problem_statement,
-        runner,
-        lambda _: designer,
-        ns_root='test',
-        verbose=2)
-    trials = runner.SuggestTrials(policy, 5)
-    self.assertLen(
-        designer._last_delta.completed,  # pytype:disable=attribute-error
-        _NUM_INITIAL_COMPLETED_TRIALS)
-    self.assertEqual(
-        runner.study_descriptor().config.metadata.ns('test').ns('designer')
-        ['num_incorporated_trials'], str(_NUM_INITIAL_COMPLETED_TRIALS))
-
-    # Complete trials
-    for t in trials[::2]:
-      t.complete(vz.Measurement())
-
-    self.problem_statement = problem_statement
-    self.runner = runner
-    self.designer = designer
-    self.trials = trials
-
-  def test_partially_serializable(self):
-    runner, designer, trials = self.runner, self.designer, self.trials
-
-    # Mimick the server environment by creating a new policy.
-    policy = dp.PartiallySerializableDesignerPolicy(
-        self.problem_statement,
-        runner,
-        lambda _: designer,
-        ns_root='test',
-        verbose=2)
-    runner.SuggestTrials(policy, 1)
-    # Delta should consist only of the newly completed trials.
-    self.assertSequenceEqual(designer._last_delta.completed, trials[::2])
-    self.assertEqual(designer._num_incorporated_trials, 13)
-    self.assertEqual(
-        runner.study_descriptor().config.metadata.ns('test').ns('designer')
-        ['num_incorporated_trials'], str(13))
-
-  def test_fully_serializable(self):
-    runner, _, trials = self.runner, self.designer, self.trials
-
-    # Mimick the server environment by creating a new policy.
-    def raise_error(*args, **kwargs):
-      raise ValueError('This code should not be called')
-
+  def test_restore_fully_serializable_designer(self):
+    runner = _create_runner()
     policy = dp.SerializableDesignerPolicy(
-        self.problem_statement,
-        runner,
-        designer_factory=raise_error,  # should not be used.
+        problem_statement=vz.ProblemStatement(),
+        supporter=runner,
+        designer_factory=lambda _: _FakeSerializableDesigner(),
         designer_cls=_FakeSerializableDesigner,
         ns_root='test',
-        verbose=2)
-    runner.SuggestTrials(policy, 1)
-
-    # `policy` creates a new designer object by loading from metadata.
-    # Delta should consist only of the newly completed trials.
-    new_designer = policy.designer
-    self.assertSequenceEqual(new_designer._last_delta.completed, trials[::2])  # pytype: disable=attribute-error
-    self.assertEqual(new_designer._num_incorporated_trials, 13)  # pytype: disable=attribute-error
+        verbose=2,
+    )
+    runner.SuggestTrials(policy, 5)
+    # Simulate restoring the designer from metadata.
+    metadata = policy.dump()
+    restored_policy = dp.SerializableDesignerPolicy(
+        problem_statement=vz.ProblemStatement(metadata=metadata),
+        supporter=runner,
+        designer_factory=lambda _: _FakeSerializableDesigner(),
+        designer_cls=_FakeSerializableDesigner,
+        ns_root='test',
+        verbose=2,
+    )
+    restored_policy.load(metadata)
+    designer = restored_policy.designer
     self.assertEqual(
-        runner.study_descriptor().config.metadata.ns('test').ns('designer')
-        ['num_incorporated_trials'], str(13))
+        getattr(designer, 'num_incorporated_completed_trials'),
+        _NUM_INITIAL_COMPLETED_TRIALS,
+    )
 
-  def test_non_serializable(self):
-    runner, designer, trials = self.runner, self.designer, self.trials
+  def test_restore_partially_serializable_designer(self):
+    runner = _create_runner()
+    policy = dp.PartiallySerializableDesignerPolicy(
+        vz.ProblemStatement(),
+        runner,
+        lambda _: _FakeSerializableDesigner(),
+        ns_root='test',
+        verbose=2,
+    )
+    runner.SuggestTrials(policy, 5)
+    metadata = policy.dump()
+    # Simluate restoring the policy from the metadata.
+    restored_policy = dp.PartiallySerializableDesignerPolicy(
+        vz.ProblemStatement(),
+        runner,
+        lambda _: _FakeSerializableDesigner(),
+        ns_root='test',
+        verbose=2,
+    )
+    restored_policy.load(metadata)
+    self.assertLen(
+        restored_policy._incorporated_completed_trial_ids,
+        _NUM_INITIAL_COMPLETED_TRIALS,
+    )
+    self.assertEqual(
+        getattr(restored_policy.designer, 'num_incorporated_completed_trials'),
+        _NUM_INITIAL_COMPLETED_TRIALS,
+    )
 
-    # Mimick the server environment by creating a new policy.
-    policy = dp.DesignerPolicy(copy.deepcopy(runner), lambda _: designer)
-    runner.SuggestTrials(policy, 1)
-    # Designer is updated with all trials, including both the initial batch
-    # of completed trials and the newly completed trials.
-    self.assertLen(designer._last_delta.completed,
-                   _NUM_INITIAL_COMPLETED_TRIALS + len(trials[::2]))
+  def test_update_stateless_designer(self):
+    runner = _create_runner()
+    designer = _FakeDesigner()
+    policy = dp.DesignerPolicy(runner, lambda _: designer)
+    runner.SuggestTrials(policy, 5)
+    self.assertLen(
+        designer.last_completed,
+        _NUM_INITIAL_COMPLETED_TRIALS,
+    )
+    self.assertLen(
+        designer.last_active,
+        _NUM_INITIAL_ACTIVE_TRIALS,
+    )
+    # Add newly completed trials
+    runner.AddTrials([vz.Trial().complete(vz.Measurement()) for _ in range(33)])
+    runner.SuggestTrials(policy, 15)
+    # Check that all completed trials are passed again.
+    self.assertLen(
+        designer.last_completed,
+        _NUM_INITIAL_COMPLETED_TRIALS + 33,
+    )
+    # Check that all active trials are passed again, including the new ones.
+    self.assertLen(
+        designer.last_active,
+        _NUM_INITIAL_ACTIVE_TRIALS + 5,
+    )
+
+  def test_update_stateful_designer(self):
+    runner = _create_runner()
+    designer = _FakeSerializableDesigner()
+    policy = dp.PartiallySerializableDesignerPolicy(
+        vz.ProblemStatement(),
+        runner,
+        lambda _: designer,
+        ns_root='test',
+        verbose=2,
+    )
+    runner.SuggestTrials(policy, 11)
+    self.assertLen(
+        designer.last_completed,
+        _NUM_INITIAL_COMPLETED_TRIALS,
+    )
+    self.assertLen(
+        designer.last_active,
+        _NUM_INITIAL_ACTIVE_TRIALS,
+    )
+    # Add newly completed trials
+    runner.AddTrials([vz.Trial().complete(vz.Measurement()) for _ in range(33)])
+    runner.SuggestTrials(policy, 5)
+    # Check that completed trials are not passed again.
+    self.assertLen(designer.last_completed, 33)
+    # Check that the newly active trials are passed.
+    self.assertLen(designer.last_active, _NUM_INITIAL_ACTIVE_TRIALS + 11)
 
 
 if __name__ == '__main__':

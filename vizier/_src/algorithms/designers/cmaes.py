@@ -74,8 +74,10 @@ class CMAESDesigner(vza.PartiallySerializableDesigner):
     self._trial_population = queue.Queue(
         maxsize=self._cma_es_jax.hyper_parameters.pop_size)
 
-  def update(self, trials: vza.CompletedTrials) -> None:
-    completed_trials = list(trials.completed)
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    completed_trials = list(completed.trials)
 
     # Keep inserting completed trials into population. If population is full,
     # a CMA-ES update and queue clear are triggered.

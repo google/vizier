@@ -51,7 +51,9 @@ class AlgorithmSuggester(abc.ABC):
     """Method to generate suggestions and assign ids to them."""
 
   @abc.abstractmethod
-  def post_completion_callback(self, completed: vza.CompletedTrials) -> None:
+  def post_completion_callback(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
     """Callback after the suggestions are completed, if needed."""
 
   @property
@@ -60,6 +62,7 @@ class AlgorithmSuggester(abc.ABC):
     """Returns the InRamPolicySupporter, which acts as a local client."""
 
 
+# TODO: Add support ACTIVE (PENDING) trials.
 @attr.define
 class DesignerSuggester(AlgorithmSuggester):
   """Wraps a Designer into a AlgorithmSuggester.
@@ -78,8 +81,10 @@ class DesignerSuggester(AlgorithmSuggester):
         suggestions)
     return trials
 
-  def post_completion_callback(self, completed: vza.CompletedTrials) -> None:
-    return self._designer.update(completed)
+  def post_completion_callback(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    return self._designer.update(completed, all_active)
 
   @property
   def supporter(self) -> pythia.InRamPolicySupporter:
@@ -96,7 +101,9 @@ class PolicySuggester(AlgorithmSuggester):
     return self._local_supporter.SuggestTrials(
         self._policy, count=batch_size or 1)
 
-  def post_completion_callback(self, completed: vza.CompletedTrials) -> None:
+  def post_completion_callback(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
     # Nothing to do.
     pass
 

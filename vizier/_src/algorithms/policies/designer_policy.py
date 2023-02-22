@@ -27,6 +27,8 @@ from vizier.interfaces import serializable
 
 _T = TypeVar('_T')
 
+_INCOPORATED_COMPLETED_TRIALS_IDS = 'incorporated_completed_trials_ids'
+
 
 class DesignerFactory(Protocol[_T]):
   """Protocol (PEP-544) for a designer factory."""
@@ -64,9 +66,11 @@ class DesignerPolicy(pythia.Policy):
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     designer = self._designer_factory(request.study_config)
-    new_trials = self._supporter.GetTrials(
-        status_matches=vz.TrialStatus.COMPLETED)
-    designer.update(vza.CompletedTrials(new_trials))
+    completed = self._supporter.GetTrials(
+        status_matches=vz.TrialStatus.COMPLETED
+    )
+    active = self._supporter.GetTrials(status_matches=vz.TrialStatus.ACTIVE)
+    designer.update(vza.CompletedTrials(completed), vza.ActiveTrials(active))
     self._designer = designer  # saved for debugging purposes only.
     return pythia.SuggestDecision(
         designer.suggest(request.count), metadata=vz.MetadataDelta())
@@ -96,10 +100,12 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     * Re-use the saved Designer instance from the last `suggest()` call.
     * `load()` the Designer state from the study-level metadata.
     * If either of the first two steps succeedes, then we update the Designer
-    with newly completed trials only.
+    with **newly** completed and **all** active (pending) trials.
     * Otherwise, we update the Designer with all trials.
 
-  > NOTE: This Policy itself is PartiallySerializable.
+  > NOTE: This Policy itself is PartiallySerializable, i.e. it implements its
+  own 'load' and 'dump' which wrap the designer_factory designer's 'load' and
+  'dump' methods.
   """
 
   _ns_designer = 'designer'
@@ -118,14 +124,15 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     Args:
       problem_statement:
       supporter:
-      designer_factory:
+      designer_factory: Factory function to create.
+        (Partially)SerializableDesigner designers.
       ns_root: Root of the namespace where policy state is stored.
       verbose: Logging verbosity.
     """
     self._supporter = supporter
     self._designer_factory = designer_factory
     self._ns_root = ns_root
-    self._incorporated_trial_ids = set()
+    self._incorporated_completed_trial_ids: set[int] = set()
     self._problem_statement = problem_statement
     self._verbose = verbose
     self._designer = None
@@ -150,14 +157,24 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
     # we keep things simple in this pseudocode.
     self._initialize_designer(request.study_config)
-    new_trials = self._get_new_trials(request.max_trial_id)
-    self.designer.update(vza.CompletedTrials(new_trials))
-    self._incorporated_trial_ids |= set(t.id for t in new_trials)
-
+    new_completed_trials = self._get_trials(
+        request.max_trial_id, vz.TrialStatus.COMPLETED
+    )
+    active_trials = self._get_trials(
+        request.max_trial_id, vz.TrialStatus.ACTIVE
+    )
+    self.designer.update(
+        completed=vza.CompletedTrials(new_completed_trials),
+        all_active=vza.ActiveTrials(active_trials),
+    )
     logging.info(
-        'Updated with %s trials. Designer has seen a total of %s trials.',
-        len(new_trials),
-        len(self._incorporated_trial_ids),
+        (
+            'Updated with %s new completed trials and %s new active trials. '
+            'Designer has seen a total of %s completed trials.'
+        ),
+        len(new_completed_trials),
+        len(active_trials),
+        len(self._incorporated_completed_trial_ids),
     )
     metadata_delta = vz.MetadataDelta()
     # During the 'suggest' call the designer's state could be changed, therefore
@@ -196,17 +213,23 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
 
   # TODO: Use timestamps to avoid metadata blowup.
   def load(self, md: vz.Metadata) -> None:
-    if 'incorporated_trial_ids' in md:
+    if _INCOPORATED_COMPLETED_TRIALS_IDS in md:
       try:
-        self._incorporated_trial_ids = set(
-            json.loads(md['incorporated_trial_ids']))
+        # We don't store/load ACTIVE trials as we always pass all of them.
+        self._incorporated_completed_trial_ids = set(
+            json.loads(md[_INCOPORATED_COMPLETED_TRIALS_IDS])
+        )
       except json.JSONDecodeError as e:
         raise serializable.HarmlessDecodeError from e
     else:
-      raise serializable.HarmlessDecodeError()
+      raise serializable.HarmlessDecodeError('Missing expected metadata keys.')
+
     logging.info(
-        'Successfully recovered the policy state, which incorporated %s trials',
-        len(self._incorporated_trial_ids),
+        (
+            'Successfully recovered the policy state, which incorporated %s '
+            'completed trials.'
+        ),
+        len(self._incorporated_completed_trial_ids),
     )
     self._designer = self._restore_designer(md.ns(self._ns_designer))
 
@@ -250,8 +273,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     except serializable.DecodeError as e:
       logging.log_if(logging.INFO, 'Failed to decode state. %s',
                      self._verbose >= 1, e)
+      # Restart the state of the policy.
       self._designer = self._designer_factory(problem_statement)
-      self._incorporated_trial_ids = set()
+      self._incorporated_completed_trial_ids: set[int] = set()
 
   def dump(self) -> vz.Metadata:
     """Dump state.
@@ -265,28 +289,46 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     md = vz.Metadata()
     md.ns(self._ns_designer).attach(self.designer.dump())
     # TODO: Storing every id is inefficient. Optimize this.
-    md['incorporated_trial_ids'] = json.dumps(
-        list(self._incorporated_trial_ids))
+    # We don't store/load ACTIVE trials as we always pass all of them.
+    md[_INCOPORATED_COMPLETED_TRIALS_IDS] = json.dumps(
+        list(self._incorporated_completed_trial_ids)
+    )
     return md
 
-  def _get_new_trials(self, max_trial_id: int) -> Sequence[vz.CompletedTrial]:
-    """Returns new completed trials that designer should be updated with."""
-    if len(self._incorporated_trial_ids) == max_trial_id:
-      # no trials need to be loaded.
-      return []
+  def _get_trials(
+      self, max_trial_id: int, status: vz.TrialStatus
+  ) -> Sequence[vz.Trial]:
+    """Returns new completed/active trials that designer should be updated with."""
     all_trial_ids = set(range(1, max_trial_id + 1))
-    trial_ids_to_load = all_trial_ids - self._incorporated_trial_ids
 
-    trials = self._supporter.GetTrials(
-        trial_ids=trial_ids_to_load, status_matches=vz.TrialStatus.COMPLETED)
+    if status == vz.TrialStatus.ACTIVE:
+      new_trials = self._supporter.GetTrials(
+          trial_ids=all_trial_ids, status_matches=vz.TrialStatus.ACTIVE
+      )
+
+    elif status == vz.TrialStatus.COMPLETED:
+      if len(self._incorporated_completed_trial_ids) == max_trial_id:
+        # no trials need to be loaded.
+        return []
+      # Exclude completed trials that were already passed to the designer.
+      trial_ids_to_load = all_trial_ids - self._incorporated_completed_trial_ids
+      new_trials = self._supporter.GetTrials(
+          trial_ids=trial_ids_to_load, status_matches=vz.TrialStatus.COMPLETED
+      )
+      # Add new completed trials to not report on them again in the future.
+      self._incorporated_completed_trial_ids |= set(t.id for t in new_trials)
+      return new_trials
+
+    else:
+      raise ValueError('Unsupported status (%s).' % status)
+
     logging.info(
-        ('Loaded %s completed trials out of %s total unseen trials. '
-         'Max trial id is %s.'),
-        len(trials),
-        len(trial_ids_to_load),
+        'Loaded %s %s trials. Max trial id is %s.',
+        len(new_trials),
+        status,
         max_trial_id,
     )
-    return trials
+    return new_trials
 
 
 class PartiallySerializableDesignerPolicy(

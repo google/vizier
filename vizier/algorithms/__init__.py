@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Algorithm core modules."""
 
+from vizier._src.algorithms.core.abstractions import ActiveTrials
 from vizier._src.algorithms.core.abstractions import CompletedTrials
 from vizier._src.algorithms.core.abstractions import Designer
 from vizier._src.algorithms.core.abstractions import PartiallySerializableDesigner

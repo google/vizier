@@ -83,8 +83,11 @@ class FakeDesigner(vza.Designer):
     self.num_trial_to_converge = num_trial_to_converge
     self.num_trials_so_far = 0
 
-  def update(self, delta: vza.CompletedTrials) -> None:
-    self.num_trials_so_far += len(delta.completed)
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    del all_active
+    self.num_trials_so_far += len(completed.trials)
 
   def suggest(
       self, count: Optional[int] = None

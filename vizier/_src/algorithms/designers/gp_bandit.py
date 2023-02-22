@@ -121,8 +121,10 @@ class VizierGPBandit(vza.Designer):
         self._problem.search_space
     )
 
-  def update(self, trials: vza.CompletedTrials) -> None:
-    self._trials.extend(copy.deepcopy(trials.completed))
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    self._trials.extend(copy.deepcopy(completed.trials))
 
   @property
   def _metric_info(self) -> vz.MetricInformation:

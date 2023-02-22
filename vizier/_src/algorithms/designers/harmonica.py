@@ -244,8 +244,10 @@ class HarmonicaDesigner(vza.Designer):
 
     self._trials = []
 
-  def update(self, trials: vza.CompletedTrials) -> None:
-    self._trials += tuple(trials.completed)
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    self._trials += tuple(completed.trials)
 
   def suggest(self,
               count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:

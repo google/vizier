@@ -98,8 +98,9 @@ class TrialRegressionUtilsTest(absltest.TestCase):
     # Case 1: no duplicates.
     steps = [10, 20]
     values = [0.1, 0.2]
-    actual_steps, actual_values = trial_regression_utils._sort_dedupe_measurements(
-        steps, values)
+    actual_steps, actual_values = (
+        trial_regression_utils._sort_dedupe_measurements(steps, values)
+    )
     self.assertListEqual(steps, actual_steps)
     self.assertListEqual(values, actual_values)
 
@@ -108,8 +109,9 @@ class TrialRegressionUtilsTest(absltest.TestCase):
     values = [0.1, 0.2, 0.2]
     expected_steps = [10, 20]
     expected_values = [0.2, 0.2]
-    actual_steps, actual_values = trial_regression_utils._sort_dedupe_measurements(
-        steps, values)
+    actual_steps, actual_values = (
+        trial_regression_utils._sort_dedupe_measurements(steps, values)
+    )
     self.assertListEqual(expected_steps, actual_steps)
     self.assertListEqual(expected_values, actual_values)
 
@@ -265,7 +267,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
       best_params = gbdt_cv.best_params_
       ideal_model = lightgbm.LGBMRegressor(**best_params, random_state=111)
       ideal_model = ideal_model.fit(feat_mat, targets)
-      gbm.train(vza.CompletedTrials(completed=[pytrial1, pytrial2, pytrial3]))
+      gbm.train(vza.CompletedTrials(trials=[pytrial1, pytrial2, pytrial3]))
       pred = gbm._model.predict(feat_mat[[1], :])
       pred_expected = ideal_model.predict(feat_mat[[1], :])
       self.assertAlmostEqual(pred, pred_expected)

@@ -168,8 +168,10 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     return self._converter.to_suggestions(
         self._adaptation.mutate(self._population, count))
 
-  def update(self, delta: vza.CompletedTrials) -> None:
-    completed = delta.completed
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    completed = completed.trials
     self._num_trials_seen += len(completed)
     candidates = self._population + self._converter.to_population(completed)
     self._population = self._survival.select(candidates)

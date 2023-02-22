@@ -20,7 +20,7 @@ import collections
 import math
 import random
 import sys
-from typing import List, Optional, Sequence, Iterable
+from typing import Iterable, List, Optional, Sequence
 
 import attr
 import numpy as np
@@ -28,6 +28,7 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 from vizier.pyvizier import converters
+
 
 ################################################################################
 # PyTypes
@@ -176,8 +177,9 @@ class _HaltonSequence(serializable.PartiallySerializable):
 
     if (0.0 > result) or (result > 1.0):
       raise ValueError(
-          'Something wrong has happened; halton_value should be within [0, 1]: %f'
-          % result)
+          'Something wrong has happened; halton_value should be within [0,'
+          ' 1]: %f' % result
+      )
     return result
 
   def get_next_list(self) -> List[float]:
@@ -268,7 +270,9 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
     halton_value = int(math.floor(halton_value))
     return halton_value + int(spec.bounds[0])
 
-  def update(self, _) -> None:
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
     pass
 
   def suggest(self,
@@ -293,10 +297,12 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
           # Trial-Numpy converter expects an integer for discrete/categorical
           # parameters.
           sample[spec.name].append(
-              np.int64(self._generate_discrete_point(spec, halton_value)))
+              np.int64(self._generate_discrete_point(spec, halton_value))
+          )
         else:
           raise ValueError(
-              f'Unsupported spec type: {spec.type}. self._converter should be configured to return CONTINUOUS or DISCRETE specs only.'
+              f'Unsupported spec type: {spec.type}. self._converter should be'
+              ' configured to return CONTINUOUS or DISCRETE specs only.'
           )
     sample = {
         name: np.expand_dims(np.asarray(elements), axis=-1)

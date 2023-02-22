@@ -172,7 +172,10 @@ class GenerateAndEvaluate(BenchmarkSubroutine):
       )
     state.experimenter.evaluate(list(suggestions))
     # Only needed for Designers.
-    state.algorithm.post_completion_callback(vza.CompletedTrials(suggestions))
+    state.algorithm.post_completion_callback(
+        completed=vza.CompletedTrials(suggestions),
+        all_active=vza.ActiveTrials(),
+    )
 
 
 @attr.define
@@ -200,14 +203,13 @@ class GenerateSuggestions(BenchmarkSubroutine):
 class EvaluateActiveTrials(BenchmarkSubroutine):
   """Evaluate a fixed number of Active Trials as Completed Trials."""
 
-  # If None, this Evaluates all Pending Trials.
+  # If None, this Evaluates all Active Trials.
   num_evaluations: Optional[int] = attr.field(default=None)
 
   def run(self, state: BenchmarkState) -> None:
     active_trials = state.algorithm.supporter.GetTrials(
         status_matches=vz.TrialStatus.ACTIVE
     )
-
     if self.num_evaluations is None:
       evaluated_trials = active_trials
     else:
@@ -215,9 +217,17 @@ class EvaluateActiveTrials(BenchmarkSubroutine):
 
     state.experimenter.evaluate(evaluated_trials)
     # Only needed for Designers.
-    state.algorithm.post_completion_callback(
-        vza.CompletedTrials(evaluated_trials)
-    )
+    if self.num_evaluations is None:
+      state.algorithm.post_completion_callback(
+          completed=vza.CompletedTrials(evaluated_trials),
+          all_active=vza.ActiveTrials(),
+      )
+    else:
+      active_trials = active_trials[self.num_evaluations :]
+      state.algorithm.post_completion_callback(
+          completed=vza.CompletedTrials(evaluated_trials),
+          all_active=vza.ActiveTrials(active_trials),
+      )
 
 
 @attr.define

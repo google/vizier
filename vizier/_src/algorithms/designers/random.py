@@ -56,7 +56,9 @@ class RandomDesigner(vza.Designer):
 
     self._rng = np.random.RandomState(seed)
 
-  def update(self, _) -> None:
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
     pass
 
   def suggest(self,

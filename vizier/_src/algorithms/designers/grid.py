@@ -15,10 +15,11 @@
 from __future__ import annotations
 
 """Grid Search Designer which searches over a discretized grid of Trial parameter values."""
+
 import random
 from typing import List, Optional, Sequence
-import numpy as np
 
+import numpy as np
 from vizier import algorithms
 from vizier import pyvizier
 from vizier.pyvizier import converters
@@ -85,7 +86,11 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     """For wrapping via `PartiallySerializableDesignerPolicy`."""
     return GridSearchDesigner(problem.search_space, shuffle_seed)
 
-  def update(self, _) -> None:
+  def update(
+      self,
+      completed: algorithms.CompletedTrials,
+      all_active: algorithms.ActiveTrials,
+  ) -> None:
     pass
 
   def suggest(

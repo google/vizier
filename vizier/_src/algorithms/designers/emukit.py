@@ -161,8 +161,10 @@ class EmukitDesigner(vza.Designer):
     self._metadata_ns = metadata_ns
     self._num_random_samples = num_random_samples
 
-  def update(self, trials: vza.CompletedTrials) -> None:
-    self._trials += tuple(trials.completed)
+  def update(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    self._trials += tuple(completed.trials)
 
   def _suggest_random(self, count: int) -> Sequence[vz.TrialSuggestion]:
     sampler = RandomDesign(self._emukit_space)  # Collect random points

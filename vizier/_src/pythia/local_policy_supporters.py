@@ -85,6 +85,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
       status_matches: Optional[vz.TrialStatus] = None,
       include_intermediate_measurements: bool = True,
   ) -> List[vz.Trial]:
+    """Returns trials by reference to allow changing their status and attributes."""
     self.CheckCancelled('GetTrials')
     if trial_ids is not None:
       trial_id_set = set(trial_ids)
