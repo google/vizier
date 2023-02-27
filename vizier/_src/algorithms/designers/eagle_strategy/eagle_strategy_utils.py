@@ -38,15 +38,15 @@ class FireflyAlgorithmConfig:
   gravity: float = 1.0
   negative_gravity: float = 0.02
   # Visiblitiy
-  visibility: float = 1.0
+  visibility: float = 3.0
   categorical_visibility: float = 0.2
   discrete_visibility: float = 1.0
   # Perturbation
-  perturbation: float = 1e-2
-  categorical_perturbation_factor: float = 25
-  pure_categorical_perturbation: float = 0.1
-  discrete_perturbation_factor: float = 10.0
+  perturbation: float = 1e-1
   perturbation_lower_bound: float = 1e-3
+  categorical_perturbation_factor: float = 25.0
+  discrete_perturbation_factor: float = 10.0
+  pure_categorical_perturbation: float = 0.1
   max_perturbation: float = 0.5
   # Pool size
   pool_size_factor: float = 1.2
@@ -100,7 +100,9 @@ class EagleStrategyUtils:
     self._search_space = self.problem_statement.search_space
     self._n_parameters = len(self._search_space.parameters)
     self._cache_degrees_of_freedom()
-    self._original_metric_name = self.problem_statement.single_objective_metric_name
+    self._original_metric_name = (
+        self.problem_statement.single_objective_metric_name
+    )
     self._goal = self.problem_statement.metric_information.item().goal
     logging.info('EagleStrategyUtils was created.\n%s', str(self))
 
@@ -204,8 +206,8 @@ class EagleStrategyUtils:
 
   def compute_pool_capacity(self) -> int:
     """Computes the pool capacity."""
-    return 10 + int(0.5 * self._n_parameters +
-                    self._n_parameters**self.config.pool_size_factor)
+    df = self._n_parameters
+    return 10 + round((df**self.config.pool_size_factor + df) * 0.5)
 
   def combine_two_parameters(
       self,
@@ -363,15 +365,6 @@ class EagleStrategyUtils:
         for p in self._search_space.parameters
     ])
 
-  @property
-  def is_linear_scale(self) -> bool:
-    """Returns whether all decimal parameters in search space has linear scale.
-    """
-    return all([
-        p.scale_type is None or p.scale_type == vz.ScaleType.LINEAR
-        for p in self._search_space.parameters
-    ])
-
   def standardize_trial_metric_name(self, trial: vz.Trial) -> vz.Trial:
     """Creates a new trial with canonical metric name."""
     value = trial.final_measurement.metrics[self._original_metric_name].value
@@ -387,7 +380,9 @@ class EagleStrategyUtils:
         for k, v in trial.parameters.as_dict().items()
     }
     if trial.final_measurement:
-      obj_value = f'{list(trial.final_measurement.metrics.values())[0].value:.5f}'
+      obj_value = (
+          f'{list(trial.final_measurement.metrics.values())[0].value:.5f}'
+      )
       return f'Value: {obj_value}, Parameters: {parameters}'
     else:
       return f'Parameters: {parameters}'
@@ -431,7 +426,7 @@ class FireflyPool:
     return random_sample.shuffle_list(rng, list(self._pool.values()))
 
   def generate_new_fly_id(self) -> int:
-    """Generates a unique fly id to identify a fly in the pool."""
+    """Generates a unique fly id (starts from 0) to identify a fly in the pool."""
     self._max_fly_id += 1
     logging.info('New fly id generated (%s).', self._max_fly_id - 1)
     return self._max_fly_id - 1

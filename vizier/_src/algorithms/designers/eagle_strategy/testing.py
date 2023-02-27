@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 """Testing utils for Eagle designer."""
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 from vizier import benchmarks
@@ -82,8 +82,9 @@ def create_fake_empty_firefly_pool(capacity: int = 10) -> FireflyPool:
 def create_fake_populated_firefly_pool(
     *,
     capacity: int,
-    x_values: Optional[List[float]] = None,
-    obj_values: Optional[List[float]] = None,
+    x_values: Optional[list[float]] = None,
+    obj_values: Optional[list[float]] = None,
+    parent_fly_ids: Optional[list[int]] = None,
 ) -> FireflyPool:
   """Create a fake populated Firefly pool with a given capacity."""
   firefly_pool = create_fake_empty_firefly_pool(capacity=capacity)
@@ -91,11 +92,20 @@ def create_fake_populated_firefly_pool(
   if not x_values:
     x_values = [float(x) for x in rng.uniform(low=0, high=10, size=(5,))]
   if not obj_values:
-    obj_values = [float(o) for o in rng.uniform(low=-1.5, high=1.5, size=(5,))]
-  for parent_fly_id, (obj_val, x_val) in enumerate(zip(obj_values, x_values)):
+    obj_values = [
+        float(o) for o in rng.uniform(low=-1.5, high=1.5, size=(len(x_values),))
+    ]
+  if not parent_fly_ids:
+    parent_fly_ids = list(range(len(obj_values)))
+  if not len(obj_values) == len(x_values) == len(parent_fly_ids):
+    raise ValueError('Length of obj_values, ')
+  for obj_val, x_val, parent_fly_id in zip(
+      obj_values, x_values, parent_fly_ids
+  ):
     # pylint: disable=protected-access
     firefly_pool._pool[parent_fly_id] = create_fake_fly(
-        parent_fly_id=parent_fly_id, x_value=x_val, obj_value=obj_val)
+        parent_fly_id=parent_fly_id, x_value=x_val, obj_value=obj_val
+    )
   # pylint: disable=protected-access
   firefly_pool._max_fly_id = capacity
   return firefly_pool
@@ -109,8 +119,10 @@ def create_fake_empty_eagle_designer() -> EagleStrategyDesiger:
 
 def create_fake_populated_eagle_designer(
     *,
-    x_values: Optional[List[float]] = None,
-    obj_values: Optional[List[float]] = None) -> EagleStrategyDesiger:
+    x_values: Optional[list[float]] = None,
+    obj_values: Optional[list[float]] = None,
+    parent_fly_ids: Optional[list[int]] = None,
+) -> EagleStrategyDesiger:
   """Create a fake populated eagle designer."""
   problem = create_fake_problem_statement()
   eagle_designer = EagleStrategyDesiger(problem_statement=problem)
@@ -118,7 +130,11 @@ def create_fake_populated_eagle_designer(
   pool_capacity = eagle_designer._firefly_pool.capacity
   # Override the eagle designer's firefly pool with a populated firefly pool.
   eagle_designer._firefly_pool = create_fake_populated_firefly_pool(
-      x_values=x_values, obj_values=obj_values, capacity=pool_capacity)
+      capacity=pool_capacity,
+      x_values=x_values,
+      obj_values=obj_values,
+      parent_fly_ids=parent_fly_ids,
+  )
   return eagle_designer
 
 

@@ -31,9 +31,14 @@ The scaling is performed using the DefaultTrialConverter.
 """
 
 import copy
+from typing import Sequence, TypeVar
 
+import attr
 from vizier import pyvizier as vz
 from vizier.pyvizier.converters import core
+
+
+_T = TypeVar('_T', vz.Trial, vz.TrialSuggestion)
 
 
 class ProblemAndTrialsScaler:
@@ -106,7 +111,7 @@ class ProblemAndTrialsScaler:
       new_feasible_values.append(new_feasible_value)
     return new_feasible_values
 
-  def map(self, trials: list[vz.TrialSuggestion]) -> list[vz.TrialSuggestion]:
+  def map(self, trials: Sequence[_T]) -> list[_T]:
     """Map trials from the original search space to the embedded space."""
     embedded_trials = []
     for trial in trials:
@@ -121,10 +126,12 @@ class ProblemAndTrialsScaler:
         else:
           # Assign the converted value.
           parameters[name] = feature.item(0, 0)
-      embedded_trials.append(vz.TrialSuggestion(parameters))
+      # Create a copy of the trial with updated parameters.
+      embedded_trials.append(attr.evolve(trial, parameters=parameters))
+
     return embedded_trials
 
-  def unmap(self, trials: list[vz.TrialSuggestion]) -> list[vz.TrialSuggestion]:
+  def unmap(self, trials: Sequence[_T]) -> list[_T]:
     """Unmap trials from the embedded search space to the original space."""
     unmapped_trials = []
     for trial in trials:
@@ -142,5 +149,6 @@ class ProblemAndTrialsScaler:
           param_converter = self._converter.parameter_converters_dict[name]
           # Convert back the feature to parameters in the original space.
           parameters[name] = param_converter.to_parameter_values(value)[0]
-      unmapped_trials.append(vz.TrialSuggestion(parameters))
+      # Create a copy of the trial with updated parameters.
+      unmapped_trials.append(attr.evolve(trial, parameters=parameters))
     return unmapped_trials

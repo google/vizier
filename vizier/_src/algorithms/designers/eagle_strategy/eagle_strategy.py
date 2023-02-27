@@ -73,6 +73,8 @@ from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 from vizier._src.algorithms.designers.eagle_strategy import serialization
 from vizier._src.algorithms.random import random_sample
 from vizier.interfaces import serializable
+from vizier.pyvizier import converters
+
 
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyAlgorithmConfig = eagle_strategy_utils.FireflyAlgorithmConfig
@@ -103,6 +105,20 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       Exception: if the problem statement includes condional search space,
         mutli-objectives or safety metrics.
     """
+    # Problem statement validation.
+    if problem_statement.search_space.is_conditional:
+      raise ValueError(
+          "Eagle Strategy designer doesn't support conditional parameters."
+      )
+    if not problem_statement.is_single_objective:
+      raise ValueError(
+          "Eagle Strategy designer doesn't support multi-objectives."
+      )
+    if problem_statement.is_safety_metric:
+      raise ValueError(
+          "Eagle Strategy designer doesn't support safety metrics."
+      )
+
     if seed is None:
       # When a key is not provided it will be set based on the current time to
       # ensure non-repeated behavior.
@@ -112,33 +128,22 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
            'Setting the seed to %s'),
           str(seed),
       )
-
+    self._scaler = converters.ProblemAndTrialsScaler(problem_statement)
+    self._problem = self._scaler.problem_statement
     self._rng = np.random.default_rng(seed=seed)
-    self.problem = problem_statement
-    self.config = config or FireflyAlgorithmConfig()
-    self._utils = EagleStrategyUtils(problem_statement, self.config, self._rng)
+    self._config = config or FireflyAlgorithmConfig()
+    self._utils = EagleStrategyUtils(self._problem, self._config, self._rng)
     self._firefly_pool = FireflyPool(
         utils=self._utils, capacity=self._utils.compute_pool_capacity())
 
-    if problem_statement.search_space.is_conditional:
-      raise ValueError(
-          "Eagle Strategy designer doesn't support conditional parameters.")
-    if not problem_statement.is_single_objective:
-      raise ValueError(
-          "Eagle Strategy designer doesn't support multi-objectives.")
-    if problem_statement.is_safety_metric:
-      raise ValueError(
-          "Eagle Strategy designer doesn't support safety metrics.")
-    if not self._utils.is_linear_scale:
-      raise ValueError(
-          "Eagle Strategy designer doesn't support non-linear scales.")
-
     logging.info(
-        ('Eagle Strategy designer initialized. Pool capacity: %s. '
-         'Eagle config:\n%s\nProblem statement:\n%s'),
+        (
+            'Eagle Strategy designer initialized. Pool capacity: %s. '
+            'Eagle config:\n%s\nProblem statement:\n%s'
+        ),
         self._utils.compute_pool_capacity(),
-        json.dumps(attr.asdict(self.config), indent=2),
-        self.problem,
+        json.dumps(attr.asdict(self._config), indent=2),
+        self._problem,
     )
 
   def dump(self) -> vz.Metadata:
@@ -197,10 +202,11 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           self._firefly_pool.size,
       )
 
-  def suggest(self,
-              count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
     """Suggests trials."""
-    return [self._suggest_one() for _ in range(max(count, 1))]
+    scaled_suggestions = [self._suggest_one() for _ in range(count)]
+    #  Unscale suggestion parameters to the original search space.
+    return self._scaler.unmap(scaled_suggestions)
 
   def _suggest_one(self) -> vz.TrialSuggestion:
     """Generates a single suggestion based on the current pool of flies.
@@ -218,7 +224,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # Pool is underpopulated. Generate a random trial parameters.
       # (b/243518714): Use random policy/designer to generate parameters.
       suggested_parameters = random_sample.sample_parameters(
-          self._rng, self.problem.search_space)
+          self._rng, self._problem.search_space
+      )
       # Create a new parent fly id and assign it to the trial, this will be
       # used during Update to match the trial to its parent fly in the pool.
       parent_fly_id = self._firefly_pool.generate_new_fly_id()
@@ -262,15 +269,16 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       pull_weights = self._utils.compute_pull_weight_by_type(
           other_fly.trial.parameters, mutated_parameters, is_other_fly_better)
       # Apply the pulls from 'other_fly' on the moving fly's parameters.
-      for param_config in self.problem.search_space.parameters:
+      for param_config in self._problem.search_space.parameters:
         pull_weight = pull_weights[param_config.type]
         # Accentuate 'other_fly' pull using 'exploration_rate'.
         if pull_weight > 0.5:
           explore_pull_weight = (
-              self.config.explore_rate * pull_weight +
-              (1 - self.config.explore_rate) * 1.0)
+              self._config.explore_rate * pull_weight
+              + (1 - self._config.explore_rate) * 1.0
+          )
         else:
-          explore_pull_weight = self.config.explore_rate * pull_weight
+          explore_pull_weight = self._config.explore_rate * pull_weight
         # Update the parameters using 'other_fly' and 'explore_pull_rate'.
         mutated_parameters[param_config.name] = (
             self._utils.combine_two_parameters(
@@ -291,7 +299,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     """
     suggested_parameters = moving_fly.trial.parameters
     perturbations = self._utils.create_perturbations(moving_fly.perturbation)
-    for i, param_config in enumerate(self.problem.search_space.parameters):
+    for i, param_config in enumerate(self._problem.search_space.parameters):
       perturbed_value = self._utils.perturb_parameter(
           param_config,
           suggested_parameters[param_config.name].value,
@@ -309,12 +317,17 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     parent fly id. For trials that were added to the study externally we assign
     a new parent fly id.
 
-    Args:
-      completed:
+    Trials passed to 'update' are in the unscaled/original search space, and
+    will be converted to the scaled search space, so that all other methods
+    in the designer deal with scaled trial values.
+
+    Arguments:
+      completed: Trials in the original search space.
       all_active:
     """
     del all_active
-    for trial in completed.trials:
+    trials = self._scaler.map(completed.trials)
+    for trial in trials:
       # Replaces trial metric name with a canonical metric name, which makes the
       # serialization and deserialization simpler.
       trial = self._utils.standardize_trial_metric_name(trial)
@@ -416,8 +429,9 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     if trial.parameters == parent_fly.trial.parameters:
       # If the new trial is identical to the parent trial, it means that the
       # fly is stuck, and so we increase its perturbation.
-      parent_fly.perturbation = min(parent_fly.perturbation * 10,
-                                    self.config.max_perturbation)
+      parent_fly.perturbation = min(
+          parent_fly.perturbation * 10, self._config.max_perturbation
+      )
       logging.info(
           ('Penalize Parent Id: %s. Parameters are stuck. '
            'New perturbation factor: %s'),
@@ -433,7 +447,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           parent_fly.id_,
           parent_fly.perturbation,
       )
-    if parent_fly.perturbation < self.config.perturbation_lower_bound:
+    if parent_fly.perturbation < self._config.perturbation_lower_bound:
       # If the perturbation factor is too low we attempt to eliminate the
       # unsuccessful parent fly from the pool.
       if self._firefly_pool.size == self._firefly_pool.capacity:

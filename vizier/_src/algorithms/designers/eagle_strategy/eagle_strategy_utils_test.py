@@ -42,6 +42,7 @@ def _get_parameter_config(search_space: vz.SearchSpace,
 
 
 class UtilsTest(parameterized.TestCase):
+  """Tests for the EagleStrategyUtuls class."""
 
   def setUp(self):
     super(UtilsTest, self).setUp()
@@ -85,6 +86,11 @@ class UtilsTest(parameterized.TestCase):
 
     self.utils = EagleStrategyUtils(self.problem_max, FireflyAlgorithmConfig(),
                                     self.rng)
+
+  def test_compute_pool_capacity(self):
+    factor = FireflyAlgorithmConfig().pool_size_factor
+    expected_capacity = 10 + round((6**factor + 6) * 0.5)
+    self.assertEqual(self.utils.compute_pool_capacity(), expected_capacity)
 
   def test_compute_cononical_distance(self):
     dist = self.utils.compute_cononical_distance(self.param_dict1,
@@ -269,6 +275,7 @@ class UtilsTest(parameterized.TestCase):
 
 
 class FireflyPoolTest(absltest.TestCase):
+  """Tests for the FireflyPool class."""
 
   def test_generate_new_fly_id(self):
     firefly_pool = testing.create_fake_empty_firefly_pool(capacity=2)
