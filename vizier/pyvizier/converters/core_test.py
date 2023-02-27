@@ -211,6 +211,18 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
             search_space=space2,
         )
     )
+
+    space3 = pyvizier.SearchSpace()
+    root = space3.root
+    root.add_float_param('double', -1.0, 2.0)
+    root.add_int_param('integer', -2, 1)
+    root.add_discrete_param('discrete', [-1.0, 1.0, 2.0])
+    study_configs.append(
+        pyvizier.ProblemStatement(
+            metadata=pyvizier.Metadata({core.STUDY_ID_FIELD: 'study3'}),
+            search_space=space3,
+        )
+    )
     return study_configs
 
   def test_parameters(self):
@@ -265,6 +277,31 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     self.assertEqual(
         converter.to_trials(expected)[0].parameters, expected_parameters
     )
+
+  def test_search_space_shape(self):
+    sc = self._study_configs[2]
+    converter = core.DefaultTrialConverter.from_study_configs(
+        [sc], [], use_study_id_feature=True
+    )
+    self.assertEqual(converter.search_space_array(sc).shape, (3, 2))
+
+  def test_search_space_array(self):
+    sc = self._study_configs[2]
+    converter = core.DefaultTrialConverter.from_study_configs(
+        [sc], [], use_study_id_feature=True
+    )
+    np.testing.assert_array_equal(
+        converter.search_space_array(sc),
+        np.array([[-1.0, 2.0], [-2, 1], [-1.0, 2.0]]),
+    )
+
+  def test_raise_error_for_categorical(self):
+    sc = self._study_configs[0]
+    converter = core.DefaultTrialConverter.from_study_configs(
+        [sc], [], use_study_id_feature=True
+    )
+    with self.assertRaises(ValueError):
+      converter.search_space_array(sc)
 
   def test_parameters_and_labels(self):
     study_config = pyvizier.ProblemStatement()

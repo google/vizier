@@ -1058,6 +1058,19 @@ class DefaultTrialConverter(TrialToNumpyDict):
     }
 
   @classmethod
+  def search_space_array(cls, study_config) -> np.ndarray:
+    """Returns the search space array."""
+    for params in study_config.search_space.parameters:
+      if params.type == pyvizier.ParameterType.CATEGORICAL:
+        raise ValueError('Cannot handle categorical parameters.')
+    return np.array(
+        [
+            np.array(params.bounds)
+            for params in study_config.search_space.parameters
+        ]
+    )
+
+  @classmethod
   def from_study_configs(
       cls,
       study_configs: Sequence[pyvizier.ProblemStatement],
