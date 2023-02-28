@@ -149,8 +149,8 @@ class Namespace(abc.Sequence):
     For a Namespace x, Namespace.decode(x.encode()) == x.
 
     Args:
-      s: A string where ':' separates namespace components, and colon is
-        escaped as r'\:'.
+      s: A string where ':' separates namespace components, and colon is escaped
+        as r'\:'.
 
     Returns:
       A namespace.
@@ -166,7 +166,8 @@ class Namespace(abc.Sequence):
       Colons are escaped, then Namespace components are joined by colons.
     """
     return ''.join(
-        [':' + c.translate(self._ns_repr_table) for c in self._as_tuple])
+        [':' + c.translate(self._ns_repr_table) for c in self._as_tuple]
+    )
 
   def __len__(self) -> int:
     """Number of components (elements of the tuple form)."""
@@ -211,38 +212,51 @@ class Namespace(abc.Sequence):
     Returns:
     """
     ns_prefix = Namespace(prefix)
-    return self[:len(ns_prefix)] == ns_prefix
+    return self[: len(ns_prefix)] == ns_prefix
 
 
 class _MetadataSingleNameSpace(Dict[str, MetadataValue]):
   """Stores metadata associated with one namespace."""
+
   pass
 
 
 class Metadata(abc.MutableMapping):
-  """Metadata class.
+  """Metadata class: a key-value dict-like mapping.
 
-  This is the main interface for reading metadata from a Trial (writing metadata
-  should typically be done via the MetadataUpdateContext class.)
+  This is the main interface for reading metadata from a Trial, or adding
+  metadata to a Trial.
 
-  This behaves like a str->str dict, within a given namespace.
+  Metadata behaves like a str->str/proto dict, scoped within a given namespace
+  (see more about namespaces below).
+
+  Metadata can be initialized from a dictionary:
     mm = Metadata({'foo': 'Foo'})
+  And items can be retrieved with:
     mm.get('foo')  # Returns 'Foo'
     mm['foo']      # Returns 'Foo'
-    mm['bar'] = 'Bar'
-    mm.update({'a': 'A'}, gleep='Gleep')
 
+  More items can be added with:
+    mm = Metadata({'foo': 'Foo'})
+    mm['bar'] = 'Bar'  # Add a single item
+    mm.update({'a': 'A'}, 'gleep'='Gleep')  # Add two items
+    # If the metadata key is a valid Python variable name, you can also use:
+    mm.update('a'='A', 'gleep'='Gleep')  # Add two items
+
+  By default, items are added to the root/empty namespace tree.
+  Vizier users can only add metadata to the empty namespace (the Vizier service
+  will reject attempts by users to add metadata elsewhere); Pythia algorithms
+  can add metadata to any namespace, but should normally work in a single unique
+  namespace, and should avoid the root namespace, unless they intend to
+  pass data to/from Vizier users.
   1. Keys are namespaced. Each Metadata object only interacts with one
     Namespace.
 
     Namespaces form a tree, and you can walk down the tree.  There are two
     namespace operators: ns(s) which adds one component on to the current
-    namespace, and abs_ns() which specifies the entire namespace.
-
-    A Metadata() object is always created at the root of the namespace tree,
-    and the root is special (it's the only namespace that Vizier users can
-    write).  Pythia algorithm developers should avoid the root namespace,
-    unless they intend to pass data to/from Vizier users.
+    namespace, and abs_ns() which selects the root namespace when empty,
+    or specifies the entire namespace with abs_ns(Iterator[string components])
+    or abs_ns(Namespace(...)).
 
     mm = Metadata({'foo': 'foofoo'})
     # $mm is created with its current namespace equal to the root/empty
@@ -258,7 +272,7 @@ class Metadata(abc.MutableMapping):
     mm.ns('NewName')['foo']     # Throws a KeyError.
     mm.ns('NewName')['bar']     # Returns 'Bar'
     mm.ns('NewName').get('bar') # Returns 'Bar'
-    #
+
     # Use of abs_ns().
     mm.abs_ns(Namespace(('NewName',)))  # returns 'Bar'
     mm.abs_ns(Namespace(('NewName', 'NewName2')))  # returns 'Bar2'
@@ -272,8 +286,10 @@ class Metadata(abc.MutableMapping):
     mm['foo']          # Throws a KeyError
     mm.ns('a')['foo']  # returns 'A-foo'
     mm.ns('a').ns('b')['foo']  # returns 'AB-foo'
+    # abs_ns() can be also used:
     mm.abs_ns(Namespace(('a', 'b'))).get('foo')  # Returns 'ab-foo'
     mm.abs_ns(Namespace.decode('a:b')).get('foo')  # Returns 'ab-foo'
+    mm_root = mm.abs_ns()  # Returns a metadata object with the root namespace
 
   2. Values can be protobufs. If `metadata['foo']` is an instance of `MyProto`
     proto message or an `Any` proto that packs a `MyProto` message, then the
@@ -311,9 +327,13 @@ class Metadata(abc.MutableMapping):
       # or protos.
   """
 
-  def __init__(self, *args: Union[Dict[str, MetadataValue],
-                                  Iterable[Tuple[str, MetadataValue]]],
-               **kwargs: MetadataValue):
+  def __init__(
+      self,
+      *args: Union[
+          Dict[str, MetadataValue], Iterable[Tuple[str, MetadataValue]]
+      ],
+      **kwargs: MetadataValue,
+  ):
     """Construct; this follows dict(), and puts data in the root namespace.
 
     You can pass it a dict, or an object that yields (key, value)
@@ -323,9 +343,9 @@ class Metadata(abc.MutableMapping):
       *args: A dict or an iterable the yields key-value pairs.
       **kwargs: key=value pairs to be added to the specified namespace.
     """
-    self._stores: DefaultDict[
-        Namespace, _MetadataSingleNameSpace] = collections.defaultdict(
-            _MetadataSingleNameSpace)
+    self._stores: DefaultDict[Namespace, _MetadataSingleNameSpace] = (
+        collections.defaultdict(_MetadataSingleNameSpace)
+    )
     self._namespace = Namespace()
     self._store = self._stores[self._namespace]
     self._store.update(*args, **kwargs)
@@ -370,8 +390,9 @@ class Metadata(abc.MutableMapping):
     for namespace, store in self._stores.items():
       item_string = f'(namespace:{namespace}, items: {store})'
       itemlist.append(item_string)
-    return 'Metadata({}, current_namespace={})'.format(', '.join(itemlist),
-                                                       self._namespace.encode())
+    return 'Metadata({}, current_namespace={})'.format(
+        ', '.join(itemlist), self._namespace.encode()
+    )
 
   def __str__(self) -> str:
     """Prints items in the current namespace."""
@@ -441,18 +462,17 @@ class Metadata(abc.MutableMapping):
       # `value` is an Any proto potentially packing `cls`.
       message = cls()
       if not value.Unpack(message):
-        logging.warning('Cannot unpack message to %s: %s', cls,
-                        str(value)[:100])
+        logging.warning(
+            'Cannot unpack message to %s: %s', cls, str(value)[:100]
+        )
         raise TypeError('Cannot unpack to %s' % cls)
       return message
     else:
       return cls(value)
 
-  def get(self,
-          key: str,
-          default: T1 = None,
-          *,
-          cls: Type[T2] = str) -> Union[T1, T2]:
+  def get(
+      self, key: str, default: T1 = None, *, cls: Type[T2] = str
+  ) -> Union[T1, T2]:
     """Gets the metadata as type `cls`, or $default if not present.
 
     This returns $default if the specified metadata item is not found.
@@ -527,11 +547,13 @@ class Metadata(abc.MutableMapping):
       non-empty, this returns a namespace object that contains the relative
       path from the current namespace.
     """
-    return tuple([
-        Namespace(ns[len(self._namespace):])
-        for ns, store in self._stores.items()
-        if store and ns.startswith(self._namespace)
-    ])
+    return tuple(
+        [
+            Namespace(ns[len(self._namespace) :])
+            for ns, store in self._stores.items()
+            if store and ns.startswith(self._namespace)
+        ]
+    )
 
   def current_ns(self) -> Namespace:
     """Displays the object's current Namespace."""
@@ -600,9 +622,13 @@ class Metadata(abc.MutableMapping):
     md._store = md._stores[md._namespace]  # pylint: disable='protected-access'
     return md
 
-  def update(self, *args: Union[Dict[str, MetadataValue],
-                                Iterable[Tuple[str, MetadataValue]]],
-             **kwargs: MetadataValue) -> None:
+  def update(
+      self,
+      *args: Union[
+          Dict[str, MetadataValue], Iterable[Tuple[str, MetadataValue]]
+      ],
+      **kwargs: MetadataValue,
+  ) -> None:
     self._store.update(*args, **kwargs)
 
   def attach(self, other: 'Metadata') -> None:
@@ -628,4 +654,5 @@ class Metadata(abc.MutableMapping):
     """
     for ns in other.subnamespaces():
       self._stores[self._namespace + ns].update(
-          other.abs_ns(other.current_ns() + ns))
+          other.abs_ns(other.current_ns() + ns)
+      )
