@@ -77,9 +77,9 @@ class HPOBHandler:
                         only_test=True,
                         augmented_train=False):
 
-    meta_train_data = None
-    meta_validation_data = None
-    meta_test_data = None
+    meta_train_data = {}
+    meta_validation_data = {}
+    meta_test_data = {}
 
     print("Loading data...")
     meta_train_augmented_path = os.path.join(
