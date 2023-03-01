@@ -17,6 +17,9 @@ from __future__ import annotations
 """Acquisition functions implementations."""
 from typing import Sequence, Optional, Protocol
 
+import attr
+
+
 import chex
 from jax import numpy as jnp
 import numpy as np
@@ -38,7 +41,13 @@ class AcquisitionFunction(Protocol):
     pass
 
 
+@attr.define
 class UCB(AcquisitionFunction):
+  """UCB AcquisitionFunction."""
+
+  coefficient: float = attr.field(
+      default=1.8, validator=attr.validators.instance_of(float)
+  )
 
   def __call__(
       self,
@@ -47,9 +56,30 @@ class UCB(AcquisitionFunction):
       labels: Optional[chex.Array] = None,
   ) -> chex.Array:
     del features, labels
-    return dist.mean() + 1.8 * dist.stddev()
+    return dist.mean() + self.coefficient * dist.stddev()
 
 
+@attr.define
+class HyperVolumeScalarization(AcquisitionFunction):
+  """HyperVolume Scalarization acquisition function."""
+
+  coefficient: float = attr.field(
+      default=1.0, validator=attr.validators.instance_of(float)
+  )
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[chex.ArrayTree] = None,
+      labels: Optional[chex.Array] = None,
+  ) -> chex.Array:
+    del features, labels
+    # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
+    # non-convex biobjective optimization of mean vs stddev.
+    return jnp.minimum(dist.mean(), self.coefficient * dist.stddev())
+
+
+@attr.define
 class EI(AcquisitionFunction):
 
   def __call__(

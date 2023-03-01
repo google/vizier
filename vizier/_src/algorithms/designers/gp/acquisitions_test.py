@@ -15,12 +15,17 @@
 from __future__ import annotations
 
 """Tests for acquisitions."""
+from jax import numpy as jnp
 import mock
 import numpy as np
+from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
+
+
+tfd = tfp.distributions
 
 
 def _build_mock_continuous_array_specs(n):
@@ -28,6 +33,23 @@ def _build_mock_continuous_array_specs(n):
   continuous_spec.type = converters.NumpyArraySpecType.CONTINUOUS
   continuous_spec.num_dimensions = 1
   return [continuous_spec] * n
+
+
+class AcquisitionsTest(absltest.TestCase):
+
+  def test_ucb(self):
+    acq = acquisitions.UCB(coefficient=2.0)
+    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 2.1)
+
+  def test_hvs(self):
+    acq = acquisitions.HyperVolumeScalarization(coefficient=2.0)
+    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 0.1)
+
+  def test_ei(self):
+    acq = acquisitions.EI()
+    self.assertAlmostEqual(
+        acq(tfd.Normal(0.1, 1), labels=jnp.array([0.2])), 0.34635347
+    )
 
 
 class TrustRegionTest(absltest.TestCase):
