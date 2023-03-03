@@ -1183,9 +1183,11 @@ class TrialToArrayConverter:
     self._impl = impl
 
   def to_features(self, trials) -> np.ndarray:
+    """Returns the labels array with dimenion: (n_trials, n_features)."""
     return dict_to_array(self._impl.to_features(trials))
 
   def to_labels(self, trials) -> np.ndarray:
+    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
     return dict_to_array(self._impl.to_labels(trials))
 
   def to_xy(self, trials) -> Tuple[np.ndarray, np.ndarray]:
@@ -1249,8 +1251,17 @@ class TrialToArrayConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information],
     )
-
     return cls(converter, cls._experimental_override)
+
+  @property
+  def metric_names(self):
+    """Returns the metric names in the order they appear in labels."""
+    return [mc.metric_information.name for mc in self._impl.metric_converters]
+
+  @property
+  def parameter_names(self):
+    """Returns the parameter names in the order they appear in features."""
+    return [pc.parameter_config.name for pc in self._impl.parameter_converters]
 
   @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:
