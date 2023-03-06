@@ -109,6 +109,40 @@ class TrialToArrayConverterTest(absltest.TestCase):
           np.sum(features, axis=1), np.array([2] * n_trials)
       )
 
+  def test_multi_metrics(self):
+    search_space = pyvizier.SearchSpace()
+    search_space.root.add_float_param('x', 0.0, 1.0)
+    problem = pyvizier.ProblemStatement(
+        search_space=search_space,
+        metric_information=pyvizier.MetricsConfig(
+            metrics=[
+                pyvizier.MetricInformation(
+                    'obj1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+                ),
+                pyvizier.MetricInformation(
+                    'obj2', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+                ),
+                pyvizier.MetricInformation(
+                    'obj3', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+                ),
+            ]
+        ),
+    )
+    trial1 = pyvizier.Trial()
+    trial2 = pyvizier.Trial()
+    trial1.final_measurement = pyvizier.Measurement(
+        metrics={'obj1': 1.0, 'obj2': 2.0, 'obj3': 3.0}
+    )
+    trial2.final_measurement = pyvizier.Measurement(
+        metrics={'obj1': -1.0, 'obj2': 5.0, 'obj3': 0.0}
+    )
+    converter = core.TrialToArrayConverter.from_study_config(problem)
+    # Notice that the sign is flipped for MINIMIZE objective.
+    expected_labels = np.array([[1.0, 2.0, -3.0], [-1.0, 5.0, 0.0]])
+    np.testing.assert_equal(
+        converter.to_labels([trial1, trial2]), expected_labels
+    )
+
 
 class DictToArrayTest(absltest.TestCase):
 
