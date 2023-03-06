@@ -11,6 +11,7 @@ Codebases
 -  `OptFormer <https://github.com/google-research/optformer>`__
 -  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `CFU-Playground <https://github.com/google/CFU-Playground>`__
+-  `OpenML-to-Vizier Converter <https://github.com/josvandervelde/OpenML-Vizier-Converter>`__
 
 Papers
 ------
