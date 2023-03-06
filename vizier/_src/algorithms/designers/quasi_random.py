@@ -335,7 +335,8 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
       # Dimension of halton_list is [P], where P is number of primes used.
       halton_list = self._halton_generator.get_next_list()
       for dimension_index, spec in enumerate(self._output_specs):
-        # Only CONTINUOUS and DISCRETE are supported.
+        # Only NumpyArraySpecType.CONTINUOUS and NumpyArraySpecType.DISCRETE
+        # are supported.
         halton_value = halton_list[dimension_index]
         if spec.type == NumpyArraySpecType.CONTINUOUS:
           # Trial-Numpy converter was configured to scale values to [0, 1].

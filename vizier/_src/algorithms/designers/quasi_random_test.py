@@ -95,7 +95,7 @@ class QuasiRandomTest(absltest.TestCase):
     designer = quasi_random.QuasiRandomDesigner(problem.search_space)
     self.assertLen(
         test_runners.run_with_random_metrics(
-            designer, problem, iters=50, batch_size=5
+            designer, problem, iters=50, batch_size=5, validate_parameters=True
         ),
         250,
     )
@@ -129,7 +129,7 @@ class QuasiRandomTest(absltest.TestCase):
 
     # Test uniformity of end-to-end parameter values.
     # p_value greater than 0.9 roughly means we're very certain it's uniform.
-    # Unfortunately KS-test doesn't work for discrete distributions.
+    # Unfortunately KS-test doesn't work for discrete/categorical distributions.
     _, float_p_value = stats.kstest(
         float_points, stats.uniform(loc=0.0, scale=1.0).cdf
     )
