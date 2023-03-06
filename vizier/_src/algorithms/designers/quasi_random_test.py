@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import random
+import numpy as np
+from scipy import stats
 
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
@@ -35,26 +37,42 @@ class HaltonTest(absltest.TestCase):
         self.assertNotEqual(0, p % n)
 
   def test_get_scrambled_halton_element(self):
+    num_dimensions = 4
     generator = quasi_random._HaltonSequence(
-        num_dimensions=4, skip_points=100, scramble=True)
-    sequence = [generator.get_next_list() for i in range(100)]
+        num_dimensions=num_dimensions, skip_points=1000, scramble=True
+    )
+    sequence = [generator.get_next_list() for i in range(1000)]
 
     self.assertLess(max(max(sequence)), 1)
     self.assertGreater(min(min(sequence)), 0)
-    self.assertLen(sequence, 100)
+    self.assertLen(sequence, 1000)
     self.assertLen(sequence[0], 4)
+
+    # Test uniformity of Halton value outputs.
+    sequence = np.array(sequence)
+    for dim in range(num_dimensions):
+      _, p_value = stats.kstest(
+          sequence[:, dim], stats.uniform(loc=0.0, scale=1.0).cdf
+      )
+      # p_value greater than 0.9 roughly means we're very certain it's uniform.
+      self.assertGreater(p_value, 0.9)
 
   def test_deterministic(self):
     generator_1 = quasi_random._HaltonSequence(
-        num_dimensions=4, skip_points=100, primes_override=[3, 5, 7, 11])
+        num_dimensions=4, skip_points=100, primes_override=[3, 5, 7, 11]
+    )
     generator_2 = quasi_random._HaltonSequence(
-        num_dimensions=4, skip_points=100, primes_override=[3, 5, 7, 11])
-    self.assertEqual([generator_1.get_next_list() for i in range(100)],
-                     [generator_2.get_next_list() for i in range(100)])
+        num_dimensions=4, skip_points=100, primes_override=[3, 5, 7, 11]
+    )
+    self.assertEqual(
+        [generator_1.get_next_list() for i in range(100)],
+        [generator_2.get_next_list() for i in range(100)],
+    )
 
   def test_unscrambled_sequence(self):
     generator = quasi_random._HaltonSequence(
-        num_dimensions=1, skip_points=0, primes_override=[3], scramble=False)
+        num_dimensions=1, skip_points=0, primes_override=[3], scramble=False
+    )
     sequence = [generator.get_next_list()[0] for _ in range(7)]
 
     expected_sequence = [
@@ -77,7 +95,10 @@ class QuasiRandomTest(absltest.TestCase):
     designer = quasi_random.QuasiRandomDesigner(problem.search_space)
     self.assertLen(
         test_runners.run_with_random_metrics(
-            designer, problem, iters=50, batch_size=5), 250)
+            designer, problem, iters=50, batch_size=5
+        ),
+        250,
+    )
 
   def test_dump_and_load(self):
     # Check metadata checkpointing.
@@ -92,7 +113,27 @@ class QuasiRandomTest(absltest.TestCase):
 
     num_suggestions = 10
     self.assertEqual(
-        designer.suggest(num_suggestions), designer2.suggest(num_suggestions))
+        designer.suggest(num_suggestions), designer2.suggest(num_suggestions)
+    )
+
+  def test_distribution(self):
+    # Make sure output distribution makes sense.
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('float', 0.0, 1.0)
+    designer = quasi_random.QuasiRandomDesigner(problem.search_space)
+
+    suggestions = designer.suggest(2000)
+    float_points = [
+        suggestion.parameters['float'].value for suggestion in suggestions
+    ]
+
+    # Test uniformity of end-to-end parameter values.
+    # p_value greater than 0.9 roughly means we're very certain it's uniform.
+    # Unfortunately KS-test doesn't work for discrete distributions.
+    _, float_p_value = stats.kstest(
+        float_points, stats.uniform(loc=0.0, scale=1.0).cdf
+    )
+    self.assertGreater(float_p_value, 0.9)
 
 
 if __name__ == '__main__':

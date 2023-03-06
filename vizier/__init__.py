@@ -23,4 +23,4 @@ PROTO_ROOT = os.path.realpath(os.path.join(THIS_DIR, "service"))
 
 sys.path.append(PROTO_ROOT)
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"

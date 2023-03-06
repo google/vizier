@@ -64,7 +64,7 @@ def _init_primes(num_dimensions: int) -> List[int]:
   while len(primes) < num_dimensions + 1:
     primes = _generate_primes(1000 * prime_attempts)
     prime_attempts += 1
-  primes = primes[-num_dimensions - 1:-1]
+  primes = primes[-num_dimensions - 1 : -1]
   return primes
 
 
@@ -76,7 +76,6 @@ class _HaltonSequence(serializable.PartiallySerializable):
   scrambled Halton sequence of quasi-random numbers (by Google):
 
   https://github.com/google/uncertainty-baselines/blob/main/uncertainty_baselines/halton.py
-
   """
 
   _num_dimensions: int = attr.field(validator=attr.validators.instance_of(int))
@@ -84,25 +83,31 @@ class _HaltonSequence(serializable.PartiallySerializable):
   _skip_points: int = attr.field(validator=attr.validators.instance_of(int))
 
   _num_points_generated: int = attr.field(
-      validator=attr.validators.instance_of(int))
+      validator=attr.validators.instance_of(int)
+  )
 
   _primes: List[int] = attr.field(
       init=True,
       converter=list,
       validator=attr.validators.deep_iterable(
           member_validator=attr.validators.instance_of(int),
-          iterable_validator=attr.validators.instance_of(Iterable)))
+          iterable_validator=attr.validators.instance_of(Iterable),
+      ),
+  )
 
   _scramble: bool = attr.field(
-      default=False, validator=attr.validators.instance_of(bool), kw_only=True)
+      default=True, validator=attr.validators.instance_of(bool), kw_only=True
+  )
 
-  def __init__(self,
-               num_dimensions: int,
-               *,
-               skip_points: int,
-               num_points_generated: int = 0,
-               primes_override: Optional[List[int]] = None,
-               scramble: bool = False):
+  def __init__(
+      self,
+      num_dimensions: int,
+      *,
+      skip_points: int,
+      num_points_generated: int = 0,
+      primes_override: Optional[List[int]] = None,
+      scramble: bool = True,
+  ):
     """Create a Halton sequence generator.
 
     Args:
@@ -115,8 +120,8 @@ class _HaltonSequence(serializable.PartiallySerializable):
         the Halton sequence. This is useful for testing. NOTE: These values are
         not validated, so it is the responsibility of the user to supply
         legitimate primes.
-      scramble: If True, will scramble the resulting Halton sequence. This is
-        intended to be used for testing.
+      scramble: If True, will scramble the resulting Halton sequence. Set this
+        to False for testing.
 
     Returns:
       A HaltonSequence object.
@@ -129,7 +134,8 @@ class _HaltonSequence(serializable.PartiallySerializable):
         raise ValueError(
             'Expected len(primes_overrides) and num_dimensions to '
             f'be the same size. len(primes_overrides): {len(primes_override)},'
-            f'num_dimensions: {num_dimensions}')
+            f'num_dimensions: {num_dimensions}'
+        )
       primes = primes_override
     else:
       primes = _init_primes(num_dimensions)
@@ -139,20 +145,43 @@ class _HaltonSequence(serializable.PartiallySerializable):
         skip_points=skip_points,
         num_points_generated=num_points_generated,
         primes=primes,
-        scramble=scramble)
+        scramble=scramble,
+    )
 
   def load(self, metadata: vz.Metadata) -> None:
     self._num_points_generated = int(
-        metadata.ns('halton')['num_points_generated'])
+        metadata.ns('halton')['num_points_generated']
+    )
 
   def dump(self) -> vz.Metadata:
     metadata = vz.Metadata()
     metadata.ns('halton')['num_points_generated'] = str(
-        self._num_points_generated)
+        self._num_points_generated
+    )
     return metadata
 
   def _get_scrambled_halton_value(self, index: int, base: int) -> float:
-    """Get a scrambled Halton value for a given `index`, seeded by `base`."""
+    """Get a scrambled Halton value for a given `index` using `base`.
+
+    For example, if `index` can be represented in `base` b as:
+
+    `index = 5 * b^{2} + 2 * b^{1} + 3`
+
+    then the Halton value will be:
+
+    `Halton(index) = 5 * b^{-1} + 2 * b^{-2} + 3 * b^{-3}.`
+
+    If we choose to scramble, then the coefficients (5,2,3) will be randomly
+    permuted (seeded by `base`), leading to a roughly uniform distribution of
+    Halton values over the interval [0,1].
+
+    Args:
+      index: Index to be converted to `base`.
+      base: Base used for conversion.
+
+    Returns:
+      (Possibly scrambled) Halton value.
+    """
     if not _is_prime(base):
       raise ValueError('base is not prime: %s' % base)
 
@@ -205,10 +234,22 @@ class _HaltonSequence(serializable.PartiallySerializable):
 class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
   """Sample points using quasi-random search from the scaled search space.
 
-  This implementation uses a scrambled Halton sequence.
+  This implementation uses a scrambled Halton sequence. The core idea, is given
+  a prime `p`, we can map an index `n` to its Halton value by converting `n` to
+  base `p`, e.g.:
+
+  `n = c3 * p^{3} + c2 * p^{2} + c1 * p^{1} + c0`
+
+  and then perform an inversion on the base to obtain:
+
+  `halton(n) = c3 * p^{-1} + c2 * p^{-2} + c1 * p^{-3} + c0 * p^{-4}`
+
+  To obtain a pseuo-uniform distribution, we permute the coefficients:
+
+  `permuted_halton(n) = c2 * p^{-1} + c1 * p^{-2} + c0 * p^{-3} + c3 * p^{-4}`
   """
 
-  def __init__(self, search_space: vz.SearchSpace, *, skip_points: int = 100):
+  def __init__(self, search_space: vz.SearchSpace, *, skip_points: int = 1000):
     """Init.
 
     Args:
@@ -218,32 +259,39 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
     """
     if search_space.is_conditional:
       raise ValueError(
-          f'This designer {self} does not support conditional search.')
+          f'This designer {self} does not support conditional search.'
+      )
 
     def create_input_converter(pc):
       return converters.DefaultModelInputConverter(
           pc,
           scale=True,
           max_discrete_indices=sys.maxsize,
-          float_dtype=np.float64)
+          float_dtype=np.float64,
+      )
 
     self._converter = converters.DefaultTrialConverter(
-        [create_input_converter(pc) for pc in search_space.parameters])
+        [create_input_converter(pc) for pc in search_space.parameters]
+    )
 
     for spec in self._converter.output_specs.values():
       if spec.type not in [
-          NumpyArraySpecType.CONTINUOUS, NumpyArraySpecType.DISCRETE
+          NumpyArraySpecType.CONTINUOUS,
+          NumpyArraySpecType.DISCRETE,
       ]:
         raise ValueError(f'Unsupported type: {spec.type} in {spec}')
       if spec.num_dimensions != 1:
-        raise ValueError('Multi-dimensional discrete types are unsuppored. '
-                         'Received spec: %s' % spec)
+        raise ValueError(
+            'Multi-dimensional discrete types are unsuppored. Received spec: %s'
+            % spec
+        )
 
     self._halton_generator = _HaltonSequence(
         len(search_space.parameters),
         skip_points=skip_points,
         num_points_generated=0,
-        scramble=False)
+        scramble=True,
+    )
 
     self._output_specs = tuple(self._converter.output_specs.values())
 
@@ -258,8 +306,9 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
   def dump(self) -> vz.Metadata:
     return self._halton_generator.dump()
 
-  def _generate_discrete_point(self, spec: NumpyArraySpec,
-                               halton_value: float) -> int:
+  def _generate_discrete_point(
+      self, spec: NumpyArraySpec, halton_value: float
+  ) -> int:
     """Generate a discrete parameter value from a Halton value."""
 
     # +1 because the bounds are inclusive on both ends.
@@ -275,8 +324,9 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
   ) -> None:
     pass
 
-  def suggest(self,
-              count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
+  def suggest(
+      self, count: Optional[int] = None
+  ) -> Sequence[vz.TrialSuggestion]:
     """Suggest new suggestions, taking into account `count`."""
     count = count or 1
 
