@@ -97,6 +97,9 @@ class MetricsConfigTest(parameterized.TestCase):
     self.assertLen(config, 5)
     self.assertLen(config.of_type(base_study_config.MetricType.OBJECTIVE), 3)
     self.assertLen(config.of_type(base_study_config.MetricType.SAFETY), 2)
+    self.assertLen(
+        config.exclude_type(base_study_config.MetricType.OBJECTIVE), 2
+    )
 
   def testDuplicateNames(self):
     config = base_study_config.MetricsConfig()

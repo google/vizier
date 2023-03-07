@@ -17,7 +17,7 @@ from __future__ import annotations
 """Abstractions."""
 
 import abc
-from typing import Optional, Sequence, TypeVar
+from typing import Optional, Sequence, TypeVar, Protocol
 
 import attr
 from vizier import pyvizier as vz
@@ -133,6 +133,13 @@ class Designer(_SuggestionAlgorithm):
       completed: COMPLETED trials.
       all_active: ACTIVE (aka PENDING) trials.
     """
+    pass
+
+
+class DesignerFactory(Protocol[_T]):
+  """Protocol (PEP-544) for a designer factory."""
+
+  def __call__(self, problem: vz.ProblemStatement, **kwargs) -> _T:
     pass
 
 

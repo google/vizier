@@ -19,6 +19,7 @@ from __future__ import annotations
 from vizier._src.algorithms.core.abstractions import ActiveTrials
 from vizier._src.algorithms.core.abstractions import CompletedTrials
 from vizier._src.algorithms.core.abstractions import Designer
+from vizier._src.algorithms.core.abstractions import DesignerFactory
 from vizier._src.algorithms.core.abstractions import PartiallySerializableDesigner
 from vizier._src.algorithms.core.abstractions import SerializableDesigner
 from vizier._src.algorithms.optimizers.base import BatchTrialScoreFunction

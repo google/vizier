@@ -15,9 +15,10 @@
 from __future__ import annotations
 
 """Wrappers for Designer into Policy."""
+
 import abc
 import json
-from typing import Callable, Generic, Sequence, Type, TypeVar, Protocol
+from typing import Callable, Generic, Sequence, Type, TypeVar
 
 from absl import logging
 from vizier import algorithms as vza
@@ -25,16 +26,10 @@ from vizier import pythia
 from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 
+
 _T = TypeVar('_T')
 
 _INCOPORATED_COMPLETED_TRIALS_IDS = 'incorporated_completed_trials_ids'
-
-
-class DesignerFactory(Protocol[_T]):
-  """Protocol (PEP-544) for a designer factory."""
-
-  def __call__(self, problem: vz.ProblemStatement) -> _T:
-    pass
 
 
 class DesignerPolicy(pythia.Policy):
@@ -53,7 +48,7 @@ class DesignerPolicy(pythia.Policy):
   def __init__(
       self,
       supporter: pythia.PolicySupporter,
-      designer_factory: DesignerFactory[vza.Designer],
+      designer_factory: vza.DesignerFactory[vza.Designer],
   ):
     """Init.
 
@@ -351,7 +346,7 @@ class SerializableDesignerPolicy(
       self,
       problem_statement: vz.ProblemStatement,
       supporter: pythia.PolicySupporter,
-      designer_factory: DesignerFactory[vza.SerializableDesigner],
+      designer_factory: vza.DesignerFactory[vza.SerializableDesigner],
       designer_cls: Type[vza.SerializableDesigner],
       *,
       ns_root: str = 'designer_policy_v0',

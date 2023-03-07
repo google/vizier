@@ -256,6 +256,14 @@ class MetricsConfig(Collection[MetricInformation]):
       include = (include,)
     return MetricsConfig(m for m in self._metrics if m.type in include)
 
+  def exclude_type(
+      self, exclude: Union[MetricType, Iterable[MetricType]]
+  ) -> 'MetricsConfig':
+    """Filters out the Metrics by type."""
+    if isinstance(exclude, MetricType):
+      exclude = (exclude,)
+    return MetricsConfig(m for m in self._metrics if m.type not in exclude)
+
   def append(self, metric: MetricInformation):
     self._metrics.append(metric)
     self._assert_names_are_unique()
