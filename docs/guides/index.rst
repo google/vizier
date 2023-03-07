@@ -17,7 +17,8 @@ For Developers
 .. toctree::
     :maxdepth: 1
 
-    developer/writing_algorithms
+    developer/designers
+    developer/pythia_policies
     developer/early_stopping
     developer/metadata
 
