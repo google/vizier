@@ -43,6 +43,32 @@ class LocalPolicySupportersTest(parameterized.TestCase):
     # The 10 trials are assigned ids 1 through 10 automatically.
     self.assertSequenceEqual([t.id for t in trials], range(1, 11))
 
+    # Add 5 more Trials.
+    runner = _runner_with_10trials()
+    runner.AddTrials([vz.Trial(id=-1) for _ in range(5)])
+    trials = runner.GetTrials()
+    self.assertLen(trials, 15)
+    self.assertSequenceEqual([t.id for t in trials], range(1, 16))
+
+  def test_add_completed_trials(self):
+    runner = _runner_with_10trials()
+    trials = runner.GetTrials()
+
+    trial = trials[0]
+    trial.complete(vz.Measurement(), infeasibility_reason='test')
+    runner.AddTrials([trial])
+    # Second call should be a no-op.
+    runner.AddTrials([trial])
+
+    trials = runner.GetTrials()
+    self.assertLen(trials, 10)
+    # The 10 trials are assigned ids 1 through 10 automatically.
+    self.assertSequenceEqual([t.id for t in trials], range(1, 11))
+    self.assertEqual(trials[0].infeasibility_reason, 'test')
+
+    trials = runner.GetTrials(status_matches=vz.TrialStatus.ACTIVE)
+    self.assertLen(trials, 9)
+
   def test_push_metadata(self):
     runner = _runner_with_10trials()
     trial1 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]

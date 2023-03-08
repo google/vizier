@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Policy supporters that keep data in RAM."""
+
 import datetime
 from typing import Iterable, List, Optional, Sequence
 
@@ -55,11 +56,11 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   study_config: vz.ProblemStatement = attr.ib(
       init=True, validator=attr.validators.instance_of(vz.ProblemStatement))
   study_guid: str = attr.ib(init=True, kw_only=True, default='', converter=str)
-  _trials: List[vz.Trial] = attr.ib(init=False, factory=list)
+  _trials: dict[int, vz.Trial] = attr.ib(init=False, factory=dict)
 
   @property
   def trials(self) -> Sequence[vz.Trial]:
-    return self._trials
+    return list(self._trials.values())
 
   def study_descriptor(self) -> vz.StudyDescriptor:
     return vz.StudyDescriptor(
@@ -122,7 +123,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
       if not tid > 0:
         raise ValueError(f'Bad Trial Id: {tid}')
       for ns in metadatum.namespaces():
-        self._trials[tid - 1].metadata.abs_ns(ns).update(metadatum.abs_ns(ns))
+        self._trials[tid].metadata.abs_ns(ns).update(metadatum.abs_ns(ns))
 
   # TODO: Return `count` trials for multi-objectives, when
   # `count` exceeds the size of the Pareto frontier.
@@ -160,27 +161,45 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     if len(self.study_config.metric_information) == 1:
       # Single metric: Sort and take top N.
       count = count or 1  # Defaults to 1.
-      labels = converter.to_labels(self._trials).squeeze()
+      labels = converter.to_labels(self.trials).squeeze()
       sorted_idx = np.argsort(-labels)  # np.argsort sorts in ascending order.
-      return list(np.asarray(self._trials)[sorted_idx[:count]])
+      return list(np.asarray(self.trials)[sorted_idx[:count]])
     else:
       algorithm = multimetric.FastParetoOptimalAlgorithm()
       is_optimal = algorithm.is_pareto_optimal(
-          points=converter.to_labels(self._trials))
-      return list(np.asarray(self._trials)[is_optimal][:count])
+          points=converter.to_labels(self.trials)
+      )
+      return list(np.asarray(self.trials)[is_optimal][:count])
 
   def AddTrials(self, trials: Sequence[vz.Trial]) -> None:
-    """(Re-)assigns ids to the trials and add them to the study."""
-    max_trial_id = len(self.trials)
-    for i, trial in enumerate(trials):
-      if trial.id > 0:
-        logging.warning(
-            'Trial already has ID assigned: %s; will be set to %d.',
-            trial.id,
-            i + max_trial_id + 1,
-        )
-      trial.id = i + max_trial_id + 1
-      self._trials.append(trial)
+    """Assigns ids to the trials and add them to the supporter (by reference).
+
+    New IDs are always assigned in increasing order from the max id unless:
+      * If an incoming Trial has an ID that matches an ACTIVE Trial, the ACTIVE
+    Trial is replaced and the COMPLETED Trial keeps its ID.
+      * If an incoming Trial has an ID that matches an COMPLETE Trial, no
+    updates are done and there is a warning.
+
+    Args:
+      trials: Incoming Trials to add.
+    """
+    existing_trial_ids = self._trials.keys()
+    next_trial_id = max(existing_trial_ids) + 1 if existing_trial_ids else 1
+    for trial in trials:
+      if trial.id in existing_trial_ids:
+        if self._trials[trial.id].status == vz.TrialStatus.ACTIVE:
+          self._trials[trial.id] = trial
+        elif self._trials[trial.id].status == vz.TrialStatus.COMPLETED:
+          logging.warning(
+              'COMPLETED Trial %s cannot be overwritten by %s',
+              self._trials[trial.id],
+              trial,
+          )
+        continue
+
+      trial.id = next_trial_id
+      self._trials[next_trial_id] = trial
+      next_trial_id += 1
 
   def AddSuggestions(
       self, suggestions: Iterable[vz.TrialSuggestion]) -> Sequence[vz.Trial]:
