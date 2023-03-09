@@ -20,6 +20,7 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
 from vizier._src.benchmarks.experimenters import experimenter_factory
 from vizier._src.benchmarks.runners import benchmark_runner
+from vizier._src.benchmarks.runners import benchmark_state
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -32,7 +33,7 @@ def _get_benchmark_state_factory():
   def _designer_factory(config: vz.ProblemStatement, seed: int):
     return random.RandomDesigner(config.search_space, seed=seed)
 
-  benchmark_state_factory = benchmark_runner.DesignerBenchmarkStateFactory(
+  benchmark_state_factory = benchmark_state.DesignerBenchmarkStateFactory(
       designer_factory=_designer_factory, experimenter=experimenter
   )
 
@@ -64,19 +65,21 @@ class BaseRunnerTest(parameterized.TestCase):
       })
   def test_benchmark_run(self, runner, expected_trials):
     benchmark_state_factory = _get_benchmark_state_factory()
-    benchmark_state = benchmark_state_factory(seed=5)
-    runner.run(benchmark_state)
+    bench_state = benchmark_state_factory(seed=5)
+    runner.run(bench_state)
     self.assertEmpty(
-        benchmark_state.algorithm.supporter.GetTrials(
-            status_matches=vz.TrialStatus.ACTIVE))
-    all_trials = benchmark_state.algorithm.supporter.GetTrials()
+        bench_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.ACTIVE
+        )
+    )
+    all_trials = bench_state.algorithm.supporter.GetTrials()
     self.assertLen(all_trials, expected_trials)
     for trial in all_trials:
       self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
 
   def test_active_trials(self):
     benchmark_state_factory = _get_benchmark_state_factory()
-    benchmark_state = benchmark_state_factory(seed=5)
+    bench_state = benchmark_state_factory(seed=5)
     runner = benchmark_runner.BenchmarkRunner(
         benchmark_subroutines=[
             benchmark_runner.GenerateSuggestions(10),
@@ -84,15 +87,15 @@ class BaseRunnerTest(parameterized.TestCase):
         ],
         num_repeats=3,
     )
-    runner.run(benchmark_state)
+    runner.run(bench_state)
     self.assertLen(
-        benchmark_state.algorithm.supporter.GetTrials(
+        bench_state.algorithm.supporter.GetTrials(
             status_matches=vz.TrialStatus.ACTIVE
         ),
         4 * 3,
     )
     self.assertLen(
-        benchmark_state.algorithm.supporter.GetTrials(
+        bench_state.algorithm.supporter.GetTrials(
             status_matches=vz.TrialStatus.COMPLETED
         ),
         6 * 3,

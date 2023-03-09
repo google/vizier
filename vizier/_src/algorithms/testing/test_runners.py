@@ -17,6 +17,7 @@ from __future__ import annotations
 """Test runners for algorithms."""
 from typing import Any, Callable, Collection, Optional, Sequence
 
+
 from absl import logging
 import attr
 import numpy as np
@@ -24,6 +25,7 @@ from vizier import algorithms as vza
 from vizier import benchmarks
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.algorithms.policies.designer_policy import InRamDesignerPolicy
 
 
 @attr.define
@@ -78,11 +80,9 @@ class RandomMetricsRunner:
   verbose: int = attr.field(default=0, kw_only=True)
   validate_parameters: bool = attr.field(default=False, kw_only=True)
 
-  def _run(self,
-           algorithm: benchmarks.AlgorithmSuggester) -> Collection[vz.Trial]:
+  def _run(self, algorithm: benchmarks.PolicySuggester) -> Collection[vz.Trial]:
     """Implementation of run methods."""
     rng = np.random.RandomState(self.seed)
-    all_trials = []
     for it in range(self.iters):
       suggestions = algorithm.suggest(self.batch_size)
       if not suggestions:
@@ -98,16 +98,12 @@ class RandomMetricsRunner:
         for mi in self.problem.metric_information:
           measurement.metrics[mi.name] = rng.uniform(
               mi.min_value_or(lambda: -10.), mi.max_value_or(lambda: 10.))
-        trials.append(
-            suggestion.to_trial(len(all_trials) + 1).complete(measurement))
+        trials.append(suggestion.complete(measurement))
       if self.verbose:
         logging.info('At iteration %s, trials suggested and evaluated:\n%s', it,
                      trials)
-      algorithm.post_completion_callback(
-          completed=vza.CompletedTrials(trials), all_active=vza.ActiveTrials()
-      )
-      all_trials.extend(trials)
-    return all_trials
+      algorithm.supporter.AddTrials(trials)
+    return algorithm.supporter.GetTrials()
 
   def run_policy(self, policy_factory: Callable[[pythia.PolicySupporter],
                                                 pythia.Policy]):
@@ -118,8 +114,13 @@ class RandomMetricsRunner:
 
   def run_designer(self, designer: vza.Designer):
     """Run the specified $designer."""
-    runner = pythia.InRamPolicySupporter(self.problem)
-    return self._run(benchmarks.DesignerSuggester(designer, runner))
+    supporter = pythia.InRamPolicySupporter(self.problem)
+    policy = InRamDesignerPolicy(
+        problem_statement=self.problem,
+        supporter=supporter,
+        designer_factory=lambda _, **kwargs: designer,
+    )
+    return self._run(benchmarks.PolicySuggester(policy, supporter))
 
 
 def run_with_random_metrics(

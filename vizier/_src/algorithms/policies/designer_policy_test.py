@@ -130,7 +130,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.SerializableDesignerPolicy(
         problem_statement=vz.ProblemStatement(),
         supporter=runner,
-        designer_factory=lambda _: _FakeSerializableDesigner(),
+        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),
         designer_cls=_FakeSerializableDesigner,
         ns_root='test',
         verbose=2,
@@ -141,7 +141,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     restored_policy = dp.SerializableDesignerPolicy(
         problem_statement=vz.ProblemStatement(metadata=metadata),
         supporter=runner,
-        designer_factory=lambda _: _FakeSerializableDesigner(),
+        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),
         designer_cls=_FakeSerializableDesigner,
         ns_root='test',
         verbose=2,
@@ -158,7 +158,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _: _FakeSerializableDesigner(),
+        lambda _, **kwargs: _FakeSerializableDesigner(),
         ns_root='test',
         verbose=2,
     )
@@ -168,7 +168,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     restored_policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _: _FakeSerializableDesigner(),
+        lambda _, **kwargs: _FakeSerializableDesigner(),
         ns_root='test',
         verbose=2,
     )
@@ -185,7 +185,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
   def test_update_stateless_designer(self):
     runner = _create_runner()
     designer = _FakeDesigner()
-    policy = dp.DesignerPolicy(runner, lambda _: designer)
+    policy = dp.DesignerPolicy(runner, lambda _, **kwargs: designer)
     runner.SuggestTrials(policy, 5)
     self.assertLen(
         designer.last_completed,
@@ -215,7 +215,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _: designer,
+        lambda _, **kwargs: designer,
         ns_root='test',
         verbose=2,
     )

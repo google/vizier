@@ -296,8 +296,11 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
     self._output_specs = tuple(self._converter.output_specs.values())
 
   @classmethod
-  def from_problem(cls, problem: vz.ProblemStatement):
+  def from_problem(
+      cls, problem: vz.ProblemStatement, seed: Optional[int] = None
+  ):
     """For wrapping via `PartiallySerializableDesignerPolicy`."""
+    del seed
     return QuasiRandomDesigner(problem.search_space)
 
   def load(self, metadata: vz.Metadata) -> None:

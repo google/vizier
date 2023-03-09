@@ -14,11 +14,16 @@
 
 from __future__ import annotations
 
-"""Wrappers for Designer into Policy."""
+"""Wrappers for Designer into Policy.
+
+This file should contain the core logic to run Designers
+efficiently for testing, benchmarking, or production purposes. Typical
+usage is via PolicySuggester.from_designer_factory.
+"""
 
 import abc
 import json
-from typing import Callable, Generic, Sequence, Type, TypeVar
+from typing import Generic, Optional, Sequence, Type, TypeVar
 
 from absl import logging
 from vizier import algorithms as vza
@@ -109,10 +114,11 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       self,
       problem_statement: vz.ProblemStatement,
       supporter: pythia.PolicySupporter,
-      designer_factory: Callable[[vz.ProblemStatement], _T],
+      designer_factory: vza.DesignerFactory[_T],
       *,
       ns_root: str = 'designer_policy_v0',
       verbose: int = 0,
+      seed: Optional[int] = None,
   ):
     """Init.
 
@@ -123,6 +129,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         (Partially)SerializableDesigner designers.
       ns_root: Root of the namespace where policy state is stored.
       verbose: Logging verbosity.
+      seed: Random seed to be passed to the designer factory.
     """
     self._supporter = supporter
     self._designer_factory = designer_factory
@@ -131,6 +138,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._problem_statement = problem_statement
     self._verbose = verbose
     self._designer = None
+    self._seed = seed
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     """Perform a suggest operation.
@@ -269,7 +277,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       logging.log_if(logging.INFO, 'Failed to decode state. %s',
                      self._verbose >= 1, e)
       # Restart the state of the policy.
-      self._designer = self._designer_factory(problem_statement)
+      self._designer = self._designer_factory(
+          problem_statement, seed=self._seed
+      )
       self._incorporated_completed_trial_ids: set[int] = set()
 
   def dump(self) -> vz.Metadata:
@@ -324,6 +334,20 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
         max_trial_id,
     )
     return new_trials
+
+
+# TODO: Rewrite base to separate incorporated trial logic from
+# serialization logic. For now, it simply disables the serialization.
+class InRamDesignerPolicy(_SerializableDesignerPolicyBase[vza.Designer]):
+  """Wraps a Designer in RAM for efficient updates()."""
+
+  # Override restore() to simply return the designer.
+  def _restore_designer(self, designer_metadata: vz.Metadata) -> vza.Designer:
+    return self._designer
+
+  # Override dump() since this is in ram.
+  def dump(self) -> vz.Metadata:
+    return vz.Metadata()
 
 
 class PartiallySerializableDesignerPolicy(

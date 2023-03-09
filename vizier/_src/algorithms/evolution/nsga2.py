@@ -197,7 +197,8 @@ def create_nsga2(
     *,
     ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
     eviction_limit: Optional[int] = None,
-    metadata_namespace: str = 'nsga2'
+    metadata_namespace: str = 'nsga2',
+    seed: Optional[int] = None
 ) -> templates.CanonicalEvolutionDesigner[Population, Offspring]:
   """Creates NSGA2 Designer.
 
@@ -213,11 +214,12 @@ def create_nsga2(
       you want to improve performance, your own implementation can be injected.
     eviction_limit: Evict a gene that has been alive for this many generations.
     metadata_namespace: Metadata namespace to use.
+    seed: Random seed.
 
   Returns:
     NSGA2 Designer.
   """
-
+  del seed
   algorithm = templates.CanonicalEvolutionDesigner(
       numpy_populations.PopulationConverter(
           problem.search_space,

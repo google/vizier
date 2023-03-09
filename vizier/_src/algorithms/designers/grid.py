@@ -81,10 +81,10 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   def from_problem(
       cls,
       problem: pyvizier.ProblemStatement,
-      shuffle_seed: Optional[int] = None,
+      seed: Optional[int] = None,
   ):
     """For wrapping via `PartiallySerializableDesignerPolicy`."""
-    return GridSearchDesigner(problem.search_space, shuffle_seed)
+    return GridSearchDesigner(problem.search_space, seed)
 
   def update(
       self,
