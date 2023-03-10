@@ -142,6 +142,9 @@ class TrialToArrayConverterTest(absltest.TestCase):
     np.testing.assert_equal(
         converter.to_labels([trial1, trial2]), expected_labels
     )
+    self.assertEqual(converter.metric_specs[0].name, 'obj1')
+    self.assertEqual(converter.metric_specs[1].name, 'obj2')
+    self.assertEqual(converter.metric_specs[2].name, 'obj3')
 
 
 class DictToArrayTest(absltest.TestCase):

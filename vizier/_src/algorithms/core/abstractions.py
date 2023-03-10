@@ -17,9 +17,10 @@ from __future__ import annotations
 """Abstractions."""
 
 import abc
-from typing import Optional, Sequence, TypeVar, Protocol
+from typing import Optional, Protocol, Sequence, TypeVar
 
 import attr
+import chex
 from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 
@@ -134,6 +135,39 @@ class Designer(_SuggestionAlgorithm):
       all_active: ACTIVE (aka PENDING) trials.
     """
     pass
+
+
+@attr.define(frozen=True)
+class Prediction:
+  """Container to hold predictions.
+
+  The shape of the 'mean' and 'stddev' depends on the number of predictions
+  and the number of objectives/metrics.
+
+  In the single-objective case the shape is (num_predictions,).
+  In the mulit-objective case the shape is (num_predictions, num_metrics).
+
+  The metadata could be used to supply additional information about the
+  prediction.
+  """
+
+  mean: chex.Array
+  stddev: chex.Array
+  metadata: Optional[vz.Metadata] = None
+
+  def __attrs_post_init__(self):
+    if self.mean.shape != self.stddev.shape:
+      raise ValueError('The shape of mean and stddev needs to be the same.')
+
+
+class Predictor(abc.ABC):
+  """Mixin for algorithms to expose prediction API."""
+
+  @abc.abstractmethod
+  def predict(
+      self, trials: Sequence[vz.TrialSuggestion], rng: chex.PRNGKey
+  ) -> Prediction:
+    """Predicts the mean and stddev for any given trials."""
 
 
 class DesignerFactory(Protocol[_T]):

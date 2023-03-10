@@ -1183,9 +1183,11 @@ class TrialToArrayConverter:
     self._impl = impl
 
   def to_features(self, trials) -> np.ndarray:
+    """Returns the labels array with dimenion: (n_trials, n_features)."""
     return dict_to_array(self._impl.to_features(trials))
 
   def to_labels(self, trials) -> np.ndarray:
+    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
     return dict_to_array(self._impl.to_labels(trials))
 
   def to_xy(self, trials) -> Tuple[np.ndarray, np.ndarray]:
@@ -1249,7 +1251,6 @@ class TrialToArrayConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information],
     )
-
     return cls(converter, cls._experimental_override)
 
   @property
@@ -1257,3 +1258,7 @@ class TrialToArrayConverter:
     return [
         converter.output_spec for converter in self._impl.parameter_converters
     ]
+
+  @property
+  def metric_specs(self) -> Sequence[pyvizier.MetricInformation]:
+    return [mc.metric_information for mc in self._impl.metric_converters]
