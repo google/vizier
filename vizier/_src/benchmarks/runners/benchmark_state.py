@@ -43,7 +43,8 @@ class PolicySuggester:
 
   NOTE: Updates to datastore should interface directly with supporter API. The
   policy will simply use the dataset that is in the supporter. This is the most
-  faithful replication of the datastore vs suggest interaction in prod.
+  faithful replication of the datastore vs suggest interaction in prod. Note
+  that the algorithm/policy is updated with new Trials upon the suggest call.
 
   Typical usage:
     suggester = PolicySuggester(policy, supporter)
@@ -70,10 +71,12 @@ class PolicySuggester:
       cls,
       problem: vz.ProblemStatement,
       designer_factory: vza.DesignerFactory[vza.Designer],
+      supporter: Optional[pythia.InRamPolicySupporter] = None,
       seed: Optional[int] = None,
   ) -> 'PolicySuggester':
     """Initializes a PolicySuggester from Designer."""
-    supporter = pythia.InRamPolicySupporter(problem)
+    if supporter is None:
+      supporter = pythia.InRamPolicySupporter(problem)
     # Wrap as policy and Policy
     policy = InRamDesignerPolicy(
         problem_statement=problem,
