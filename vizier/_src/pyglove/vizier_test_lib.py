@@ -84,14 +84,14 @@ class SampleTest(VizierTest):
     rewards_a = []
     algorithm = DummyAlgorithm()
     for a, fa in pg.sample(
-        hyper_value=pg.Dict(x=pg.oneof([1, 2, 3])),  # Outer search space.
+        pg.Dict(x=pg.oneof([1, 2, 3])),  # Outer search space.
         algorithm=algorithm,
         num_examples=2,
         name='a',
     ):
       rs = []
       for b, fb in pg.sample(
-          hyper_value=pg.Dict(y=pg.oneof([3, 4, 5, 6, 7])),  # Inner space.
+          pg.Dict(y=pg.oneof([3, 4, 5, 6, 7])),  # Inner space.
           algorithm=backend.BuiltinAlgorithm('DEFAULT'),
           num_examples=3,
           name='a%d_b' % fa.id,
@@ -121,14 +121,12 @@ class SampleTest(VizierTest):
     self.assertLen(pg.tuning.poll_result('a1_b').trials, 3)
     self.assertLen(pg.tuning.poll_result('a2_b').trials, 3)
 
-    logging.info('Check that constant hyper_value raises an error.')
+    logging.info('Check that constant space raises an error.')
     # Non-deterministic value.
-    with self.assertRaisesRegex(
-        ValueError, "'hyper_value' is a constant value"
-    ):
+    with self.assertRaisesRegex(ValueError, "'space' is a constant value"):
       next(
           pg.sample(
-              hyper_value=pg.Dict(x=1),  # a fixed value.
+              pg.Dict(x=1),  # a fixed value.
               algorithm=pg.generators.Random(seed=1),
               name='c',
           )
@@ -167,7 +165,7 @@ class SampleTest(VizierTest):
 
     for i, (x, fx) in enumerate(
         pg.sample(
-            hyper_value=pg.oneof(range(100)),
+            pg.oneof(range(100)),
             algorithm=algorithm,
             num_examples=10,
         )
@@ -231,7 +229,7 @@ class SampleTest(VizierTest):
 
     client_side_evaluated = []
     for x, fx in pg.sample(
-        hyper_value=pg.oneof(range(100)), algorithm=algorithm, num_examples=10
+        pg.oneof(range(100)), algorithm=algorithm, num_examples=10
     ):
       client_side_evaluated.append(x)
       fx(x)
@@ -319,7 +317,7 @@ class SampleTest(VizierTest):
     self._backend_class.use_study_prefix(None)
     hyper_value = pg.Dict(x=pg.oneof([1, 2, 3]))
     for x, f in pg.sample(
-        hyper_value=hyper_value,
+        hyper_value,
         algorithm=pg.generators.Random(seed=1),
         name='custom_termination',
     ):
@@ -451,7 +449,7 @@ class SampleTest(VizierTest):
 
     # Create a new study for sample using Random.
     sample1 = pg.sample(
-        hyper_value=hyper_value,
+        hyper_value,
         algorithm=pg.generators.Random(seed=1),
         name='distributed_sampling2',
         group=0,
@@ -461,7 +459,7 @@ class SampleTest(VizierTest):
     # but with different trials by having the same `name` with
     # a different `group`.
     sample2 = pg.sample(
-        hyper_value=hyper_value,
+        hyper_value,
         algorithm=pg.generators.Random(seed=1),
         name='distributed_sampling2',
         group=1,
@@ -470,7 +468,7 @@ class SampleTest(VizierTest):
     # `sample3` works on the same sampling queue and the same trials
     # with `sample1` by having the same `name` and `group`.
     sample3 = pg.sample(
-        hyper_value=hyper_value,
+        hyper_value,
         algorithm=pg.generators.Random(seed=1),
         name='distributed_sampling2',
         group=0,

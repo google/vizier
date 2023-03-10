@@ -54,7 +54,7 @@ class PerformanceTest(parameterized.TestCase):
       del worker_id
       algorithm = pg.evolution.regularized_evolution()
       for _, feedback in pg.sample(
-          hyper_value=pg.Dict(x=pg.oneof([1, 2, 3])),
+          pg.Dict(x=pg.oneof([1, 2, 3])),
           algorithm=algorithm,
           num_examples=NUM_TRIALS_PER_WORKER,
           name='performance_testing',
