@@ -24,7 +24,7 @@ Articles
 Videos/Talks
 ------------
 
--  `(Upcoming) AutoML Seminar 2023 Talk <https://automl-seminars.github.io/schedule/>`__
+-  `AutoML Seminar 2023 Talk <https://youtu.be/Ya_V5isGdG8>`__
 -  `AutoML Conference 2022 Paper Presentation <https://youtu.be/b5hemgM16tM>`__
 -  `AutoML Conference 2022 AutoRL Tutorial <https://youtu.be/9FDqUsByRiQ>`__
 -  `ML News by Yannic Kilcher <https://youtu.be/TOo-HnjjuhU>`__
