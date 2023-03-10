@@ -22,7 +22,7 @@ This client can be used interchangeably with the Cloud Vizier client.
 import datetime
 import functools
 import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from absl import flags
 from absl import logging
@@ -54,8 +54,6 @@ flags.DEFINE_integer(
     ),
 )
 FLAGS = flags.FLAGS
-
-Metadata = Mapping[Tuple[str, str], Any]
 
 
 @functools.lru_cache(maxsize=None)

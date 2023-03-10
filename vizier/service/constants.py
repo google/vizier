@@ -27,3 +27,9 @@ NO_ENDPOINT = 'NO_ENDPOINT'
 
 # Default client ID.
 UNUSED_CLIENT_ID = 'Unused client id.'
+
+# Max int32 value.
+MAX_STUDY_ID = 2147483647
+
+# Will use RAM for SQL memory.
+SQL_MEMORY_URL = 'sqlite:///:memory:'

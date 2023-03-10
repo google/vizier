@@ -27,6 +27,7 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier.service import constants
 from vizier.service import custom_errors
 from vizier.service import datastore
 from vizier.service import grpc_util
@@ -54,11 +55,6 @@ def _get_current_time() -> timestamp_pb2.Timestamp:
   return now
 
 
-MAX_STUDY_ID = 2147483647  # Max int32 value.
-# TODO: Make this a FLAGS.
-SQL_MEMORY_URL = 'sqlite:///:memory:'  # Will use RAM for SQL memory.
-
-
 # TODO: remove context = None
 # TODO: remove context = None
 class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
@@ -72,7 +68,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
   def __init__(
       self,
-      database_url: Optional[str] = SQL_MEMORY_URL,
+      database_url: Optional[str] = constants.SQL_MEMORY_URL,
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
           seconds=60
       ),
@@ -180,7 +176,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         possible_candidate_studies = []
 
       # Check if all possible study_id's have been taken.
-      if len(possible_candidate_studies) >= MAX_STUDY_ID:
+      if len(possible_candidate_studies) >= constants.MAX_STUDY_ID:
         e = ValueError(
             'Maximum number of studies reached for owner {}.'.format(owner_id)
         )
