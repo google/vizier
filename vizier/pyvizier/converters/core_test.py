@@ -399,6 +399,63 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
       if np.isnan(label):
         self.assertEmpty(t.final_measurement.metrics)
 
+  def test_parameters_and_labels_shape(self):
+    study_config = pyvizier.ProblemStatement()
+    root = study_config.search_space.root
+    root.add_float_param('x1', 0.0, 10.0)
+
+    study_config.metric_information.extend([
+        pyvizier.MetricInformation(
+            name='y1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+        ),
+        pyvizier.MetricInformation(
+            name='y2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+        ),
+    ])
+    converter = core.DefaultTrialConverter.from_study_config(study_config)
+    features_1d = {
+        'x1': np.array([1.0, 3.0]),
+        'x2': np.array([2.0, 4.0]),
+    }
+
+    with self.assertRaisesRegex(
+        ValueError,
+        'Features need to contain 2d arrays with shape (num_obs, 1)*',
+    ):
+      converter.to_trials(features_1d)
+
+    features_right_shape = {
+        'x1': np.array([[1.0, 3.0]]).T,
+        'x2': np.array([[2.0, 4.0]]).T,
+    }
+    labels_1d = {
+        'y1': np.array([10.0, 40.0]),
+        'y2': np.array([20.0, 50.0]),
+    }
+    with self.assertRaisesRegex(
+        ValueError, 'Labels need to contain 2d arrays with shape (num_obs, 1)*'
+    ):
+      converter.to_trials(features_right_shape, labels_1d)
+
+    features_2d_reverse_shape = {
+        'x1': np.array([[1.0, 3.0]]),
+        'x2': np.array([[2.0, 4.0]]),
+    }
+    with self.assertRaisesRegex(
+        ValueError,
+        'Features need to contain 2d arrays with shape (num_obs, 1)*',
+    ):
+      converter.to_trials(features_2d_reverse_shape)
+
+    labels_2d_reverse_shape = {
+        'y1': np.array([[10.0, 40.0]]),
+        'y2': np.array([[20.0, 50.0]]),
+    }
+    with self.assertRaisesRegex(
+        ValueError, 'Labels need to contain 2d arrays with shape (num_obs, 1)*'
+    ):
+      converter.to_trials(features_right_shape, labels_2d_reverse_shape)
+
   def test_metrics(self):
     converter = core.DefaultTrialConverter.from_study_configs(
         [],

@@ -895,10 +895,10 @@ class DefaultTrialConverter(TrialToNumpyDict):
     Args:
       features: A dictionary where keys correspond to parameter names in the
         returned Trial and values correspond to parameter values and have shape
-        (num_obs, ) or (num_obs, 1).
+        (num_obs, 1).
       labels: A dictionary of labels where each key corresponds to a metric name
-        and its value is an array of shape (num_obs,) or (num_obs, 1) of oberved
-        metric values.
+        and its value is an array of shape (num_obs, 1) of observed metric
+        values.
 
     Returns:
       A list of pyvizier trials created with parameters corresponding to
@@ -906,6 +906,29 @@ class DefaultTrialConverter(TrialToNumpyDict):
       NOTE: All final measurements have steps=1. If 'labels' is not passed, the
       output trials include `final_measurement=None` and `measurements=[]`.
     """
+    invalid_features = [
+        (k, v.shape)
+        for k, v in features.items()
+        if len(v.shape) != 2 or (len(v.shape) == 2 and v.shape[1] != 1)
+    ]
+    if invalid_features:
+      raise ValueError(
+          'Features need to contain 2d arrays with shape (num_obs, 1). Invalid'
+          f' feature shapes: {invalid_features}'
+      )
+
+    if labels:
+      invalid_labels = [
+          (k, v.shape)
+          for k, v in labels.items()
+          if len(v.shape) != 2 or (len(v.shape) == 2 and v.shape[1] != 1)
+      ]
+      if invalid_labels:
+        raise ValueError(
+            'Labels need to contain 2d arrays with shape (num_obs, 1). Invalid'
+            f' label shapes: {invalid_labels}'
+        )
+
     if labels is None:
       return [
           pyvizier.Trial(parameters=p) for p in self.to_parameters(features)
