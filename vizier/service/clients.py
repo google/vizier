@@ -27,8 +27,7 @@ from vizier.service import pyvizier as vz
 from vizier.service import resources
 from vizier.service import vizier_client
 
-# Redeclared so users do not have to also import client_abc and vizier_client.
-NO_ENDPOINT = constants.NO_ENDPOINT
+# Redeclared so users do not have to also import client_abc and clients.py.
 ResourceNotFoundError = client_abc.ResourceNotFoundError
 
 
@@ -37,7 +36,7 @@ ResourceNotFoundError = client_abc.ResourceNotFoundError
 @attr.define
 class _EnvironmentVariables:
   server_endpoint: str = attr.field(
-      default=NO_ENDPOINT, validator=attr.validators.instance_of(str)
+      default=constants.NO_ENDPOINT, validator=attr.validators.instance_of(str)
   )
 
 
@@ -188,7 +187,7 @@ class Study(client_abc.StudyInterface):
       trial = self._client.get_trial(trial_id)
       return self._trial_client(trial)
     except KeyError as err:
-      raise client_abc.ResourceNotFoundError(
+      raise ResourceNotFoundError(
           f'Study f{self.resource_name} does not have Trial {trial_id}.'
       ) from err
 
@@ -239,7 +238,7 @@ class Study(client_abc.StudyInterface):
       Study.
 
     Raises:
-      ResourceNotFoundError
+      ResourceNotFoundError.
     """
     study_resource_name = resources.StudyResource(
         owner_id=owner, study_id=study_id

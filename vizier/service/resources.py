@@ -37,6 +37,7 @@ _resource_component_validator = [attrs_utils.assert_re_fullmatch(r'[^\/]+')]
 @attr.define(init=True, frozen=True)
 class OwnerResource:
   """Resource for Owners."""
+
   _owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
 
   @classmethod
@@ -60,6 +61,7 @@ class OwnerResource:
 @attr.define(init=True, frozen=True)
 class StudyResource:
   """Resource for Studies."""
+
   owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
   study_id: str = attr.ib(init=True, validator=_resource_component_validator)
 
@@ -68,14 +70,17 @@ class StudyResource:
     """Creates StudyResource from a name."""
     study_match = re.match(
         r'^owners\/(?P<owner_id>[^\/]+)\/studies\/(?P<study_id>[^\/]+)$',
-        resource_name)
+        resource_name,
+    )
 
     if study_match:
       return StudyResource(
-          study_match.group('owner_id'), study_match.group('study_id'))
+          study_match.group('owner_id'), study_match.group('study_id')
+      )
     else:
-      raise ValueError(f'{repr(resource_name)} is not a valid name for a '
-                       'Study resource.')
+      raise ValueError(
+          f'{repr(resource_name)} is not a valid name for a Study resource.'
+      )
 
   @property
   def owner_resource(self) -> OwnerResource:
@@ -96,28 +101,35 @@ class StudyResource:
 @attr.define(init=True, frozen=True)
 class TrialResource:
   """Resource for Trials."""
+
   owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
   study_id: str = attr.ib(init=True, validator=_resource_component_validator)
   trial_id: int = attr.ib(
       init=True,
       validator=[
-          attr.validators.instance_of(int), attrs_utils.assert_not_negative
-      ])
+          attr.validators.instance_of(int),
+          attrs_utils.assert_not_negative,
+      ],
+  )
 
   @classmethod
   def from_name(cls, resource_name: str) -> 'TrialResource':
     """Creates TrialResource from a name."""
     trial_match = re.match(
         r'^owners\/(?P<owner_id>[^\/]+)\/studies\/(?P<study_id>[^\/]+)\/trials\/(?P<trial_id>[^\/]+)$',
-        resource_name)
+        resource_name,
+    )
 
     if trial_match:
       return TrialResource(
-          trial_match.group('owner_id'), trial_match.group('study_id'),
-          int(trial_match.group('trial_id')))
+          trial_match.group('owner_id'),
+          trial_match.group('study_id'),
+          int(trial_match.group('trial_id')),
+      )
     else:
-      raise ValueError(f'{repr(resource_name)} is not a valid name for a '
-                       'Trial resource.')
+      raise ValueError(
+          f'{repr(resource_name)} is not a valid name for a Trial resource.'
+      )
 
   @property
   def study_resource(self) -> StudyResource:
@@ -125,25 +137,32 @@ class TrialResource:
 
   @property
   def early_stopping_operation_resource(
-      self) -> 'EarlyStoppingOperationResource':
+      self,
+  ) -> 'EarlyStoppingOperationResource':
     return EarlyStoppingOperationResource(
-        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id)
+        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id
+    )
 
   @property
   def name(self) -> str:
-    return f'owners/{self.owner_id}/studies/{self.study_id}/trials/{self.trial_id}'
+    return (
+        f'owners/{self.owner_id}/studies/{self.study_id}/trials/{self.trial_id}'
+    )
 
 
 @attr.define(init=True, frozen=True)
 class EarlyStoppingOperationResource:
   """Resource for Early Stopping Operations."""
+
   owner_id: str = attr.ib(init=True, validator=_resource_component_validator)
   study_id: str = attr.ib(init=True, validator=_resource_component_validator)
   trial_id: int = attr.ib(
       init=True,
       validator=[
-          attr.validators.instance_of(int), attrs_utils.assert_not_negative
-      ])
+          attr.validators.instance_of(int),
+          attrs_utils.assert_not_negative,
+      ],
+  )
 
   @property
   def operation_id(self) -> str:
@@ -158,18 +177,22 @@ class EarlyStoppingOperationResource:
     """Creates EarlyStoppingOperationResource from a name."""
     operation_match = re.match(
         r'^owners\/(?P<owner_id>[^\/]+)/operations/earlystopping/(?P<study_id>[^\/]+)/(?P<trial_id>[^\/]+)$',
-        resource_name)
+        resource_name,
+    )
     if operation_match:
       return EarlyStoppingOperationResource(
-          operation_match.group('owner_id'), operation_match.group('study_id'),
-          int(operation_match.group('trial_id')))
+          operation_match.group('owner_id'),
+          operation_match.group('study_id'),
+          int(operation_match.group('trial_id')),
+      )
     else:
       raise ValueError(f'Incorrect resource name sent: {resource_name}')
 
   @property
   def trial_resource(self) -> TrialResource:
     return TrialResource(
-        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id)
+        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id
+    )
 
 
 @attr.define(init=True, frozen=True)
@@ -182,12 +205,16 @@ class SuggestionOperationResource:
   operation_number: int = attr.ib(
       init=True,
       validator=[
-          attr.validators.instance_of(int), attrs_utils.assert_not_negative
-      ])
+          attr.validators.instance_of(int),
+          attrs_utils.assert_not_negative,
+      ],
+  )
 
   @property
   def operation_id(self) -> str:
-    return f'suggestion/{self.study_id}/{self.client_id}/{self.operation_number}'
+    return (
+        f'suggestion/{self.study_id}/{self.client_id}/{self.operation_number}'
+    )
 
   @property
   def name(self) -> str:
@@ -198,11 +225,14 @@ class SuggestionOperationResource:
     """Creates SuggestionOperationResource from a name."""
     operation_match = re.match(
         r'^owners\/(?P<owner_id>[^\/]+)/operations/suggestion/(?P<study_id>[^\/]+)/(?P<client_id>[^\/]+)/(?P<operation_number>[^\/]+)$',
-        resource_name)
+        resource_name,
+    )
     if operation_match:
       return SuggestionOperationResource(
-          operation_match.group('owner_id'), operation_match.group('study_id'),
+          operation_match.group('owner_id'),
+          operation_match.group('study_id'),
           operation_match.group('client_id'),
-          int(operation_match.group('operation_number')))
+          int(operation_match.group('operation_number')),
+      )
     else:
       raise ValueError(f'Incorrect resource name sent: {resource_name}')

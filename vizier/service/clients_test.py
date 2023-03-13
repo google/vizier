@@ -15,17 +15,14 @@
 from __future__ import annotations
 
 """Tests for clients."""
-
-from absl import flags
 from absl import logging
 from vizier.client import client_abc_testing
 from vizier.service import clients
+from vizier.service import constants
 from vizier.service import pyvizier as vz
 from vizier.service import vizier_server
 
 from absl.testing import absltest
-
-FLAGS = flags.FLAGS
 
 
 class VizierClientTest(client_abc_testing.TestCase):
@@ -59,7 +56,7 @@ class VizierClientTestOnServicer(VizierClientTest):
   def setUpClass(cls):
     logging.info('Test setup started.')
     super().setUpClass()
-    clients.environment_variables.server_endpoint = clients.NO_ENDPOINT
+    clients.environment_variables.server_endpoint = constants.NO_ENDPOINT
     logging.info('Test setup finished.')
 
 

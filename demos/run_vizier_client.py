@@ -38,11 +38,12 @@ from absl import flags
 from absl import logging
 
 from vizier.service import clients
+from vizier.service import constants
 from vizier.service import pyvizier as vz
 
 flags.DEFINE_string(
     'address',
-    clients.NO_ENDPOINT,
+    constants.NO_ENDPOINT,
     (
         'Address of the Vizier Server which will be used by this demo. Should'
         " be of the form e.g. 'localhost:6006' if running on the same machine,"
@@ -90,7 +91,7 @@ def main(argv: Sequence[str]) -> None:
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  if FLAGS.address == clients.NO_ENDPOINT:
+  if FLAGS.address == constants.NO_ENDPOINT:
     logging.info(
         'You did not specify the server address. The Vizier Service will be'
         ' created locally.'

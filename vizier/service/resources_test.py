@@ -44,33 +44,49 @@ class UtilTest(parameterized.TestCase):
     same_study_resource = resources.StudyResource.from_name(study_resource.name)
     self.assertEqual(study_resource, same_study_resource)
 
-    trial_resource = resources.TrialResource(self.owner_id, self.study_id,
-                                             self.trial_id)
+    trial_resource = resources.TrialResource(
+        self.owner_id, self.study_id, self.trial_id
+    )
     same_trial_resource = resources.TrialResource.from_name(trial_resource.name)
     self.assertEqual(trial_resource, same_trial_resource)
     self.assertEqual(trial_resource.study_resource, study_resource)
 
     early_stopping_op_resource = resources.EarlyStoppingOperationResource(
-        self.owner_id, self.study_id, self.trial_id)
-    same_early_stopping_op_resource = resources.EarlyStoppingOperationResource.from_name(
-        early_stopping_op_resource.name)
-    self.assertEqual(early_stopping_op_resource,
-                     same_early_stopping_op_resource)
+        self.owner_id, self.study_id, self.trial_id
+    )
+    same_early_stopping_op_resource = (
+        resources.EarlyStoppingOperationResource.from_name(
+            early_stopping_op_resource.name
+        )
+    )
+    self.assertEqual(
+        early_stopping_op_resource, same_early_stopping_op_resource
+    )
     self.assertEqual(early_stopping_op_resource.trial_resource, trial_resource)
-    self.assertEqual(trial_resource.early_stopping_operation_resource,
-                     early_stopping_op_resource)
+    self.assertEqual(
+        trial_resource.early_stopping_operation_resource,
+        early_stopping_op_resource,
+    )
 
     suggestion_op_resource = resources.SuggestionOperationResource(
-        self.owner_id, self.study_id, self.client_id, self.operation_number)
-    same_suggestion_op_resource = resources.SuggestionOperationResource.from_name(
-        suggestion_op_resource.name)
+        self.owner_id, self.study_id, self.client_id, self.operation_number
+    )
+    same_suggestion_op_resource = (
+        resources.SuggestionOperationResource.from_name(
+            suggestion_op_resource.name
+        )
+    )
     self.assertEqual(same_suggestion_op_resource, same_suggestion_op_resource)
 
   @parameterized.named_parameters(
       ('owner', 'owner/my_username', resources.OwnerResource),
       ('study', 'owners/my_username/study/cifar10', resources.StudyResource),
-      ('trial', 'owners/my_username/studies/cifar10/trials/not_an_int',
-       resources.TrialResource))
+      (
+          'trial',
+          'owners/my_username/studies/cifar10/trials/not_an_int',
+          resources.TrialResource,
+      ),
+  )
   def test_parsing_wrong(self, bad_name, resource_class):
     """Tests for incorrect resource strings, for input validation."""
     with self.assertRaises(ValueError):
@@ -82,15 +98,18 @@ class UtilTest(parameterized.TestCase):
 
   def test_generate_trials(self):
     basic_trials = test_util.generate_trials(
-        range(2), self.owner_id, self.study_id)
+        range(2), self.owner_id, self.study_id
+    )
     self.assertLen(basic_trials, 2)
     all_states_trials = test_util.generate_all_states_trials(
-        0, self.owner_id, self.study_id)
+        0, self.owner_id, self.study_id
+    )
     self.assertLen(all_states_trials, len(study_pb2.Trial.State.keys()))
 
   def test_generate_suggestion_operations(self):
     basic_operations = test_util.generate_suggestion_operations(
-        range(4), self.owner_id, self.study_id, self.client_id)
+        range(4), self.owner_id, self.study_id, self.client_id
+    )
     self.assertLen(basic_operations, 4)
 
 

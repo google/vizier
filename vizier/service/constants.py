@@ -26,7 +26,7 @@ PYTHIA_ENDPOINT_KEY = 'PYTHIA_ENDPOINT'
 NO_ENDPOINT = 'NO_ENDPOINT'
 
 # Default client ID.
-UNUSED_CLIENT_ID = 'Unused client id.'
+UNUSED_CLIENT_ID = 'unused_client_id'
 
 # Max int32 value.
 MAX_STUDY_ID = 2147483647
