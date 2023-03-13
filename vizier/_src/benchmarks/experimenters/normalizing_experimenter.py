@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 """Experimenter that normalizes the range of each metric."""
-
+import copy
 from typing import Dict, Sequence
 
 import numpy as np
@@ -34,8 +34,6 @@ class NormalizingExperimenter(experimenter.Experimenter):
       num_normalization_samples: int = 100,
   ):
     """Normalizing experimenter uses a grid to estimate a normalization constant.
-
-
 
     Args:
       exptr: Experimenter to be normalized.
@@ -81,7 +79,7 @@ class NormalizingExperimenter(experimenter.Experimenter):
       self._normalizations[name] = normalization
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
-    return self._problem_statement
+    return copy.deepcopy(self._problem_statement)
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     self._exptr.evaluate(suggestions)

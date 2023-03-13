@@ -33,6 +33,7 @@ from vizier._src.benchmarks.experimenters.noisy_experimenter import NoisyExperim
 from vizier._src.benchmarks.experimenters.normalizing_experimenter import NormalizingExperimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
 from vizier._src.benchmarks.experimenters.shifting_experimenter import ShiftingExperimenter
+from vizier._src.benchmarks.experimenters.sign_flip_experimenter import SignFlipExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkRunner
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkSubroutine

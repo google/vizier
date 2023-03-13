@@ -92,7 +92,7 @@ class DiscretizingExperimenter(experimenter.Experimenter):
       )
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
-    return self._problem_statement
+    return copy.deepcopy(self._problem_statement)
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
     """Evaluate the trials after conversion to double."""

@@ -73,7 +73,7 @@ class SparseExperimenter(experimenter.Experimenter):
     super().__init__()
     self._sparse_param_prefix = prefix
     self._experimenter = experiment
-    problem = copy.deepcopy(experiment.problem_statement())
+    problem = experiment.problem_statement()
     for pc in search_space.parameters:
       # Add a copy of the parameter config with a modified name.
       problem.search_space.add(attr.evolve(pc, name=prefix + '_' + pc.name))
@@ -96,7 +96,7 @@ class SparseExperimenter(experimenter.Experimenter):
       trial.parameters = params
 
   def problem_statement(self) -> vz.ProblemStatement:
-    return self._problem_statement
+    return copy.deepcopy(self._problem_statement)
 
   @classmethod
   def create(
