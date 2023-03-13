@@ -18,20 +18,17 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
-from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
-from vizier._src.benchmarks.experimenters import l1_categorical_experimenter
-from vizier._src.benchmarks.experimenters import shifting_experimenter
-from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier.benchmarks import experimenters
 
 EagleStrategyDesiger = eagle_strategy.EagleStrategyDesigner
 FireflyAlgorithmConfig = eagle_strategy.FireflyAlgorithmConfig
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyPool = eagle_strategy_utils.FireflyPool
 Firefly = eagle_strategy_utils.Firefly
-L1CategorialExperimenter = l1_categorical_experimenter.L1CategorialExperimenter
+L1CategorialExperimenter = experimenters.L1CategorialExperimenter
 
 
 def create_fake_trial(
@@ -42,7 +39,8 @@ def create_fake_trial(
   """Create a fake completed trial."""
   trial = vz.Trial()
   measurement = vz.Measurement(
-      metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(value=obj_value)})
+      metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(value=obj_value)}
+  )
   trial.parameters['x'] = x_value
   trial.complete(measurement, inplace=True)
   trial.metadata.ns('eagle')['parent_fly_id'] = str(parent_fly_id)
@@ -56,7 +54,9 @@ def create_fake_problem_statement() -> vz.ProblemStatement:
   problem.metric_information.append(
       vz.MetricInformation(
           name=eagle_strategy_utils.OBJECTIVE_NAME,
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE))
+          goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+      )
+  )
   return problem
 
 
@@ -139,11 +139,12 @@ def create_fake_populated_eagle_designer(
 
 
 def create_continuous_exptr(func, dim=6):
-  problem = bbob.DefaultBBOBProblemStatement(dim)
+  problem = experimenters.bbob.DefaultBBOBProblemStatement(dim)
   rng = np.random.default_rng(0)
   shift = rng.uniform(low=-2.0, high=2.0, size=(dim,))
-  return shifting_experimenter.ShiftingExperimenter(
-      exptr=benchmarks.NumpyExperimenter(func, problem), shift=shift)
+  return experimenters.ShiftingExperimenter(
+      exptr=experimenters.NumpyExperimenter(func, problem), shift=shift
+  )
 
 
 def create_categorical_exptr():

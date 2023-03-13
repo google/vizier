@@ -20,7 +20,7 @@ import multiprocessing.pool
 import time
 from absl import logging
 
-from vizier import benchmarks
+from vizier.benchmarks import experimenters
 from vizier.service import pyvizier
 from vizier.service import vizier_client
 from vizier.service import vizier_server
@@ -48,7 +48,9 @@ class PerformanceTest(parameterized.TestCase):
       self, num_simultaneous_clients, num_trials_per_client, dimension
   ):
     def fn(client_id: int):
-      experimenter = benchmarks.BBOBExperimenterFactory('Sphere', dimension)()
+      experimenter = experimenters.BBOBExperimenterFactory(
+          'Sphere', dimension
+      )()
       problem_statement = experimenter.problem_statement()
       study_config = pyvizier.StudyConfig.from_problem(problem_statement)
       study_config.algorithm = pyvizier.Algorithm.NSGA2

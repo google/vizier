@@ -28,21 +28,16 @@ import copy
 from typing import Optional, Sequence
 
 import attr
-import immutabledict
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters import experimenter
 
 
 # These default values are used for defining the placeholder parameters.
-_DEFAULT_BOUNDS = immutabledict.immutabledict({
-    'FLOAT': (-5.0, 5.0),
-    'INT': (-5, 5),
-})
+_DEFAULT_FLOAT_BOUNDS = (-5.0, 5.0)
+_DEFAULT_INT_BOUNDS = (-5, 5)
 
-_DEFAULT_FEASIBLE_VALUES = immutabledict.immutabledict({
-    'DISCRETE': [0, 1, 2, 3, 4],
-    'CATEGORICAL': ['a', 'b', 'c', 'd', 'e', 'f'],
-})
+_DEFAULT_DISCRETE_FEASIBLE_VALUES = (0, 1, 2, 3, 4)
+_DEFAULT_CATEGORICAL_FEASIBLE_VALUES = ('a', 'b', 'c', 'd', 'e', 'f')
 
 
 class SparseExperimenter(experimenter.Experimenter):
@@ -139,25 +134,25 @@ class SparseExperimenter(experimenter.Experimenter):
     for idx in range(float_count):
       sparse_search_space.root.add_float_param(
           name='FLOAT' + str(idx),
-          min_value=float_min_value or _DEFAULT_BOUNDS['FLOAT'][0],
-          max_value=float_max_value or _DEFAULT_BOUNDS['FLOAT'][1],
+          min_value=float_min_value or _DEFAULT_FLOAT_BOUNDS[0],
+          max_value=float_max_value or _DEFAULT_FLOAT_BOUNDS[1],
       )
     for idx in range(int_count):
       sparse_search_space.root.add_int_param(
           name='INT' + str(idx),
-          min_value=float_min_value or _DEFAULT_BOUNDS['INT'][0],
-          max_value=float_max_value or _DEFAULT_BOUNDS['INT'][1],
+          min_value=float_min_value or _DEFAULT_INT_BOUNDS[0],
+          max_value=float_max_value or _DEFAULT_INT_BOUNDS[1],
       )
     for idx in range(discrete_count):
       sparse_search_space.root.add_discrete_param(
           name='DISCRETE' + str(idx),
           feasible_values=categorical_feasible_values
-          or _DEFAULT_FEASIBLE_VALUES['DISCRETE'],
+          or _DEFAULT_DISCRETE_FEASIBLE_VALUES,
       )
     for idx in range(categorical_count):
       sparse_search_space.root.add_categorical_param(
           name='CATEGORICAL' + str(idx),
           feasible_values=categorical_feasible_values
-          or _DEFAULT_FEASIBLE_VALUES['CATEGORICAL'],
+          or _DEFAULT_CATEGORICAL_FEASIBLE_VALUES,
       )
     return cls(experiment, sparse_search_space)

@@ -10,6 +10,3 @@ nats_bench  # NASBench-201
 
 # For HPOB.
 xgboost==1.5.1
-
-# For general experimenters
-immutabledict>=2.2.3
