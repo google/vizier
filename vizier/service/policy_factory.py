@@ -93,7 +93,7 @@ class DefaultPolicyFactory(PolicyFactory):
       from vizier._src.algorithms.evolution import nsga2
 
       return dp.PartiallySerializableDesignerPolicy(
-          problem_statement, policy_supporter, nsga2.create_nsga2
+          problem_statement, policy_supporter, nsga2.NSGA2Designer
       )
     elif algorithm == 'EMUKIT_GP_EI':
       from vizier._src.algorithms.designers import emukit

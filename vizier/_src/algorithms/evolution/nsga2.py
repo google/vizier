@@ -41,9 +41,11 @@ def _pareto_rank(ys: np.ndarray) -> np.ndarray:
     return np.zeros([0])
   n = ys.shape[0]
   dominated = np.asarray(
-      [[np.all(ys[i] <= ys[j]) & np.any(ys[j] > ys[i])
-        for i in range(n)]
-       for j in range(n)])
+      [
+          [np.all(ys[i] <= ys[j]) & np.any(ys[j] > ys[i]) for i in range(n)]
+          for j in range(n)
+      ]
+  )
   return np.sum(dominated, axis=0)
 
 
@@ -106,8 +108,10 @@ def _select_by(ys: np.ndarray, target: int) -> Tuple[np.ndarray, np.ndarray]:
      * `top & border` is all False.
   """
   if ys.shape[0] <= target:
-    return (np.ones(ys.shape[:1],
-                    dtype=np.bool_), np.zeros(ys.shape[:1], dtype=np.bool_))
+    return (
+        np.ones(ys.shape[:1], dtype=np.bool_),
+        np.zeros(ys.shape[:1], dtype=np.bool_),
+    )
   unique, counts = np.unique(ys, return_counts=True)
   cutoffidx = np.argmax(np.cumsum(counts) > target)
   cutoffnumber = unique[cutoffidx]
@@ -120,11 +124,13 @@ class NSGA2Survival(templates.Survival):
   Reference: https://ieeexplore.ieee.org/document/996017
   """
 
-  def __init__(self,
-               target_size: int,
-               *,
-               ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
-               eviction_limit: Optional[int] = None):
+  def __init__(
+      self,
+      target_size: int,
+      *,
+      ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
+      eviction_limit: Optional[int] = None
+  ):
     """Init.
 
     Args:
@@ -166,14 +172,16 @@ class NSGA2Survival(templates.Survival):
     # Sort by the safety constraint.
     if selected.cs.shape[1]:
       top, border = _select_by(
-          _constraint_violation(population.cs), target=self._target_size)
+          _constraint_violation(population.cs), target=self._target_size
+      )
       selected += population[top]
       population = population[border]
 
     # Sort by the pareto rank.
     pareto_ranks = self._ranking_fn(population.ys)
     top, border = _select_by(
-        pareto_ranks, target=self._target_size - len(selected))
+        pareto_ranks, target=self._target_size - len(selected)
+    )
     selected += population[top]
     population = population[border]
 
@@ -185,50 +193,64 @@ class NSGA2Survival(templates.Survival):
     # Selected points have fewer constraint violations or better pareto rank.
     # Regardless of the distance, they remain selected. Rank the remainder only.
     sids = sids[sids >= len(selected)] - len(selected)
-    selected += population[sids[:self._target_size - len(selected)]]
+    selected += population[sids[: self._target_size - len(selected)]]
 
     return attr.evolve(selected, ages=selected.ages + 1)
 
 
-def create_nsga2(
-    problem: vz.ProblemStatement,
-    population_size: int = 50,
-    first_survival_after: Optional[int] = None,
-    *,
-    ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
-    eviction_limit: Optional[int] = None,
-    metadata_namespace: str = 'nsga2',
-    seed: Optional[int] = None
-) -> templates.CanonicalEvolutionDesigner[Population, Offspring]:
-  """Creates NSGA2 Designer.
+class NSGA2Designer(
+    templates.CanonicalEvolutionDesigner[Population, Offspring]
+):
+  """NSGA2 Designer.
 
-  Args:
-    problem:
-    population_size: Survival steps reduce the population to this size.
-    first_survival_after: Apply the survival step after observing this many
-      trials. Leave it unset to use the default behavior.
-    ranking_fn: Takes (number of population) x (number of metrics) array of
-      floating numbers and returns (number of population) array of integers,
-      representing the pareto rank aka number of points it is dominated by. The
-      default implementation is reasonably fast for hundreds of trials, but if
-      you want to improve performance, your own implementation can be injected.
-    eviction_limit: Evict a gene that has been alive for this many generations.
-    metadata_namespace: Metadata namespace to use.
-    seed: Random seed.
-
-  Returns:
-    NSGA2 Designer.
+  Reference: https://ieeexplore.ieee.org/document/996017
   """
-  del seed
-  algorithm = templates.CanonicalEvolutionDesigner(
-      numpy_populations.PopulationConverter(
-          problem.search_space,
-          problem.metric_information,
-          metadata_ns=metadata_namespace),
-      numpy_populations.UniformRandomSampler(problem.search_space),
-      NSGA2Survival(
-          population_size, ranking_fn=ranking_fn,
-          eviction_limit=eviction_limit),
-      adaptation=numpy_populations.LinfMutation(),
-      first_survival_after=first_survival_after)
-  return algorithm
+
+  def __init__(
+      self,
+      problem: vz.ProblemStatement,
+      population_size: int = 50,
+      first_survival_after: Optional[int] = None,
+      *,
+      ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
+      eviction_limit: Optional[int] = None,
+      metadata_namespace: str = 'nsga2',
+      seed: Optional[int] = None
+  ):
+    """Creates NSGA2 Designer.
+
+    Args:
+      problem:
+      population_size: Survival steps reduce the population to this size.
+      first_survival_after: Apply the survival step after observing this many
+        trials. Leave it unset to use the default behavior.
+      ranking_fn: Takes (number of population) x (number of metrics) array of
+        floating numbers and returns (number of population) array of integers,
+        representing the pareto rank aka number of points it is dominated by.
+        The default implementation is reasonably fast for hundreds of trials,
+        but if you want to improve performance, your own implementation can be
+        injected.
+      eviction_limit: Evict a gene that has been alive for this many
+        generations.
+      metadata_namespace: Metadata namespace to use.
+      seed: Random seed.
+
+    Returns:
+      NSGA2 Designer.
+    """
+    del seed
+    super().__init__(
+        numpy_populations.PopulationConverter(
+            problem.search_space,
+            problem.metric_information,
+            metadata_ns=metadata_namespace,
+        ),
+        numpy_populations.UniformRandomSampler(problem.search_space),
+        NSGA2Survival(
+            population_size,
+            ranking_fn=ranking_fn,
+            eviction_limit=eviction_limit,
+        ),
+        adaptation=numpy_populations.LinfMutation(),
+        first_survival_after=first_survival_after,
+    )

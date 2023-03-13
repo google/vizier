@@ -42,7 +42,7 @@ class DesignerOptimizerTest(absltest.TestCase):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('a', 0, 1)
 
-    designer_factory = nsga2.create_nsga2
+    designer_factory = nsga2.NSGA2Designer
     optimizer_test_utils.assert_passes_on_random_multi_metric_function(
         self,
         problem.search_space,
