@@ -40,8 +40,11 @@ def _get_name(f):
 class NumpyExperimenter(experimenter.Experimenter):
   """NumpyExperimenters take a deterministic function on ndarrays."""
 
-  def __init__(self, impl: Callable[[np.ndarray], float],
-               problem_statement: pyvizier.ProblemStatement):
+  def __init__(
+      self,
+      impl: Callable[[np.ndarray], float],
+      problem_statement: pyvizier.ProblemStatement,
+  ):
     """NumpyExperimenter with analytic function impl for one metric.
 
     NumpyExperimenter only supports single objectives, and flat numeric search
@@ -55,8 +58,12 @@ class NumpyExperimenter(experimenter.Experimenter):
       ValueError: Non-positive dimension or invalid problem statement.
     """
     dimension = len(problem_statement.search_space.parameters)
-    logging.info('Initializing NumpyExperimenter with impl=%s, dimension=%s',
-                 _get_name(impl), dimension)
+    self._impl_name = _get_name(impl)
+    logging.info(
+        'Initializing NumpyExperimenter with impl=%s, dimension=%s',
+        self._impl_name,
+        dimension,
+    )
     if dimension <= 0:
       raise ValueError(f'Invalid dimension: {dimension}')
     self._dimension = dimension
@@ -64,20 +71,27 @@ class NumpyExperimenter(experimenter.Experimenter):
 
     if not problem_statement.metric_information.is_single_objective:
       raise ValueError(
-          f'Statement should be single objective {problem_statement}')
+          f'Statement should be single objective {problem_statement}'
+      )
     if problem_statement.search_space.is_conditional:
       raise ValueError(f'Statement should be flat {problem_statement}')
     for parameter in problem_statement.search_space.parameters:
       if not parameter.type.is_numeric():
         raise ValueError(f'Non-numeric parameters {parameter}')
 
-    self._metric_name = problem_statement.metric_information.of_type(
-        pyvizier.MetricType.OBJECTIVE).item().name
+    self._metric_name = (
+        problem_statement.metric_information.of_type(
+            pyvizier.MetricType.OBJECTIVE
+        )
+        .item()
+        .name
+    )
     self._problem_statement = copy.deepcopy(problem_statement)
     self._converter = converters.TrialToArrayConverter.from_study_config(
         study_config=self._problem_statement,
         scale=False,
-        flip_sign_for_minimization_metrics=False)
+        flip_sign_for_minimization_metrics=False,
+    )
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
@@ -88,17 +102,20 @@ class NumpyExperimenter(experimenter.Experimenter):
     for idx, suggestion in enumerate(suggestions):
       if len(features[idx]) != self._dimension:
         raise ValueError(
-            f'Features {features[idx]} should have length {self._dimension}')
+            f'Features {features[idx]} should have length {self._dimension}'
+        )
       val = self.impl(features[idx])
       if math.isfinite(val):
         suggestion.complete(
-            pyvizier.Measurement(metrics={self._metric_name: val}))
+            pyvizier.Measurement(metrics={self._metric_name: val})
+        )
       else:
         suggestion.complete(
             pyvizier.Measurement(),
-            infeasibility_reason='Objective value is not finite: %f' % val)
+            infeasibility_reason='Objective value is not finite: %f' % val,
+        )
       if not suggestion.is_completed:
         raise RuntimeError(f'Trial {suggestion} not completed')
 
   def __repr__(self) -> str:
-    return f'NumpyExperimenter {{name: {_get_name(self.impl)}}}'
+    return f'NumpyExperimenter {{name: {self._impl_name}}}'

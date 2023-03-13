@@ -73,6 +73,9 @@ class SparseExperimenter(experimenter.Experimenter):
     super().__init__()
     self._sparse_param_prefix = prefix
     self._experimenter = experiment
+    self._search_space = copy.deepcopy(search_space)
+    self._prefix = prefix
+
     problem = experiment.problem_statement()
     for pc in search_space.parameters:
       # Add a copy of the parameter config with a modified name.
