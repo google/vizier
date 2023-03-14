@@ -59,13 +59,9 @@ class VizierGPBandit(vza.Designer):
     acquisition_optimizer: Typically either a designer wrapped as an optimizer
       or a batched optimizer (like Eagle).
     metadata_ns: Metadata namespace that this designer writes to.
-    use_trust_region: Uses trust region.
     ard_optimizer: An optimizer which should return a batch of hyperparameters
       to be ensembled.
-    num_acquisition_optimizer_evaluations: Number of evaluations the optimizer
-      can perform to find the optimal acquisition trials.
-    acquisition_batch_size: The number of trials to evaluate in each acquisition
-      iteration.
+    use_trust_region: Uses trust region.
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
