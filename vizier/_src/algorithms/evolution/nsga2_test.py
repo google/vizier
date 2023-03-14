@@ -60,6 +60,7 @@ def nsga2_on_all_types(
       population_size,
       first_survival_after=population_size,
       eviction_limit=eviction_limit,
+      seed=0,
   )
   return algorithm
 
@@ -209,6 +210,34 @@ class Nsga2Test(absltest.TestCase):
 
     # Smoke test dump-load.
     algorithm.load(dumped)
+
+  def test_seeding(self):
+    algorithm_1 = nsga2_on_all_types(10)
+    algorithm_2 = nsga2_on_all_types(10)
+
+    self.assertEqual(algorithm_1.suggest(10), algorithm_2.suggest(10))
+
+    completed_trials = []
+
+    for tid in range(1, 11):
+      trial = vz.Trial(id=tid)
+
+      trial.complete(
+          vz.Measurement({
+              'm1': np.random.random(),
+              'm2': np.random.random(),
+              's1': np.random.random(),
+              's2': np.random.random(),
+          })
+      )
+
+      completed_trials.append(trial)
+
+    trials = vza.CompletedTrials(completed_trials)
+    algorithm_1.update(trials, vza.ActiveTrials())
+    algorithm_2.update(trials, vza.ActiveTrials())
+
+    self.assertEqual(algorithm_1.suggest(10), algorithm_2.suggest(10))
 
 
 if __name__ == '__main__':

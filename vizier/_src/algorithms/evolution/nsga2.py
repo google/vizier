@@ -238,19 +238,18 @@ class NSGA2Designer(
     Returns:
       NSGA2 Designer.
     """
-    del seed
     super().__init__(
         numpy_populations.PopulationConverter(
             problem.search_space,
             problem.metric_information,
             metadata_ns=metadata_namespace,
         ),
-        numpy_populations.UniformRandomSampler(problem.search_space),
+        numpy_populations.UniformRandomSampler(problem.search_space, seed=seed),
         NSGA2Survival(
             population_size,
             ranking_fn=ranking_fn,
             eviction_limit=eviction_limit,
         ),
-        adaptation=numpy_populations.LinfMutation(),
+        adaptation=numpy_populations.LinfMutation(seed=seed),
         first_survival_after=first_survival_after,
     )
