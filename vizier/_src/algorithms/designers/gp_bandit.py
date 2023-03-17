@@ -71,12 +71,15 @@ class VizierGPBandit(vza.Designer):
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
   _acquisition_optimizer: Union[
       vza.GradientFreeOptimizer, vb.VectorizedOptimizer
-  ] = attr.field(kw_only=False,
-                 factory=lambda: VizierGPBandit.default_acquisition_optimizer)
+  ] = attr.field(
+      kw_only=False,
+      factory=lambda: VizierGPBandit.default_acquisition_optimizer,
+  )
   _metadata_ns: str = attr.field(default='oss_gp_bandit', kw_only=True)
   _trials: list[vz.Trial] = attr.field(factory=list, init=False)
   _ard_optimizer: optimizers.Optimizer = attr.field(
-      factory=lambda: VizierGPBandit.default_ard_optimizer, kw_only=True)
+      factory=lambda: VizierGPBandit.default_ard_optimizer, kw_only=True
+  )
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _rng: chex.PRNGKey = attr.field(
@@ -95,7 +98,8 @@ class VizierGPBandit(vza.Designer):
 
   # not an attr field.
   default_acquisition_optimizer = vb.VectorizedOptimizer(
-      strategy_factory=es.VectorizedEagleStrategyFactory())
+      strategy_factory=es.VectorizedEagleStrategyFactory()
+  )
 
   def __attrs_post_init__(self):
     # Extra validations
@@ -271,7 +275,7 @@ class VizierGPBandit(vza.Designer):
     acquisition_problem = copy.deepcopy(self._problem)
     acquisition_problem.metric_information = [
         vz.MetricInformation(
-            name='acquisition', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='acquisition2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     ]
     logging.info('Optimizing acquisition...')
