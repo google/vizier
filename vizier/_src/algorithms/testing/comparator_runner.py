@@ -125,8 +125,8 @@ class SimpleRegretComparisonTester:
   """
   baseline_num_trials: int
   candidate_num_trials: int
-  baseline_suggestion_batch_size: int
-  candidate_suggestion_batch_size: int
+  baseline_eval_batch_size: int
+  candidate_eval_batch_size: int
   baseline_num_repeats: int
   candidate_num_repeats: int
   alpha: float = attr.field(
@@ -148,12 +148,14 @@ class SimpleRegretComparisonTester:
     candidate_obj_values = []
 
     baseline_optimizer = baseline_optimizer_factory(
-        suggestion_batch_size=self.baseline_suggestion_batch_size,
-        max_evaluations=self.baseline_num_trials)
+        eval_batch_size=self.baseline_eval_batch_size,
+        max_evaluations=self.baseline_num_trials,
+    )
 
     candidate_optimizer = candidate_optimizer_factory(
-        suggestion_batch_size=self.candidate_suggestion_batch_size,
-        max_evaluations=self.candidate_num_trials)
+        eval_batch_size=self.candidate_eval_batch_size,
+        max_evaluations=self.candidate_num_trials,
+    )
 
     for i in range(self.baseline_num_repeats):
       trial = baseline_optimizer.optimize(converter, score_fn, count=1, seed=i)
@@ -196,16 +198,20 @@ class SimpleRegretComparisonTester:
           _run_one(
               benchmark_state_factory=baseline_benchmark_state_factory,
               num_trials=self.baseline_num_trials,
-              batch_size=self.baseline_suggestion_batch_size,
-              seed=idx))
+              batch_size=self.baseline_eval_batch_size,
+              seed=idx,
+          )
+      )
 
     for idx in range(self.candidate_num_repeats):
       candidate_obj_values.append(
           _run_one(
               benchmark_state_factory=candidate_benchmark_state_factory,
               num_trials=self.candidate_num_trials,
-              batch_size=self.candidate_suggestion_batch_size,
-              seed=idx))
+              batch_size=self.candidate_eval_batch_size,
+              seed=idx,
+          )
+      )
     self._conclude_test(baseline_obj_values, candidate_obj_values)
 
   def _conclude_test(self, baseline_obj_values: list[float],

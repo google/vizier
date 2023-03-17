@@ -120,6 +120,7 @@ class EagleStrategyConfig:
   # Pool size
   pool_size_exponent: float = 1.2
   pool_size: int = 0
+  max_pool_size: int = 100
   # Force normalization mode
   mutate_normalization_type: str = "mean"
   # Multiplier factor when using normalized modes
@@ -137,7 +138,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
   def __call__(
       self,
       converter: converters.TrialToArrayConverter,
-      suggestion_batch_size: int = 5,
+      eval_batch_size: Optional[int] = None,
       seed: Optional[int] = None,
       prior_features: Optional[np.ndarray] = None,
       prior_rewards: Optional[np.ndarray] = None,
@@ -153,7 +154,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     Arguments:
       converter: TrialToArrayConverter that matches the converter used in
         computing the objective / acuisition function.
-      suggestion_batch_size: The batch_size of the returned suggestion array.
+      eval_batch_size: The batch_size of the returned suggestion array.
       seed: The seed to input into the random generator.
       prior_features: The prior features for populating the pool.
         (n_prior_candidates, n_features)
@@ -166,7 +167,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     return VectorizedEagleStrategy(
         converter=converter,
         config=self.eagle_config,
-        batch_size=suggestion_batch_size,
+        batch_size=eval_batch_size,
         seed=seed,
         prior_features=prior_features,
         prior_rewards=prior_rewards,
@@ -207,11 +208,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   converter: converters.TrialToArrayConverter
   config: EagleStrategyConfig = attr.field(init=True, repr=False)
-  batch_size: int = attr.field(init=True)
-  seed: Optional[int] = attr.field(init=True)
-  pool_size: int = attr.field(init=False)
+  batch_size: Optional[int] = attr.field(init=True, default=None)
+  seed: Optional[int] = attr.field(init=True, default=None)
   prior_features: Optional[np.ndarray] = attr.field(init=True, default=None)
   prior_rewards: Optional[np.ndarray] = attr.field(init=True, default=None)
+  pool_size: int = attr.field(init=False)
   # Attributes related to the strategy's state.
   _features: np.ndarray = attr.field(init=False, repr=False)
   _rewards: np.ndarray = attr.field(init=False, repr=False)
@@ -233,11 +234,16 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def _compute_pool_size(self):
     """Compute the pool size, and ensures it's a multiply of the batch_size."""
-    raw_pool_size = 10 + int(
-        0.5 * self._n_features
-        + self._n_features**self.config.pool_size_exponent
+    n_params = len(self.converter.output_specs)
+    pool_size = 10 + int(
+        0.5 * n_params + n_params**self.config.pool_size_exponent
     )
-    return int(np.ceil(raw_pool_size / self.batch_size) * self.batch_size)
+    pool_size = min(pool_size, self.config.max_pool_size)
+    if self.batch_size is not None:
+      # If the batch_size was set, ensure pool_size is multiply of batch_size.
+      return int(np.ceil(pool_size / self.batch_size) * self.batch_size)
+    else:
+      return pool_size
 
   def _initialize(self):
     """Initialize the designer state."""
@@ -255,7 +261,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     else:
       self.pool_size = self._compute_pool_size()
     logging.info("Pool size: %d", self.pool_size)
-    if self.batch_size == -1:
+    if self.batch_size is None:
       # This configuration updates all the fireflies in each iteration.
       self.batch_size = self.pool_size
     self._batch_id = 0
@@ -309,8 +315,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       raise ValueError("prior rewards is expected to be 1D array!")
 
     # Reverse the order of prior trials to assign more weight to recent trials.
-    self.prior_features = np.flip(self.prior_features, axis=-1)
-    self.prior_rewards = np.flip(self.prior_rewards, axis=-1)
+    self.prior_features = np.flip(self.prior_features, axis=0)
+    self.prior_rewards = np.flip(self.prior_rewards, axis=0)
 
     self._features = np.zeros((0, self._n_features))
     # Fill pool with random features.
@@ -345,7 +351,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       self._features = np.concatenate([self._features, tmp_features])
 
   @property
-  def suggestion_batch_size(self) -> int:
+  def eval_batch_size(self) -> int:
     """The number of suggestions returned at each call of 'suggest'."""
     return self.batch_size
 

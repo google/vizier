@@ -34,7 +34,8 @@ class RandomVectorizedOptimizerTest(absltest.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: np.sum(x, axis=-1)
     random_optimizer = rvo.create_random_optimizer(
-        max_evaluations=100, suggestion_batch_size=10)
+        max_evaluations=100, eval_batch_size=10
+    )
     res = random_optimizer.optimize(
         converter=converter, score_fn=score_fn, count=5)
     self.assertLen(res, 5)
@@ -42,8 +43,9 @@ class RandomVectorizedOptimizerTest(absltest.TestCase):
   def test_random_optimizer_factory(self):
     random_optimizer_factory = rvo.create_random_optimizer_factory()
     random_optimizer = random_optimizer_factory(
-        max_evaluations=100, suggestion_batch_size=10)
-    self.assertEqual(random_optimizer.suggestion_batch_size, 10)
+        max_evaluations=100, eval_batch_size=10
+    )
+    self.assertEqual(random_optimizer.eval_batch_size, 10)
     self.assertEqual(random_optimizer.max_evaluations, 100)
 
 

@@ -20,7 +20,7 @@ import abc
 import datetime
 import heapq
 import logging
-from typing import Optional, Protocol, Sequence, Union
+from typing import Optional, Protocol, Sequence
 
 import attr
 import chex
@@ -29,7 +29,7 @@ from vizier import pyvizier as vz
 from vizier.pyvizier import converters
 
 # Support for both JAX and Numpy arrays
-Array = Union[np.ndarray, chex.Array]
+Array = chex.Array
 
 
 @attr.define
@@ -61,8 +61,8 @@ class VectorizedStrategy(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def suggestion_batch_size(self) -> int:
-    """The number of suggestions returned at every suggest call."""
+  def eval_batch_size(self) -> Optional[int]:
+    """The number of points to be evaluated at once."""
 
   @abc.abstractmethod
   def update(self, rewards: Array) -> None:
@@ -84,7 +84,7 @@ class VectorizedStrategyFactory(Protocol):
       self,
       converter: converters.TrialToArrayConverter,
       *,
-      suggestion_batch_size: int,
+      eval_batch_size: Optional[int] = None,
       seed: Optional[int] = None,
       prior_features: Optional[np.ndarray] = None,
       prior_rewards: Optional[np.ndarray] = None,
@@ -93,7 +93,7 @@ class VectorizedStrategyFactory(Protocol):
 
     Arguments:
       converter: The trial to array converter.
-      suggestion_batch_size: The number of trials to be evaluated at once.
+      eval_batch_size: The number of trials to be evaluated at once.
       seed: The random seed.
       prior_features: Prior trial features for knowledge transfer with a shape
         of (n_trial_featurs, n_features)
@@ -136,16 +136,16 @@ class VectorizedOptimizer:
 
   Attributes:
     strategy_factory: A factory for generating new strategy.
-    max_evaluations: The maximum number of objective function evaluations.
+    max_evaluations: The maximal number of calls to score_fn. Each call
+      evaluates eval_batch_size parameters in one call.
     max_duration: The maximum duration of the optimization process.
-    suggestion_batch_size: The batch size of the suggestion vector received at
-      each 'suggest' call.
+    eval_batch_size: The number of points to be evaluated at once.
   """
 
   strategy_factory: VectorizedStrategyFactory
-  suggestion_batch_size: int = 25
-  max_evaluations: int = 75_000
+  max_evaluations: int = 3000
   max_duration: Optional[datetime.timedelta] = None
+  eval_batch_size: Optional[int] = None
 
   def optimize(
       self,
@@ -198,7 +198,7 @@ class VectorizedOptimizer:
 
     strategy = self.strategy_factory(
         converter=converter,
-        suggestion_batch_size=self.suggestion_batch_size,
+        eval_batch_size=self.eval_batch_size,
         seed=seed,
         prior_features=prior_features,
         prior_rewards=prior_rewards,
@@ -213,14 +213,15 @@ class VectorizedOptimizer:
       new_rewards = np.asarray(score_fn(new_features))
       strategy.update(new_rewards)
       self._update_best_results(best_results, count, new_features, new_rewards)
-      evaluated_count += len(new_rewards)
+      evaluated_count += 1
     logging.info(
         (
-            'Optimization completed. Duration: %s. Evaluations: %s. Best'
-            ' Results: %s'
+            'Optimization completed. Duration: %s. Evaluation Calls: %s.'
+            'Evaluation Batch Size: %s, Best Results: %s'
         ),
         datetime.datetime.now() - start_time,
         evaluated_count,
+        strategy.eval_batch_size,
         best_results,
     )
 
@@ -304,24 +305,10 @@ class VectorizedOptimizer:
     """Determines if the optimizer has reached its optimization budget."""
     duration = datetime.datetime.now() - start_time
     if self.max_duration and duration >= self.max_duration:
-      logging.info(
-          (
-              'Optimization completed. Reached time limit. Duration: %s.'
-              ' Evaluations: %s'
-          ),
-          duration,
-          evaluated_count,
-      )
+      logging.info('Optimization completed. Reached time limit.')
       return True
     elif evaluated_count >= self.max_evaluations:
-      logging.info(
-          (
-              'Optimization completed. Reached evaluations limit. Duration: %s.'
-              ' Evaluations: %s'
-          ),
-          duration,
-          evaluated_count,
-      )
+      logging.info('Optimization completed. Reached evaluations limit.')
       return True
     else:
       return False
@@ -335,14 +322,14 @@ class VectorizedOptimizerFactory:
 
   def __call__(
       self,
-      suggestion_batch_size: int,
       max_evaluations: int,
       max_duration: Optional[datetime.timedelta] = None,
+      eval_batch_size: Optional[int] = None,
   ) -> VectorizedOptimizer:
     """Generates a new VectorizedOptimizer object."""
     return VectorizedOptimizer(
         strategy_factory=self.strategy_factory,
-        suggestion_batch_size=suggestion_batch_size,
+        eval_batch_size=eval_batch_size,
         max_evaluations=max_evaluations,
         max_duration=max_duration,
     )

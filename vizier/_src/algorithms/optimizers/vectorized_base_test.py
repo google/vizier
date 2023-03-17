@@ -52,7 +52,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
     return suggestions
 
   @property
-  def suggestion_batch_size(self) -> int:
+  def eval_batch_size(self) -> int:
     return 5
 
   def update(self, rewards: np.ndarray) -> None:
@@ -62,7 +62,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
 # pylint: disable=unused-argument
 def fake_increment_strategy_factory(
     converter: converters.TrialToArrayConverter,
-    suggestion_batch_size: int,
+    eval_batch_size: int,
     seed: Optional[int] = None,
     prior_features: Optional[np.ndarray] = None,
     prior_rewards: Optional[np.ndarray] = None,
@@ -84,7 +84,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
     )
 
   @property
-  def suggestion_batch_size(self) -> int:
+  def eval_batch_size(self) -> int:
     return 1
 
   def update(self, rewards: np.ndarray) -> None:
@@ -94,7 +94,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
 # pylint: disable=unused-argument
 def fake_prior_trials_strategy_factory(
     converter: converters.TrialToArrayConverter,
-    suggestion_batch_size: int,
+    eval_batch_size: int,
     seed: Optional[int] = None,
     prior_features: Optional[np.ndarray] = None,
     prior_rewards: Optional[np.ndarray] = None,
@@ -135,7 +135,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     )
     optimizer.optimize(converter=converter, score_fn=score_fn, count=3)
     # The batch size is 5, so we expect 100/5 = 20 calls
-    self.assertEqual(score_fn.call_count, 20)
+    self.assertEqual(score_fn.call_count, 100)
 
   def test_best_candidates_count_is_1(self):
     problem = vz.ProblemStatement()
@@ -165,7 +165,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -np.max(np.square(x - 0.52), axis=-1)
     optimizer = vb.VectorizedOptimizer(
-        strategy_factory=fake_increment_strategy_factory, max_evaluations=10
+        strategy_factory=fake_increment_strategy_factory, max_evaluations=2
     )
     best_candidates = optimizer.optimize(
         converter=converter, score_fn=score_fn, count=3
@@ -217,16 +217,16 @@ class VectorizedBaseTest(parameterized.TestCase):
     optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory
     )
-    optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=1000)
+    optimizer = optimizer_factory(eval_batch_size=5, max_evaluations=1000)
     self.assertEqual(optimizer.max_evaluations, 1000)
-    self.assertEqual(optimizer.suggestion_batch_size, 5)
+    self.assertEqual(optimizer.eval_batch_size, 5)
 
   def test_prior_trials(self):
     """Test that the optimizer can correctly parsae and pass seed trials."""
     optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_prior_trials_strategy_factory
     )
-    optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=100)
+    optimizer = optimizer_factory(eval_batch_size=5, max_evaluations=100)
 
     study_config = vz.ProblemStatement(
         metric_information=[

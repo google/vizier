@@ -29,13 +29,13 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
   def __init__(
       self,
       converter: converters.TrialToArrayConverter,
-      suggestion_batch_size: int,
+      eval_batch_size: int,
       seed: Optional[int] = None,
       prior_features: Optional[np.ndarray] = None,
       prior_rewards: Optional[np.ndarray] = None,
   ):
     self._converter = converter
-    self._suggestion_batch_size = suggestion_batch_size
+    self._eval_batch_size = eval_batch_size
     self._rng = np.random.default_rng(seed)
     self._n_features = sum(
         [spec.num_dimensions for spec in self._converter.output_specs]
@@ -46,13 +46,13 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
         low=0,
         high=1,
         size=(
-            self._suggestion_batch_size,
+            self._eval_batch_size,
             self._n_features,
         ),
     )
 
-  def suggestion_batch_size(self) -> int:
-    return self._suggestion_batch_size
+  def eval_batch_size(self) -> int:
+    return self._eval_batch_size
 
   def update(self, rewards: vb.Array) -> None:
     pass
@@ -60,7 +60,7 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
 
 def _random_strategy_factory(
     converter: converters.TrialToArrayConverter,
-    suggestion_batch_size: int,
+    eval_batch_size: int,
     seed: Optional[int] = None,
     prior_features: Optional[np.ndarray] = None,
     prior_rewards: Optional[np.ndarray] = None,
@@ -68,7 +68,7 @@ def _random_strategy_factory(
   """Creates a new vectorized strategy based on the Protocol."""
   return RandomVectorizedStrategy(
       converter=converter,
-      suggestion_batch_size=suggestion_batch_size,
+      eval_batch_size=eval_batch_size,
       seed=seed,
       prior_features=prior_features,
       prior_rewards=prior_rewards,
@@ -76,13 +76,13 @@ def _random_strategy_factory(
 
 
 def create_random_optimizer(
-    max_evaluations: int, suggestion_batch_size: int
+    max_evaluations: int, eval_batch_size: int
 ) -> vb.VectorizedOptimizer:
   """Creates a random optimizer."""
   return vb.VectorizedOptimizer(
       strategy_factory=_random_strategy_factory,
       max_evaluations=max_evaluations,
-      suggestion_batch_size=suggestion_batch_size,
+      eval_batch_size=eval_batch_size,
   )
 
 

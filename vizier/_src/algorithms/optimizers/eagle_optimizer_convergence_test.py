@@ -103,7 +103,7 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
   )
   def test_converges(self, create_problem_fn, n_features, score_fn):
     logging.info('Starting a new convergence test (n_features: %s)', n_features)
-    evaluations = 20_000
+    evaluations = 4000  # 20_000 // 5
     problem = create_problem_fn(n_features)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     eagle_strategy_factory = eagle_strategy.VectorizedEagleStrategyFactory(
@@ -118,17 +118,18 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
     comparator_runner.SimpleRegretComparisonTester(
         baseline_num_trials=2 * evaluations,
         candidate_num_trials=evaluations,
-        baseline_suggestion_batch_size=5,
-        candidate_suggestion_batch_size=5,
+        baseline_eval_batch_size=5,
+        candidate_eval_batch_size=5,
         baseline_num_repeats=5,
         candidate_num_repeats=3,
         alpha=0.05,
-        goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        goal=vz.ObjectiveMetricGoal.MAXIMIZE,
     ).assert_optimizer_better_simple_regret(
         converter=converter,
         score_fn=shifted_score_fn,
         baseline_optimizer_factory=random_optimizer_factory,
-        candidate_optimizer_factory=eagle_optimizer_factory)
+        candidate_optimizer_factory=eagle_optimizer_factory,
+    )
 
 
 if __name__ == '__main__':
