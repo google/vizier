@@ -40,18 +40,21 @@ _T = TypeVar('_T')
 def _min_leq_max(instance: 'MetricInformation', _, value: float):
   if value > instance.max_value:
     raise ValueError(
-        f'min_value={value} cannot exceed max_value={instance.max_value}.')
+        f'min_value={value} cannot exceed max_value={instance.max_value}.'
+    )
 
 
 def _max_geq_min(instance: 'MetricInformation', _, value: float):
   if value < instance.min_value:
     raise ValueError(
-        f'min_value={instance.min_value} cannot exceed max_value={value}.')
+        f'min_value={instance.min_value} cannot exceed max_value={value}.'
+    )
 
 
 # Values should NEVER be removed from ObjectiveMetricGoal, only added.
 class ObjectiveMetricGoal(enum.IntEnum):
   """Valid Values for MetricInformation.Goal."""
+
   MAXIMIZE = 1
   MINIMIZE = 2
 
@@ -71,6 +74,7 @@ class MetricType(enum.Enum):
   OBJECTIVE: Objective to be maximized / minimized.
   SAFETY: Objective to be kept above / below a certain threshold.
   """
+
   OBJECTIVE = 'OBJECTIVE'
   SAFETY = 'SAFETY'  # Soft constraint
 
@@ -91,7 +95,8 @@ class MetricInformation:
   # The name of this metric. An empty string is allowed for single-metric
   # optimizations.
   name: str = attr.field(
-      init=True, default='', validator=attr.validators.instance_of(str))
+      init=True, default='', validator=attr.validators.instance_of(str)
+  )
 
   goal: ObjectiveMetricGoal = attr.field(
       init=True,
@@ -99,7 +104,8 @@ class MetricInformation:
       converter=ObjectiveMetricGoal,
       validator=attr.validators.instance_of(ObjectiveMetricGoal),
       on_setattr=[attr.setters.convert, attr.setters.validate],
-      kw_only=True)
+      kw_only=True,
+  )
 
   # The following should be used to configure this as a safety metric.
   # safety_threshold must always be set to a float (default 0.0), for safety
@@ -108,7 +114,8 @@ class MetricInformation:
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
-      kw_only=True)
+      kw_only=True,
+  )
   # Safety_std_threshold is DEPRECATED and is here for backward compatibility.
   # To configure how cautious the optimization should be, please defer to
   # desired_min_safe_trials_fraction. This corresponds to the allowed
@@ -118,7 +125,8 @@ class MetricInformation:
       init=True,
       default=None,
       validator=attr.validators.optional(attr.validators.instance_of(float)),
-      kw_only=True)
+      kw_only=True,
+  )
   # Desired minimum fraction of safe trials (over total number of trials)
   # that should be targeted by the algorithm during the entire duration of the
   # study (best effort). A value of 0.0 is the same as None. If unset, or set
@@ -130,9 +138,10 @@ class MetricInformation:
       validator=[
           attr.validators.optional(attr.validators.instance_of(float)),
           attr.validators.optional(attr.validators.le(1.0)),
-          attr.validators.optional(attr.validators.ge(0.0))
+          attr.validators.optional(attr.validators.ge(0.0)),
       ],
-      kw_only=True)
+      kw_only=True,
+  )
 
   # Minimum value of this metric can be optionally specified.
   min_value: float = attr.field(
@@ -141,7 +150,8 @@ class MetricInformation:
       # FYI: Converter is applied before validator.
       converter=lambda x: float(x) if x is not None else -np.inf,
       validator=[attr.validators.instance_of(float), _min_leq_max],
-      kw_only=True)
+      kw_only=True,
+  )
 
   # Maximum value of this metric can be optionally specified.
   max_value: float = attr.field(
@@ -151,7 +161,8 @@ class MetricInformation:
       converter=lambda x: float(x) if x is not None else np.inf,
       validator=[attr.validators.instance_of(float), _max_geq_min],
       on_setattr=attr.setters.validate,
-      kw_only=True)
+      kw_only=True,
+  )
 
   def min_value_or(self, default_value_fn: Callable[[], float]) -> float:
     """Returns the minimum value if finite, or default_value_fn().
@@ -212,18 +223,24 @@ class MetricsConfig(Collection[MetricInformation]):
 
   Metric names should be unique.
   """
+
   _metrics: List[MetricInformation] = attr.ib(
       init=True,
       factory=list,
       converter=list,
       validator=attr.validators.deep_iterable(
           member_validator=attr.validators.instance_of(MetricInformation),
-          iterable_validator=attr.validators.instance_of(Iterable)))
+          iterable_validator=attr.validators.instance_of(Iterable),
+      ),
+  )
 
   def item(self) -> MetricInformation:
     if len(self._metrics) != 1:
-      raise ValueError('item() may only be called when there is exactly one '
-                       'metric (there are %d).' % len(self._metrics))
+      raise ValueError(
+          'item() may only be called when there is exactly one '
+          'metric (there are %d).'
+          % len(self._metrics)
+      )
     return self._metrics[0]
 
   def _assert_names_are_unique(self) -> None:
@@ -249,8 +266,8 @@ class MetricsConfig(Collection[MetricInformation]):
     return MetricsConfig(self._metrics + list(metrics))
 
   def of_type(
-      self, include: Union[MetricType,
-                           Iterable[MetricType]]) -> 'MetricsConfig':
+      self, include: Union[MetricType, Iterable[MetricType]]
+  ) -> 'MetricsConfig':
     """Filters the Metrics by type."""
     if isinstance(include, MetricType):
       include = (include,)
@@ -302,20 +319,26 @@ class ProblemStatement:
   search_space: parameter_config.SearchSpace = attr.ib(
       init=True,
       factory=parameter_config.SearchSpace,
-      validator=attr.validators.instance_of(parameter_config.SearchSpace))
+      validator=attr.validators.instance_of(parameter_config.SearchSpace),
+      on_setattr=[attr.setters.convert, attr.setters.validate],
+  )
 
   metric_information: MetricsConfig = attr.ib(
       init=True,
       factory=MetricsConfig,
       converter=MetricsConfig,
       validator=attr.validators.instance_of(MetricsConfig),
-      kw_only=True)
+      on_setattr=[attr.setters.convert, attr.setters.validate],
+      kw_only=True,
+  )
 
   metadata: common.Metadata = attr.field(
       init=True,
       kw_only=True,
       factory=common.Metadata,
-      validator=attr.validators.instance_of(common.Metadata))
+      validator=attr.validators.instance_of(common.Metadata),
+      on_setattr=[attr.setters.convert, attr.setters.validate],
+  )
 
   @property
   def debug_info(self) -> str:
@@ -339,7 +362,8 @@ class ProblemStatement:
     return cls(
         search_space=problem.search_space,
         metric_information=problem.metric_information,
-        metadata=problem.metadata)
+        metadata=problem.metadata,
+    )
 
   def to_problem(self) -> 'ProblemStatement':
     """Converts to a ProblemStatement which is the parent class of `self`.
@@ -354,7 +378,8 @@ class ProblemStatement:
     return ProblemStatement(
         search_space=self.search_space,
         metric_information=self.metric_information,
-        metadata=self.metadata)
+        metadata=self.metadata,
+    )
 
   @property
   def is_single_objective(self) -> bool:
