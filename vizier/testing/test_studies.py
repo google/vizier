@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Test study generator."""
 
-from typing import Collection
+from typing import List
 from vizier import pyvizier as vz
 
 
@@ -48,7 +48,7 @@ def flat_space_with_all_types() -> vz.SearchSpace:
   return space
 
 
-def metrics_objective_goals() -> Collection[vz.MetricInformation]:
+def metrics_objective_goals() -> List[vz.MetricInformation]:
   return [
       vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
       vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
@@ -62,7 +62,7 @@ def metrics_objective_goals() -> Collection[vz.MetricInformation]:
   ]
 
 
-def metrics_all_unconstrained() -> Collection[vz.MetricInformation]:
+def metrics_all_unconstrained() -> List[vz.MetricInformation]:
   return [
       vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
       vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
@@ -73,7 +73,7 @@ def metrics_all_unconstrained() -> Collection[vz.MetricInformation]:
   ]
 
 
-def metrics_all_constrained() -> Collection[vz.MetricInformation]:
+def metrics_all_constrained() -> List[vz.MetricInformation]:
   return [
       vz.MetricInformation(
           'auc',
