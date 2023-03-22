@@ -134,8 +134,8 @@ class NumpyArraySpec:
       type_factory: Callable[
           [pyvizier.ParameterConfig], NumpyArraySpecType
       ] = NumpyArraySpecType.default_factory,
-      floating_dtype: np.dtype = np.float32,
-      int_dtype: np.dtype = np.int32,
+      floating_dtype: Union[np.dtype, Type[np.floating]] = np.float32,
+      int_dtype: Union[np.dtype, Type[np.integer]] = np.int32,
       *,
       pad_oovs: bool = True,
   ) -> 'NumpyArraySpec':
@@ -158,7 +158,7 @@ class NumpyArraySpec:
     if the_type == NumpyArraySpecType.CONTINUOUS:
       return NumpyArraySpec(
           the_type,
-          floating_dtype,
+          np.dtype(floating_dtype),
           bounds=pc.bounds,
           num_dimensions=1,
           scale=pc.scale_type,
@@ -168,7 +168,7 @@ class NumpyArraySpec:
     elif the_type == NumpyArraySpecType.DISCRETE:
       return NumpyArraySpec(
           the_type,
-          int_dtype,
+          np.dtype(int_dtype),
           bounds=(0, len(pc.feasible_values)),
           num_dimensions=1,
           name=pc.name,
@@ -177,7 +177,7 @@ class NumpyArraySpec:
     elif the_type == NumpyArraySpecType.ONEHOT_EMBEDDING:
       return NumpyArraySpec(
           the_type,
-          floating_dtype,
+          np.dtype(floating_dtype),
           bounds=(0.0, 1.0),
           num_dimensions=len(pc.feasible_values) + 1,
           name=pc.name,
@@ -511,7 +511,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       parameter_config: pyvizier.ParameterConfig,
       getter: Optional[Callable[[pyvizier.TrialSuggestion], Any]] = None,
       *,
-      float_dtype: np.dtype = np.float32,
+      float_dtype: Union[np.dtype, Type[np.floating]] = np.float32,
       max_discrete_indices: int = 10,
       scale: bool = False,
       onehot_embed: bool = False,
@@ -748,7 +748,9 @@ class DefaultModelOutputConverter(ModelOutputConverter):
       *,
       flip_sign_for_minimization_metrics: bool = False,
       shift_safe_metrics: bool = True,
-      dtype: Union[Type[float], Type[int], np.dtype] = np.float32,
+      dtype: Union[
+          Type[float], Type[int], Type[np.generic], np.dtype
+      ] = np.float32,
       raise_errors_for_missing_metrics: bool = False,
   ):
     """Init.
