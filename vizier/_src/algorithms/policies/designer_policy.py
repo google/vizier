@@ -54,15 +54,19 @@ class DesignerPolicy(pythia.Policy):
       self,
       supporter: pythia.PolicySupporter,
       designer_factory: vza.DesignerFactory[vza.Designer],
+      *,
+      policy_name: str = 'DesignerPolicy',
   ):
     """Init.
 
     Args:
       supporter:
       designer_factory:
+      policy_name: A user visible name.
     """
     self._supporter = supporter
     self._designer_factory = designer_factory
+    self._policy_name = policy_name
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     designer = self._designer_factory(request.study_config)
@@ -73,17 +77,24 @@ class DesignerPolicy(pythia.Policy):
     designer.update(vza.CompletedTrials(completed), vza.ActiveTrials(active))
     self._designer = designer  # saved for debugging purposes only.
     return pythia.SuggestDecision(
-        designer.suggest(request.count), metadata=vz.MetadataDelta())
+        designer.suggest(request.count), metadata=vz.MetadataDelta()
+    )
 
-  def early_stop(self,
-                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
+  def early_stop(
+      self, request: pythia.EarlyStopRequest
+  ) -> pythia.EarlyStopDecisions:
     raise NotImplementedError(
-        'DesignerPolicy does not support the early_stop() method.')
+        'DesignerPolicy does not support the early_stop() method.'
+    )
+
+  @property
+  def name(self) -> str:
+    return self._policy_name
 
 
-class _SerializableDesignerPolicyBase(pythia.Policy,
-                                      serializable.PartiallySerializable,
-                                      Generic[_T], abc.ABC):
+class _SerializableDesignerPolicyBase(
+    pythia.Policy, serializable.PartiallySerializable, Generic[_T], abc.ABC
+):
   """Partially implemented class for wrapping a (Partially)SerializableDesigner.
 
   Inherited by (Partially)SerializableDesignerPolicy which is fully implemented.
@@ -119,6 +130,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       ns_root: str = 'designer_policy_v0',
       verbose: int = 0,
       seed: Optional[int] = None,
+      policy_name: str = '_SerializableDesignerPolicyBase',
   ):
     """Init.
 
@@ -130,6 +142,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       ns_root: Root of the namespace where policy state is stored.
       verbose: Logging verbosity.
       seed: Random seed to be passed to the designer factory.
+      policy_name: A user visible name.
     """
     self._supporter = supporter
     self._designer_factory = designer_factory
@@ -139,6 +152,7 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     self._verbose = verbose
     self._designer = None
     self._seed = seed
+    self._policy_name = policy_name
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     """Perform a suggest operation.
@@ -183,20 +197,25 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     # During the 'suggest' call the designer's state could be changed, therefore
     # the state is dumped and stored only after 'suggest' was called.
     suggestions = pythia.SuggestDecision(
-        self.designer.suggest(request.count), metadata=metadata_delta)
+        self.designer.suggest(request.count), metadata=metadata_delta
+    )
     metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
     return suggestions
 
-  def early_stop(self,
-                 request: pythia.EarlyStopRequest) -> pythia.EarlyStopDecisions:
+  def early_stop(
+      self, request: pythia.EarlyStopRequest
+  ) -> pythia.EarlyStopDecisions:
     raise NotImplementedError(
-        'PartiallySerializableDesignerPolicy does not implement early_stop().')
+        'PartiallySerializableDesignerPolicy does not implement early_stop().'
+    )
 
   @property
   def designer(self) -> _T:
     if self._designer is None:
-      raise ValueError('`self._designer` has not been initialized!'
-                       'Use self._restore_designer(..) to initialize it.')
+      raise ValueError(
+          '`self._designer` has not been initialized!'
+          'Use self._restore_designer(..) to initialize it.'
+      )
     return self._designer
 
   @abc.abstractmethod
@@ -236,8 +255,9 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     )
     self._designer = self._restore_designer(md.ns(self._ns_designer))
 
-  def _initialize_designer(self,
-                           problem_statement: vz.ProblemStatement) -> None:
+  def _initialize_designer(
+      self, problem_statement: vz.ProblemStatement
+  ) -> None:
     """Guarantees that `self._designer` is populated.
 
     This method guarantees that after a successful call, `self.designer` does
@@ -257,8 +277,10 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       # TOCONSIDER: Adding a boolean knob to turn off this behavior.
       logging.log_if(
           logging.INFO,
-          ('Policy already has a designer. '
-           'It will not attempt to load from metadata.'),
+          (
+              'Policy already has a designer. '
+              'It will not attempt to load from metadata.'
+          ),
           self._verbose >= 2,
       )
       return
@@ -266,16 +288,19 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
       raise ValueError(
           f'{type(self)} cannot be re-used for different study configs!'
           f'Policy: {self}, previous study: {self._problem_statement} '
-          f'new study: {problem_statement}')
+          f'new study: {problem_statement}'
+      )
 
     metadata = problem_statement.metadata.ns(self._ns_root)
     try:
       self.load(metadata)
-      logging.log_if(logging.INFO, 'Successfully decoded all states!',
-                     self._verbose >= 1)
+      logging.log_if(
+          logging.INFO, 'Successfully decoded all states!', self._verbose >= 1
+      )
     except serializable.DecodeError as e:
-      logging.log_if(logging.INFO, 'Failed to decode state. %s',
-                     self._verbose >= 1, e)
+      logging.log_if(
+          logging.INFO, 'Failed to decode state. %s', self._verbose >= 1, e
+      )
       # Restart the state of the policy.
       self._designer = self._designer_factory(
           problem_statement, seed=self._seed
@@ -335,6 +360,10 @@ class _SerializableDesignerPolicyBase(pythia.Policy,
     )
     return new_trials
 
+  @property
+  def name(self) -> str:
+    return self._policy_name
+
 
 # TODO: Rewrite base to separate incorporated trial logic from
 # serialization logic. For now, it simply disables the serialization.
@@ -351,19 +380,21 @@ class InRamDesignerPolicy(_SerializableDesignerPolicyBase[vza.Designer]):
 
 
 class PartiallySerializableDesignerPolicy(
-    _SerializableDesignerPolicyBase[vza.PartiallySerializableDesigner]):
+    _SerializableDesignerPolicyBase[vza.PartiallySerializableDesigner]
+):
   """Wraps a PartiallySerializableDesigner."""
 
   def _restore_designer(
-      self,
-      designer_metadata: vz.Metadata) -> vza.PartiallySerializableDesigner:
+      self, designer_metadata: vz.Metadata
+  ) -> vza.PartiallySerializableDesigner:
     designer = self._designer_factory(self._problem_statement)
     designer.load(designer_metadata)
     return designer
 
 
 class SerializableDesignerPolicy(
-    _SerializableDesignerPolicyBase[vza.SerializableDesigner]):
+    _SerializableDesignerPolicyBase[vza.SerializableDesigner]
+):
   """Wraps a SerializableDesigner."""
 
   def __init__(
@@ -397,5 +428,6 @@ class SerializableDesignerPolicy(
     self._designer_cls = designer_cls
 
   def _restore_designer(
-      self, designer_metadata: vz.Metadata) -> vza.SerializableDesigner:
+      self, designer_metadata: vz.Metadata
+  ) -> vza.SerializableDesigner:
     return self._designer_cls.recover(designer_metadata)

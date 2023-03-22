@@ -247,6 +247,12 @@ class Policy(abc.ABC):
     """
 
   @property
+  def name(self) -> str:
+    """Returns the policy name."""
+    # Derived classes should override this implementation.
+    return __class__.__name__
+
+  @property
   def should_be_cached(self) -> bool:
     """Returns True if it's safe & worthwhile to cache this Policy in RAM.
 
