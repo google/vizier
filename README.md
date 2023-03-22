@@ -14,7 +14,7 @@
 | [**Getting Started**](#getting_started)
 | [**Documentation**](#documentation)
 | [**Installation**](#installation)
-| [**Citing Vizier**](#citing_vizier)
+| [**Citing and Highlights**](#citing_vizier)
 
 ## What is Open Source (OSS) Vizier?
 [OSS Vizier](https://arxiv.org/abs/2207.13676) is a Python-based service for black-box optimization and research, based on [Google Vizier](https://dl.acm.org/doi/10.1145/3097983.3098043), one of the first hyperparameter tuning services designed to work at scale.
@@ -105,8 +105,12 @@ which will install additional packages from `requirements-X.txt`, such as:
 
 Check if all unit tests work by running `run_tests.sh` after a full installation. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.7+.
 
-## Citing Vizier <a name="citing_vizier"></a>
-If you found this code useful, please consider citing the [OSS Vizier paper](https://arxiv.org/abs/2207.13676) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043). Thanks!
+## Citing and Highlights <a name="citing_vizier"></a>
+<ins>**Citing Vizier:**</ins> If you found this code useful, please consider citing the [OSS Vizier paper](https://arxiv.org/abs/2207.13676) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043).
+
+<ins>**Highlights:**</ins> We track [notable users](https://oss-vizier.readthedocs.io/en/latest/highlights/applications.html) and [media attention](https://oss-vizier.readthedocs.io/en/latest/highlights/media.html) - let us know if OSS Vizier was helpful for your work.
+
+Thanks!
 
 ```
 @inproceedings{oss_vizier,
