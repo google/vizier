@@ -14,16 +14,17 @@
 
 from __future__ import annotations
 
-"""Acquisition functions implementations."""
-from typing import Sequence, Optional, Protocol
+"""Acquisition functions and builders implementations."""
+import abc
+from typing import Optional, Protocol, Sequence, Callable, Any
 
 import attr
-
-
 import chex
 from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+from vizier import pyvizier as vz
+from vizier._src.jax import stochastic_process_model as sp
 from vizier.pyvizier import converters
 
 tfd = tfp.distributions
@@ -173,3 +174,60 @@ class TrustRegion:
     distances_bounded = jnp.minimum(distances, self._max_distances)
     linf_distance = jnp.max(distances_bounded, axis=-1)  # (M, N)
     return jnp.min(linf_distance, axis=-1)  # (M,)
+
+
+class AcquisitionBuilder(abc.ABC):
+  """Acquisition/prediction builder.
+
+  This builder takes in a Jax/Flax model, along with its hparams, and builds
+  the usable predictive metrics, as well as the acquisition problem and jitted
+  function (note that build may reuse cached jits).
+  """
+
+  @abc.abstractmethod
+  def build(
+      self,
+      problem: vz.ProblemStatement,
+      model: sp.StochasticProcessModel,
+      state: chex.ArrayTree,
+      features: chex.Array,
+      labels: chex.Array,
+      *args,
+      **kwargs,
+  ) -> None:
+    """Builds the predict and acquisition functions.
+
+    Args:
+      problem: Initial problem.
+      model: Jax/Flax model for predictions.
+      state: State of trained hparams or precomputation to be applied in model.
+      features: Features array for acquisition computations (i.e. TrustRegion).
+      labels: Labels array for acquisition computation (i.e. EI)
+      *args:
+      **kwargs:
+    """
+    pass
+
+  @property
+  @abc.abstractmethod
+  def metadata_dict(self) -> dict[str, Any]:
+    """A dictionary of key-value pairs to be added to Suggestion metadata."""
+    pass
+
+  @property
+  @abc.abstractmethod
+  def acquisition_problem(self) -> vz.ProblemStatement:
+    """Acquisition optimization problem statement."""
+    pass
+
+  @property
+  @abc.abstractmethod
+  def acquisition_on_array(self) -> Callable[[chex.Array], chex.Array]:
+    """Acquisition function on features array."""
+    pass
+
+  @property
+  @abc.abstractmethod
+  def predict_on_array(self) -> Callable[[chex.Array], chex.ArrayTree]:
+    """Prediction function on features array."""
+    pass

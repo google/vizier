@@ -22,10 +22,9 @@ A Python implementation of Google Vizier's GP-Bandit algorithm.
 
 import copy
 import datetime
-import functools
 import json
 import random
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, Callable, Any
 
 from absl import logging
 import attr
@@ -48,6 +47,162 @@ from vizier.pyvizier import converters
 from vizier.utils import json_utils
 
 tfd = tfp.distributions
+
+
+@attr.define(slots=False)
+class GPBanditAcquisitionBuilder(acquisitions.AcquisitionBuilder):
+  """Acquisition/prediction builder for the GP Bandit class.
+
+  This builder takes in a Jax/Flax model, along with its hparams, and builds
+  the usable predictive metrics, as well as the acquisition.
+
+  For example:
+
+    acquisition_builder =
+    GPBanditAcquisitionBuilder(acquisition_fn=acquisitions.UCB())
+    acquisition_builder.build(
+          problem_statement,
+          model=model,
+          state=state,
+          features=features,
+          labels=labels,
+          converter=self._converter,
+    )
+    # Get the acquisition Callable.
+    acq = acquisition_builder.acquisition_on_array
+  """
+
+  # Acquisition function that takes a TFP distribution and optional features
+  # and labels.
+  acquisition_fn: acquisitions.AcquisitionFunction = attr.field(
+      factory=acquisitions.UCB, kw_only=True
+  )
+  use_trust_region: bool = attr.field(default=True, kw_only=True)
+
+  def __attrs_post_init__(self):
+    # Perform extra initializations.
+    self._built = False
+
+  def build(
+      self,
+      problem: vz.ProblemStatement,
+      model: sp.StochasticProcessModel,
+      state: chex.ArrayTree,
+      features: chex.Array,
+      labels: chex.Array,
+      converter: converters.TrialToArrayConverter,
+      use_vmap: bool = True,
+  ) -> None:
+    """Generates the predict and acquisition functions.
+
+    Args:
+      problem: See abstraction.
+      model: See abstraction.
+      state: See abstraction.
+      features: See abstraction.
+      labels: See abstraction.
+      converter: TrialToArrayConverter for TrustRegion configuration.
+      use_vmap: If True, applies Vmap across parameter ensembles.
+    """
+
+    def _predict_on_array_one_model(
+        state: chex.ArrayTree, *, xs: chex.Array
+    ) -> chex.ArrayTree:
+      return model.apply(
+          state,
+          xs,
+          features,
+          labels,
+          method=model.posterior_predictive,
+      )
+
+    # Vmaps and combines the predictive distribution over all models.
+    def _get_predictive_dist(xs: chex.Array) -> tfd.Distribution:
+      if not use_vmap:
+        return _predict_on_array_one_model(state, xs=xs)
+
+      def _predict_mean_and_stddev(state_: chex.ArrayTree) -> chex.ArrayTree:
+        dist = _predict_on_array_one_model(state_, xs=xs)
+        return {'mean': dist.mean(), 'stddev': dist.stddev()}
+
+      # Returns a dictionary with mean and stddev, of shape [M, N].
+      # M is the size of the parameter ensemble and N is the number of points.
+      pp = jax.vmap(_predict_mean_and_stddev)(state)
+      batched_normal = tfd.Normal(pp['mean'].T, pp['stddev'].T)
+      return tfd.MixtureSameFamily(
+          tfd.Categorical(logits=jnp.ones(batched_normal.batch_shape[1])),
+          batched_normal,
+      )
+
+    # Could also allow injection of a prediction function that takes a
+    # distribution and returns something else, or rename this to
+    # 'predict_mean_and_stddev`, e.g.`
+    @jax.jit
+    def predict_on_array(xs: chex.Array) -> chex.ArrayTree:
+      dist = _get_predictive_dist(xs)
+      return {'mean': dist.mean(), 'stddev': dist.stddev()}
+
+    self._predict_on_array = predict_on_array
+
+    # Define acquisition.
+    self._tr = acquisitions.TrustRegion(features, converter.output_specs)
+
+    # This supports acquisition fns that do arbitrary computations with the
+    # input distributions -- e.g. they could take samples or compute quantiles.
+    @jax.jit
+    def acquisition_on_array(xs):
+      dist = _get_predictive_dist(xs)
+      acquisition = self.acquisition_fn(dist, features, labels)
+      if self.use_trust_region and self._tr.trust_radius < 0.5:
+        distance = self._tr.min_linf_distance(xs)
+        # Due to output normalization, acquisition can't be nearly as
+        # low as -1e12.
+        # We use a bad value that decreases in the distance to trust region
+        # so that acquisition optimizer can follow the gradient and escape
+        # untrusted regions.
+        return jnp.where(
+            distance <= self._tr.trust_radius, acquisition, -1e12 - distance
+        )
+      else:
+        return acquisition
+
+    self._acquisition_on_array = acquisition_on_array
+
+    acquisition_problem = copy.deepcopy(problem)
+    config = vz.MetricsConfig(
+        metrics=[
+            vz.MetricInformation(
+                name='acquisition', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
+    acquisition_problem.metric_information = config
+    self._acquisition_problem = acquisition_problem
+    self._built = True
+
+  @property
+  def acquisition_problem(self) -> vz.ProblemStatement:
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return self._acquisition_problem
+
+  @property
+  def acquisition_on_array(self) -> Callable[[chex.Array], chex.Array]:
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return self._acquisition_on_array
+
+  @property
+  def predict_on_array(self) -> Callable[[chex.Array], chex.ArrayTree]:
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return self._predict_on_array
+
+  @property
+  def metadata_dict(self) -> dict[str, Any]:
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return {'trust_radius': self._tr.trust_radius}
 
 
 @attr.define(auto_attribs=False)
@@ -77,7 +232,9 @@ class VizierGPBandit(vza.Designer):
   _trials: list[vz.Trial] = attr.field(factory=list, init=False)
   _ard_optimizer: optimizers.Optimizer = attr.field(
       factory=lambda: VizierGPBandit.default_ard_optimizer, kw_only=True)
-  _use_trust_region: bool = attr.field(default=True, kw_only=True)
+  _acquisition_builder: acquisitions.AcquisitionBuilder = attr.field(
+      factory=GPBanditAcquisitionBuilder, kw_only=False
+  )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _rng: chex.PRNGKey = attr.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
@@ -214,66 +371,19 @@ class VizierGPBandit(vza.Designer):
     # `model.posterior_predictive` to avoid re-computing the intermediates
     # unnecessarily.
     _, pp_state = precompute_cholesky(optimal_params)
+    state = {'params': optimal_params, **pp_state}
 
-    def predict_on_array_one_model(
-        state: chex.ArrayTree, *, xs: chex.Array
-    ) -> chex.ArrayTree:
-      predictive = model.apply(
-          state,
-          xs,
-          features,
-          labels,
-          method=model.posterior_predictive,
-      )
-      return {'mean': predictive.mean(), 'stddev': predictive.stddev()}
-
-    @jax.jit
-    def predict_on_array(xs: chex.Array) -> chex.ArrayTree:
-      predict_fn = functools.partial(predict_on_array_one_model, xs=xs)
-      if self._ard_optimizer is self.default_ard_optimizer_noensemble:
-        pp = predict_fn(
-            optimal_params,
-        )
-        return {'mean': pp['mean'], 'stddev': pp['stddev']}
-      predict_fn = jax.vmap(predict_fn)
-      pp = predict_fn(
-          {'params': optimal_params, **pp_state},
-      )
-      batched_normal = tfd.Normal(pp['mean'].T, pp['stddev'].T)
-      mixture = tfd.MixtureSameFamily(
-          tfd.Categorical(logits=jnp.ones(batched_normal.batch_shape[1])),
-          batched_normal,
-      )
-      return {'mean': mixture.mean(), 'stddev': mixture.stddev()}
-
-    # Optimize acquisition.
-    tr = acquisitions.TrustRegion(features, self._converter.output_specs)
-
-    @jax.jit
-    def acquisition_on_array(xs):
-      pred = predict_on_array(xs)
-      ucb = pred['mean'] + 1.8 * pred['stddev']
-      if self._use_trust_region and tr.trust_radius < 0.5:
-        distance = tr.min_linf_distance(xs)
-        # Due to output normalization, ucb can't be nearly as low as -1e12.
-        # We use a bad value that decreases in the distance to trust region
-        # so that acquisition optimizer can follow the gradient and escape
-        # untrustred regions.
-        return jnp.where(distance <= tr.trust_radius, ucb, -1e12 - distance)
-      else:
-        return ucb
-
-    def acquisition_on_trials(trials: Sequence[vz.Trial]):
-      array = self._converter.to_features(trials)
-      jax_acquisitions = acquisition_on_array(array)
-      return {'acquisition': jax_acquisitions}
-
-    acquisition_problem = copy.deepcopy(self._problem)
-    acquisition_problem.metric_information = [
-        vz.MetricInformation(
-            name='acquisition', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    ]
+    self._acquisition_builder.build(
+        self._problem,
+        model=model,
+        state=state,
+        features=features,
+        labels=labels,
+        converter=self._converter,
+    )
+    acquisition_problem = self._acquisition_builder.acquisition_problem
+    acquisition_on_array = self._acquisition_builder.acquisition_on_array
+    predict_on_array = self._acquisition_builder.predict_on_array
     logging.info('Optimizing acquisition...')
 
     # TODO: Change budget based on requested suggestion count.
@@ -285,6 +395,12 @@ class VizierGPBandit(vza.Designer):
           prior_trials=self._trials,
       )
     elif isinstance(self._acquisition_optimizer, vza.GradientFreeOptimizer):
+
+      def acquisition_on_trials(trials: Sequence[vz.Trial]):
+        array = self._converter.to_features(trials)
+        jax_acquisitions = acquisition_on_array(array)
+        return {'acquisition': jax_acquisitions}
+
       # Seed the optimizer with previous trials.
       best_candidates = self._acquisition_optimizer.optimize(
           score_fn=acquisition_on_trials,
@@ -297,15 +413,14 @@ class VizierGPBandit(vza.Designer):
     # space); also append debug inforamtion like model predictions.
     logging.info('Converting the optimization result into suggestions...')
     optimal_features = self._converter.to_features(best_candidates)  # [N, D]
-    # Make predictions (in the warped space).
     predictions = predict_on_array(optimal_features)  # event shape [N]
-    predict_mean = predictions['mean'].reshape([-1])  # [N,]
-    predict_stddev = predictions['stddev'].reshape([-1])  # [N,]
+    # Make predictions (in the warped space), reshape and log shapes.
+    for predict_key, predict_value in predictions.items():
+      predictions[predict_key] = predict_value.reshape([-1])  # [N,]
     logging.info(
         'Created predictions for the best candidates which were '
         f'converted to an array of shape: {optimal_features.shape}. '
-        f'mean has shape {predict_mean.shape}. '
-        f'stddev has shape {predict_stddev.shape}.'
+        f' with predictions { {k : v.shape for k,v in predictions.items() } }'
     )
     # Create suggestions, injecting the predictions as metadata for
     # debugging needs.
@@ -319,12 +434,11 @@ class VizierGPBandit(vza.Designer):
           {
               'ard_all_losses': ard_all_losses,
               'ard_best_loss': ard_best_loss,
-              'mean': predict_mean[i],
-              'stddev': predict_stddev[i],
               'acquisition': acquisition,
-              'trust_radius': tr.trust_radius,
               'params': optimal_params,
-          },
+          }
+          | self._acquisition_builder.metadata_dict
+          | {k: v[i] for k, v in predictions.items()},
           cls=json_utils.NumpyEncoder,
       )
       metadata['time_spent'] = f'{datetime.datetime.now() - begin_time}'
