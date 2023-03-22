@@ -14,6 +14,3 @@ evojax==0.2.15
 
 # For regression utils.
 lightgbm==2.2.3
-
-# For PyGlove.
-pyglove>=0.2.1  # We're always compatible with latest version.

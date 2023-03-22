@@ -1,4 +1,4 @@
-name: pytest_algorithms
+name: pytest_pyglove
 
 on:
   pull_request:
@@ -35,10 +35,10 @@ jobs:
           pip wheel -e .
           pip install -e .
           pip install -r requirements-jax.txt
-          pip install -r requirements-algorithms.txt
+          pip install pyglove
       - name: Print installed dependencies
         run: |
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier/_src/algorithms/ vizier/_src/jax/
+          pytest -n auto vizier/_src/pyglove/
