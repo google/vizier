@@ -14,10 +14,10 @@
 
 from __future__ import annotations
 
-"""Tests for Vizier backend for PyGlove."""
+"""End-to-end tests for Vizier backend for PyGlove."""
 
 import pyglove as pg
-from vizier import pyglove as pg_vizier
+from vizier._src.pyglove import oss_vizier
 from absl.testing import absltest
 
 
@@ -25,7 +25,7 @@ class PygloveTest(absltest.TestCase):
   """Tests for using Vizier as PyGlove backend."""
 
   def test_sample(self):
-    pg_vizier.init('my_study')
+    oss_vizier.init('my_study')
 
     examples = []
     for x, f in pg.sample(

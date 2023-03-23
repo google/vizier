@@ -40,4 +40,4 @@ jobs:
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/ --ignore=vizier/_src/pyglove/ --ignore=vizier/pyglove/ --ignore=vizier/_src/jax/
+          pytest -n auto vizier --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/ --ignore=vizier/_src/pyglove/ --ignore=vizier/_src/jax/
