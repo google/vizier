@@ -174,5 +174,4 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         cholesky_fn=cholesky_fn,
-        always_yield_multivariate_normal=True,
     )

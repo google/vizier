@@ -143,4 +143,4 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         cholesky_fn=None,
-        always_yield_multivariate_normal=True)
+    )
