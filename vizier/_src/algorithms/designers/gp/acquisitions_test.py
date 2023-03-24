@@ -48,7 +48,8 @@ class AcquisitionsTest(absltest.TestCase):
   def test_ei(self):
     acq = acquisitions.EI()
     self.assertAlmostEqual(
-        acq(tfd.Normal(0.1, 1), labels=jnp.array([0.2])), 0.34635347
+        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([0.2])),
+        0.34635347,
     )
 
 
