@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import collections
 import math
-import random
 import sys
+import time
 from typing import Iterable, List, Optional, Sequence
 
 import attr
@@ -98,6 +98,7 @@ class _HaltonSequence(serializable.PartiallySerializable):
   _scramble: bool = attr.field(
       default=True, validator=attr.validators.instance_of(bool), kw_only=True
   )
+  _seed: int = attr.field(default=0)
 
   def __init__(
       self,
@@ -107,6 +108,7 @@ class _HaltonSequence(serializable.PartiallySerializable):
       num_points_generated: int = 0,
       primes_override: Optional[List[int]] = None,
       scramble: bool = True,
+      seed: int = 0,
   ):
     """Create a Halton sequence generator.
 
@@ -122,6 +124,7 @@ class _HaltonSequence(serializable.PartiallySerializable):
         legitimate primes.
       scramble: If True, will scramble the resulting Halton sequence. Set this
         to False for testing.
+      seed: random seed
 
     Returns:
       A HaltonSequence object.
@@ -146,18 +149,21 @@ class _HaltonSequence(serializable.PartiallySerializable):
         num_points_generated=num_points_generated,
         primes=primes,
         scramble=scramble,
+        seed=seed,
     )
 
   def load(self, metadata: vz.Metadata) -> None:
     self._num_points_generated = int(
         metadata.ns('halton')['num_points_generated']
     )
+    self._seed = int(metadata.ns('halton')['permutation_seed'])
 
   def dump(self) -> vz.Metadata:
     metadata = vz.Metadata()
     metadata.ns('halton')['num_points_generated'] = str(
         self._num_points_generated
     )
+    metadata.ns('halton')['permutation_seed'] = str(self._seed)
     return metadata
 
   def _get_scrambled_halton_value(self, index: int, base: int) -> float:
@@ -172,8 +178,8 @@ class _HaltonSequence(serializable.PartiallySerializable):
     `Halton(index) = 5 * b^{-1} + 2 * b^{-2} + 3 * b^{-3}.`
 
     If we choose to scramble, then the coefficients (5,2,3) will be randomly
-    permuted (seeded by `base`), leading to a roughly uniform distribution of
-    Halton values over the interval [0,1].
+    permuted seeded by self._seed and base, leading to a
+    roughly uniform distribution of Halton values over the interval [0,1].
 
     Args:
       index: Index to be converted to `base`.
@@ -192,9 +198,9 @@ class _HaltonSequence(serializable.PartiallySerializable):
 
     # Use a fixed seed to generate the permutation in a deterministic way.
     if self._scramble:
-      local_random = random.Random(base)
       permutation = list(range(1, base))
-      local_random.shuffle(permutation)
+      rng = np.random.RandomState((self._seed, base))
+      rng.shuffle(permutation)
       permutation = [0] + permutation
     while i > 0:
       i, mod = divmod(i, base)
@@ -249,14 +255,22 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
   `permuted_halton(n) = c2 * p^{-1} + c1 * p^{-2} + c0 * p^{-3} + c3 * p^{-4}`
   """
 
-  def __init__(self, search_space: vz.SearchSpace, *, skip_points: int = 1000):
+  def __init__(
+      self,
+      search_space: vz.SearchSpace,
+      *,
+      skip_points: int = 1000,
+      seed: Optional[int] = None,
+  ):
     """Init.
 
     Args:
       search_space: Must be a flat search space.
       skip_points: If positive, then these first points in the sequence are
         discarded in order to avoid unwanted correlations.
+      seed: Random seed.
     """
+    seed = seed or np.int32(time.time())
     if search_space.is_conditional:
       raise ValueError(
           f'This designer {self} does not support conditional search.'
@@ -291,6 +305,7 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
         skip_points=skip_points,
         num_points_generated=0,
         scramble=True,
+        seed=seed,
     )
 
     self._output_specs = tuple(self._converter.output_specs.values())
@@ -300,8 +315,7 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
       cls, problem: vz.ProblemStatement, seed: Optional[int] = None
   ):
     """For wrapping via `PartiallySerializableDesignerPolicy`."""
-    del seed
-    return QuasiRandomDesigner(problem.search_space)
+    return QuasiRandomDesigner(problem.search_space, seed=seed)
 
   def load(self, metadata: vz.Metadata) -> None:
     self._halton_generator.load(metadata)

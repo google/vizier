@@ -15,11 +15,13 @@
 from __future__ import annotations
 
 import random
+
 import numpy as np
 from scipy import stats
-
+from vizier import pythia
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
+from vizier._src.algorithms.policies import designer_policy
 from vizier._src.algorithms.testing import test_runners
 from vizier.testing import test_studies
 
@@ -68,10 +70,18 @@ class HaltonTest(absltest.TestCase):
         [generator_1.get_next_list() for i in range(100)],
         [generator_2.get_next_list() for i in range(100)],
     )
+    self.assertEqual(
+        [generator_1.get_next_list() for i in range(100)],
+        [generator_2.get_next_list() for i in range(100)],
+    )
 
   def test_unscrambled_sequence(self):
     generator = quasi_random._HaltonSequence(
-        num_dimensions=1, skip_points=0, primes_override=[3], scramble=False
+        num_dimensions=1,
+        skip_points=0,
+        primes_override=[3],
+        scramble=False,
+        seed=0,
     )
     sequence = [generator.get_next_list()[0] for _ in range(7)]
 
@@ -134,6 +144,51 @@ class QuasiRandomTest(absltest.TestCase):
         float_points, stats.uniform(loc=0.0, scale=1.0).cdf
     )
     self.assertGreater(float_p_value, 0.9)
+
+  def test_equal_seeds(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('float', 0.0, 1.0)
+    designer_1 = quasi_random.QuasiRandomDesigner(problem.search_space, seed=1)
+    suggestions_1 = designer_1.suggest(10)
+    designer_2 = quasi_random.QuasiRandomDesigner(problem.search_space, seed=1)
+    suggestions_2 = designer_2.suggest(10)
+    self.assertEqual(suggestions_1, suggestions_2)
+
+  def test_distinct_seeds(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('float', 0.0, 1.0)
+    designer_1 = quasi_random.QuasiRandomDesigner(problem.search_space, seed=0)
+    suggestions_1 = designer_1.suggest(10)
+    designer_2 = quasi_random.QuasiRandomDesigner(problem.search_space, seed=1)
+    suggestions_2 = designer_2.suggest(10)
+    self.assertNotEqual(suggestions_1, suggestions_2)
+
+  def test_policy_wrapping(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('float', 0.0, 1.0)
+    policy_supporter = pythia.InRamPolicySupporter(problem)
+    policy = designer_policy.PartiallySerializableDesignerPolicy(
+        problem,
+        policy_supporter,
+        quasi_random.QuasiRandomDesigner.from_problem,
+    )
+
+    # Make sure outputs are distinct.
+    all_suggestions = []
+    for _ in range(1000):
+      request = pythia.SuggestRequest(
+          study_descriptor=policy_supporter.study_descriptor(), count=1
+      )
+      decisions = policy.suggest(request)
+      all_suggestions.extend(decisions.suggestions)
+
+    distinct_suggestions = set(
+        [
+            tuple(suggestion.parameters.as_dict().values())
+            for suggestion in all_suggestions
+        ]
+    )
+    self.assertLen(distinct_suggestions, 1000)
 
 
 if __name__ == '__main__':
