@@ -270,7 +270,8 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
         discarded in order to avoid unwanted correlations.
       seed: Random seed.
     """
-    seed = seed or np.int32(time.time())
+    if seed is None:
+      seed = np.int32(time.time())
     if search_space.is_conditional:
       raise ValueError(
           f'This designer {self} does not support conditional search.'
