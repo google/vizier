@@ -194,6 +194,27 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     self.eagle._update_best_reward(batch_rewards)
     self.assertEqual(self.eagle._best_reward, 5.0)
 
+  @parameterized.parameters(
+      {'batch_size': 5, 'expected_batch_size': 5, 'max_pool_size': 50},
+      {'batch_size': None, 'expected_batch_size': 50, 'max_pool_size': 50},
+      {'batch_size': 5, 'expected_batch_size': 5, 'max_pool_size': 10},
+      {'batch_size': None, 'expected_batch_size': 10, 'max_pool_size': 10},
+  )
+  def test_batch_size_and_pool_size(
+      self, batch_size, expected_batch_size, max_pool_size
+  ):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.root
+    for i in range(100):
+      root.add_float_param(f'x{i}', 0.0, 1.0)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    config = eagle_strategy.EagleStrategyConfig(max_pool_size=max_pool_size)
+    eagle = eagle_strategy.VectorizedEagleStrategy(
+        converter=converter, config=config, batch_size=batch_size
+    )
+    self.assertEqual(eagle.pool_size, max_pool_size)
+    self.assertEqual(eagle.batch_size, expected_batch_size)
+
   def test_trim_pool(self):
     pc = self.config.perturbation
     self.eagle._features = np.array(
@@ -342,7 +363,7 @@ class EagleParamHandlerTest(parameterized.TestCase):
     root.add_float_param('x2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
 
-    prior_features = np.array([[1, 1], [2, 2], [3, 3], [4, 4]])
+    prior_features = np.array([[1, -1], [2, 1], [3, 2], [4, 5]])
     prior_rewards = np.array([1, 2, 3, 4])
     eagle = eagle_strategy.VectorizedEagleStrategy(
         converter=converter,
@@ -352,7 +373,9 @@ class EagleParamHandlerTest(parameterized.TestCase):
         prior_features=prior_features,
         prior_rewards=prior_rewards,
     )
-    np.testing.assert_equal(eagle.prior_features, prior_features)
+    np.testing.assert_equal(
+        eagle.prior_features, np.flip(prior_features, axis=0)
+    )
 
   @parameterized.parameters(2, 10)
   def test_prior_trials_with_too_few_or_many_trials(self, n_prior_trials):
