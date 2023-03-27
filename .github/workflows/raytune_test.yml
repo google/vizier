@@ -1,4 +1,4 @@
-name: pytest_core
+name: pytest_raytune
 
 on:
   pull_request:
@@ -35,9 +35,10 @@ jobs:
           pip wheel -e .
           pip install -e .
           pip install -r requirements-jax.txt
+          pip install -U ray[tune]
       - name: Print installed dependencies
         run: |
           pip freeze
       - name: Test with pytest
         run: |
-          pytest -n auto vizier --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/ --ignore=vizier/_src/pyglove/ --ignore=vizier/_src/jax/ --ignore=vizier/_src/raytune/
+          pytest -n auto vizier/_src/raytune/
