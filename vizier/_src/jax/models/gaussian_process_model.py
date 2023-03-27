@@ -124,7 +124,7 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         validate_args=self._use_tfp_runtime_validation,
-        always_yield_multivariate_normal=True)
+    )
 
 
 class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
@@ -257,5 +257,4 @@ class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         validate_args=self._use_tfp_runtime_validation,
-        always_yield_multivariate_normal=True,
     )
