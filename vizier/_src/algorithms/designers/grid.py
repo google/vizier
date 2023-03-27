@@ -15,14 +15,17 @@
 from __future__ import annotations
 
 """Grid Search Designer which searches over a discretized grid of Trial parameter values."""
-
+import copy
 import random
-from typing import List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
+from absl import logging
 
 import numpy as np
 from vizier import algorithms
 from vizier import pyvizier
 from vizier.pyvizier import converters
+
+GridValues = Dict[str, List[pyvizier.ParameterValue]]
 
 
 class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
@@ -35,6 +38,12 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   means the class must be wrapped via `PartiallySerializableDesignerPolicy` for
   use in Pythia, thus requiring load/dump implementations.
   """
+
+  _unshuffled_grid_values: GridValues
+  _grid_values: GridValues
+  _current_index: int
+  _shuffle_seed: Optional[int]
+  _double_grid_resolution: int
 
   def __init__(
       self,
@@ -56,26 +65,21 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
           f'This designer {self} does not support conditional search.'
       )
     self._search_space = search_space
+    self._shuffle_seed = shuffle_seed
     self._double_grid_resolution = double_grid_resolution
     self._current_index = 0
 
-    # Makes the grid values for every parameter.
-    self._grid_values = {}
+    # Creates unshuffled grid values for every parameter. This is just a
+    # template for creating the potentially shuffled self._grid_values to be
+    # used in suggest().
+    self._unshuffled_grid_values = {}
     for parameter_config in self._search_space.parameters:
-      self._grid_values[parameter_config.name] = (
+      self._unshuffled_grid_values[parameter_config.name] = (
           self._grid_points_from_parameter_config(parameter_config)
       )
 
-    # Shuffle the grid if specified.
-    if shuffle_seed is not None:
-      rng = random.Random(shuffle_seed)
-      # Shuffle dict keys.
-      shuffled_items = list(self._grid_values.items())
-      rng.shuffle(shuffled_items)
-      self._grid_values = dict(shuffled_items)
-      # Shuffle dict value lists.
-      for param_name in self._grid_values:
-        rng.shuffle(self._grid_values[param_name])
+    # Set true grid values to be used during suggest calls.
+    self._grid_values = self._maybe_shuffled_grid_values(self._shuffle_seed)
 
   @classmethod
   def from_problem(
@@ -127,11 +131,19 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   def load(self, metadata: pyvizier.Metadata) -> None:
     """Load the current index."""
     self._current_index = int(metadata.ns('grid')['current_index'])
+    none_or_int = metadata.ns('grid')['shuffle_seed']
+    if none_or_int == 'None':
+      self._shuffle_seed = None
+    else:
+      logging.info('Using integer seed for shuffling: %d', none_or_int)
+      self._shuffle_seed = int(none_or_int)
+    self._grid_values = self._maybe_shuffled_grid_values(self._shuffle_seed)
 
   def dump(self) -> pyvizier.Metadata:
     """Dump the current index."""
     metadata = pyvizier.Metadata()
     metadata.ns('grid')['current_index'] = str(self._current_index)
+    metadata.ns('grid')['shuffle_seed'] = str(self._shuffle_seed)
     return metadata
 
   def _grid_points_from_parameter_config(
@@ -171,3 +183,21 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
           'ParameterConfig type is not one of the supported primitives for'
           f' ParameterConfig: {parameter_config}'
       )
+
+  def _maybe_shuffled_grid_values(
+      self, shuffle_seed: Optional[int]
+  ) -> GridValues:
+    grid_values = copy.deepcopy(self._unshuffled_grid_values)
+
+    # Shuffle the grid if specified.
+    if shuffle_seed is not None:
+      rng = random.Random(shuffle_seed)
+      # Shuffle dict keys.
+      shuffled_items = list(grid_values.items())
+      rng.shuffle(shuffled_items)
+      grid_values = dict(shuffled_items)
+      # Shuffle dict value lists.
+      for param_name in grid_values:
+        rng.shuffle(grid_values[param_name])
+
+    return grid_values

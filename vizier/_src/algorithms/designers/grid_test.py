@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 """Tests for grid."""
+import functools
+
 from vizier import pythia
 from vizier import pyvizier
 from vizier._src.algorithms.designers import grid
@@ -94,12 +96,16 @@ class GridSearchTest(parameterized.TestCase):
     )
     self.assertLen(distinct_suggestions, self.search_space_size)
 
-  def test_policy_wrapping(self):
+  @parameterized.parameters((None,), (0,), (1,), (2,))
+  def test_policy_wrapping(self, shuffle_seed):
     problem = pyvizier.ProblemStatement()
     problem.search_space = self.search_space
     policy_supporter = pythia.InRamPolicySupporter(problem)
+    designer_factory = functools.partial(
+        grid.GridSearchDesigner.from_problem, seed=shuffle_seed
+    )
     policy = designer_policy.PartiallySerializableDesignerPolicy(
-        problem, policy_supporter, grid.GridSearchDesigner.from_problem
+        problem, policy_supporter, designer_factory
     )
 
     # Make sure we covered entire search space.
