@@ -383,12 +383,14 @@ class TransformToGaussian(OutputWarperProtocol):
   parameters can be learned using a maximum likelihood approach.
   """
 
-  def __init__(self,
-               *,
-               softclip_low=1e-10,
-               softclip_high=1 - 1e-10,
-               softclip_hinge_softness=0.01,
-               use_rank=False):
+  def __init__(
+      self,
+      *,
+      softclip_low: float = 1e-10,
+      softclip_high: float = 1 - 1e-10,
+      softclip_hinge_softness: float = 0.01,
+      use_rank: bool = False,
+  ):
     self.softclip_low = softclip_low
     self.softclip_high = softclip_high
     self.softclip_hinge_softness = softclip_hinge_softness
