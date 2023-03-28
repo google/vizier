@@ -17,7 +17,7 @@ from __future__ import annotations
 """Policy Factory API."""
 # pylint:disable=g-import-not-at-top
 import functools
-import random
+import time
 from typing import Protocol
 
 from vizier import pythia
@@ -80,7 +80,7 @@ class DefaultPolicyFactory(PolicyFactory):
     elif algorithm == 'SHUFFLED_GRID_SEARCH':
       from vizier._src.algorithms.designers import grid
 
-      shuffle_seed = random.randint(0, 2147483647)
+      shuffle_seed = int(time.time())
       grid_factory = functools.partial(
           grid.GridSearchDesigner.from_problem, shuffle_seed=shuffle_seed
       )
