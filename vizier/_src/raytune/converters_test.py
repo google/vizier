@@ -18,22 +18,50 @@ from __future__ import annotations
 from ray import tune
 from vizier import pyvizier as vz
 from vizier._src.raytune import converters
+from vizier.benchmarks import experimenters
 
 from absl.testing import absltest
 
 
 class ConvertersTest(absltest.TestCase):
 
-  def test_run_study(self):
+  def test_run_study_with_search_space(self):
     space = vz.SearchSpace()
     root = space.select_root()
     root.add_float_param('uniform', 0.5, 1.5)
+    root.add_float_param('loguniform', 0.1, 2.5, scale_type=vz.ScaleType.LOG)
+    root.add_int_param('int_uniform', 1, 10)
+    root.add_discrete_param('discrete', [1.0, 2.3, 0.5])
+    root.add_categorical_param('categorical', ['a', 'b', 'c'])
 
     def trainable(config):  # Pass a "config" dictionary into your trainable.
-      score = config['uniform'] * config['uniform']
+      score = config['uniform'] * config['loguniform'] + config['int_uniform']
+      if config['categorical'] == 'a':
+        score += config['discrete']
+      else:
+        score -= config['discrete']
+
       return {'score': score}
 
     param_space = converters.SearchSpaceConverter.to_dict(space)
+    tuner = tune.Tuner(
+        trainable,
+        param_space=param_space,
+        tune_config=tune.TuneConfig(num_samples=10),
+    )
+    tuner.fit()
+    self.assertLen(tuner.get_results(), 10)
+
+  def test_run_study_with_experimenter(self):
+    dim = 4
+    bbob_factory = experimenters.BBOBExperimenterFactory(name='Sphere', dim=dim)
+    exptr = bbob_factory()
+
+    search_space = exptr.problem_statement().search_space
+    self.assertLen(search_space.parameters, dim)
+
+    param_space = converters.SearchSpaceConverter.to_dict(search_space)
+    trainable = converters.ExperimenterConverter.to_callable(exptr)
     tuner = tune.Tuner(
         trainable,
         param_space=param_space,

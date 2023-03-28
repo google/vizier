@@ -16,10 +16,11 @@ from __future__ import annotations
 
 """Converters for PyVizier with RayTune."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Callable
 
 from ray import tune
 from vizier import pyvizier as vz
+from vizier.benchmarks import experimenters
 
 
 class SearchSpaceConverter:
@@ -32,7 +33,36 @@ class SearchSpaceConverter:
   ) -> Dict[str, Any]:
     """Converts PyVizier ProblemStatement to Proto version."""
     param_space = {}
+
     for param in search_space.parameters:
-      lower, upper = param.bounds
-      param_space[param.name] = tune.uniform(lower, upper)
+      if param.type == vz.ParameterType.DOUBLE:
+        lower, upper = param.bounds
+        if param.scale_type == vz.ScaleType.LINEAR:
+          param_space[param.name] = tune.uniform(lower, upper)
+        elif param.scale_type == vz.ScaleType.LOG:
+          param_space[param.name] = tune.loguniform(lower, upper)
+        else:
+          raise ValueError(f'DOUBLE scale {param.scale_type} not supported.')
+      elif param.type == vz.ParameterType.INTEGER:
+        lower, upper = param.bounds
+        param_space[param.name] = tune.randint(lower, upper)
+      else:
+        feasible_values = param.feasible_values
+        param_space[param.name] = tune.choice(feasible_values)
     return param_space
+
+
+class ExperimenterConverter:
+  """Converts Experimenters to Ray Trainables."""
+
+  @classmethod
+  def to_callable(
+      cls,
+      experimenter: experimenters.Experimenter,
+  ) -> Callable[[Dict[str, Any]], Dict[str, float]]:
+    def trainable(config):
+      trial = vz.Trial(parameters=config)
+      experimenter.evaluate([trial])
+      return dict(trial.final_measurement.metrics)
+
+    return trainable
