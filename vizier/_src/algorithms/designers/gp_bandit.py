@@ -123,12 +123,12 @@ class GPBanditAcquisitionBuilder(acquisitions.AcquisitionBuilder):
 
       def _predict_mean_and_stddev(state_: chex.ArrayTree) -> chex.ArrayTree:
         dist = _predict_on_array_one_model(state_, xs=xs)
-        return {'mean': dist.mean(), 'stddev': dist.stddev()}
+        return {'mean': dist.mean(), 'stddev': dist.stddev()}  # pytype: disable=attribute-error  # numpy-scalars
 
       # Returns a dictionary with mean and stddev, of shape [M, N].
       # M is the size of the parameter ensemble and N is the number of points.
       pp = jax.vmap(_predict_mean_and_stddev)(state)
-      batched_normal = tfd.Normal(pp['mean'].T, pp['stddev'].T)
+      batched_normal = tfd.Normal(pp['mean'].T, pp['stddev'].T)  # pytype: disable=attribute-error  # numpy-scalars
       return tfd.MixtureSameFamily(
           tfd.Categorical(logits=jnp.ones(batched_normal.batch_shape[1])),
           batched_normal,
@@ -415,12 +415,12 @@ class VizierGPBandit(vza.Designer):
     optimal_features = self._converter.to_features(best_candidates)  # [N, D]
     predictions = predict_on_array(optimal_features)  # event shape [N]
     # Make predictions (in the warped space), reshape and log shapes.
-    for predict_key, predict_value in predictions.items():
-      predictions[predict_key] = predict_value.reshape([-1])  # [N,]
+    for predict_key, predict_value in predictions.items():  # pytype: disable=attribute-error  # numpy-scalars
+      predictions[predict_key] = predict_value.reshape([-1])  # [N,]  # pytype: disable=unsupported-operands  # numpy-scalars
     logging.info(
         'Created predictions for the best candidates which were '
         f'converted to an array of shape: {optimal_features.shape}. '
-        f' with predictions { {k : v.shape for k,v in predictions.items() } }'
+        f' with predictions { {k : v.shape for k,v in predictions.items() } }'  # pytype: disable=attribute-error  # numpy-scalars
     )
     # Create suggestions, injecting the predictions as metadata for
     # debugging needs.
@@ -438,7 +438,7 @@ class VizierGPBandit(vza.Designer):
               'params': optimal_params,
           }
           | self._acquisition_builder.metadata_dict
-          | {k: v[i] for k, v in predictions.items()},
+          | {k: v[i] for k, v in predictions.items()},  # pytype: disable=attribute-error  # numpy-scalars
           cls=json_utils.NumpyEncoder,
       )
       metadata['time_spent'] = f'{datetime.datetime.now() - begin_time}'

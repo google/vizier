@@ -60,7 +60,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
   def suggestion_batch_size(self) -> int:
     return 1
 
-  def update(self, rewards: np.ndarray) -> None:
+  def update(self, rewards: np.ndarray) -> None:  # pytype: disable=signature-mismatch  # numpy-scalars
     pass
 
 

@@ -103,8 +103,8 @@ class OptimizersTest(parameterized.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
 
-    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
-    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
+    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))  # pytype: disable=attribute-error  # numpy-scalars
+    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))  # pytype: disable=attribute-error  # numpy-scalars
 
   @parameterized.parameters(
       (None,),
@@ -125,8 +125,8 @@ class OptimizersTest(parameterized.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
 
-    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
-    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
+    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))  # pytype: disable=attribute-error  # numpy-scalars
+    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))  # pytype: disable=attribute-error  # numpy-scalars
     if bounds is not None:
       for y_, b_ in zip(tree.flatten(optimal_params), tree.flatten(bounds[0])):
         if b_ is not None:

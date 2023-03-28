@@ -328,4 +328,4 @@ class JaxoptLbfgsB(Optimizer):
     metrics['loss'] = losses
     if self._speed_test:
       metrics['train_time'] = train_times
-    return optimal_params, metrics
+    return optimal_params, metrics  # pytype: disable=bad-return-type  # numpy-scalars

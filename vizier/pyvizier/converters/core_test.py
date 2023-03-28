@@ -1096,7 +1096,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     self.assertEqual(expected.dtype, actual.dtype)
     self.assertEqual(
         converter.output_spec,
-        core.NumpyArraySpec(
+        core.NumpyArraySpec(  # pytype: disable=wrong-arg-types  # numpy-scalars
             core.NumpyArraySpecType.ONEHOT_EMBEDDING,
             np.float32,
             (0, 1),

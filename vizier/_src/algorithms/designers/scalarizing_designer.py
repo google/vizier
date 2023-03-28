@@ -48,7 +48,7 @@ class HyperVolumeScalarization(Scalarization):
     if any(self.weights <= 0):
       raise ValueError(f'Non-positive weights {self.weights}')
 
-  def __call__(
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
       self,
       objectives: chex.Array,
   ) -> chex.Array:

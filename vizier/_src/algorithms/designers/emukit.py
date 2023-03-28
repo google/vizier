@@ -196,8 +196,9 @@ class EmukitDesigner(vza.Designer):
     elif self._version == Version.MATERN52_UCB:
       gpy_model = _create_constrained_gp(features, labels)
       emukit_model = model_wrappers.GPyModelWrapper(gpy_model, n_restarts=20)
-      acquisition = acquisitions.NegativeLowerConfidenceBound(
-          model=emukit_model, beta=np.float64(1.8))
+      acquisition = acquisitions.NegativeLowerConfidenceBound(  # pytype: disable=wrong-arg-types  # numpy-scalars
+          model=emukit_model, beta=np.float64(1.8)
+      )
 
     logging.info(
         'Emukit model: model=%s',

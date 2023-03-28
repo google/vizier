@@ -126,8 +126,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     length_scale_bounds = (ones * (1e-2 - eps), ones * 1e2 + eps)
 
     signal_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*amplitude_bounds),
-        constraint=sp.Constraint(
+        init_fn=self._log_uniform_init(*amplitude_bounds),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        constraint=sp.Constraint(  # pytype: disable=wrong-arg-types  # numpy-scalars
             amplitude_bounds,
             tfb.SoftClip(*amplitude_bounds, hinge_softness=1e-2),
         ),
@@ -150,8 +150,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     kernel = tfpk.FeatureScaled(kernel, scale_diag=jnp.sqrt(length_scale))
 
     observation_noise_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*observation_noise_bounds),
-        constraint=sp.Constraint(
+        init_fn=self._log_uniform_init(*observation_noise_bounds),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        constraint=sp.Constraint(  # pytype: disable=wrong-arg-types  # numpy-scalars
             observation_noise_bounds,
             tfb.SoftClip(*observation_noise_bounds, hinge_softness=1e-2),
         ),

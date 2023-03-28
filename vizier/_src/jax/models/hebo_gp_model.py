@@ -67,9 +67,8 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
 
     return model, loss_fn
 
-  def __call__(
-      self,
-      inputs: chex.Array = None
+  def __call__(  # type: ignore  # numpy-scalars
+      self, inputs: chex.Array = None
   ) -> Generator[sp.ModelParameter, chex.Array, tfd.GaussianProcess]:
     """Creates a generator.
 
@@ -121,8 +120,10 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
     # Length scale
     length_scale = yield sp.ModelParameter.from_prior(
         tfd.LogNormal(
-            loc=jnp.float64(0.0), scale=jnp.float64(1.0), name='length_scale'),
-        constraint=sp.Constraint((0., None), bijector=tfb.Exp()))
+            loc=jnp.float64(0.0), scale=jnp.float64(1.0), name='length_scale'
+        ),
+        constraint=sp.Constraint((0.0, None), bijector=tfb.Exp()),  # pytype: disable=wrong-arg-types  # numpy-scalars
+    )
     kernel = tfpk.FeatureScaled(kernel, scale_diag=length_scale)
 
     # Kumaraswamy input warping
@@ -130,11 +131,13 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
 
     concentration0 = yield sp.ModelParameter.from_prior(
         kumar_log_normal.copy(name='concentration0'),
-        constraint=sp.Constraint((0., 10.), bijector=sigmoid))
+        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),  # pytype: disable=wrong-arg-types  # numpy-scalars
+    )
 
     concentration1 = yield sp.ModelParameter.from_prior(
         kumar_log_normal.copy(name='concentration1'),
-        constraint=sp.Constraint((0., 10.), bijector=sigmoid))
+        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),  # pytype: disable=wrong-arg-types  # numpy-scalars
+    )
 
     kernel = tfpk.KumaraswamyTransformed(kernel, concentration1, concentration0)
 
