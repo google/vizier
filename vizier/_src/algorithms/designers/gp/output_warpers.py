@@ -16,18 +16,20 @@ from __future__ import annotations
 
 """Output warper."""
 
+import abc
 import copy
-from typing import Protocol, Sequence
+from typing import Sequence, Optional
 
 import attr
 import attrs
+import chex
 import jax.numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
 
 
-def _validate_and_deepcopy(labels_arr: np.ndarray) -> np.ndarray:
+def _validate_and_deepcopy(labels_arr: chex.Array) -> chex.Array:
   """Checks and modifies the shape and values of the labels."""
   labels_arr = labels_arr.astype(float)
   labels_arr_copy = copy.deepcopy(labels_arr)
@@ -40,12 +42,14 @@ def _validate_and_deepcopy(labels_arr: np.ndarray) -> np.ndarray:
   return labels_arr_copy
 
 
-class OutputWarperProtocol(Protocol):
+class OutputWarper(abc.ABC):
   """Interface for different output warper methods."""
 
-  # TODO: add unwarp.
+  # TODO: implement the unwarp for different warper classes. Currently,
+  # they return an error.
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  @abc.abstractmethod
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """Runs the output warper of choice on an array of labels.
 
     Args:
@@ -60,13 +64,31 @@ class OutputWarperProtocol(Protocol):
     """
     pass
 
+  @abc.abstractmethod
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    """Runs the inverse of output warper of choice on an array of  labels.
+
+    Args:
+      labels_arr: (num_points, 1) shaped array of warped labels. Note tha each
+        call accomodates one metric, which can be an objective or a safety
+        metric. NaN and infinity values are allowed and will untouched. Labels
+        are assumed to be maximizing. labels_arr will not be mutated.
+        Technically any array can be passed to the unwarp method, but we are
+        interested in unwarping warped labels for purposes of GP training and
+        prediction.
+
+    Returns:
+      (num_points, 1) shaped array of finite unwarped mutated labels.
+    """
+    pass
+
 
 @attr.define
-class OutputWarperPipeline(OutputWarperProtocol):
+class OutputWarperPipeline(OutputWarper):
   """Performs a sequence of warpings on an input labels array."""
-  warpers: Sequence[OutputWarperProtocol] = attr.ib(factory=list)
+  warpers: Sequence[OutputWarper] = attr.ib(factory=list)
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """Sequntial warping of the labels.
 
     Note that if labels include one unique finite value, pipeline returns
@@ -88,7 +110,34 @@ class OutputWarperPipeline(OutputWarperProtocol):
     if np.isnan(labels_arr).all():
       return -1 * np.ones(shape=labels_arr.shape)
     for warper in self.warpers:
-      labels_arr = warper(labels_arr)
+      labels_arr = warper.warp(labels_arr)
+    return labels_arr
+
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    """Sequential unwarping of the warped labels.
+
+    Note that if labels include one unique finite value zero, the pipeline
+    returns the array itself. Alternatively, if the labels include only minus
+    ones, the pipeline returns an array of NaNs. Otherwise, it *sequentially*
+    performs the unwarpings on labels. Unwarping is not done in place.
+
+    Args:
+      labels_arr: (num_points, 1) shaped array of warped labels.
+
+    Returns:
+      (num_points, 1) shaped array of unwarped labels.
+    """
+    labels_arr = _validate_and_deepcopy(labels_arr)
+    if (
+        np.isfinite(labels_arr).all()
+        and len(np.unique(labels_arr).flatten()) == 1
+    ):
+      if np.unique(labels_arr) == 0.0:
+        return labels_arr
+      if np.unique(labels_arr) == -1.0:
+        return np.nan * np.ones(shape=labels_arr.shape)
+    for warper in self.warpers:
+      labels_arr = warper.unwarp(labels_arr)
     return labels_arr
 
 
@@ -139,15 +188,17 @@ def create_warp_outliers_warper(
 
 
 @attr.define
-class HalfRankComponent(OutputWarperProtocol):
+class HalfRankComponent(OutputWarper):
   """Warps half of an array of labels to fit into a Gaussian distribution.
 
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
+  _labels_arr: Optional[chex.Array] = attr.field(default=None)
 
-  def _estimate_std_of_good_half(self, unique_labels: np.ndarray,
-                                 threshold: float) -> float:
+  def _estimate_std_of_good_half(
+      self, unique_labels: chex.Array, threshold: float
+  ) -> float:
     """Estimates the standard devation of the good half of the array.
 
     Args:
@@ -169,13 +220,13 @@ class HalfRankComponent(OutputWarperProtocol):
                                                        unique_labels.shape[0])
     return std
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """See base class."""
     labels_arr = _validate_and_deepcopy(labels_arr)
+    self._labels_arr = labels_arr
     if labels_arr.size == 1:
       return labels_arr
     labels_arr = labels_arr.flatten()
-
     # Compute median, unique labels, and ranks.
     median = np.nanmedian(labels_arr)
     unique_labels = np.unique(labels_arr[np.isfinite(labels_arr)])
@@ -192,38 +243,66 @@ class HalfRankComponent(OutputWarperProtocol):
         # denominator. rankdata(method='max') and simply using
         # rank_quantile = rank / np.isfinite(labels_arr).sum() should be
         # just as fine.
-        rank_quantile = .5 * (rank - .5) / denominator
+        rank_quantile = 0.5 * (rank - 0.5) / denominator
         # rank_ppf is always less than 0
         rank_ppf = stats.norm.ppf(rank_quantile)
-        labels_arr[i] = (rank_ppf * estimated_std + median)
+        labels_arr[i] = rank_ppf * estimated_std + median
     return np.reshape(labels_arr, [-1, 1])
+
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise NotImplementedError(
+        'unwarp  method for HalfRankComponent is not implemented yet.'
+    )
 
 
 @attr.define
-class LogWarperComponent(OutputWarperProtocol):
+class LogWarperComponent(OutputWarper):
   """Warps an array of labels to highlght the difference between good values.
 
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
-  offset: float = attr.field(default=1.5, validator=attrs.validators.gt(0.))
+  _labels_arr: Optional[chex.Array] = attr.field(default=None)
+  offset: float = attr.field(default=1.5, validator=attrs.validators.gt(0.0))
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """See base class."""
     labels_arr = _validate_and_deepcopy(labels_arr)
+    self._labels_arr = labels_arr
     labels_arr = labels_arr.flatten()
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
-    labels_arr[np.isfinite(labels_arr)] = 0.5 - ((np.log1p(
-        ((np.nanmax(labels_arr) - labels_arr[np.isfinite(labels_arr)]) /
-         labels_range) * (self.offset - 1))) / (np.log(self.offset)))
+    labels_arr[np.isfinite(labels_arr)] = 0.5 - (
+        (
+            np.log1p(
+                (
+                    (
+                        np.nanmax(labels_arr)
+                        - labels_arr[np.isfinite(labels_arr)]
+                    )
+                    / labels_range
+                )
+                * (self.offset - 1)
+            )
+        )
+        / (np.log(self.offset))
+    )
+    return np.reshape(labels_arr, [-1, 1])
+
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    if self._labels_arr is None:
+      raise ValueError(' warp() needs to be called before unwarp() is called.')
+    labels_orig = self._labels_arr.flatten()
+    labels_arr = np.nanmax(labels_orig) - (
+        np.exp(np.log(self.offset) * (0.5 - labels_arr)) - 1
+    ) * ((np.nanmax(labels_orig) - np.nanmin(labels_orig)) / (self.offset - 1))
     return np.reshape(labels_arr, [-1, 1])
 
 
 @attr.define
-class InfeasibleWarperComponent(OutputWarperProtocol):
+class InfeasibleWarperComponent(OutputWarper):
   """Warps the infeasible/nan value to feasible/finite values."""
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     labels_arr = _validate_and_deepcopy(labels_arr)
     labels_arr = labels_arr.flatten()
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
@@ -231,11 +310,16 @@ class InfeasibleWarperComponent(OutputWarperProtocol):
     labels_arr[np.isnan(labels_arr)] = warped_bad_value
     return np.reshape(labels_arr, [-1, 1])
 
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise ValueError(
+        'InfeasibleWarperComponent does not support unwarp method.'
+    )
 
-class ZScoreLabels(OutputWarperProtocol):
+
+class ZScoreLabels(OutputWarper):
   """Sandardizes finite label values, leaving the NaNs & infinities out."""
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """Sandardizes finite label values to scale the mean to 0 and std to 1.
 
     Args:
@@ -258,11 +342,16 @@ class ZScoreLabels(OutputWarperProtocol):
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise NotImplementedError(
+        'unwarp  method for ZScoreLabels is not implemented yet.'
+    )
 
-class NormalizeLabels(OutputWarperProtocol):
+
+class NormalizeLabels(OutputWarper):
   """Normalizes the finite label values, leaving the NaNs & infinities out."""
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     """Normalizes the finite label values to bring them between 0 and 1.
 
     Args:
@@ -284,9 +373,14 @@ class NormalizeLabels(OutputWarperProtocol):
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise NotImplementedError(
+        'unwarp  method for NormalizeLabels is not implemented yet.'
+    )
+
 
 @attr.define
-class DetectOutliers(OutputWarperProtocol):
+class DetectOutliers(OutputWarper):
   """Detects outliers from an array of labels.
 
   The goal of this warper is to detect the unreasonably bad labels, aka
@@ -305,7 +399,7 @@ class DetectOutliers(OutputWarperProtocol):
   min_zscore: float = attr.field(kw_only=True, default=6.)
   max_zscore: float = attr.field(kw_only=True, default=None)
 
-  def _estimate_variance(self, labels_arr: np.ndarray) -> float:
+  def _estimate_variance(self, labels_arr: chex.Array) -> float:
     """Estimates the variance of labels array using the top half values.
 
     The estimation is a function of the size of the labels array. For details
@@ -356,7 +450,7 @@ class DetectOutliers(OutputWarperProtocol):
            (labels_min_hallucinated - 2 * labels_median + labels_max) /
            (4 * num_points))**2)
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     labels_arr = _validate_and_deepcopy(labels_arr)
     labels_finite_ind = np.isfinite(labels_arr)
     labels_arr_finite = labels_arr[labels_finite_ind]
@@ -367,8 +461,13 @@ class DetectOutliers(OutputWarperProtocol):
     labels_arr[labels_finite_ind] = labels_arr_finite
     return labels_arr
 
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise NotImplementedError(
+        'unwarp  method for DetectOutliers is not implemented yet.'
+    )
 
-class TransformToGaussian(OutputWarperProtocol):
+
+class TransformToGaussian(OutputWarper):
   """Transforms the labels into a Gaussian distribution .
 
   The goal of this warper is to transform the label into a Gaussian sample to
@@ -396,7 +495,7 @@ class TransformToGaussian(OutputWarperProtocol):
     self.softclip_hinge_softness = softclip_hinge_softness
     self.use_rank = use_rank
 
-  def __call__(self, labels_arr: np.ndarray) -> np.ndarray:
+  def warp(self, labels_arr: chex.Array) -> chex.Array:
     labels_arr = _validate_and_deepcopy(labels_arr)
     labels_arr = np.asarray(labels_arr, dtype=np.float64)
     labels_arr_flattened = labels_arr.flatten()
@@ -419,3 +518,8 @@ class TransformToGaussian(OutputWarperProtocol):
     labels_arr_transformed = np.reshape(labels_arr_transformed,
                                         labels_arr.shape)
     return labels_arr_transformed
+
+  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+    raise NotImplementedError(
+        'unwarp  method for TransformToGaussian is not implemented yet.'
+    )

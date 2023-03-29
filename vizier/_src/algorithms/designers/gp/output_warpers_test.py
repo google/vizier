@@ -23,7 +23,7 @@ from vizier._src.algorithms.designers.gp import output_warpers
 from absl.testing import absltest
 from absl.testing import parameterized
 
-OutputWarper = output_warpers.OutputWarperProtocol
+OutputWarper = output_warpers.OutputWarper
 
 
 @absltest.skipThisClass('Base class')
@@ -47,26 +47,26 @@ class _OutputWarperTestCase(absltest.TestCase):
       self.skipTest('This class does not map every value to a finite value.')
 
     labels = np.array([[1.], [1.], [5.], [-1e80], [np.nan], [-np.inf]])
-    labels_warped = self.warper(labels)
+    labels_warped = self.warper.warp(labels)
     np.testing.assert_allclose(
         np.isfinite(labels_warped), True, err_msg=f'warped: {labels_warped}')
 
   def test_input_is_not_mutated(self):
     labels_input = np.array([[1.], [1.], [5.], [10.]])
-    _ = self.warper(labels_input)
+    _ = self.warper.warp(labels_input)
     self.assertTrue(
         (labels_input.flatten() == np.array([[1.], [1.], [5.],
                                              [10.]]).flatten()).all())
 
   def test_shape_is_preserved(self):
     labels = self.labels_with_outliers()
-    labels_warped = self.warper(labels)
+    labels_warped = self.warper.warp(labels)
     self.assertEqual(labels_warped.shape, labels.shape)
 
   def test_preserve_rank_despite_outliers(self):
     labels = self.labels_with_outliers()
     finite_indices = np.isfinite(labels)
-    labels_warped = self.warper(labels)
+    labels_warped = self.warper.warp(labels)
     np.testing.assert_array_equal(
         scipy.stats.rankdata(labels[finite_indices]),
         scipy.stats.rankdata(labels_warped[finite_indices]),
@@ -76,7 +76,7 @@ class _OutputWarperTestCase(absltest.TestCase):
   def test_preserve_rank_if_no_outliers(self):
     labels = np.array([[1.], [1.], [5.], [-1], [-4], [np.nan], [-np.inf]])
     finite_indices = np.isfinite(labels)
-    labels_warped = self.warper(labels)
+    labels_warped = self.warper.warp(labels)
     np.testing.assert_array_equal(
         scipy.stats.rankdata(labels[finite_indices]),
         scipy.stats.rankdata(labels_warped[finite_indices]),
@@ -86,7 +86,7 @@ class _OutputWarperTestCase(absltest.TestCase):
   def test_finite_maps_to_finite(self):
     labels = self.labels_with_outliers()
     finite_indices = np.isfinite(labels)
-    labels_warped = self.warper(labels)
+    labels_warped = self.warper.warp(labels)
     np.testing.assert_allclose(
         np.isfinite(labels_warped[finite_indices]),
         True,
@@ -105,8 +105,12 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
 
   def test_all_nonfinite_labels(self):
     labels_infeaible = np.array([[-np.inf], [np.nan], [np.nan], [-np.inf]])
-    self.assertTrue((self.warper(labels_infeaible) == -1 *
-                     np.ones(shape=labels_infeaible.shape).flatten()).all())
+    self.assertTrue(
+        (
+            self.warper.warp(labels_infeaible)
+            == -1 * np.ones(shape=labels_infeaible.shape).flatten()
+        ).all()
+    )
 
   @parameterized.parameters([
       dict(labels=np.zeros(shape=(5, 1))),
@@ -115,7 +119,7 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
       dict(labels=-100 * np.ones(shape=(5, 1))),
   ])
   def test_all_identical_values_map_to_zero(self, labels):
-    np.testing.assert_array_equal(self.warper(labels), 0.)
+    np.testing.assert_array_equal(self.warper.warp(labels), 0.0)
 
   @parameterized.named_parameters([
       dict(
@@ -126,7 +130,7 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
       ),
   ])
   def test_known_arrays(self, unwarped: np.ndarray, expected: np.ndarray):
-    actual = self.warper(unwarped)
+    actual = self.warper.warp(unwarped)
     np.testing.assert_allclose(actual, expected, err_msg=f'actual: {actual}')
 
   def test_default_warper_empty_warpers(self):
@@ -225,7 +229,7 @@ class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
       ),
   ])
   def test_known_arrays(self, unwarped: np.ndarray, expected: np.ndarray):
-    actual = self.warper(unwarped)
+    actual = self.warper.warp(unwarped)
     np.testing.assert_allclose(
         actual, expected, err_msg=f'actual: {actual.tolist()}')
 
@@ -255,7 +259,7 @@ class InfeasibleWarperTest(parameterized.TestCase):
     warper_infeasible = output_warpers.InfeasibleWarperComponent()
     labels = np.array([[-200.], [np.nan], [-1000.], [np.nan], [1.], [2.], [3.]])
 
-    labels_warped_infeasible = warper_infeasible(labels)
+    labels_warped_infeasible = warper_infeasible.warp(labels)
     self.assertEqual(np.isnan(labels_warped_infeasible).sum(), 0)
 
   def test_known_arrays(self):

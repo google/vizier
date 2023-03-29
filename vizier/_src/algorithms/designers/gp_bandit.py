@@ -186,7 +186,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   def _convert_trials_to_arrays(
       self, trials: Sequence[vz.Trial]
-  ) -> tuple[np.ndarray, np.ndarray]:
+  ) -> tuple[chex.Array, chex.Array]:
     """Convert trials to scaled features and warped labels."""
     features, labels = self._converter.to_xy(self._trials)
     logging.info(
@@ -194,11 +194,12 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         labels.shape,
         features.shape,
     )
-    if self._use_output_warping:
-      # Warp the output.
-      labels = output_warpers.create_default_warper()(labels)
-      labels = labels.reshape([-1])
-      logging.info('Output warped the labels. Now has shape: %s', labels.shape)
+
+    # Warp the output.
+    labels = output_warpers.create_default_warper().warp(labels)
+
+    labels = labels.reshape([-1])
+    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
 
   def _find_best_model_params(self) -> chex.ArrayTree:
