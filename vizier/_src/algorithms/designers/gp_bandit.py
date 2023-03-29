@@ -323,8 +323,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     optimal_features = self._converter.to_features(best_candidates)  # [N, D]
     # Make predictions (in the warped space). [N]
     predictions = self._acquisition_builder.predict_on_array(optimal_features)
-    predict_mean = predictions['mean'].reshape([-1])  # [N,] # pytype: disable=unsupported-operands  # numpy-scalars
-    predict_stddev = predictions['stddev'].reshape([-1])  # [N,] # pytype: disable=unsupported-operands  # numpy-scalars
+    predict_mean = predictions['mean'].reshape([-1])  # [N,] # pytype: disable=attribute-error  # numpy-scalars
+    predict_stddev = predictions['stddev'].reshape([-1])  # [N,] # pytype: disable=attribute-error  # numpy-scalars
     logging.info(
         'Created predictions for the best candidates which were '
         f'converted to an array of shape: {optimal_features.shape}. '
