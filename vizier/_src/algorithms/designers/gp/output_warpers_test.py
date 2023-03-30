@@ -102,15 +102,6 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
   def always_maps_to_finite(self) -> bool:
     return True
 
-  def test_all_nonfinite_labels(self):
-    labels_infeaible = np.array([[-np.inf], [np.nan], [np.nan], [-np.inf]])
-    self.assertTrue(
-        (
-            self.warper.warp(labels_infeaible)
-            == -1 * np.ones(shape=labels_infeaible.shape).flatten()
-        ).all()
-    )
-
   @parameterized.parameters([
       dict(labels=np.zeros(shape=(5, 1))),
       dict(labels=np.ones(shape=(5, 1))),
@@ -375,6 +366,21 @@ class InfeasibleWarperTest(parameterized.TestCase):
   def test_known_arrays(self):
     # TODO: Add a couple of parameterized test cases.
     self.skipTest('No test cases provided')
+
+
+class OutputWarperPipelineTest(absltest.TestCase):
+  """Tests the default outpur warper edge cases."""
+
+  def test_all_nonfinite_labels(self):
+    warper = output_warpers.OutputWarperPipeline()
+    labels_infeaible = np.array([[-np.inf], [np.nan], [np.nan], [-np.inf]])
+    self.assertTrue(
+        (
+            warper.warp(labels_infeaible)
+            == -1 * np.ones(shape=labels_infeaible.shape).flatten()
+        ).all()
+    )
+
 
 if __name__ == '__main__':
   absltest.main()
