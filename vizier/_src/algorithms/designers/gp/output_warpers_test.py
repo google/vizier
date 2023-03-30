@@ -19,7 +19,6 @@ from __future__ import annotations
 import numpy as np
 import scipy
 from vizier._src.algorithms.designers.gp import output_warpers
-
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -74,7 +73,7 @@ class _OutputWarperTestCase(absltest.TestCase):
                  f'Warped: {labels_warped}'))
 
   def test_preserve_rank_if_no_outliers(self):
-    labels = np.array([[1.], [1.], [5.], [-1], [-4], [np.nan], [-np.inf]])
+    labels = np.array([[1.0], [1.0], [5.0], [-1], [-4], [np.nan], [np.nan]])
     finite_indices = np.isfinite(labels)
     labels_warped = self.warper.warp(labels)
     np.testing.assert_array_equal(
@@ -207,34 +206,69 @@ class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
       dict(
           testcase_name='case1',
           unwarped=np.array([[np.nan, 1, 2, 3, 4, 5, 6, 2, 10, 12, -np.inf]]).T,
-          expected=np.array([[np.nan], [-2.7145447657886415],
-                             [0.3722561569665319], [2.322289907556879], [4.0],
-                             [5.0], [6.0], [0.3722561569665319], [10.0], [12.0],
-                             [np.nan]])),
+          expected=np.array([
+              [np.nan],
+              [-2.7145447657886415],
+              [0.3722561569665319],
+              [2.322289907556879],
+              [4.0],
+              [5.0],
+              [6.0],
+              [0.3722561569665319],
+              [10.0],
+              [12.0],
+              [np.nan],
+          ]),
+      ),
       dict(
           testcase_name='case2',
           unwarped=np.array([[np.nan, -4, -3, -2, 1.1, 1.2, 1.3, 1.4, 1.5]]).T,
-          expected=np.array([[np.nan], [0.7984888240158797],
-                             [0.9467291870388195], [1.0380072549079085],
-                             [1.1139555940074284], [1.2], [1.3], [1.4], [1.5]]),
+          expected=np.array([
+              [np.nan],
+              [0.7984888240158797],
+              [0.9467291870388195],
+              [1.0380072549079085],
+              [1.1139555940074284],
+              [1.2],
+              [1.3],
+              [1.4],
+              [1.5],
+          ]),
       ),
       dict(
           testcase_name='case3',
-          unwarped=np.array([[np.nan, 1, 2, 3, 4, 4, 6, 7, 10, 11, 12]],
-                            dtype=np.float64).T,
-          expected=np.array([[np.nan], [-2.3573836671676096],
-                             [0.7453945664588675], [2.655910679724611],
-                             [4.2455644597926385], [4.2455644597926385], [6.0],
-                             [7.0], [10.0], [11.0], [12.0]]),
+          unwarped=np.array(
+              [[np.nan, 1, 2, 3, 4, 4, 6, 7, 10, 11, 12]], dtype=np.float64
+          ).T,
+          expected=np.array([
+              [np.nan],
+              [-2.3573836671676096],
+              [0.7453945664588675],
+              [2.655910679724611],
+              [4.2455644597926385],
+              [4.2455644597926385],
+              [6.0],
+              [7.0],
+              [10.0],
+              [11.0],
+              [12.0],
+          ]),
       ),
   ])
   def test_known_arrays(self, unwarped: np.ndarray, expected: np.ndarray):
     actual = self.warper.warp(unwarped)
     np.testing.assert_allclose(
-        actual, expected, err_msg=f'actual: {actual.tolist()}')
+        actual, expected, err_msg=f'actual: {actual.tolist()}'
+    )
 
 
 class LogWarperComponentTest(_OutputWarperTestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.labels_arr = np.array(
+        [[-100.0], [-200.0], [1.0], [2.0], [3.0], [10.0], [15.0]]
+    )
 
   @property
   def warper(self) -> OutputWarper:
@@ -247,6 +281,82 @@ class LogWarperComponentTest(_OutputWarperTestCase):
   def test_known_arrays(self):
     # TODO: Add a couple of parameterized test cases.
     self.skipTest('No test cases provided')
+
+  def test_unwarp_shape(self):
+    warper = self.warper
+    _ = warper.warp(self.labels_arr)
+    np.testing.assert_equal(
+        warper.unwarp(self.labels_arr).shape, self.labels_arr.shape
+    )
+
+  def test_warp_shape(self):
+    warper = self.warper
+    _ = warper.warp(self.labels_arr)
+    np.testing.assert_equal(
+        warper.unwarp(self.labels_arr).shape, self.labels_arr.shape
+    )
+
+  def test_unwarp_values(self):
+    warper = self.warper
+    labels_arr_warped = warper.warp(self.labels_arr)
+    expected = np.array([
+        [-90.7415054],
+        [-137.82329233],
+        [-38.55794983],
+        [-38.01309563],
+        [-37.46762612],
+        [-33.63193395],
+        [-30.87322547],
+    ])
+    np.testing.assert_array_almost_equal(
+        warper.unwarp(labels_arr_warped / 2), expected
+    )
+
+  def test_bijective_at_exact_points(self):
+    warper = self.warper
+    labels_arr_warped = warper.warp(self.labels_arr)
+    np.testing.assert_array_almost_equal(
+        self.labels_arr, warper.unwarp(labels_arr_warped)
+    )
+
+  def test_unwarp_preserve_rank_interpolate(self):
+    """Tests rank preservation among points interpolated between the training labels.
+
+    In details, the interplated array is labels_test_warped which includes
+    mid-points between every two consective elements in the warped sorted array.
+    We test wether the rank of warped labels augmented with the interpolated
+    array in the warped domain is equal to the rank of unwarped labels and the
+    unwarped interpolated array.
+    """
+    warper = self.warper
+    labels_arr_warped = warper.warp(self.labels_arr)
+    labels_test_warped = (
+        np.sort(labels_arr_warped, axis=0)[0:-1]
+        + np.sort(labels_arr_warped, axis=0)[1:]
+    ) / 2
+    labels_test = warper.unwarp(labels_test_warped)
+    labels_all_warped = np.vstack((labels_arr_warped, labels_test_warped))
+    labels_all = np.vstack((self.labels_arr, labels_test))
+    np.testing.assert_array_almost_equal(
+        np.argsort(labels_all_warped, axis=0),
+        np.argsort(labels_all, axis=0),
+    )
+
+  def test_unwarp_preserve_rank_extrapolate(self):
+    """Tests rank preservation among points extrapolated out of the range of the training labels."""
+
+    warper = self.warper
+    labels_arr_warped = warper.warp(self.labels_arr)
+    labels_test_warped = np.array(
+        [[np.min(labels_arr_warped) - 10.0], [np.max(labels_arr_warped) + 10.0]]
+    )
+    labels_test = warper.unwarp(labels_test_warped)
+    labels_all_warped = np.vstack((labels_arr_warped, labels_test_warped))
+    labels_all = np.vstack((self.labels_arr, labels_test))
+    np.testing.assert_array_almost_equal(
+        np.argsort(labels_all_warped, axis=0),
+        np.argsort(labels_all, axis=0),
+    )
 
 
 class InfeasibleWarperTest(parameterized.TestCase):

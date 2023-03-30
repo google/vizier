@@ -194,7 +194,6 @@ class HalfRankComponent(OutputWarper):
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
-  _labels_arr: Optional[chex.Array] = attr.field(default=None)
 
   def _estimate_std_of_good_half(
       self, unique_labels: chex.Array, threshold: float
@@ -223,7 +222,6 @@ class HalfRankComponent(OutputWarper):
   def warp(self, labels_arr: chex.Array) -> chex.Array:
     """See base class."""
     labels_arr = _validate_and_deepcopy(labels_arr)
-    self._labels_arr = labels_arr
     if labels_arr.size == 1:
       return labels_arr
     labels_arr = labels_arr.flatten()
@@ -262,13 +260,16 @@ class LogWarperComponent(OutputWarper):
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
-  _labels_arr: Optional[chex.Array] = attr.field(default=None)
+
+  _labels_min: Optional[float] = attr.field(default=None)
+  _labels_max: Optional[float] = attr.field(default=None)
   offset: float = attr.field(default=1.5, validator=attrs.validators.gt(0.0))
 
   def warp(self, labels_arr: chex.Array) -> chex.Array:
     """See base class."""
     labels_arr = _validate_and_deepcopy(labels_arr)
-    self._labels_arr = labels_arr
+    self._labels_min = np.nanmin(labels_arr)
+    self._labels_max = np.nanmax(labels_arr)
     labels_arr = labels_arr.flatten()
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
     labels_arr[np.isfinite(labels_arr)] = 0.5 - (
@@ -289,12 +290,11 @@ class LogWarperComponent(OutputWarper):
     return np.reshape(labels_arr, [-1, 1])
 
   def unwarp(self, labels_arr: chex.Array) -> chex.Array:
-    if self._labels_arr is None:
+    if self._labels_max is None or self._labels_min is None:
       raise ValueError(' warp() needs to be called before unwarp() is called.')
-    labels_orig = self._labels_arr.flatten()
-    labels_arr = np.nanmax(labels_orig) - (
+    labels_arr = self._labels_max - (
         np.exp(np.log(self.offset) * (0.5 - labels_arr)) - 1
-    ) * ((np.nanmax(labels_orig) - np.nanmin(labels_orig)) / (self.offset - 1))
+    ) * ((self._labels_max - self._labels_min) / (self.offset - 1))
     return np.reshape(labels_arr, [-1, 1])
 
 
