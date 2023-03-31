@@ -216,13 +216,28 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Run ARD.
     setup = lambda rng: self._model.init(rng, self._features)['params']
     constraints = sp.get_constraints(self._model.coroutine)
-    loss_fn = jax.jit(loss_fn)
+    ard_loss_fn = self._get_loss_fn(loss_fn)
+
     logging.info('Optimizing the loss function...')
     self._rng, ard_rng = jax.random.split(self._rng, 2)
     best_model_params, _ = self._ard_optimizer(
-        setup, loss_fn, ard_rng, constraints=constraints
+        setup, ard_loss_fn, ard_rng, constraints=constraints
     )
     return best_model_params
+
+  def _get_loss_fn(self, loss_fn):
+    if isinstance(self._ard_optimizer, optimizers.OptaxTrainWithRandomRestarts):
+
+      def ard_loss_fn(x):
+        loss_val, metrics = loss_fn(x)
+        # For SGD, normalize the loss so we can use the same learning rate
+        # regardless of the number of examples (see
+        # `OptaxTrainWithRandomRestarts` docstring).
+        return loss_val / self._features.shape[0], metrics
+
+    else:
+      ard_loss_fn = loss_fn
+    return jax.jit(ard_loss_fn)
 
   def _compute_state(self):
     """Compute the designer's state.
@@ -251,9 +266,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Logging for debugging purposes.
     logging.info('ARD duration: %s', (datetime.datetime.now() - ard_start_time))
     logging.info('Best model parameters: %s', best_model_params)
+    ard_loss_fn = self._get_loss_fn(loss_fn)
     if self._use_vmap:
-      loss_fn = jax.vmap(loss_fn)
-    ard_all_losses = loss_fn(best_model_params)[0]
+      ard_loss_fn = jax.vmap(ard_loss_fn)
+    ard_all_losses = ard_loss_fn(best_model_params)[0]
     logging.info('All losses: %s', ard_all_losses)
     ard_best_loss = ard_all_losses.flatten()[0].item()
     logging.info('ARD best loss: %s', ard_best_loss)

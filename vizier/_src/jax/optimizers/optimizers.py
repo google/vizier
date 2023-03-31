@@ -110,6 +110,21 @@ class Optimizer(Protocol):
 class OptaxTrainWithRandomRestarts(Optimizer):
   """Wraps an Optax optimizer.
 
+  It's recommended to use this optimizer with a loss function that normalizes by
+  the number of observations. The unnormalized loss function for parameters `p`
+  is typically of the form
+
+  ```None
+  -gp_likelihood(observations | p) + regularization(p)
+  ```
+
+  where regularization may be a negative prior log probability. The likelihood
+  term is approximately proportional to the number of observations. As the
+  number of observations changes over the course of a study, dividing the loss
+  by this number helps ensure that loss values are roughly of the same order of
+  magnitude, such that a constant learning rate may be used for gradient-based
+  optimizers. Vizier library models make this adjustment automatically.
+
   Attributes:
     optimizer: Optax optimizer such as `optax.adam(1e-2)`.
     epochs: Number of train epochs.
