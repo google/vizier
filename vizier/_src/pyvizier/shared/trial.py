@@ -269,7 +269,27 @@ class _MetricDict(collections.UserDict, Mapping[str, Metric]):
 
 @attr.s(auto_attribs=True, frozen=False, init=True, slots=True)
 class Measurement:
-  """Collection of metrics with a timestamp."""
+  """A collection of metrics with a timestamp & checkpoint.
+
+  metrics: Named, floating-point metrics.  A typical example would be the
+    accuracy of a machine-learning model.  Typically, all the metrics mentioned
+    in the MetricInformation class would be listed here; other metrics may be
+    listed but would not normally be used by Vizier.
+
+  elapsed_secs: (optional) The length of time it took to evaluate the Trial to
+    reach this Measurement, in seconds.  This may be used by some Vizier
+    algorithms.
+
+  steps: (optional)  A positive integer roughly proportional to the amount of
+    work spent.  When training a ML system, often this is a count of training
+    steps/epochs.  When supplied, $steps should be consistent with the order of
+    Measurements, but they need not be consecutive values.
+
+  checkpoint_path: (optional) A slash-separated pathname.  Typically used when
+    training a ML model; it would normally be a pathname for the checkpoint that
+    produced the Measurement.  Implementations may limit the length of this
+    string, but at least 2048 bytes will be allowed.
+  """
 
   def _value_is_finite(self, _, value):
     if not (np.isfinite(value) and value >= 0):
@@ -299,6 +319,13 @@ class Measurement:
       validator=[attr.validators.instance_of(int), _value_is_finite],
       on_setattr=[attr.setters.convert, attr.setters.validate],
       kw_only=True)
+
+  checkpoint_path: str = attr.ib(
+      init=True,
+      default='',
+      validator=[attr.validators.instance_of(str)],
+      kw_only=True,
+  )
 
 
 def _to_local_time(
