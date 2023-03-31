@@ -61,8 +61,10 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
                                  mutable=['losses', 'predictive'])
       # Normalize so we can use the same learning rate regardless of
       # how many examples we have.
-      loss = (-gp.log_prob(labels) + jax.tree_util.tree_reduce(
-          jax.numpy.add, mutables['losses'])) / features.shape[0]
+      loss = (
+          -gp.log_prob(labels)
+          + jax.tree_util.tree_reduce(jnp.add, mutables['losses'])
+      ) / features.shape[0]
       return loss, dict()
 
     return model, loss_fn

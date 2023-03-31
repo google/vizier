@@ -114,21 +114,20 @@ class OptaxTrainWithRandomRestarts(Optimizer):
     optimizer: Optax optimizer such as `optax.adam(1e-2)`.
     epochs: Number of train epochs.
     verbose: If >=1, logs the train progress. If >=2, logs the gradients.
-    random_restarts: Must be a non-negative number. If positive, optimizes from
-      multiple random initializations and returns the best.
-    best_n: Return this many optimal points. Must be less than random_restarts.
-      Set it to None if you want to avoid getting extra dimensions in the
-      result.
+    random_restarts: Must be positive; number of random initializations for the
+      optimization.
+    best_n: Number of best values to return from the initializations; must be
+      less than or equal to `random_restarts`.
   """
 
   optimizer: optax.GradientTransformation = attr.field()
   epochs: int = attr.field(kw_only=True)
   verbose: int = attr.field(kw_only=True, default=0, converter=int)
-  random_restarts: int = attr.field(kw_only=True, default=0)
-  best_n: Optional[int] = attr.field(kw_only=True, default=None)
+  random_restarts: int = attr.field(kw_only=True, default=32)
+  best_n: int = attr.field(kw_only=True, default=1)
 
   def __attrs_post_init__(self):
-    if self.random_restarts < (self.best_n or 0):
+    if self.random_restarts < self.best_n:
       raise ValueError(
           f'Cannot generate {self.best_n} results from'
           f' {self.random_restarts} restarts'
@@ -170,7 +169,7 @@ class OptaxTrainWithRandomRestarts(Optimizer):
       metrics['loss'] = loss
       return params, opt_state, metrics
 
-    if self.random_restarts:
+    if self.random_restarts > 1:
       # Random restarts are implemented via jax.vmap.
       # Note that both setup_all and train_step are vmapped.
       rngs = random.split(rng, self.random_restarts)
@@ -210,14 +209,12 @@ class OptaxTrainWithRandomRestarts(Optimizer):
 
     final_losses = metrics['loss'][-1]
     logging.info('Final loss: %s', final_losses)
-    if self.random_restarts:
-      best_n = self.best_n or 1
-      # Extract the best only.
-      argsorted = jnp.argsort(final_losses)
-      logging.info('Best loss(es): %s', final_losses[argsorted[:best_n]])
-      params = jax.tree_map(lambda x: x[argsorted[:best_n]], params)
-      if self.best_n is None:
-        params = jax.tree_map(functools.partial(jnp.squeeze, axis=0), params)
+    # Extract the best only.
+    argsorted = jnp.argsort(final_losses)
+    logging.info('Best loss(es): %s', final_losses[argsorted[: self.best_n]])
+    params = jax.tree_map(lambda x: x[argsorted[: self.best_n]], params)
+    if self.best_n == 1:
+      params = jax.tree_map(functools.partial(jnp.squeeze, axis=0), params)
     if bijector is not None:
       params = bijector(params)
     return params, metrics
@@ -234,16 +231,24 @@ class JaxoptLbfgsB(Optimizer):
 
   Attributes:
     num_line_search_steps: Maximum number of line search steps.
-    random_restarts: Must be a non-negative number. If positive, optimizes from
-      multiple random initializations and returns the best.
-    best_n: Number of top values to return.
+    random_restarts: Must be positive; number of random initializations for the
+      optimization.
+    best_n: Number of best values to return from the initializations; must be
+      less than or equal to `random_restarts`.
     _speed_test: If True, return speed test results.
   """
 
   num_line_search_steps: int = attr.field(kw_only=True, default=20)
-  random_restarts: int = attr.field(kw_only=True, default=64)
-  best_n: Optional[int] = attr.field(kw_only=True, default=None)
+  random_restarts: int = attr.field(kw_only=True, default=4)
+  best_n: int = attr.field(kw_only=True, default=1)
   _speed_test: bool = attr.field(kw_only=True, default=False)
+
+  def __attrs_post_init__(self):
+    if self.random_restarts < self.best_n:
+      raise ValueError(
+          f'Cannot generate {self.best_n} results from'
+          f' {self.random_restarts} restarts'
+      )
 
   def __call__(
       self,
@@ -313,17 +318,15 @@ class JaxoptLbfgsB(Optimizer):
 
     all_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *params)
     losses = jnp.array(losses)
-    if self.random_restarts:
-      best_n = self.best_n or 1
-      argsorted = jnp.argsort(losses)
-      logging.info('Best loss(es): %s', losses[argsorted[:best_n]])
-      optimal_params = jax.tree_util.tree_map(lambda p: p[argsorted[:best_n]],
-                                              all_params)
-      if self.best_n is None:
-        optimal_params = jax.tree_map(
-            functools.partial(jnp.squeeze, axis=0), optimal_params)
-    else:
-      optimal_params = all_params
+    argsorted = jnp.argsort(losses)
+    logging.info('Best loss(es): %s', losses[argsorted[: self.best_n]])
+    optimal_params = jax.tree_util.tree_map(
+        lambda p: p[argsorted[: self.best_n]], all_params
+    )
+    if self.best_n == 1:
+      optimal_params = jax.tree_map(
+          functools.partial(jnp.squeeze, axis=0), optimal_params
+      )
 
     metrics['loss'] = losses
     if self._speed_test:

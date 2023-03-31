@@ -41,7 +41,7 @@ ensemble_ard_optimizer = optimizers.OptaxTrainWithRandomRestarts(
 )
 
 noensemble_ard_optimizer = optimizers.OptaxTrainWithRandomRestarts(
-    optax.adam(5e-3), epochs=10, verbose=False, random_restarts=10, best_n=None
+    optax.adam(5e-3), epochs=10, verbose=False, random_restarts=10, best_n=1
 )
 
 

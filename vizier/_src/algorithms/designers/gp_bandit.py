@@ -73,7 +73,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
   _ard_optimizer: optimizers.Optimizer = attr.field(
-      factory=lambda: VizierGPBandit.default_ard_optimizer, kw_only=True
+      factory=lambda: VizierGPBandit.default_ard_optimizer_noensemble,
+      kw_only=True,
   )
   _acquisition_optimizer: vb.VectorizedOptimizer = attr.field(
       kw_only=True,
@@ -105,9 +106,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   # `default_ard_optimizer` returns the best 5 parameter values for ensembling,
   # while `default_ard_optimizer_noensemble` returns only
   # the single best parameter value.
-  default_ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=32, best_n=5)
+  default_ard_optimizer_ensemble = optimizers.JaxoptLbfgsB(
+      random_restarts=8, best_n=5
+  )
   default_ard_optimizer_noensemble = optimizers.JaxoptLbfgsB(
-      random_restarts=32, best_n=None
+      random_restarts=4, best_n=1
   )
   # not an attr field.
   default_acquisition_optimizer = vb.VectorizedOptimizer(
@@ -138,8 +141,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Derived classes of `optimizers.Optimizer` have a `best_n` property that
     # indicates whether the optimizer trains an ensemble of parameters and
     # therefore whether vmap should be used.
-    # If the optimizer has a `best_n` property with any value vmap is used.
-    return getattr(self._ard_optimizer, 'best_n', None) is not None
+    # If the optimizer has a `best_n` property with value greater than 1, vmap
+    # is used.
+    return getattr(self._ard_optimizer, 'best_n', -1) > 1
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials

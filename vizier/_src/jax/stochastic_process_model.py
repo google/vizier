@@ -194,7 +194,9 @@ class ModelParameter:
         init_fn=init_fn,
         name=prior.name,
         constraint=Constraint(bounds=bounds, bijector=bijector),
-        regularizer=lambda x: -prior.log_prob(x),
+        # TODO: `jnp.copy` is used to bypass TFP bijector caching;
+        # otherwise JAX tracers are leaked from JIT-ted code.
+        regularizer=lambda x: -prior.log_prob(jnp.copy(x)),
     )
 
 
