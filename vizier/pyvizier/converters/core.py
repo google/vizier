@@ -1279,6 +1279,16 @@ class TrialToArrayConverter:
     return cls(converter, cls._experimental_override)
 
   @property
+  def metric_names(self):
+    """Returns the metric names in the order they appear in labels."""
+    return [mc.metric_information.name for mc in self._impl.metric_converters]
+
+  @property
+  def parameter_names(self):
+    """Returns the parameter names in the order they appear in features."""
+    return [pc.parameter_config.name for pc in self._impl.parameter_converters]
+
+  @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:
     return [
         converter.output_spec for converter in self._impl.parameter_converters
