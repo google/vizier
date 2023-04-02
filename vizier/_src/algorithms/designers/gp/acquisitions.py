@@ -97,6 +97,18 @@ class EI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
+class EI(AcquisitionFunction):
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[chex.ArrayTree] = None,
+      labels: Optional[chex.Array] = None,
+  ) -> chex.Array:
+    del features
+    return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
+
+
 # TODO: Support discretes and categoricals.
 # TODO: Support custom distances.
 class TrustRegion:
