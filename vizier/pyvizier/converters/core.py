@@ -511,7 +511,6 @@ def _create_default_getter(
 class DefaultModelInputConverter(ModelInputConverter):
   """Converts trials into a (None, 1) array corresponding to a parameter.
 
-
   If the parameter_config is continuous, values obtained from `getter()` are
   directly returned as floating numbers. Otherwise, this converter returns
   the index of the value obtained from `getter()` within
@@ -662,7 +661,7 @@ class DefaultModelInputConverter(ModelInputConverter):
     array = self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
     return [self._to_parameter_value(v) for v in list(array.flatten())]
 
-  def _convert_index(self, trial: pyvizier.TrialSuggestion):
+  def _convert_index(self, trial: pyvizier.TrialSuggestion) -> int:
     """Called by `convert()` if configured for a non-continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value in self.parameter_config.feasible_values:
@@ -671,7 +670,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       # Return the catch-all missing index.
       return len(self.parameter_config.feasible_values)
 
-  def _convert_continuous(self, trial: pyvizier.TrialSuggestion):
+  def _convert_continuous(self, trial: pyvizier.TrialSuggestion) -> float | int:
     """Called by `convert()` if configured for a continuous parameter."""
     raw_value = self._getter(trial)
     if raw_value is None:
@@ -886,6 +885,31 @@ class DefaultTrialConverter(TrialToNumpyDict):
     for converter in self.parameter_converters:
       result_dict[converter.parameter_config.name] = converter.convert(trials)
     return result_dict
+
+  def feature_index(self, name: str) -> tuple[int, int]:
+    """Tells where a given named parameter sits within the converted array.
+
+    This pairs with self.to_features() or self.to_xy() and refers to columns in
+    the output array that they generate.  It is intended to allow you to reach
+    into the array and find or manipulate a specific parameter.
+
+    Args:
+      name: The name of a Parameter.
+
+    Returns:
+      A tuple of (start_index, end_index) for the columns that correspond to the
+      $named parameter, where $end_index is the column after the named
+      parameter.
+    Raises:
+      KeyError: if $name doesn't name a parameter.
+    """
+    index = 0
+    for converter in self.parameter_converters:
+      size = converter.output_spec.num_dimensions
+      if name == converter.parameter_config.name:
+        return (index, index + size)
+      index += size
+    raise KeyError(f'Cannot find {name=} in converters.')
 
   def to_trials(
       self,
@@ -1213,6 +1237,25 @@ class TrialToArrayConverter:
   def to_features(self, trials) -> np.ndarray:
     """Returns the labels array with dimenion: (n_trials, n_features)."""
     return dict_to_array(self._impl.to_features(trials))
+
+  def feature_index(self, name: str) -> tuple[int, int]:
+    """Tells where a given named parameter sits within the converted array.
+
+    This pairs with self.to_features() or self.to_xy() and refers to columns in
+    the output array that they generate.  It is intended to allow you to reach
+    into the array and find or manipulate a specific parameter.
+
+    Args:
+      name: The name of a Parameter.
+
+    Returns:
+      A tuple of (start_index, end_index) for the columns that correspond to the
+      $named parameter, where $end_index is the column after the named
+      parameter.
+    Raises:
+      KeyError: if $name doesn't name a parameter.
+    """
+    return self._impl.feature_index(name)
 
   def to_labels(self, trials) -> np.ndarray:
     """Returns the labels array with dimenion: (n_trials, n_metrics)."""
