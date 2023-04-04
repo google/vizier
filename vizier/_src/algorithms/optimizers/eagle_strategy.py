@@ -374,6 +374,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       new_features = mutated_features + perturbations
 
     new_features = self._param_handler.sample_categorical(new_features)
+    # TODO: The range of features is not always [0, 1].
+    #   Specifically, for features that are single-point, it can be [0, 0]; we
+    #   also want this code to be aware of the feature's bounds to enable
+    #   contextual bandit operation.  Note that if a parameter's bound changes,
+    #   we might also want to change the firefly noise or normalizations.
     suggested_features = np.clip(new_features, 0, 1)
     # Save the suggested features to be used in update.
     self._last_suggested_features = suggested_features

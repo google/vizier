@@ -1206,5 +1206,68 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     self.assertEqual(input_converter.output_spec.bounds[1], 1.0)
 
 
+class ModelInputArrayBijectorTest(absltest.TestCase):
+
+  def testIdentityBijector(self):
+    parameter_config = pyvizier.ParameterConfig.factory('p', bounds=(0.0, 1.0))
+    spec = core.NumpyArraySpec(
+        name='p',
+        type=core.NumpyArraySpecType.default_factory(parameter_config),
+        dtype=np.dtype(np.float32),
+        bounds=(0.0, 1.0),
+        num_dimensions=1,
+        num_oovs=0,
+    )
+    bijector = core.ModelInputArrayBijector.identity(spec)
+    for x in [0.0, 0.25, 0.5, 0.625, 1.0]:
+      x = np.array(x)
+      self.assertLessEqual(
+          bijector.forward_fn(x), bijector.output_spec.bounds[1]
+      )
+      self.assertGreaterEqual(
+          bijector.forward_fn(x), bijector.output_spec.bounds[0]
+      )
+      self.assertEqual(bijector.backward_fn(bijector.forward_fn(x)), x)
+
+  def testScalarFromSpec(self):
+    parameter_config = pyvizier.ParameterConfig.factory('p', bounds=(1.0, 3.0))
+    spec = core.NumpyArraySpec(
+        name='p',
+        type=core.NumpyArraySpecType.default_factory(parameter_config),
+        dtype=np.dtype(np.float32),
+        bounds=(1.0, 3.0),
+        num_dimensions=1,
+        num_oovs=0,
+    )
+    bijector = core.ModelInputArrayBijector.scaler_from_spec(spec)
+    for x in [1.0, 1.25, 1.5, 2.625, 3.0]:
+      x = np.array(x)
+      self.assertLessEqual(
+          bijector.forward_fn(x), bijector.output_spec.bounds[1]
+      )
+      self.assertGreaterEqual(
+          bijector.forward_fn(x), bijector.output_spec.bounds[0]
+      )
+      self.assertEqual(bijector.backward_fn(bijector.forward_fn(x)), x)
+
+  def testScalarFromSinglePointSpec(self):
+    parameter_config = pyvizier.ParameterConfig.factory('p', bounds=(1.0, 1.0))
+    spec = core.NumpyArraySpec(
+        name='p',
+        type=core.NumpyArraySpecType.default_factory(parameter_config),
+        dtype=np.dtype(np.float32),
+        bounds=(1.0, 1.0),
+        num_dimensions=1,
+        num_oovs=0,
+    )
+    bijector = core.ModelInputArrayBijector.scaler_from_spec(spec)
+    x = np.array(1.0)
+    self.assertLessEqual(bijector.forward_fn(x), bijector.output_spec.bounds[1])
+    self.assertGreaterEqual(
+        bijector.forward_fn(x), bijector.output_spec.bounds[0]
+    )
+    self.assertEqual(bijector.backward_fn(bijector.forward_fn(x)), x)
+
+
 if __name__ == '__main__':
   absltest.main()

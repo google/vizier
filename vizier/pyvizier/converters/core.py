@@ -94,12 +94,14 @@ class NumpyArraySpec:
 
   If 'type' is `DISCRETE`, then `dtype` is an integer type, and bounds are
   integers. num_dimensions is always 1. Suppose `bounds=(x,y)`. Then integers
-  x to (y-num_oovs) correspond to valid parameter values. The rest represent
-  out-of-vocabulary values. For example, an integer parameter in range (1,3)
-  can be represented by a DISCRETE NumpyArraySpec with bounds=(1,4) and oov=1.
+  x to-and-including (y-num_oovs) correspond to valid parameter values. The rest
+  represent out-of-vocabulary values. For example, an integer parameter in
+  the range 1 <= x <= 3 can be represented by a DISCRETE NumpyArraySpec with
+  bounds=(1,4) and oov=1.
 
   If 'type' is `ONEHOT_EMBEDDING`, then `dtype` is a floating type, and bounds
-  are floating numbers. Suppose num_dimensions is X.
+  are floating numbers. In this case, the output array can have multiple
+  columns.
 
   Attributes:
     type: Underlying type of the Vizier parameter corresponding to the array.
@@ -108,7 +110,6 @@ class NumpyArraySpec:
     num_dimensions: Corresponds to shape[-1] of the numpy array. When `type` is
       `ONEHOT_EMBEDDING`, the first X dimensions correspond to valid parameter
       values. The other dimensions correspond to out-of-vocabulary values.
-      Otherwise, it is simply 1.
     name: Parameter name.
     num_oovs: Number of out-of-vocabulary items, for non-continuous type.
     scale: Scaling of the values.
@@ -386,7 +387,7 @@ class ModelInputArrayBijector:
   output_spec: NumpyArraySpec  # Spec after forward_fn is applied.
 
   @classmethod
-  def identity(cls, spec) -> 'ModelInputArrayBijector':
+  def identity(cls, spec: NumpyArraySpec) -> 'ModelInputArrayBijector':
     return cls(lambda x: x, lambda x: x, spec)
 
   @classmethod
@@ -401,9 +402,9 @@ class ModelInputArrayBijector:
         return np.where(np.isfinite(y), np.zeros_like(y) + low, y)
 
       return cls(
-          lambda x: np.where(np.isfinite(x), np.zeros_like(x), x),
+          lambda x: np.where(np.isfinite(x), np.zeros_like(x), x - low),
           backward_fn,
-          attr.evolve(spec, bounds=(0.0, 1.0), scale=None),
+          attr.evolve(spec, bounds=(0.0, 0.0), scale=None),
       )
 
     if spec.scale == pyvizier.ScaleType.LOG:
