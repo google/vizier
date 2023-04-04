@@ -867,9 +867,11 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
         scaled
     )
+    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)
     self.assertGreaterEqual(actual[0].value, 1e-4)
-    self.assertLessEqual(actual[1].value, 0.5)
-    self.assertLessEqual(actual[1].value, 1e2)
+    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)
+    self.assertAlmostEqual(actual[2].value, 100.0, delta=1e-2)
+    self.assertLessEqual(actual[2].value, 100.0)
 
   @parameterized.parameters([
       dict(dtype=np.float32),

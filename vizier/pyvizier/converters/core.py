@@ -105,7 +105,7 @@ class NumpyArraySpec:
 
   Attributes:
     type: Underlying type of the Vizier parameter corresponding to the array.
-    dtype: Numpy array's type.
+    dtype: The numpy array's type.
     bounds: Always inclusive in both directions.
     num_dimensions: Corresponds to shape[-1] of the numpy array. When `type` is
       `ONEHOT_EMBEDDING`, the first X dimensions correspond to valid parameter
@@ -356,26 +356,34 @@ class ModelInputConverter(metaclass=abc.ABCMeta):
       Subclasses must use a fixed feature dimension. In particular, it should
       be a constant function of the input trials.
     """
-    pass
 
   @property
   @abc.abstractmethod
   def output_spec(self) -> NumpyArraySpec:
     """Provides specification of the output from this converter."""
-    pass
 
   @property
   @abc.abstractmethod
   def parameter_config(self):
     """Original ParameterConfig that this converter acts on."""
-    pass
 
   @abc.abstractmethod
   def to_parameter_values(
       self, array: np.ndarray
   ) -> List[Optional[pyvizier.ParameterValue]]:
-    """Convert to parameter values."""
-    pass
+    """Convert and clip to the nearest feasible parameter values.
+
+    NOTE: value is automatically truncated to lie inside the search space.
+      This method should only be called to convert suggestions.
+
+    Args:
+      array: has shape (number of trials, feature dimension)
+
+    Returns:
+      List of (ParameterValue or None).  A list entry is None when this
+      converter's parameter doesn't exist in the Trial.  (This is common
+      when parameters are conditional.)
+    """
 
 
 @dataclasses.dataclass
@@ -612,16 +620,7 @@ class DefaultModelInputConverter(ModelInputConverter):
   def _to_parameter_value(
       self, value: Union['np.float', float, int]
   ) -> Optional[pyvizier.ParameterValue]:
-    """Converts to a single parameter value.
-
-    Be aware that the value is automatically truncated.
-
-    Args:
-      value:
-
-    Returns:
-      ParameterValue.
-    """
+    """Converts to a single parameter value; see to_parameter_values()."""
     # TODO: NaNs and out-of-vocab values should return None instead
     # of raising an error.
     if not self._converts_to_parameter:
@@ -1221,7 +1220,6 @@ class TrialToArrayConverter:
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
-    # TODO: Add a boolean flag to disable automatic clipping.
     arrformat = DictOf2DArrays(self._impl.to_features([]))
     return self._impl.to_parameters(arrformat.dict_like(arr))
 
