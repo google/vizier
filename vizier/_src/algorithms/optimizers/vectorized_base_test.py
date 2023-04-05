@@ -24,6 +24,7 @@ import mock
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -55,7 +56,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
   def suggestion_batch_size(self) -> int:
     return 5
 
-  def update(self, rewards: np.ndarray) -> None:  # pytype: disable=signature-mismatch  # numpy-scalars
+  def update(self, rewards: types.Array) -> None:
     pass
 
 
@@ -87,7 +88,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
   def suggestion_batch_size(self) -> int:
     return 1
 
-  def update(self, rewards: np.ndarray) -> None:  # pytype: disable=signature-mismatch  # numpy-scalars
+  def update(self, rewards: types.Array) -> None:
     pass
 
 

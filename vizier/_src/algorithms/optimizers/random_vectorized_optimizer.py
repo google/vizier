@@ -20,6 +20,7 @@ from typing import Optional
 
 import numpy as np
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 
 
@@ -41,7 +42,7 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
         [spec.num_dimensions for spec in self._converter.output_specs]
     )
 
-  def suggest(self) -> vb.Array:
+  def suggest(self) -> types.Array:
     return self._rng.uniform(
         low=0,
         high=1,
@@ -54,7 +55,7 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
   def suggestion_batch_size(self) -> int:
     return self._suggestion_batch_size
 
-  def update(self, rewards: vb.Array) -> None:
+  def update(self, rewards: types.Array) -> None:
     pass
 
 

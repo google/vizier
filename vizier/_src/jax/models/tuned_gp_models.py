@@ -19,16 +19,16 @@ from __future__ import annotations
 # TODO: Add Ax/BoTorch GP.
 
 import functools
-from typing import Any, Generator
+from typing import Any, Generator, Optional, Union
 
 import attr
-import chex
 import jax
 from jax import numpy as jnp
 from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier._src.jax.optimizers import optimizers
 
 # Jax disables float64 computations by default and will silently convert
@@ -37,12 +37,13 @@ config.update('jax_enable_x64', True)
 
 tfb = tfp.bijectors
 tfd = tfp.distributions
-Array = Any
 tfpk = tfp.math.psd_kernels
 
 
 @attr.define
-class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
+class VizierGaussianProcess(
+    sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
+):
   """Vizier's tuned GP.
 
   See __call__ method documentation.
@@ -61,8 +62,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
   @classmethod
   def model_and_loss_fn(
       cls,
-      features: chex.Array,
-      labels: chex.Array,
+      features: types.Array,
+      labels: types.Array,
       *,
       use_retrying_cholesky: bool = True,
   ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
@@ -85,8 +86,11 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     return model, loss_fn
 
   def _log_uniform_init(
-      self, low: float, high: float, shape: tuple[int,
-                                                  ...] = tuple()) -> sp.InitFn:
+      self,
+      low: Union[float, np.floating],
+      high: Union[float, np.floating],
+      shape: tuple[int, ...] = tuple(),
+  ) -> sp.InitFn:
     r"""Take log-uniform sample in the constraint and map it back to \R.
 
     Args:
@@ -106,9 +110,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     return sample
 
   def __call__(
-      self,
-      inputs: Array = None
-  ) -> Generator[sp.ModelParameter, Array, tfd.GaussianProcess]:
+      self, inputs: Optional[types.Array] = None
+  ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:
     """Creates a generator.
 
     Args:
@@ -125,8 +128,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     length_scale_bounds = (ones * (1e-2 - eps), ones * 1e2 + eps)
 
     signal_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*amplitude_bounds),  # pytype: disable=wrong-arg-types  # numpy-scalars
-        constraint=sp.Constraint(  # pytype: disable=wrong-arg-types  # numpy-scalars
+        init_fn=self._log_uniform_init(*amplitude_bounds),
+        constraint=sp.Constraint(
             amplitude_bounds,
             tfb.SoftClip(*amplitude_bounds, hinge_softness=1e-2),
         ),
@@ -149,8 +152,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[chex.Array, tfd.GaussianProcess]):
     kernel = tfpk.FeatureScaled(kernel, scale_diag=jnp.sqrt(length_scale))
 
     observation_noise_variance = yield sp.ModelParameter(
-        init_fn=self._log_uniform_init(*observation_noise_bounds),  # pytype: disable=wrong-arg-types  # numpy-scalars
-        constraint=sp.Constraint(  # pytype: disable=wrong-arg-types  # numpy-scalars
+        init_fn=self._log_uniform_init(*observation_noise_bounds),
+        constraint=sp.Constraint(
             observation_noise_bounds,
             tfb.SoftClip(*observation_noise_bounds, hinge_softness=1e-2),
         ),

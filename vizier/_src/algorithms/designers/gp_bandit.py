@@ -28,7 +28,6 @@ from typing import Sequence
 
 from absl import logging
 import attr
-import chex
 import jax
 import numpy as np
 from vizier import algorithms as vza
@@ -39,6 +38,7 @@ from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
 from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
@@ -72,7 +72,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   """
 
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
-  _ard_optimizer: optimizers.Optimizer = attr.field(
+  _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
       factory=lambda: VizierGPBandit.default_ard_optimizer_noensemble,
       kw_only=True,
   )
@@ -86,7 +86,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _use_output_warping: bool = attr.field(default=True, kw_only=True)
-  _rng: chex.PRNGKey = attr.field(
+  _rng: jax.random.KeyArray = attr.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
   )
   # Internal attributes
@@ -97,9 +97,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _incorporated_trials_count: int = attr.field(
       default=0, kw_only=True, init=False
   )
-  _features: chex.Array = attr.field(init=False)
-  _labels: chex.Array = attr.field(init=False)
-  _state: chex.ArrayTree = attr.field(init=False)
+  _features: types.Array = attr.field(init=False)
+  _labels: types.Array = attr.field(init=False)
+  _state: types.ModelState = attr.field(init=False)
   _model: sp.StochasticProcessModel = attr.field(init=False)
   # not an attr field.
   # Only one of these optimizers will be used.
@@ -190,7 +190,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   def _convert_trials_to_arrays(
       self, trials: Sequence[vz.Trial]
-  ) -> tuple[chex.Array, chex.Array]:
+  ) -> tuple[types.Array, types.Array]:
     """Convert trials to scaled features and warped labels."""
     features, labels = self._converter.to_xy(self._trials)
     logging.info(
@@ -206,7 +206,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
 
-  def _find_best_model_params(self) -> chex.ArrayTree:
+  def _find_best_model_params(self) -> types.ParameterDict:
     """Perform ARD on the current model to find best model parameters."""
     self._model, loss_fn = (
         tuned_gp_models.VizierGaussianProcess.model_and_loss_fn(
@@ -344,8 +344,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     optimal_features = self._converter.to_features(best_candidates)  # [N, D]
     # Make predictions (in the warped space). [N]
     predictions = self._acquisition_builder.predict_on_array(optimal_features)
-    predict_mean = predictions['mean'].reshape([-1])  # [N,] # pytype: disable=attribute-error  # numpy-scalars
-    predict_stddev = predictions['stddev'].reshape([-1])  # [N,] # pytype: disable=attribute-error  # numpy-scalars
+    predict_mean = predictions['mean']  # [N,]
+    predict_stddev = predictions['stddev']  # [N,]
     logging.info(
         'Created predictions for the best candidates which were '
         f'converted to an array of shape: {optimal_features.shape}. '
@@ -377,7 +377,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     return suggestions
 
   def predict(
-      self, trials: Sequence[vz.TrialSuggestion], rng: chex.PRNGKey
+      self, trials: Sequence[vz.TrialSuggestion], rng: jax.random.KeyArray
   ) -> vza.Prediction:
     """Predicts the mean and stddev for any given trials."""
     self._compute_state()

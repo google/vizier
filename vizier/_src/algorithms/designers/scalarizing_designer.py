@@ -19,8 +19,9 @@ import copy
 from typing import Optional, Protocol, Sequence
 
 import attr
-import chex
+import jax
 from jax import numpy as jnp
+from jax.typing import ArrayLike
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 
@@ -32,7 +33,7 @@ class Scalarization(Protocol):
   Assumes all objectives are for MAXIMIZATION.
   """
 
-  def __call__(self, objectives: chex.Array) -> float:
+  def __call__(self, objectives: ArrayLike) -> jax.Array:
     pass
 
 
@@ -40,9 +41,9 @@ class Scalarization(Protocol):
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
 
-  weights: chex.Array = attr.ib()
+  weights: ArrayLike = attr.ib()
 
-  reference_point: Optional[chex.Array] = attr.ib(default=None, kw_only=True)
+  reference_point: Optional[ArrayLike] = attr.ib(default=None, kw_only=True)
 
   def __attrs_post_init__(self):
     if any(self.weights <= 0):
@@ -50,8 +51,8 @@ class HyperVolumeScalarization(Scalarization):
 
   def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
       self,
-      objectives: chex.Array,
-  ) -> chex.Array:
+      objectives: ArrayLike,
+  ) -> jax.Array:
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
     # non-convex multiobjective optimization.
     if self.reference_point is not None:

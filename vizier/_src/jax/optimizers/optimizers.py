@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import functools
 import time
-from typing import Optional, Protocol
+from typing import Generic, Optional, Protocol, TypeVar
 
 from absl import logging
 import attr
@@ -36,29 +36,27 @@ from vizier._src.jax import stochastic_process_model as sp
 
 tfb = tfp.bijectors
 
-PRNGKey = chex.PRNGKey
-Params = chex.ArrayTree
+_Params = TypeVar('_Params', bound=chex.ArrayTree)
 OptState = chex.ArrayTree
-Array = chex.Array
 
 
-class Setup(Protocol):
+class Setup(Protocol, Generic[_Params]):
   """Set up the model parameters given RNG key."""
 
-  def __call__(self, rng: PRNGKey):
+  def __call__(self, rng: jax.random.KeyArray) -> _Params:
     """Set up the model parameters given RNG key."""
     pass
 
 
-class LossFunction(Protocol):
+class LossFunction(Protocol, Generic[_Params]):
   """Evaluates model params and returns (loss, dict of auxiliary metrics)."""
 
-  def __call__(self, params: Params) -> tuple[Array, dict[str, Array]]:
+  def __call__(self, params: _Params) -> tuple[jax.Array, chex.ArrayTree]:
     """Evaluates model params and returns (loss, dict of auxiliary metrics)."""
     pass
 
 
-class Optimizer(Protocol):
+class Optimizer(Protocol, Generic[_Params]):
   """Optimizes the LossFunction.
 
   Example:
@@ -78,12 +76,12 @@ class Optimizer(Protocol):
 
   def __call__(
       self,
-      setup: Setup,
-      loss_fn: LossFunction,
-      rng: PRNGKey,
+      setup: Setup[_Params],
+      loss_fn: LossFunction[_Params],
+      rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
-  ) -> tuple[Params, dict[str, Array]]:
+  ) -> tuple[_Params, chex.ArrayTree]:
     """Optimizes a LossFunction expecting Params as input.
 
     When constraint bijectors are applied, note that the returned parameters are
@@ -107,7 +105,7 @@ class Optimizer(Protocol):
 
 
 @attr.define
-class OptaxTrainWithRandomRestarts(Optimizer):
+class OptaxTrainWithRandomRestarts(Optimizer[_Params]):
   """Wraps an Optax optimizer.
 
   It's recommended to use this optimizer with a loss function that normalizes by
@@ -150,12 +148,12 @@ class OptaxTrainWithRandomRestarts(Optimizer):
 
   def __call__(
       self,
-      setup: Setup,
-      loss_fn: LossFunction,
-      rng: PRNGKey,
+      setup: Setup[_Params],
+      loss_fn: LossFunction[_Params],
+      rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
-  ) -> tuple[Params, dict[str, Array]]:
+  ) -> tuple[_Params, chex.ArrayTree]:
     if constraints is None or constraints.bijector is None:
       bijector = None
       unconstrained_loss_fn = loss_fn
@@ -165,7 +163,7 @@ class OptaxTrainWithRandomRestarts(Optimizer):
 
     grad_fn = jax.value_and_grad(unconstrained_loss_fn, has_aux=True)
 
-    def _setup_all(rng: chex.PRNGKey) -> tuple[Params, OptState]:
+    def _setup_all(rng: jax.random.KeyArray) -> tuple[_Params, OptState]:
       """Sets up both model params and optimizer state."""
       params = setup(rng)
       if bijector is not None:
@@ -174,8 +172,8 @@ class OptaxTrainWithRandomRestarts(Optimizer):
       return params, opt_state
 
     def _train_step(
-        params: Params, opt_state: OptState
-    ) -> tuple[Params, OptState, dict[str, Array]]:
+        params: _Params, opt_state: OptState
+    ) -> tuple[_Params, OptState, chex.ArrayTree]:
       """One train step."""
       (loss, metrics), grads = grad_fn(params)
       logging.log_if(logging.INFO, 'gradients: %s', self.verbose >= 2, grads)
@@ -236,7 +234,7 @@ class OptaxTrainWithRandomRestarts(Optimizer):
 
 
 @attr.define
-class JaxoptLbfgsB(Optimizer):
+class JaxoptLbfgsB(Optimizer[_Params]):
   """Jaxopt's L-BFGS-B optimizer.
 
   Jaxopt calls Scipy's L-BFGS-B, which wraps a Fortran implementation.
@@ -267,12 +265,12 @@ class JaxoptLbfgsB(Optimizer):
 
   def __call__(
       self,
-      setup: Setup,
-      loss_fn: LossFunction,
-      rng: chex.PRNGKey,
+      setup: Setup[_Params],
+      loss_fn: LossFunction[_Params],
+      rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
-  ) -> tuple[Params, dict[str, Array]]:
+  ) -> tuple[_Params, chex.ArrayTree]:
     # L-BFGS-B may be used on unconstrained problems (in which case it is
     # slightly different from L-BFGS, in that it uses the Cauchy point/subspace
     # minimization to choose the line search direction). Bounds must be None or
@@ -346,4 +344,4 @@ class JaxoptLbfgsB(Optimizer):
     metrics['loss'] = losses
     if self._speed_test:
       metrics['train_time'] = train_times
-    return optimal_params, metrics  # pytype: disable=bad-return-type  # numpy-scalars
+    return optimal_params, metrics

@@ -223,7 +223,9 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     self.eagle._rewards = np.array([2, 3, 4, 1], dtype=np.float64)
     self.eagle._perturbations = np.array([pc, 0, 0, pc], dtype=np.float64)
     self.eagle._best_results = [
-        vb.VectorizedStrategyResult(reward=4.0, features=np.array([1.0, 2.0]))
+        vb.VectorizedStrategyResult(
+            reward=np.array(4.0), features=np.array([1.0, 2.0])
+        )
     ]
     self.eagle._trim_pool()
 

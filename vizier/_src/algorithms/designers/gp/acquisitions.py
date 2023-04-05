@@ -21,13 +21,13 @@ import copy
 from typing import Any, Callable, Dict, Optional, Protocol, Sequence
 
 import attr
-import chex
 import jax
 from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier import pyvizier as vz
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 
 
@@ -40,9 +40,9 @@ class AcquisitionFunction(Protocol):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[chex.ArrayTree] = None,
-      labels: Optional[chex.Array] = None,
-  ) -> chex.Array:
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
     pass
 
 
@@ -57,9 +57,9 @@ class UCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[chex.ArrayTree] = None,
-      labels: Optional[chex.Array] = None,
-  ) -> chex.Array:
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
     del features, labels
     return dist.mean() + self.coefficient * dist.stddev()
 
@@ -75,9 +75,9 @@ class HyperVolumeScalarization(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[chex.ArrayTree] = None,
-      labels: Optional[chex.Array] = None,
-  ) -> chex.Array:
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
     del features, labels
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
     # non-convex biobjective optimization of mean vs stddev.
@@ -90,9 +90,9 @@ class EI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[chex.ArrayTree] = None,
-      labels: Optional[chex.Array] = None,
-  ) -> chex.Array:
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
     del features
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
@@ -119,7 +119,7 @@ class TrustRegion:
   """
 
   def __init__(
-      self, trusted: chex.Array, specs: Sequence[converters.NumpyArraySpec]
+      self, trusted: types.Array, specs: Sequence[converters.NumpyArraySpec]
   ):
     """Init.
 
@@ -142,7 +142,7 @@ class TrustRegion:
         max_distance.append(np.inf)
     self._max_distances = np.array(max_distance)
 
-  def _compute_trust_radius(self, trusted: chex.Array) -> chex.Scalar:
+  def _compute_trust_radius(self, trusted: types.Array) -> float:
     """Computes the trust region radius."""
     # TODO: Make hyperparameters configurable.
     min_radius = 0.2  # Hyperparameter
@@ -160,7 +160,7 @@ class TrustRegion:
   def trust_radius(self) -> float:
     return self._trust_radius
 
-  def min_linf_distance(self, xs: chex.Array) -> chex.Array:
+  def min_linf_distance(self, xs: types.Array) -> jax.Array:
     """l-inf norm distance to the closest trusted point.
 
     Caps distances between one-hot encoded features to the trust-region radius,
@@ -193,9 +193,9 @@ class AcquisitionBuilder(abc.ABC):
       self,
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
-      state: chex.ArrayTree,
-      features: chex.Array,
-      labels: chex.Array,
+      state: types.ModelState,
+      features: types.Array,
+      labels: types.Array,
       *args,
       **kwargs,
   ) -> None:
@@ -226,29 +226,29 @@ class AcquisitionBuilder(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def acquisition_on_array(self) -> Callable[[chex.Array], chex.Array]:
+  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
     """Acquisition function on features array."""
     pass
 
   @property
   @abc.abstractmethod
-  def predict_on_array(self) -> Callable[[chex.Array], chex.ArrayTree]:
+  def predict_on_array(self) -> Callable[[types.Array], jax.Array]:
     """Prediction function on features array."""
     pass
 
 
 def _build_predictive_distribution(
     model: sp.StochasticProcessModel,
-    state: chex.ArrayTree,
-    features: chex.Array,
-    labels: chex.Array,
+    state: types.ModelState,
+    features: types.Array,
+    labels: types.Array,
     use_vmap: bool = True,
-) -> Callable[[chex.Array], tfd.Distribution]:
+) -> Callable[[types.Array], tfd.Distribution]:
   """Generates the predictive distribution on array function."""
 
   def _predict_on_array_one_model(
-      state: chex.ArrayTree, *, xs: chex.Array
-  ) -> chex.ArrayTree:
+      state: types.ModelState, *, xs: types.Array
+  ) -> tfd.Distribution:
     return model.apply(
         state,
         xs,
@@ -258,11 +258,11 @@ def _build_predictive_distribution(
     )
 
   # Vmaps and combines the predictive distribution over all models.
-  def _get_predictive_dist(xs: chex.Array) -> tfd.Distribution:
+  def _get_predictive_dist(xs: types.Array) -> tfd.Distribution:
     if not use_vmap:
       return _predict_on_array_one_model(state, xs=xs)
 
-    def _predict_mean_and_stddev(state_: chex.ArrayTree) -> chex.ArrayTree:
+    def _predict_mean_and_stddev(state_: types.ModelState) -> tfd.Distribution:
       dist = _predict_on_array_one_model(state_, xs=xs)
       return {'mean': dist.mean(), 'stddev': dist.stddev()}  # pytype: disable=attribute-error  # numpy-scalars
 
@@ -315,9 +315,9 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
       self,
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
-      state: chex.ArrayTree,
-      features: chex.Array,
-      labels: chex.Array,
+      state: types.ModelState,
+      features: types.Array,
+      labels: types.Array,
       converter: converters.TrialToArrayConverter,
       use_vmap: bool = True,
   ) -> None:
@@ -342,11 +342,11 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     )
 
     @jax.jit
-    def predict_mean_and_stddev(xs: chex.Array) -> chex.ArrayTree:
+    def predict_on_array(xs: types.Array) -> Dict[str, jax.Array]:
       dist = self._get_predictive_dist(xs)
       return {'mean': dist.mean(), 'stddev': dist.stddev()}
 
-    self._predict_on_array = predict_mean_and_stddev
+    self._predict_on_array = predict_on_array
 
     # Define acquisition.
     self._tr = TrustRegion(features, converter.output_specs)
@@ -391,13 +391,13 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[chex.Array], chex.Array]:
+  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[chex.Array], chex.ArrayTree]:
+  def predict_on_array(self) -> Callable[[types.Array], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array
@@ -448,9 +448,9 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
       self,
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
-      state: chex.ArrayTree,
-      features: chex.Array,
-      labels: chex.Array,
+      state: types.ModelState,
+      features: types.Array,
+      labels: types.Array,
       converter: converters.TrialToArrayConverter,
       use_vmap: bool = True,
   ) -> None:
@@ -475,7 +475,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     )
 
     @jax.jit
-    def predict_mean_and_stddev(xs: chex.Array) -> chex.ArrayTree:
+    def predict_mean_and_stddev(xs: types.Array) -> Dict[str, jax.Array]:
       dist = self._get_predictive_dist(xs)
       return {'mean': dist.mean(), 'stddev': dist.stddev()}
 
@@ -532,13 +532,13 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[chex.Array], chex.Array]:
+  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[chex.Array], chex.ArrayTree]:
+  def predict_on_array(self) -> Callable[[types.Array], Dict[str, jax.Array]]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array

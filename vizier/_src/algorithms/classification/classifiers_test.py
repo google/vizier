@@ -79,7 +79,7 @@ class SklearnClassifierTest(parameterized.TestCase):
         features_test=self.features_test,
         eval_metric=eval_metric)
     scores = classifier_instance()
-    labels_test_pred = (scores >= threshold).astype(float)  # pytype: disable=attribute-error  # numpy-scalars
+    labels_test_pred = (scores >= threshold).astype(float)
     labels_test_real = np.array([0, 1, 0, 1])
     self.assertTrue((labels_test_pred == labels_test_real).all())
 
@@ -130,7 +130,7 @@ class SklearnClassifierTest(parameterized.TestCase):
         features_test=self.features_train,
         eval_metric=eval_metric)
     scores = classifier_instance()
-    labels_test_pred = (scores >= threshold).astype(float)  # pytype: disable=attribute-error  # numpy-scalars
+    labels_test_pred = (scores >= threshold).astype(float)
     self.assertTrue((labels_test_pred == self.labels_train).all())
 
 

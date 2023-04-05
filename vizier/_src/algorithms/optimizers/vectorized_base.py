@@ -20,24 +20,21 @@ import abc
 import datetime
 import heapq
 import logging
-from typing import Optional, Protocol, Sequence, Union
+from typing import Optional, Protocol, Sequence
 
 import attr
-import chex
 import numpy as np
 from vizier import pyvizier as vz
+from vizier._src.jax import types
 from vizier.pyvizier import converters
-
-# Support for both JAX and Numpy arrays
-Array = Union[np.ndarray, chex.Array]
 
 
 @attr.define
 class VectorizedStrategyResult:
   """Container for a vectorized strategy result."""
 
-  features: Array
-  reward: float
+  features: types.Array
+  reward: types.Array
 
   def __lt__(self, other):
     return self.reward < other.reward
@@ -52,7 +49,7 @@ class VectorizedStrategy(abc.ABC):
   """
 
   @abc.abstractmethod
-  def suggest(self) -> Array:
+  def suggest(self) -> types.Array:
     """Generate new suggestions.
 
     Returns:
@@ -65,7 +62,7 @@ class VectorizedStrategy(abc.ABC):
     """The number of suggestions returned at every suggest call."""
 
   @abc.abstractmethod
-  def update(self, rewards: Array) -> None:
+  def update(self, rewards: types.Array) -> None:
     """Update the strategy state with the results of the last suggestions.
 
     Arguments:
@@ -106,7 +103,7 @@ class VectorizedStrategyFactory(Protocol):
 class BatchArrayScoreFunction(Protocol):
   """Protocol for scoring array of batched trials."""
 
-  def __call__(self, batched_array_trials: Array) -> Array:
+  def __call__(self, batched_array_trials: types.Array) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
@@ -230,8 +227,8 @@ class VectorizedOptimizer:
       self,
       best_results: list[VectorizedStrategyResult],
       count: int,
-      batch_features: np.ndarray,
-      batch_rewards: np.ndarray,
+      batch_features: types.Array,
+      batch_rewards: types.Array,
   ) -> None:
     """Update the best results the optimizer seen thus far.
 

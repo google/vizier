@@ -19,7 +19,6 @@ from __future__ import annotations
 from typing import Optional
 
 import attr
-import chex
 import numpy as np
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import ConstantKernel
@@ -47,9 +46,9 @@ class SklearnClassifier:
       kw_only=True,
       default=GaussianProcessClassifier(
           kernel=ConstantKernel(1.) * RBF(length_scale=1.)))
-  features: chex.Array = attr.field(kw_only=True)
-  labels: chex.Array = attr.field(kw_only=True)
-  features_test: chex.Array = attr.field(kw_only=True)
+  features: np.ndarray = attr.field(kw_only=True)
+  labels: np.ndarray = attr.field(kw_only=True)
+  features_test: np.ndarray = attr.field(kw_only=True)
   eval_metric: str = attr.field(kw_only=True, default='probability')
 
   def _check_features_and_labels_shapes(self) -> None:
@@ -83,7 +82,7 @@ class SklearnClassifier:
 
   # TODO: separate the training and evaluation for extra speed up.
   # Currently, the classifiers we use are reasonably fast.
-  def __call__(self) -> chex.Array:
+  def __call__(self) -> np.ndarray:
     self._check_features_and_labels_shapes()
     self._check_labels_values()
     self._check_eval_metric()

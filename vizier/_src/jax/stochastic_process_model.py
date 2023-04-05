@@ -17,41 +17,30 @@ from __future__ import annotations
 """Flax module for a trainable stochastic process."""
 
 import abc
-from typing import Any, Callable, Generator, Generic, Iterable, Mapping, Optional, Protocol, TypeVar, Union
+from typing import Callable, Generator, Generic, Optional, Protocol, TypeVar
 
 import attr
-import chex
 from flax import linen as nn
 import jax
 from jax import numpy as jnp
 from jax import tree_util
+from jax.typing import ArrayLike
 from tensorflow_probability.substrates import jax as tfp
 import tree
-
-Array = chex.Array
-ArrayTree = chex.ArrayTree
-PRNGKey = chex.PRNGKey
-
-# An ArrayTree that allows None values.
-ArrayTreeOptional = Union[
-    Array,
-    Iterable[Optional['ArrayTreeOptional']],
-    Mapping[Any, Optional['ArrayTreeOptional']],
-]
+from vizier._src.jax import types
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
-tfpk = tfp.math.psd_kernels
 
+_In = TypeVar('_In', bound=types.ArrayTree)
 _D = TypeVar('_D', bound=tfd.Distribution)
-_In = TypeVar('_In', bound=ArrayTree)
 
 
 class InitFn(Protocol):
   """Protocol for Flax parameter initialization functions."""
 
   @abc.abstractmethod
-  def __call__(self, rng: PRNGKey) -> Array:
+  def __call__(self, rng: jax.random.KeyArray) -> jax.Array:
     pass
 
 
@@ -81,15 +70,22 @@ class Constraint:
       of `tfb.JointMap`.
   """
 
-  bounds: Optional[tuple[Optional[ArrayTreeOptional],
-                         Optional[ArrayTreeOptional]]] = None
+  bounds: Optional[
+      tuple[
+          Optional[types.ArrayTreeOptional], Optional[types.ArrayTreeOptional]
+      ]
+  ] = None
   bijector: Optional[tfb.Bijector] = None
 
   @classmethod
   def create(
       cls,
-      bounds: tuple[Optional[ArrayTreeOptional], Optional[ArrayTreeOptional]],
-      bijector_fn: Callable[[Optional[Array], Optional[Array]], tfb.Bijector],
+      bounds: tuple[
+          Optional[types.ArrayTreeOptional], Optional[types.ArrayTreeOptional]
+      ],
+      bijector_fn: Callable[
+          [Optional[ArrayLike], Optional[ArrayLike]], tfb.Bijector
+      ],
   ) -> 'Constraint':
     """Factory that builds a `Constraint` from bounds and a bijector fn.
 
@@ -156,8 +152,9 @@ class ModelParameter:
   name: str = attr.field()
   init_fn: InitFn = attr.field()
   constraint: Optional[Constraint] = attr.field(default=None)
-  regularizer: Callable[[Array], Array] = attr.field(
-      kw_only=True, default=lambda x: jnp.zeros([], dtype=x.dtype))
+  regularizer: Callable[[ArrayLike], jax.Array] = attr.field(
+      kw_only=True, default=lambda x: jnp.zeros([], dtype=x.dtype)
+  )
 
   @classmethod
   def from_prior(cls,
@@ -200,7 +197,7 @@ class ModelParameter:
     )
 
 
-ModelParameterGenerator = Generator[ModelParameter, Array, _D]
+ModelParameterGenerator = Generator[ModelParameter, jax.Array, _D]
 
 
 class ModelCoroutine(Protocol, Generic[_In, _D]):
@@ -337,7 +334,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
   """
 
   coroutine: ModelCoroutine
-  mean_fn: Optional[Callable[[_In], Array]] = None  # `None` implies zero-mean.
+  mean_fn: Optional[Callable[[_In], jax.Array]] = None  # `None` is zero-mean.
 
   def setup(self):
     """Builds module parameters."""
@@ -347,7 +344,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       while True:
         # Declare a Flax variable with the name and initialization function from
         # the `ModelParameter`.
-        param: Array = self.param(p.name, p.init_fn)
+        param: jax.Array = self.param(p.name, p.init_fn)
         p: ModelParameter = generator.send(param)
     except StopIteration:
       # Ignore the return value from the generator since this method only builds
@@ -375,7 +372,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       while True:
         # "params" is the name that `nn.Module` gives to the collection of read-
         # only variables.
-        param: Array = self.get_variable('params', p.name)
+        param: jax.Array = self.get_variable('params', p.name)
         if p.regularizer:
           self.sow(  # `sow` stores a value in a collection.
               'losses',
@@ -390,10 +387,12 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       gp = e.value
       return gp.copy(mean_fn=self.mean_fn)
 
-  def precompute_predictive(self, x_observed: _In, y_observed: Array) -> None:
+  def precompute_predictive(
+      self, x_observed: _In, y_observed: ArrayLike
+  ) -> None:
     """Builds a stochastic process regression model conditioned on observations.
 
-    The mutable variable returned by this method as auxillary output should be
+    The mutable variable returned by this method as auxiliary output should be
     passed as state to `posterior_predictive`. This avoids repeated, expensive
     operations (often Cholesky decompositions) when computing the posterior
     predictive.
@@ -427,7 +426,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     )
 
   def posterior_predictive(
-      self, x_predictive: _In, x_observed: _In, y_observed: Array
+      self, x_predictive: _In, x_observed: _In, y_observed: ArrayLike
   ) -> _D:
     """Returns a posterior predictive stochastic process.
 
@@ -485,7 +484,9 @@ class VectorToArrayTree(tfb.Chain):
   ```
   """
 
-  def __init__(self, arraytree: ArrayTree, *, validate_args: bool = False):
+  def __init__(
+      self, arraytree: types.ParameterDict, *, validate_args: bool = False
+  ):
     """Init.
 
     Args:
@@ -508,10 +509,10 @@ class VectorToArrayTree(tfb.Chain):
         validate_args=validate_args,
     )
 
-  def to_params(self, vector: Array) -> ArrayTree:
+  def to_params(self, vector: ArrayLike) -> types.ParameterDict:
     return self.forward(vector)
 
-  def to_vector(self, params: ArrayTree) -> Array:
+  def to_vector(self, params: types.ParameterDict) -> jax.Array:
     return self.inverse(params)
 
 

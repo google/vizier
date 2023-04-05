@@ -559,7 +559,7 @@ class DefaultModelOutputConverterTest(parameterized.TestCase):
         ),
     )
 
-  def test_shift_threshould(self):
+  def test_shift_threshold(self):
     converter = core.DefaultModelOutputConverter(
         pyvizier.MetricInformation(
             name='metric2',
@@ -1098,9 +1098,9 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     self.assertEqual(expected.dtype, actual.dtype)
     self.assertEqual(
         converter.output_spec,
-        core.NumpyArraySpec(  # pytype: disable=wrong-arg-types  # numpy-scalars
+        core.NumpyArraySpec(
             core.NumpyArraySpecType.ONEHOT_EMBEDDING,
-            np.float32,
+            np.dtype(np.float32),
             (0, 1),
             4,
             'x1',

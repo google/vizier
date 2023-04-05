@@ -22,14 +22,14 @@ Paper: https://arxiv.org/abs/2012.03826
 Repo: https://github.com/huawei-noah/HEBO.
 """
 
-from typing import Generator
+from typing import Generator, Optional
 import attr
-import chex
 import jax
 from jax import numpy as jnp
 from jax.config import config
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier._src.jax.optimizers import optimizers
 
 config.update('jax_enable_x64', True)
@@ -40,15 +40,16 @@ tfpk = tfp.math.psd_kernels
 
 
 @attr.define
-class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
-                                                  tfd.GaussianProcess]):
+class VizierHeboGaussianProcess(
+    sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
+):
   """Hebo Gaussian process model."""
 
   @classmethod
   def model_and_loss_fn(
       cls,
-      features: chex.Array,
-      labels: chex.Array,
+      features: types.Array,
+      labels: types.Array,
   ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
     """Returns the model and loss function."""
     gp_coroutine = VizierHeboGaussianProcess()
@@ -66,9 +67,9 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
 
     return model, loss_fn
 
-  def __call__(  # type: ignore  # numpy-scalars
-      self, inputs: chex.Array = None
-  ) -> Generator[sp.ModelParameter, chex.Array, tfd.GaussianProcess]:
+  def __call__(
+      self, inputs: Optional[types.Array] = None
+  ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:
     """Creates a generator.
 
     Args:
@@ -121,7 +122,7 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
         tfd.LogNormal(
             loc=jnp.float64(0.0), scale=jnp.float64(1.0), name='length_scale'
         ),
-        constraint=sp.Constraint((0.0, None), bijector=tfb.Exp()),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        constraint=sp.Constraint((0.0, None), bijector=tfb.Exp()),
     )
     kernel = tfpk.FeatureScaled(kernel, scale_diag=length_scale)
 
@@ -130,12 +131,12 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[chex.Array,
 
     concentration0 = yield sp.ModelParameter.from_prior(
         kumar_log_normal.copy(name='concentration0'),
-        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),
     )
 
     concentration1 = yield sp.ModelParameter.from_prior(
         kumar_log_normal.copy(name='concentration1'),
-        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),  # pytype: disable=wrong-arg-types  # numpy-scalars
+        constraint=sp.Constraint((0.0, 10.0), bijector=sigmoid),
     )
 
     kernel = tfpk.KumaraswamyTransformed(kernel, concentration1, concentration0)
