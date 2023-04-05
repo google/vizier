@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for core."""
 
+from absl import logging
 import numpy as np
 from vizier import pyvizier
 from vizier._src.algorithms.designers import random
@@ -942,7 +943,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
         Trial(),
     ])
-    expected = np.asarray([[0.0], [0.0], [np.NaN], [np.NaN]], dtype)
+    expected = np.asarray([[0.5], [0.6], [np.NaN], [np.NaN]], dtype)
     np.testing.assert_equal(expected, actual)
 
   @parameterized.parameters([
@@ -968,8 +969,11 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
         Trial(),
     ])
-    expected = np.asarray([[0.0], [0.0], [np.NaN], [np.NaN]], dtype=dtype)
-    np.testing.assert_equal(expected, actual)
+    expected = np.asarray(
+        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.NaN], [np.NaN]],
+        dtype=dtype,
+    )
+    np.testing.assert_almost_equal(expected, actual)
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -994,8 +998,11 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
         Trial(),
     ])
-    expected = np.asarray([[0.0], [0.0], [np.NaN], [np.NaN]], dtype=dtype)
-    np.testing.assert_equal(expected, actual)
+    expected = np.asarray(
+        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.NaN], [np.NaN]],
+        dtype=dtype,
+    )
+    np.testing.assert_almost_equal(expected, actual)
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -1264,10 +1271,16 @@ class ModelInputArrayBijectorTest(absltest.TestCase):
     )
     bijector = core.ModelInputArrayBijector.scaler_from_spec(spec)
     x = np.array(1.0)
+    logging.info(
+        'fwd(x)=%s output_spec.bounds=%s',
+        bijector.forward_fn(x),
+        bijector.output_spec.bounds,
+    )
     self.assertLessEqual(bijector.forward_fn(x), bijector.output_spec.bounds[1])
     self.assertGreaterEqual(
         bijector.forward_fn(x), bijector.output_spec.bounds[0]
     )
+    self.assertLessEqual(bijector.forward_fn(x), bijector.output_spec.bounds[1])
     self.assertEqual(bijector.backward_fn(bijector.forward_fn(x)), x)
 
 

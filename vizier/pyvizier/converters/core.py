@@ -407,12 +407,15 @@ class ModelInputArrayBijector:
     if low == high:
 
       def backward_fn(y):
-        return np.where(np.isfinite(y), np.zeros_like(y) + low, y)
+        return np.where(np.isfinite(y), y + low - 0.5, y)
+
+      def forward_fn(y):
+        return np.where(np.isfinite(y), y - low + 0.5, y)
 
       return cls(
-          lambda x: np.where(np.isfinite(x), np.zeros_like(x), x - low),
+          forward_fn,
           backward_fn,
-          attr.evolve(spec, bounds=(0.0, 0.0), scale=None),
+          attr.evolve(spec, bounds=(0.5, 0.5), scale=None),
       )
 
     if spec.scale == pyvizier.ScaleType.LOG:

@@ -173,7 +173,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       # TODO: Should track number of pending suggestions
       # so we don't suggest the center more than once.
       features = self._converter.to_features([])  # to extract shape.
-      # Scaled value of .5 corresponds to the center of the feasible range.
+      # NOTE: The code below assumes that a scaled value of 0.5 corresponds
+      #   to the center of the feasible range.  This is true, but only by
+      #   accident; ideally, we should get the center from the converters.
       parameters = self._converter.to_parameters(
           0.5 * np.ones([1, features.shape[1]])
       )[0]
