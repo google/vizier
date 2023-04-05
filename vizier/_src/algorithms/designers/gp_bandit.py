@@ -80,7 +80,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       kw_only=True,
       factory=lambda: VizierGPBandit.default_acquisition_optimizer,
   )
-  _acquisition_builder: acquisitions.GPBanditAcquisitionBuilder = attr.field(
+  _acquisition_builder: acquisitions.AcquisitionBuilder = attr.field(
       factory=acquisitions.GPBanditAcquisitionBuilder, kw_only=True
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
