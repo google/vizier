@@ -27,6 +27,7 @@ from vizier._src.benchmarks.runners.benchmark_runner import GenerateSuggestions
 from vizier._src.benchmarks.runners.benchmark_state import BenchmarkState
 from vizier._src.benchmarks.runners.benchmark_state import BenchmarkStateFactory
 from vizier._src.benchmarks.runners.benchmark_state import DesignerBenchmarkStateFactory
+from vizier._src.benchmarks.runners.benchmark_state import ExperimenterDesignerBenchmarkStateFactory
 from vizier._src.benchmarks.runners.benchmark_state import PolicyBenchmarkStateFactory
 from vizier._src.benchmarks.runners.benchmark_state import PolicySuggester
 from vizier._src.benchmarks.runners.benchmark_state import SeededPolicyFactory

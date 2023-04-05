@@ -35,6 +35,7 @@ from vizier import pythia
 from vizier import pyvizier as vz
 from vizier._src.algorithms.policies.designer_policy import InRamDesignerPolicy
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
+from vizier._src.benchmarks.experimenters.experimenter_factory import ExperimenterFactory
 
 
 @attr.define
@@ -99,8 +100,6 @@ class BenchmarkState:
 class BenchmarkStateFactory(abc.ABC):
   """Factory class to generate new BenchmarkState."""
 
-  experimenter: Experimenter
-
   @abc.abstractmethod
   def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
     """Creates a new instance of BenchmarkFactory."""
@@ -108,9 +107,26 @@ class BenchmarkStateFactory(abc.ABC):
 
 
 @attr.define(frozen=True)
+class ExperimenterDesignerBenchmarkStateFactory(BenchmarkStateFactory):
+  """Generate new BenchmarkState from exptr/designer factory."""
+
+  experimenter_factory: ExperimenterFactory
+  designer_factory: vza.DesignerFactory[vza.Designer]
+
+  def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
+    """Create a BenchmarkState from experimenter and designer factory."""
+    experimenter = self.experimenter_factory(seed=seed)
+    factory = DesignerBenchmarkStateFactory(
+        experimenter=experimenter, designer_factory=self.designer_factory
+    )
+    return factory(seed=seed)
+
+
+@attr.define(frozen=True)
 class DesignerBenchmarkStateFactory(BenchmarkStateFactory):
   """Factory class to generate new BenchmarkState from designer factory."""
 
+  experimenter: Experimenter
   designer_factory: vza.DesignerFactory[vza.Designer]
 
   def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
@@ -138,6 +154,7 @@ class SeededPolicyFactory(Protocol):
 class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
   """Factory class to generate new BenchmarkState from policy factory."""
 
+  experimenter: Experimenter
   policy_factory: SeededPolicyFactory
 
   def __call__(self, seed: Optional[int] = None) -> BenchmarkState:

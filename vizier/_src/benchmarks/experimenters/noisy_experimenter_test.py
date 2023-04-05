@@ -16,6 +16,8 @@ from __future__ import annotations
 
 """Tests for noisy_experimenter."""
 
+import numpy as np
+
 from vizier import pyvizier
 from vizier._src.benchmarks.experimenters import noisy_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
@@ -81,8 +83,9 @@ class NoisyExperimenterTest(parameterized.TestCase):
     dim = 2
     exptr = numpy_experimenter.NumpyExperimenter(
         bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim))
-    noisy_exptr = noisy_experimenter.NoisyExperimenter(
-        exptr=exptr, noise_type=noise)
+    noisy_exptr = noisy_experimenter.NoisyExperimenter.from_type(
+        exptr=exptr, noise_type=noise
+    )
 
     parameters = exptr.problem_statement().search_space.parameters
     t = pyvizier.Trial(parameters={
@@ -104,6 +107,47 @@ class NoisyExperimenterTest(parameterized.TestCase):
       self.assertNotEqual(noised_value1, noised_value2)
     self.assertAlmostEqual(noised_value1, unnoised_value, delta=delta)
     self.assertAlmostEqual(noised_value2, unnoised_value, delta=delta)
+
+  def testSeedDeterminism(self):
+    dim = 2
+    seed = 7
+    exptr = numpy_experimenter.NumpyExperimenter(
+        bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim)
+    )
+    noisy_exptr = noisy_experimenter.NoisyExperimenter.from_type(
+        exptr=exptr, noise_type='SEVERE_UNIFORM', seed=seed
+    )
+
+    parameters = exptr.problem_statement().search_space.parameters
+    t = pyvizier.Trial(
+        parameters={
+            param.name: float(index) for index, param in enumerate(parameters)
+        }
+    )
+    metric_name = exptr.problem_statement().metric_information.item().name
+
+    noise_value_sequence = []
+    for _ in range(10):
+      noisy_exptr.evaluate([t])
+      noise_value_sequence.append(
+          t.final_measurement.metrics[metric_name].value
+      )
+
+    # Global NP seed should not affect randomness.
+    np.random.seed(0)
+
+    noisy_exptr = noisy_experimenter.NoisyExperimenter.from_type(
+        exptr=exptr, noise_type='SEVERE_UNIFORM', seed=seed
+    )
+    noise_value_sequence_after = []
+    for _ in range(10):
+      noisy_exptr.evaluate([t])
+      noise_value_sequence_after.append(
+          t.final_measurement.metrics[metric_name].value
+      )
+    self.assertSequenceAlmostEqual(
+        noise_value_sequence, noise_value_sequence_after
+    )
 
 
 if __name__ == '__main__':

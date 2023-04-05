@@ -32,7 +32,9 @@ from vizier._src.benchmarks.experimenters.synthetic import bbob
 class ExperimenterFactory(Protocol):
   """Abstraction for creating Experimenters."""
 
-  def __call__(self) -> experimenter.Experimenter:
+  def __call__(
+      self, *, seed: Optional[int] = None
+  ) -> experimenter.Experimenter:
     """Creates the Experimenter."""
 
 
@@ -46,7 +48,10 @@ class BBOBExperimenterFactory(ExperimenterFactory):
       validator=[attr.validators.instance_of(int),
                  attr.validators.gt(0)])
 
-  def __call__(self) -> numpy_experimenter.NumpyExperimenter:
+  def __call__(
+      self, seed: Optional[int] = None
+  ) -> numpy_experimenter.NumpyExperimenter:
+    del seed
     bbob_function = getattr(bbob, self.name, None)
     if bbob_function is None:
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')
@@ -77,7 +82,7 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
   # points to categorize to. See discrete_dict.
   categorical_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
 
-  def __call__(self) -> experimenter.Experimenter:
+  def __call__(self, seed: Optional[int] = None) -> experimenter.Experimenter:
     """Creates the SingleObjective Experimenter."""
     exptr = self.base_factory()
     if self.shift is not None:
@@ -116,7 +121,8 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
           )
       )
     if self.noise_type is not None:
-      exptr = noisy_experimenter.NoisyExperimenter(
-          exptr, noise_type=self.noise_type.upper())
+      exptr = noisy_experimenter.NoisyExperimenter.from_type(
+          exptr, noise_type=self.noise_type.upper(), seed=seed
+      )
 
     return exptr

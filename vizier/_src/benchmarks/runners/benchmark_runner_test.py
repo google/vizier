@@ -26,7 +26,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-def _get_benchmark_state_factory():
+def _get_designer_benchmark_state_factory():
   dim = 10
   experimenter = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)()
 
@@ -64,7 +64,7 @@ class BaseRunnerTest(parameterized.TestCase):
               50
       })
   def test_benchmark_run(self, runner, expected_trials):
-    benchmark_state_factory = _get_benchmark_state_factory()
+    benchmark_state_factory = _get_designer_benchmark_state_factory()
     bench_state = benchmark_state_factory(seed=5)
     runner.run(bench_state)
     self.assertEmpty(
@@ -78,7 +78,7 @@ class BaseRunnerTest(parameterized.TestCase):
       self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
 
   def test_active_trials(self):
-    benchmark_state_factory = _get_benchmark_state_factory()
+    benchmark_state_factory = _get_designer_benchmark_state_factory()
     bench_state = benchmark_state_factory(seed=5)
     runner = benchmark_runner.BenchmarkRunner(
         benchmark_subroutines=[
@@ -100,6 +100,36 @@ class BaseRunnerTest(parameterized.TestCase):
         ),
         6 * 3,
     )
+
+  def test_benchmark_run_from_exptr_factory(self):
+    dim = 10
+    exptr_factory = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)
+
+    def _designer_factory(config: vz.ProblemStatement, seed: int):
+      return random.RandomDesigner(config.search_space, seed=seed)
+
+    benchmark_state_factory = (
+        benchmark_state.ExperimenterDesignerBenchmarkStateFactory(
+            designer_factory=_designer_factory,
+            experimenter_factory=exptr_factory,
+        )
+    )
+    benchmark_state_factory = _get_designer_benchmark_state_factory()
+    bench_state = benchmark_state_factory(seed=5)
+    runner = benchmark_runner.BenchmarkRunner(
+        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate(10)],
+        num_repeats=5,
+    )
+    runner.run(bench_state)
+    self.assertEmpty(
+        bench_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.ACTIVE
+        )
+    )
+    all_trials = bench_state.algorithm.supporter.GetTrials()
+    self.assertLen(all_trials, 50)
+    for trial in all_trials:
+      self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
 
 
 if __name__ == '__main__':
