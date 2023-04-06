@@ -18,29 +18,29 @@ from __future__ import annotations
 
 import abc
 import datetime
-import heapq
 import logging
-from typing import Optional, Protocol, Sequence
+from typing import Generic, Optional, Protocol, Sequence, TypeVar
 
 import attr
-import numpy as np
+import chex
+import jax
+from jax import numpy as jnp
 from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
 
+_S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 
-@attr.define
-class VectorizedStrategyResult:
+
+@chex.dataclass(frozen=True)
+class VectorizedStrategyResults:
   """Container for a vectorized strategy result."""
 
   features: types.Array
-  reward: types.Array
-
-  def __lt__(self, other):
-    return self.reward < other.reward
+  rewards: types.Array
 
 
-class VectorizedStrategy(abc.ABC):
+class VectorizedStrategy(abc.ABC, Generic[_S]):
   """Interface class to implement a pure vectorized strategy.
 
   The strategy is responsible for generating suggestions that will maximize the
@@ -49,8 +49,30 @@ class VectorizedStrategy(abc.ABC):
   """
 
   @abc.abstractmethod
-  def suggest(self) -> types.Array:
+  def init_state(
+      self,
+      seed: jax.random.KeyArray,
+      prior_features: Optional[types.Array] = None,
+      prior_rewards: Optional[types.Array] = None,
+  ) -> _S:
+    """Initialize the state.
+
+    Arguments:
+      seed: Random seed for state initialization.
+      prior_features: (n_prior_features, features_count)
+      prior_rewards: (n_prior_features, )
+
+    Returns:
+      initial_state:
+    """
+
+  @abc.abstractmethod
+  def suggest(self, state: _S, seed: jax.random.KeyArray) -> jax.Array:
     """Generate new suggestions.
+
+    Arguments:
+      state: Optimizer state.
+      seed: Random seed.
 
     Returns:
       suggested features: (batch_size, features_count)
@@ -62,11 +84,20 @@ class VectorizedStrategy(abc.ABC):
     """The number of suggestions returned at every suggest call."""
 
   @abc.abstractmethod
-  def update(self, rewards: types.Array) -> None:
+  def update(
+      self,
+      state: _S,
+      batch_features: types.Array,
+      batch_rewards: types.Array,
+      seed: jax.random.KeyArray,
+  ) -> _S:
     """Update the strategy state with the results of the last suggestions.
 
     Arguments:
-      rewards: (batch_size, )
+      state: Optimizer state.
+      batch_features: (batch_size, features_count)
+      batch_rewards: (batch_size, )
+      seed: Random seed.
     """
 
 
@@ -82,20 +113,12 @@ class VectorizedStrategyFactory(Protocol):
       converter: converters.TrialToArrayConverter,
       *,
       suggestion_batch_size: int,
-      seed: Optional[int] = None,
-      prior_features: Optional[np.ndarray] = None,
-      prior_rewards: Optional[np.ndarray] = None,
   ) -> VectorizedStrategy:
     """Create a new vectorized strategy.
 
     Arguments:
       converter: The trial to array converter.
       suggestion_batch_size: The number of trials to be evaluated at once.
-      seed: The random seed.
-      prior_features: Prior trial features for knowledge transfer with a shape
-        of (n_trial_featurs, n_features)
-      prior_rewards: Prior trial rewards for knowledge transfer with a shape of
-        (n_trial_featurs,)
     """
     ...
 
@@ -137,12 +160,15 @@ class VectorizedOptimizer:
     max_duration: The maximum duration of the optimization process.
     suggestion_batch_size: The batch size of the suggestion vector received at
       each 'suggest' call.
+    jit_loop: If True, JIT compile the optimization loop. If False, the loop
+      body (an optimization step) will still be JIT compiled, but the outer loop
+      will not be. (This arg is for speed testing and may be removed later.)
   """
 
   strategy_factory: VectorizedStrategyFactory
   suggestion_batch_size: int = 25
   max_evaluations: int = 75_000
-  max_duration: Optional[datetime.timedelta] = None
+  jit_loop: bool = True
 
   def optimize(
       self,
@@ -185,51 +211,80 @@ class VectorizedOptimizer:
     Returns:
       The best trials found in the optimization.
     """
+    seed = jax.random.PRNGKey(seed or 0)
     if prior_trials:
       # Sort the trials by the order they were created.
       prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
       prior_features = converter.to_features(prior_trials)
-      prior_rewards = np.array(score_fn(prior_features)).reshape(-1)
+      prior_rewards = score_fn(prior_features).reshape(-1)
     else:
       prior_features, prior_rewards = None, None
 
     strategy = self.strategy_factory(
         converter=converter,
         suggestion_batch_size=self.suggestion_batch_size,
-        seed=seed,
-        prior_features=prior_features,
-        prior_rewards=prior_rewards,
     )
 
-    start_time = datetime.datetime.now()
-    evaluated_count = 0
-    best_results = []
+    def _optimization_one_step(_, args):
+      state, best_results, seed = args
+      suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
+      new_features = strategy.suggest(state, suggest_seed)
+      new_rewards = score_fn(new_features)
+      new_state = strategy.update(state, new_features, new_rewards, update_seed)
+      new_best_results = self._update_best_results(
+          best_results, count, new_features, new_rewards
+      )
+      return new_state, new_best_results, new_seed
 
-    while not self._should_stop(start_time, evaluated_count):
-      new_features = strategy.suggest()
-      new_rewards = np.asarray(score_fn(new_features))
-      strategy.update(new_rewards)
-      self._update_best_results(best_results, count, new_features, new_rewards)
-      evaluated_count += len(new_rewards)
+    def _optimize():
+      init_seed, loop_seed = jax.random.split(seed)
+      n_features = sum(spec.num_dimensions for spec in converter.output_specs)
+      init_best_results = VectorizedStrategyResults(
+          rewards=-jnp.inf * jnp.ones([count]),
+          features=jnp.zeros([count, n_features]),
+      )
+      init_args = (
+          strategy.init_state(
+              init_seed,
+              prior_features=prior_features,
+              prior_rewards=prior_rewards,
+          ),
+          init_best_results,
+          loop_seed,
+      )
+      return jax.lax.fori_loop(
+          0,
+          self.max_evaluations // self.suggestion_batch_size,
+          _optimization_one_step,
+          init_args,
+      )
+
+    if self.jit_loop:
+      _optimize = jax.jit(_optimize)  # pylint: disable=invalid-name
+
+    start_time = datetime.datetime.now()
+    _, best_results, _ = _optimize()
     logging.info(
         (
             'Optimization completed. Duration: %s. Evaluations: %s. Best'
             ' Results: %s'
         ),
         datetime.datetime.now() - start_time,
-        evaluated_count,
+        (
+            (self.max_evaluations // self.suggestion_batch_size)
+            * self.suggestion_batch_size
+        ),
         best_results,
     )
-
     return self._best_candidates(best_results, converter)
 
   def _update_best_results(
       self,
-      best_results: list[VectorizedStrategyResult],
+      best_results: VectorizedStrategyResults,
       count: int,
-      batch_features: types.Array,
-      batch_rewards: types.Array,
-  ) -> None:
+      batch_features: jax.Array,
+      batch_rewards: jax.Array,
+  ) -> VectorizedStrategyResults:
     """Update the best results the optimizer seen thus far.
 
     The best results are kept in a heap to efficiently maintain the top 'count'
@@ -243,85 +298,39 @@ class VectorizedOptimizer:
         dimension of (batch_size, feature_dim).
       batch_rewards: The current reward batch array with a dimension of
         (batch_size,).
-    """
-    sorted_indices = sorted(
-        range(len(batch_rewards)), key=lambda x: batch_rewards[x], reverse=True
-    )[:count]
-    if count == 1:
-      # In this case we can simply track the single best result.
-      ind = sorted_indices[0]
-      if not best_results:
-        best_results.append(
-            VectorizedStrategyResult(
-                reward=batch_rewards[ind], features=batch_features[ind]
-            )
-        )
-      else:
-        if best_results[0].reward < batch_rewards[ind]:
-          best_results[0].reward = batch_rewards[ind]
-          best_results[0].features = batch_features[ind]
-    else:
-      for ind in sorted_indices:
-        if len(best_results) < count:
-          # 'best_results' is below capacity, add the best batch result.
-          new_result = VectorizedStrategyResult(
-              reward=batch_rewards[ind], features=batch_features[ind]
-          )
-          heapq.heappush(best_results, new_result)
 
-        elif batch_rewards[ind] > best_results[0].reward:
-          # 'best_result' is at capacity and the best batch result is better
-          # than the worst item in 'best_results'.
-          new_result = VectorizedStrategyResult(
-              reward=batch_rewards[ind], features=batch_features[ind]
-          )
-          heapq.heapreplace(best_results, new_result)
+    Returns:
+      trials:
+    """
+    all_rewards = jnp.concatenate([batch_rewards, best_results.rewards], axis=0)
+    all_features = jnp.concatenate(
+        [batch_features, best_results.features], axis=0
+    )
+    top_indices = jnp.argpartition(-all_rewards, count - 1)[:count]
+    return VectorizedStrategyResults(
+        rewards=all_rewards[top_indices],
+        features=all_features[top_indices],
+    )
 
   def _best_candidates(
       self,
-      best_results: list[VectorizedStrategyResult],
+      best_results: VectorizedStrategyResults,
       converter: converters.TrialToArrayConverter,
   ) -> list[vz.Trial]:
     """Returns the best candidate trials in the original search space."""
     trials = []
-    for best_result in sorted(best_results, reverse=True):
+    sorted_ind = jnp.argsort(-best_results.rewards)
+    for i in range(len(best_results.rewards)):
       # Create trials and convert the strategy features back to parameters.
+      ind = sorted_ind[i]
       trial = vz.Trial(
           parameters=converter.to_parameters(
-              np.expand_dims(best_result.features, axis=0)
+              jnp.expand_dims(best_results.features[ind], axis=0)
           )[0]
       )
-      trial.complete(vz.Measurement({'acquisition': best_result.reward}))
+      trial.complete(vz.Measurement({'acquisition': best_results.rewards[ind]}))
       trials.append(trial)
     return trials
-
-  def _should_stop(
-      self, start_time: datetime.datetime, evaluated_count: int
-  ) -> bool:
-    """Determines if the optimizer has reached its optimization budget."""
-    duration = datetime.datetime.now() - start_time
-    if self.max_duration and duration >= self.max_duration:
-      logging.info(
-          (
-              'Optimization completed. Reached time limit. Duration: %s.'
-              ' Evaluations: %s'
-          ),
-          duration,
-          evaluated_count,
-      )
-      return True
-    elif evaluated_count >= self.max_evaluations:
-      logging.info(
-          (
-              'Optimization completed. Reached evaluations limit. Duration: %s.'
-              ' Evaluations: %s'
-          ),
-          duration,
-          evaluated_count,
-      )
-      return True
-    else:
-      return False
 
 
 @attr.define
@@ -334,12 +343,10 @@ class VectorizedOptimizerFactory:
       self,
       suggestion_batch_size: int,
       max_evaluations: int,
-      max_duration: Optional[datetime.timedelta] = None,
   ) -> VectorizedOptimizer:
     """Generates a new VectorizedOptimizer object."""
     return VectorizedOptimizer(
         strategy_factory=self.strategy_factory,
         suggestion_batch_size=suggestion_batch_size,
         max_evaluations=max_evaluations,
-        max_duration=max_duration,
     )

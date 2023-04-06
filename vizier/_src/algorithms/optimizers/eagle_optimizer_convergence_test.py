@@ -19,31 +19,35 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+import jax
+from jax import numpy as jnp
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import random_vectorized_optimizer as rvo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import comparator_runner
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
 
-def randomize_array(converter: converters.TrialToArrayConverter) -> np.ndarray:
+def randomize_array(converter: converters.TrialToArrayConverter) -> jax.Array:
   """Generate a random array of features to be used as score_fn shift."""
   features_arrays = []
   for spec in converter.output_specs:
     if spec.type == converters.NumpyArraySpecType.ONEHOT_EMBEDDING:
       dim = spec.num_dimensions - spec.num_oovs
       features_arrays.append(
-          np.eye(spec.num_dimensions)[np.random.randint(0, dim)])
+          jnp.eye(spec.num_dimensions)[np.random.randint(0, dim)]
+      )
     elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
       features_arrays.append(np.random.uniform(0.4, 0.6, size=(1,)))
     else:
       raise ValueError(f'The type {spec.type} is not supported!')
-  return np.hstack(features_arrays)
+  return jnp.hstack(features_arrays)
 
 
 def create_continuous_problem(
@@ -77,14 +81,14 @@ def create_mix_problem(n_features: int,
 
 
 # TODO: Change to bbob functions when they can support batching.
-def sphere(x: np.ndarray) -> np.ndarray:
-  return -np.sum(np.square(x), axis=-1)
+def sphere(x: types.Array) -> jax.Array:
+  return -jnp.sum(jnp.square(x), axis=-1)
 
 
-def rastrigin_d10(x: np.ndarray) -> np.ndarray:
-  return 10 * np.sum(
-      np.cos(2 * np.pi * x), axis=-1) - np.sum(
-          np.square(x), axis=-1)
+def rastrigin_d10(x: types.Array) -> jax.Array:
+  return 10 * jnp.sum(jnp.cos(2 * np.pi * x), axis=-1) - jnp.sum(
+      jnp.square(x), axis=-1
+  )
 
 
 class EagleOptimizerConvegenceTest(parameterized.TestCase):

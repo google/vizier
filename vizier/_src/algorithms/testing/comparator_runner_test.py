@@ -18,12 +18,15 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+import jax
+from jax import numpy as jnp
 import numpy as np
 from vizier import algorithms as vza
 from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import comparator_runner
+from vizier._src.jax import types
 from vizier.benchmarks import experimenters
 from vizier.pyvizier import converters
 
@@ -47,20 +50,34 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
     self.num_trial_to_converge = num_trial_to_converge
     self.num_trials_so_far = 0
 
-  def suggest(self) -> np.ndarray:
+  def init_state(
+      self,
+      seed: jax.random.KeyArray,
+      prior_features: Optional[types.Array] = None,
+      prior_rewards: Optional[types.Array] = None,
+  ) -> None:
+    return
+
+  def suggest(self, state: None, seed: jax.random.KeyArray) -> jax.Array:
     output_len = sum(
         [spec.num_dimensions for spec in self.converter.output_specs]
     )
     if self.num_trials_so_far < self.num_trial_to_converge:
-      return np.ones((1, output_len)) * self.bad_value
+      return jnp.ones((1, output_len)) * self.bad_value
     else:
-      return np.ones((1, output_len)) * self.good_value
+      return jnp.ones((1, output_len)) * self.good_value
 
   @property
   def suggestion_batch_size(self) -> int:
     return 1
 
-  def update(self, rewards: np.ndarray) -> None:  # pytype: disable=signature-mismatch  # numpy-scalars
+  def update(
+      self,
+      state: None,
+      batch_features: types.Array,
+      batch_rewards: types.Array,
+      seed: jax.random.KeyArray,
+  ) -> None:
     pass
 
 
@@ -315,9 +332,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
     )
 
     # pylint: disable=unused-argument
-    def _baseline_strategy_factory(
-        converter, suggestion_batch_size, seed, prior_features, prior_rewards
-    ):
+    def _baseline_strategy_factory(converter, suggestion_batch_size):
       return FakeVectorizedStrategy(
           converter=converter,
           good_value=1.0,
@@ -327,9 +342,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
 
       # pylint: disable=unused-argument
 
-    def _candidate_strategy_factory(
-        converter, suggestion_batch_size, seed, prior_features, prior_rewards
-    ):
+    def _candidate_strategy_factory(converter, suggestion_batch_size):
       return FakeVectorizedStrategy(
           converter=converter,
           good_value=candidate_x_value,

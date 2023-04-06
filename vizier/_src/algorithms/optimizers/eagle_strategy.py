@@ -40,7 +40,7 @@ For more details, see the linked paper.
 
 OSS Vizier Implementation Summary
 =================================
-The firefly are stored in three Numpy arrays: features, rewards, perturbations.
+The fireflies are stored in three JAX arrays: features, rewards, perturbations.
 Each iteration we mutate 'batch_size' fireflies to generate new features. The
 new features are evaluated on the objective function to obtain their associated
 rewards and update the pool where improvement was obtained, and decrease the
@@ -66,23 +66,35 @@ optimizer = VectorizedOptimizer(
     VectorizedEagleStrategyFactory(),
 )
 # Run the optimization.
-optimizer.optimize(problem_statement, objective_function)
-
-# Access the best features and reward.
-best_reward, best_parameters = optimizer.best_results
+trials = optimizer.optimize(problem_statement, objective_function)
 """
+# pylint: disable=g-long-lambda
 
+import enum
 import logging
-from typing import Optional, Literal
+import math
+from typing import Optional, Tuple
 
 import attr
-import numpy as np
+import chex
+import jax
+from jax import numpy as jnp
 from vizier._src.algorithms.optimizers import eagle_param_handler
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 
 
-@attr.define
+@enum.unique
+class MutateNormalizationType(enum.IntEnum):
+  """The force normalization mode. Use IntEnum for JIT compatibility."""
+
+  MEAN = 0
+  RANDOM = 1
+  UNNORMALIZED = 2
+
+
+@chex.dataclass(frozen=True)
 class EagleStrategyConfig:
   """Eagle Strategy optimizer config.
 
@@ -99,6 +111,7 @@ class EagleStrategyConfig:
       space size.
     pool_size: An optional way to set the pool size. If not 0, this takes
       precedent over the programatic pool size computation.
+    max_pool_size: Ceiling on pool size.
     mutate_normalization_type: The type of force mutation normalizatoin used for
       damping down the force intensity to stay within reasonable bounds.
     normalization_scale: A mutation force scale-factor to control intensity.
@@ -122,7 +135,9 @@ class EagleStrategyConfig:
   pool_size: int = 0
   max_pool_size: int = 100
   # Force normalization mode
-  mutate_normalization_type: str = "mean"
+  mutate_normalization_type: MutateNormalizationType = (
+      MutateNormalizationType.MEAN
+  )
   # Multiplier factor when using normalized modes
   normalization_scale: float = 0.5
   # The percentage of the firefly pool to be populated with prior trials
@@ -139,9 +154,6 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       self,
       converter: converters.TrialToArrayConverter,
       suggestion_batch_size: Optional[int] = None,
-      seed: Optional[int] = None,
-      prior_features: Optional[np.ndarray] = None,
-      prior_rewards: Optional[np.ndarray] = None,
   ) -> "VectorizedEagleStrategy":
     """Create a new vectorized eagle strategy.
 
@@ -155,11 +167,6 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       converter: TrialToArrayConverter that matches the converter used in
         computing the objective / acuisition function.
       suggestion_batch_size: The batch_size of the returned suggestion array.
-      seed: The seed to input into the random generator.
-      prior_features: The prior features for populating the pool.
-        (n_prior_candidates, n_features)
-      prior_rewards:  The prior rewards for populating the pool.
-        (n_prior_candidates,)
 
     Returns:
       A new instance of VectorizedEagleStrategy.
@@ -168,13 +175,20 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         converter=converter,
         config=self.eagle_config,
         batch_size=suggestion_batch_size,
-        seed=seed,
-        prior_features=prior_features,
-        prior_rewards=prior_rewards,
     )
 
 
-# TODO: Create jit-compatible JAX version.
+@chex.dataclass(frozen=True)
+class VectorizedEagleStrategyState:
+  """Container for Eagle strategy state."""
+
+  iterations: jax.Array  # Scalar integer.
+  features: jax.Array  # Shape (pool_size, n_features).
+  rewards: jax.Array  # Shape (pool_size,).
+  best_reward: jax.Array  # Scalar float.
+  perturbations: jax.Array  # Shape (pool_size,).
+
+
 @attr.define
 class VectorizedEagleStrategy(vb.VectorizedStrategy):
   """Eagle strategy implementation for maximization problem based on Numpy.
@@ -184,56 +198,30 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     config: The Eagle strategy configuration.
     n_features: The number of features.
     batch_size: The number of suggestions generated at each suggestion call.
-    prior_features: The prior features to be used for seeding the pool. When the
-      optimizer is used to optimize a designer's acquisition function, the prior
-      features are the previous designer suggestions provided in the ordered
-      they were suggested. Shape: (n_prior_trials, n_features).
-    prior_rewards: The associated prior rewards of the prior features.
-      Shape: (n_prior_trials,)
-    seed: The seed to generate random values.
     pool_size: The total number of flies in the pool.
-    _features: Array with dimensions (suggestion_count, feature_count) storing
-      the firefly features.
-    _rewards: Array with dimensions (suggestion_count,) that for each firefly
-      stores the current (best) associated objective function result.
-    _perturbations: Array with dimensions (suggestion_count,) storing the
-      firefly current perturbations.
-    _batch_id: The current batch index which is in [0, pool_size/batch_size - 1]
-    _batch_slice: The slice of the indices in the current batch.
-    _iterations: The total number of batches suggested.
-    _num_removed_flies: The total number of removed flies (for debugging).
-    _best_results: An Heap storing the best results across all flies.
-    _last_suggested_features: The last features the strategy has suggested.
   """
 
-  converter: converters.TrialToArrayConverter
+  converter: converters.TrialToArrayConverter = attr.field(
+      init=True, repr=False
+  )
   config: EagleStrategyConfig = attr.field(init=True, repr=False)
   batch_size: Optional[int] = attr.field(init=True, default=None)
-  seed: Optional[int] = attr.field(init=True, default=None)
   pool_size: int = attr.field(init=False)
-  prior_features: Optional[np.ndarray] = attr.field(init=True, default=None)
-  prior_rewards: Optional[np.ndarray] = attr.field(init=True, default=None)
-  # Attributes related to the strategy's state.
-  _features: np.ndarray = attr.field(init=False, repr=False)
-  _rewards: np.ndarray = attr.field(init=False, repr=False)
-  _perturbations: np.ndarray = attr.field(init=False, repr=False)
-  _batch_id: int = attr.field(init=False, repr=False)
-  _batch_slice: slice = attr.field(init=False, repr=False)
-  _iterations: int = attr.field(init=False)
-  _last_suggested_features: np.ndarray = attr.field(init=False, repr=False)
-  _best_reward: float = attr.field(init=False)
   # Attributes related to computations.
-  _num_removed_flies: int = attr.field(init=False, default=0)
   _n_features: int = attr.field(init=False)
-  _perturbation_factors: np.ndarray = attr.field(init=False, repr=False)
+  _perturbation_factors: jax.Array = attr.field(init=False, repr=False)
 
   def __attrs_post_init__(self):
     self._initialize()
     logging.info("Eagle class attributes:\n%s", self)
     logging.info("Eagle configuration:\n%s", self.config)
 
+  def __hash__(self):
+    # Make this class hashable so it can be a static arg to a JIT-ed function.
+    return hash(id(self))
+
   def _compute_pool_size(self) -> int:
-    """Compute the pool size, and ensures it's a multiply of the batch_size."""
+    """Compute the pool size, and ensures it's a multiple of the batch_size."""
     n_params = len(self.converter.output_specs)
     pool_size = 10 + int(
         0.5 * n_params + n_params**self.config.pool_size_exponent
@@ -241,16 +229,14 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     pool_size = min(pool_size, self.config.max_pool_size)
     if self.batch_size is not None:
       # If the batch_size was set, ensure pool_size is multiply of batch_size.
-      return int(np.ceil(pool_size / self.batch_size) * self.batch_size)
+      return int(math.ceil(pool_size / self.batch_size) * self.batch_size)
     else:
       return pool_size
 
-  def _initialize(self):
+  def _initialize(self) -> None:
     """Initialize the designer state."""
-    self._rng = np.random.default_rng(self.seed)
     self._param_handler = eagle_param_handler.EagleParamHandler(
         converter=self.converter,
-        rng=self._rng,
         categorical_perturbation_factor=self.config.categorical_perturbation_factor,
         pure_categorical_perturbation_factor=self.config.pure_categorical_perturbation_factor,
     )
@@ -264,255 +250,267 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     if self.batch_size is None:
       # This configuration updates all the fireflies in each iteration.
       self.batch_size = self.pool_size
-    self._batch_id = 0
-    self._iterations = 0
-    self._batch_slice = np.s_[0 : self.batch_size]
-    self._perturbations = (
-        np.ones(
-            self.pool_size,
-        )
-        * self.config.perturbation
-    )
-    self._last_suggested_features = None
     self._perturbation_factors = self._param_handler.perturbation_factors
     # Use priors to populate Eagle state
-    if self.prior_features is not None or self.prior_rewards is not None:
-      self._populate_pool_with_prior_trials()
-    else:
-      self._features = self._param_handler.random_features(
-          self.pool_size, self._n_features
-      )
-    # Rewards are not populated from seed, as they were potentially generated
-    # from a different objective function. New rewards will be obtained.
-    self._rewards = np.ones(
-        self.pool_size,
-    ) * (-np.inf)
-    self._best_reward = -np.inf
-    # Ignore subtracting np.inf - np.inf. See '_compute_scaled_directions' for
-    # explanation on why we ignore warning in this case.
-    np.seterr(invalid="ignore")
 
-  def _populate_pool_with_prior_trials(self) -> None:
+  def init_state(
+      self,
+      seed: chex.PRNGKey,
+      prior_features: Optional[chex.Array] = None,
+      prior_rewards: Optional[chex.Array] = None,
+  ) -> VectorizedEagleStrategyState:
+    """Initializes the state."""
+    if prior_features is not None or prior_rewards is not None:
+      init_features = self._populate_pool_with_prior_trials(
+          seed, prior_features, prior_rewards
+      )
+    else:
+      init_features = self._param_handler.random_features(self.pool_size, seed)
+    return VectorizedEagleStrategyState(
+        iterations=jnp.array(0),
+        features=init_features,
+        rewards=jnp.ones(self.pool_size) * -jnp.inf,
+        best_reward=-jnp.inf,
+        perturbations=jnp.ones(self.pool_size) * self.config.perturbation,
+    )
+
+  def _populate_pool_with_prior_trials(
+      self,
+      seed: chex.PRNGKey,
+      prior_features: chex.Array,
+      prior_rewards: chex.Array,
+  ) -> jax.Array:
     """Populate the pool with prior trials.
+
+    Args:
+      seed: Random seed.
+      prior_features: (n_prior_features, features_count)
+      prior_rewards: (n_prior_features, )
+
+    Returns:
+      initial_features
 
     A portion of the pool is first populated with random features based on
     'prior_trials_pool_pct', then the rest of the flies are populated by
     sequentially iterate over the prior trials, finding the cloest firefly in
     the pool and replace it if the reward is better.
     """
-    if self.prior_features is None or self.prior_rewards is None:
+    if prior_features is None or prior_rewards is None:
       raise ValueError("One of prior features / prior rewards wasn't provided!")
-    if self.prior_features.shape[0] != self.prior_rewards.shape[0]:
+    if prior_features.shape[0] != prior_rewards.shape[0]:
       raise ValueError(
-          f"prior features shape ({self.prior_features.shape[0]}) doesn't match"
-          f" prior  rewards shape ({self.prior_rewards.shape[0]})!"
+          f"prior features shape ({prior_features.shape[0]}) doesn't match"
+          f" prior  rewards shape ({prior_rewards.shape[0]})!"
       )
-    if self.prior_features.shape[1] != self._n_features:
+    if prior_features.shape[1] != self._n_features:
       raise ValueError(
-          "prior features shape doesn't match n_features{self._n_features}!"
+          f"prior features shape ({prior_features.shape[1]}) doesn't match "
+          f"n_features ({self._n_features})!"
       )
-    if len(self.prior_rewards.shape) > 1:
+    if len(prior_rewards.shape) > 1:
       raise ValueError("prior rewards is expected to be 1D array!")
 
     # Reverse the order of prior trials to assign more weight to recent trials.
-    self.prior_features = np.flip(self.prior_features, axis=0)
-    self.prior_rewards = np.flip(self.prior_rewards, axis=0)
+    flipped_prior_features = jnp.flip(prior_features, axis=0)
+    flipped_prior_rewards = jnp.flip(prior_rewards, axis=0)
 
-    self._features = np.zeros((0, self._n_features))
     # Fill pool with random features.
     n_random_flies = int(
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
     )
-    self._features = self._param_handler.random_features(
-        n_random_flies, self._n_features
-    )
+    seed1, seed2 = jax.random.split(seed)
+    init_features = self._param_handler.random_features(n_random_flies, seed1)
     pool_left_space = self.pool_size - n_random_flies
 
-    if self.prior_features.shape[0] < pool_left_space:
+    if prior_features.shape[0] < pool_left_space:
       # Less prior trials than left space. Take all prior trials for the pool.
-      self._features = np.concatenate([self._features, self.prior_features])
+      init_features = jnp.concatenate([init_features, flipped_prior_features])
       # Randomize the rest of the pool fireflies.
       random_features = self._param_handler.random_features(
-          self.pool_size - len(self._features), self._n_features
+          self.pool_size - len(init_features), seed2
       )
-      self._features = np.concatenate([self._features, random_features])
+      return jnp.concatenate([init_features, random_features])
     else:
       # More prior trials than left space. Iteratively populate the pool.
-      tmp_features = self.prior_features[:pool_left_space]
-      tmp_rewards = self.prior_rewards[:pool_left_space]
-      for i in range(pool_left_space, self.prior_features.shape[0]):
-        ind = np.argmin(
-            np.sum(np.square(self.prior_features[i] - tmp_features), axis=-1)
+      tmp_features = flipped_prior_features[:pool_left_space]
+      tmp_rewards = flipped_prior_rewards[:pool_left_space]
+
+      def _loop_body(i, args):
+        features, rewards = args
+        ind = jnp.argmin(
+            jnp.sum(jnp.square(flipped_prior_features[i] - features), axis=-1)
         )
-        if tmp_rewards[ind] < self.prior_rewards[i]:
-          # Only take the prior trials features. Rewards obtain during update.
-          tmp_features[ind] = self.prior_features[i]
-          tmp_rewards[ind] = self.prior_rewards[i]
-      self._features = np.concatenate([self._features, tmp_features])
+        return jax.lax.cond(
+            rewards[ind] < flipped_prior_rewards[i],
+            lambda: (
+                features.at[ind].set(flipped_prior_features[i]),
+                rewards.at[ind].set(flipped_prior_rewards[i]),
+            ),
+            lambda: (features, rewards),
+        )
+
+      # TODO: Use a vectorized method to populate the pool and avoid
+      # the for-loop.
+      tmp_features, _ = jax.lax.fori_loop(
+          lower=pool_left_space,
+          upper=prior_features.shape[0],
+          body_fun=_loop_body,
+          init_val=(tmp_features, tmp_rewards),
+      )
+      return jnp.concatenate([init_features, tmp_features])
 
   @property
   def suggestion_batch_size(self) -> int:
     """The number of suggestions returned at each call of 'suggest'."""
     return self.batch_size
 
-  def suggest(self) -> np.ndarray:
+  def suggest(
+      self, state: VectorizedEagleStrategyState, seed: chex.PRNGKey
+  ) -> jax.Array:
     """Suggest new mutated and perturbed features.
 
     After initializing, at each call `batch_size` fireflies are mutated to
     generate new features using pulls (attraction/repulsion) from all other
     fireflies in the pool.
 
+    Args:
+      state: Current strategy state.
+      seed: Random seed.
+
     Returns:
       suggested batch features: (batch_size, n_features)
     """
-    if self._iterations < self.pool_size // self.batch_size:
-      # The strategy is still initializing. Return the random/prior features.
-      new_features = self._features[self._batch_slice]
-    else:
-      mutated_features = self._create_features()
-      perturbations = self._create_perturbations()
-      new_features = mutated_features + perturbations
+    batch_id = state.iterations % (self.pool_size // self.batch_size)
+    start = batch_id * self.batch_size
+    features_batch = jax.lax.dynamic_slice_in_dim(
+        state.features, start, self.batch_size
+    )
+    rewards_batch = jax.lax.dynamic_slice_in_dim(
+        state.rewards, start, self.batch_size
+    )
+    perturbations_batch = jax.lax.dynamic_slice_in_dim(
+        state.perturbations, start, self.batch_size
+    )
+    features_seed, perturbations_seed, cat_seed = jax.random.split(seed, num=3)
 
-    new_features = self._param_handler.sample_categorical(new_features)
+    def _mutate_features(features_batch_):
+      mutated_features = self._create_features(
+          state.features,
+          state.rewards,
+          features_batch_,
+          rewards_batch,
+          features_seed,
+      )
+      perturbations = self._create_random_perturbations(
+          perturbations_batch, perturbations_seed
+      )
+      return mutated_features + perturbations
+
+    # If the strategy is still initializing, return the random/prior features.
+    new_features = jax.lax.cond(
+        state.iterations < self.pool_size // self.batch_size,
+        lambda x: x,
+        _mutate_features,
+        features_batch,
+    )
+
+    new_features = self._param_handler.sample_categorical(
+        new_features, cat_seed
+    )
     # TODO: The range of features is not always [0, 1].
     #   Specifically, for features that are single-point, it can be [0, 0]; we
     #   also want this code to be aware of the feature's bounds to enable
     #   contextual bandit operation.  Note that if a parameter's bound changes,
     #   we might also want to change the firefly noise or normalizations.
-    suggested_features = np.clip(new_features, 0, 1)
-    # Save the suggested features to be used in update.
-    self._last_suggested_features = suggested_features
-    return suggested_features
+    return jnp.clip(new_features, 0.0, 1.0)
 
-  def _increment_batch(self):
-    """Increment the batch of fireflies features are generate from."""
-    self._batch_id = (self._batch_id + 1) % (self.pool_size // self.batch_size)
-    start_batch = self._batch_id * self.batch_size
-    end_batch = (self._batch_id + 1) * self.batch_size
-    self._batch_slice = np.s_[start_batch:end_batch]
-
-  def _create_features(self) -> np.ndarray:
-    """Create new batch of mutated and perturbed features.
-
-    Returns:
-      batch features: (batch_size, n_features)
-    """
-    features_diffs, dists = self._compute_features_diffs_and_dists()
-    scaled_directions = self._compute_scaled_directions()
-    features_changes = self._compute_features_changes(
-        features_diffs, dists, scaled_directions
-    )
-    return self._features[self._batch_slice] + features_changes
-
-  def _compute_features_diffs_and_dists(self) -> tuple[np.ndarray, np.ndarray]:
-    """Compute the features difference and distances.
-
-    The computation is done between the 'batch_size' fireflies and all
-    other fireflies in the pool.
-
-    features_diff[i, j, :] := features[j, :] - features[i, :]
-    features_dist[i, j, :] := distance between fly 'j' and fly 'i'
-
-    Returns:
-      feature differences: (batch_size, pool_size, n_features)
-      features distances: (batch_size, pool_size)
-    """
-    shape = (self.batch_size,) + self._features.shape
-    features_diffs = np.broadcast_to(self._features, shape) - np.expand_dims(
-        self._features[self._batch_slice], 1
-    )
-    dists = np.sum(np.square(features_diffs), axis=-1)
-    return features_diffs, dists
-
-  def _compute_scaled_directions(self) -> np.ndarray:
-    """Compute the scaled direction for applying pull between two flies.
-
-    scaled_directions[i,j] := direction of force applied by fly 'j' on fly 'i'.
-
-    Note that to compute 'directions' we might perform subtract with removed
-    flies with having value of -np.inf. Moreover, we might even subtract between
-    two removed flies which will result in np.nan. Both cases are handled when
-    computing the actual feautre changes applying a relevant mask.
-
-    Returns:
-      scaled directions: (batch_size, pool_size)
-    """
-    shape = (self.batch_size,) + self._rewards.shape
-    directions = np.broadcast_to(self._rewards, shape) - np.expand_dims(
-        self._rewards[self._batch_slice], -1
-    )
-
-    scaled_directions = np.where(
-        directions >= 0, self.config.gravity, -self.config.negative_gravity
-    )
-    return scaled_directions
-
-  def _compute_features_changes(
+  def _create_features(
       self,
-      features_diffs: np.ndarray,
-      dists: np.ndarray,
-      scaled_directions: np.ndarray,
-  ) -> np.ndarray:
-    """Compute the firefly features changes due to mutation.
+      features: jax.Array,
+      rewards: jax.Array,
+      features_batch: jax.Array,
+      rewards_batch: jax.Array,
+      seed: chex.PRNGKey,
+  ) -> jax.Array:
+    """Create new batch of mutated and perturbed features.
 
     The pool fireflies forces (pull/push) are being normalized to ensure the
     combined force doesn't throw the firefly too far. Mathematically, the
     normalization guarantees that the combined normalized force is within the
     simplex constructed by the unnormalized forces and therefore within bounds.
 
-    Arguments:
-      features_diffs: (batch_size, pool_size, n_features)
-      dists: (batch_size, pool_size)
-      scaled_directions: (batch_size, pool_size)
+    Args:
+      features: (pool_size, n_features)
+      rewards: (pool_size,)
+      features_batch: (batch_size, n_features)
+      rewards_batch: (batch_size,)
+      seed: Random seed.
 
     Returns:
-      feature changes: (batch_size, feature_n)
+      batch features: (batch_size, n_features)
     """
+    # Compute the pairwise squared distances between the features batch and the
+    # pool. We use a less numerically precise squared distance formulation to
+    # avoid materializing a possibly large intermediate of shape
+    # (batch_size, pool_size, n_features).
+    dists = (
+        jnp.sum(features_batch**2, axis=-1, keepdims=True)
+        + jnp.sum(features**2, axis=-1)
+        - 2.0 * jnp.matmul(features_batch, features.T)
+    )  # shape (batch_size, pool_size)
+
+    # Compute the scaled direction for applying pull between two flies.
+    # scaled_directions[i,j] := direction of force applied by fly 'j' on fly
+    # 'i'. Note that to compute 'directions' we might perform subtract with
+    # removed flies with having value of -np.inf. Moreover, we might even
+    # subtract between two removed flies which will result in np.nan. Both cases
+    # are handled when computing the actual feautre changes applying a relevant
+    # mask.
+    directions = rewards - rewards_batch[:, jnp.newaxis]
+    scaled_directions = jnp.where(
+        directions >= 0.0, self.config.gravity, -self.config.negative_gravity
+    )  # shape (batch_size, pool_size)
+
     # Normalize the distance by the number of features.
-    force = np.exp(-self.config.visibility * dists / self._n_features * 10)
-    scaled_force = np.expand_dims(scaled_directions * force, -1)
+    force = jnp.exp(-self.config.visibility * dists / self._n_features * 10.0)
+    scaled_force = scaled_directions * force
     # Handle removed fireflies without updated rewards.
-    inf_indx = np.isinf(self._rewards)
-    if np.sum(inf_indx) == self.pool_size:
-      logging.warning(
-          (
-              "All firefly were recently removed. This Shouldn't happen."
-              "Pool Features:\n%sPool rewards:\n%s"
-          ),
-          self._features,
-          self._rewards,
-      )
-      return np.zeros((self.batch_size, self._n_features))
+    finite_ind = jnp.isfinite(rewards).astype(scaled_force.dtype)
 
     # Ignore fireflies that were removed from the pool.
-    features_diffs = features_diffs[:, ~inf_indx, :]
-    scaled_force = scaled_force[:, ~inf_indx, :]
+    scaled_force = scaled_force * finite_ind
 
     # Separate forces to pull and push so to normalize them separately.
-    scaled_pulls = np.where(scaled_force > 0, scaled_force, 0)
-    scaled_push = np.where(scaled_force < 0, scaled_force, 0)
+    scaled_pulls = jnp.maximum(scaled_force, 0.0)
+    scaled_push = jnp.minimum(scaled_force, 0.0)
 
-    if self.config.mutate_normalization_type == "mean":
+    if self.config.mutate_normalization_type == MutateNormalizationType.MEAN:
       # Divide the push and pull forces by the number of flies participating.
       # Also multiply by normalization_scale.
-      norm_scaled_pulls = self.config.normalization_scale * np.nan_to_num(
-          scaled_pulls / np.sum(scaled_pulls > 0, axis=1, keepdims=True), 0
+      norm_scaled_pulls = self.config.normalization_scale * jnp.nan_to_num(
+          scaled_pulls / jnp.sum(scaled_pulls > 0.0, axis=1, keepdims=True), 0
       )
-      norm_scaled_push = self.config.normalization_scale * np.nan_to_num(
-          scaled_push / np.sum(scaled_push < 0, axis=1, keepdims=True), 0
+      norm_scaled_push = self.config.normalization_scale * jnp.nan_to_num(
+          scaled_push / jnp.sum(scaled_push < 0.0, axis=1, keepdims=True), 0
       )
-    elif self.config.mutate_normalization_type == "random":
+    elif self.config.mutate_normalization_type == (
+        MutateNormalizationType.RANDOM
+    ):
       # Create random matrices and normalize each row, s.t. the sum is 1.
-      pull_rand_matrix = self._rng.uniform(
-          0, 1, size=scaled_pulls.shape
-      ) * np.int_(scaled_pulls > 0)
-      pull_weight_matrix = pull_rand_matrix / np.sum(
+      pull_seed, push_seed = jax.random.split(seed)
+      scaled_pulls_pos = scaled_pulls > 0
+      pull_rand_matrix = (
+          jax.random.uniform(pull_seed, shape=scaled_pulls.shape)
+          * scaled_pulls_pos
+      )
+      pull_weight_matrix = pull_rand_matrix / jnp.sum(
           pull_rand_matrix, axis=1, keepdims=True
       )
-      push_rand_matrix = self._rng.uniform(
-          0, 1, size=scaled_pulls.shape
-      ) * np.int_(scaled_pulls > 0)
-      push_weight_matrix = push_rand_matrix / np.sum(
+      push_rand_matrix = (
+          jax.random.uniform(push_seed, shape=scaled_pulls.shape)
+          * scaled_pulls_pos
+      )
+      push_weight_matrix = push_rand_matrix / jnp.sum(
           push_rand_matrix, axis=1, keepdims=True
       )
       # Normalize pulls/pulls by the weight matrices.
@@ -523,75 +521,165 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       norm_scaled_push = (
           self.config.normalization_scale * scaled_push * push_weight_matrix
       )
-    elif self.config.mutate_normalization_type == "unnormalized":
+    elif self.config.mutate_normalization_type == (
+        MutateNormalizationType.UNNORMALIZED
+    ):
       # Doesn't normalize the forces. Use this option with caution.
       norm_scaled_pulls = scaled_pulls
       norm_scaled_push = scaled_push
 
-    # Sums normalized forces (pull/push) of all fireflies.
-    return np.sum(
-        features_diffs * (norm_scaled_pulls + norm_scaled_push), axis=1
+    # Sums normalized forces (pull/push) of all fireflies. This is equivalent to
+    # features_dist[i, j] := distance between fly 'j' and fly 'i'
+    # but avoids materializing the large pairwise distance matrix.
+    scale = norm_scaled_pulls + norm_scaled_push
+    features_changes = jnp.matmul(scale, features) - features_batch * jnp.sum(
+        scale, axis=-1, keepdims=True
     )
+    return features_batch + features_changes
 
-  def _create_perturbations(self) -> np.ndarray:
-    """Create random perturbations for the newly creatd batch.
+  def _create_random_perturbations(
+      self, perturbations_batch: jax.Array, seed: chex.PRNGKey
+  ) -> jax.Array:
+    """Create random perturbations for the newly created batch.
+
+    Args:
+      perturbations_batch: (batch_size,)
+      seed: Random seed.
 
     Returns:
-      batched perturbations: (base_size, n_features)
+      perturbations: (batch_size, n_features)
     """
     # Generate normalized noise for each batch.
-    batch_noise = self._rng.laplace(size=(self.batch_size, self._n_features))
-    batch_noise /= np.max(np.abs(batch_noise), axis=1, keepdims=True)
-    # Scale the noise by the each fly current perturbation.
+    batch_noise = jax.random.laplace(
+        seed, shape=(self.batch_size, self._n_features)
+    )
+    batch_noise /= jnp.max(jnp.abs(batch_noise), axis=1, keepdims=True)
     return (
         batch_noise
-        * self._perturbations[self._batch_slice][:, np.newaxis]
+        * perturbations_batch[:, jnp.newaxis]
         * self._perturbation_factors
     )
 
-  def update(self, batch_rewards: np.ndarray) -> None:
+  def update(
+      self,
+      state: VectorizedEagleStrategyState,
+      batch_features: types.Array,
+      batch_rewards: types.Array,
+      seed: chex.PRNGKey,
+  ) -> VectorizedEagleStrategyState:
     """Update the firefly pool based on the new batch of results.
 
     Arguments:
+      state: Current state.
+      batch_features: (batch_size, n_features)
       batch_rewards: (batch_size, )
-    """
-    self._update_best_reward(batch_rewards)
-    if self._iterations < self.pool_size // self.batch_size:
-      # The strategy is still initializing. Assign rewards.
-      self._features[self._batch_slice] = self._last_suggested_features
-      self._rewards[self._batch_slice] = batch_rewards
-    else:
-      # Pass the new batch rewards and the associated last suggested features.
-      self._update_pool_features_and_rewards(batch_rewards)
-      self._trim_pool()
-    self._increment_batch()
-    self._iterations += 1
+      seed: Random seed.
 
-  def _update_best_reward(self, batch_rewards: np.ndarray) -> None:
-    """Store the best result seen thus far to be used in pool trimming."""
-    self._best_reward = np.max([self._best_reward, np.max(batch_rewards)])
+    Returns:
+      new_state: Updated state.
+    """
+    new_best_reward = jnp.maximum(state.best_reward, jnp.max(batch_rewards))
+    batch_id = state.iterations % (self.pool_size // self.batch_size)
+    batch_start_ind = batch_id * self.batch_size
+    batch_perturbations = jax.lax.dynamic_slice_in_dim(
+        state.perturbations, batch_start_ind, self.batch_size
+    )
+
+    def _update(batch_features, batch_rewards, batch_perturbations):
+      # Pass the new batch rewards and the associated last suggested features.
+      new_batch_features, new_batch_rewards, new_batch_perturbations = (
+          self._update_pool_features_and_rewards(
+              batch_features,
+              batch_rewards,
+              jax.lax.dynamic_slice_in_dim(
+                  state.features, batch_start_ind, self.batch_size
+              ),
+              jax.lax.dynamic_slice_in_dim(
+                  state.rewards, batch_start_ind, self.batch_size
+              ),
+              batch_perturbations,
+          )
+      )
+      return self._trim_pool(
+          new_batch_features,
+          new_batch_rewards,
+          new_batch_perturbations,
+          new_best_reward,
+          seed,
+      )
+
+    # If the strategy is still initializing, return the random/prior values.
+    (new_batch_features, new_batch_rewards, new_batch_perturbations) = (
+        jax.lax.cond(
+            state.iterations < self.pool_size // self.batch_size,
+            lambda *args: args,
+            _update,
+            batch_features,
+            batch_rewards,
+            batch_perturbations,
+        )
+    )
+
+    return VectorizedEagleStrategyState(
+        iterations=state.iterations + 1,
+        features=jax.lax.dynamic_update_slice_in_dim(
+            state.features, new_batch_features, batch_start_ind, axis=0
+        ),
+        rewards=jax.lax.dynamic_update_slice_in_dim(
+            state.rewards, new_batch_rewards, batch_start_ind, axis=0
+        ),
+        best_reward=new_best_reward,
+        perturbations=jax.lax.dynamic_update_slice_in_dim(
+            state.perturbations,
+            new_batch_perturbations,
+            batch_start_ind,
+            axis=0,
+        ),
+    )
 
   def _update_pool_features_and_rewards(
       self,
-      batch_rewards: np.ndarray,
-  ):
+      batch_features: jax.Array,
+      batch_rewards: jax.Array,
+      prev_batch_features: jax.Array,
+      prev_batch_rewards: jax.Array,
+      perturbations: jax.Array,
+  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """Update the features and rewards for flies with improved rewards.
 
     Arguments:
-      batch_rewards: (batch_size, )
-    """
-    sliced_features = self._features[self._batch_slice]
-    sliced_rewards = self._rewards[self._batch_slice]
-    sliced_perturbations = self._perturbations[self._batch_slice]
-    # Find indices of flies that their generated features made an improvement.
-    improve_indx = batch_rewards > sliced_rewards
-    # Update successful flies' with the associated last features and rewards.
-    sliced_features[improve_indx] = self._last_suggested_features[improve_indx]
-    sliced_rewards[improve_indx] = batch_rewards[improve_indx]
-    # Penalize unsuccessful flies.
-    sliced_perturbations[~improve_indx] *= self.config.penalize_factor
+      batch_features: (batch_size, n_features), new proposed features batch.
+      batch_rewards: (batch_size,), rewards for new proposed features batch.
+      prev_batch_features: (batch_size, n_features), previous features batch.
+      prev_batch_rewards: (batch_size,), rewards for previous features batch.
+      perturbations: (batch_size,)
 
-  def _trim_pool(self) -> None:
+    Returns:
+      sliced features, sliced rewards, sliced perturbations
+    """
+    # Find indices of flies that their generated features made an improvement.
+    improve_indx = batch_rewards > prev_batch_rewards
+    # Update successful flies' with the associated last features and rewards.
+    new_batch_features = jnp.where(
+        improve_indx[..., jnp.newaxis], batch_features, prev_batch_features
+    )
+    new_batch_rewards = jnp.where(
+        improve_indx, batch_rewards, prev_batch_rewards
+    )
+    # Penalize unsuccessful flies.
+    new_batch_perturbations = jnp.where(
+        improve_indx, perturbations, perturbations * self.config.penalize_factor
+    )
+    return new_batch_features, new_batch_rewards, new_batch_perturbations
+
+  def _trim_pool(
+      self,
+      batch_features: jax.Array,
+      batch_rewards: jax.Array,
+      batch_perturbations: jax.Array,
+      best_reward: jax.Array,
+      seed: chex.PRNGKey,
+  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """Trim the pool by replacing unsuccessful fireflies with new random ones.
 
     A firefly is considered unsuccessful if its current perturbation is below
@@ -599,31 +687,30 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     Random features are created to replace the existing ones, and rewards
     are set to -np.inf to indicate that we don't have values for those feaures
     yet and we shouldn't use them during suggest.
+
+    Args:
+      batch_features: (batch_size, n_features)
+      batch_rewards: (batch_size,)
+      batch_perturbations: (batch_size,)
+      best_reward: Best reward seen so far.
+      seed: Random seed.
+
+    Returns:
+      updated feature, reward, and perturbation batches.
     """
-    sliced_perturbations = self._perturbations[self._batch_slice]
-    indx = sliced_perturbations < self.config.perturbation_lower_bound
-    n_remove = np.sum(indx)
-    if n_remove > 0:
-      sliced_features = self._features[self._batch_slice]
-      sliced_rewards = self._rewards[self._batch_slice]
-      # Ensure the best firefly is never removed. For optimization purposes,
-      # this logic is inside the if statement to be peformed only if needed.
-      indx = indx & (sliced_rewards != self._best_reward)
-      n_remove = np.sum(indx)
-      if n_remove == 0:
-        return
-      # Replace fireflies with random features and evaluate rewards.
-      sliced_features[indx] = self._param_handler.random_features(
-          n_remove, self._n_features
-      )
-      sliced_perturbations[indx] = (
-          np.ones(
-              n_remove,
-          )
-          * self.config.perturbation
-      )
-      # Setting rewards to -inf to filter out those fireflies during suggest.
-      sliced_rewards[indx] = np.ones(
-          n_remove,
-      ) * (-np.inf)
-      self._num_removed_flies += n_remove
+    indx = batch_perturbations < self.config.perturbation_lower_bound
+    # Ensure the best firefly is never removed. For optimization purposes,
+    # this logic is inside the if statement to be peformed only if needed.
+    indx = indx & (batch_rewards != best_reward)
+
+    # Replace fireflies with random features and evaluate rewards.
+    random_features = self._param_handler.random_features(self.batch_size, seed)
+    new_batch_features = jnp.where(
+        indx[..., jnp.newaxis], random_features, batch_features
+    )
+    new_batch_perturbations = jnp.where(
+        indx, self.config.perturbation, batch_perturbations
+    )
+    # Setting rewards to -inf to filter out those fireflies during suggest.
+    new_batch_rewards = jnp.where(indx, -jnp.inf, batch_rewards)
+    return new_batch_features, new_batch_rewards, new_batch_perturbations

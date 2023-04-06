@@ -19,7 +19,8 @@ from __future__ import annotations
 from typing import Optional
 
 import attr
-import numpy as np
+import jax
+from jax import numpy as jnp
 from vizier.pyvizier import converters
 
 
@@ -36,8 +37,6 @@ class EagleParamHandler:
       indices to them.
     config: The eagle strategy configuration used to set the perturbation
       factors for CATEGORICAL features.
-    rng: A numpy random generator to generate parameter-aware features, and
-      sample categorical features.
     categorical_perturbation_factor: The perturbation factor for categorical
       features.
     pure_categorical_perturbation_factor: The perturbation factor when all
@@ -61,17 +60,16 @@ class EagleParamHandler:
   converter: converters.TrialToArrayConverter
   categorical_perturbation_factor: float
   pure_categorical_perturbation_factor: float
-  rng: np.random.Generator
   # Public variables created by the class
   n_features: int = attr.field(init=False)
   n_categorical: int = attr.field(init=False)
   has_categorical: bool = attr.field(init=False)
   all_features_categorical: bool = attr.field(init=False)
   # Internal variables
-  _categorical_params_mask: np.ndarray = attr.field(init=False)
-  _categorical_mask: np.ndarray = attr.field(init=False)
-  _tiebreak_array: np.ndarray = attr.field(init=False)
-  _oov_mask: Optional[np.ndarray] = attr.field(init=False, default=None)
+  _categorical_params_mask: jax.Array = attr.field(init=False)
+  _categorical_mask: jax.Array = attr.field(init=False)
+  _tiebreak_array: jax.Array = attr.field(init=False)
+  _oov_mask: Optional[jax.Array] = attr.field(init=False, default=None)
   _epsilon: float = attr.field(init=False, default=1e-5)
 
   def __attrs_post_init__(self):
@@ -103,9 +101,8 @@ class EagleParamHandler:
 
   def _create_categorical_masks(self):
     """Create the categorical masks."""
-    self._categorical_params_mask = np.zeros(
-        (self.n_categorical, self.n_features))
-    self._oov_mask = np.ones((self.n_features,))
+    categorical_params_mask = jnp.zeros((self.n_categorical, self.n_features))
+    oov_mask = jnp.ones((self.n_features,))
     row = 0
     col = 0
     # Create a flag to indicate if the converter uses OOV padding. If none of
@@ -114,22 +111,25 @@ class EagleParamHandler:
     for spec in self.converter.output_specs:
       if spec.type == converters.NumpyArraySpecType.ONEHOT_EMBEDDING:
         n_dim = spec.num_dimensions
-        self._categorical_params_mask[row, col:col + n_dim] = 1.0
+        categorical_params_mask = categorical_params_mask.at[
+            row, col : col + n_dim
+        ].set(1.0)
         if spec.num_oovs:
-          self._oov_mask[col + n_dim - 1] = 0.0
+          oov_mask = oov_mask.at[col + n_dim - 1].set(0.0)
           is_pad_oov = True
         row += 1
         col += n_dim
       else:
         col += 1
-    if not is_pad_oov:
-      self._oov_mask = None
 
-    self._tiebreak_array = np.array(
-        [-self._epsilon * (i + 1) for i in range(self.n_features)])
-    self._categorical_mask = np.sum(self._categorical_params_mask, axis=0)
+    self._oov_mask = oov_mask if is_pad_oov else None
+    self._tiebreak_array = -self._epsilon * jnp.arange(1, self.n_features + 1)
+    self._categorical_mask = jnp.sum(categorical_params_mask, axis=0)
+    self._categorical_params_mask = categorical_params_mask
 
-  def sample_categorical(self, features: np.ndarray) -> np.ndarray:
+  def sample_categorical(
+      self, features: jax.Array, seed: jax.random.KeyArray
+  ) -> jax.Array:
     """Sample categorical features.
 
     The categorical sampling is used before returning suggestion to ensure that
@@ -154,6 +154,7 @@ class EagleParamHandler:
 
     Arguments:
       features: (batch_size, n_features)
+      seed: Random seed.
 
     Returns:
       The features with sampled categorical parameters. (batch_size ,n_features)
@@ -161,32 +162,31 @@ class EagleParamHandler:
     if not self.has_categorical:
       return features
     batch_size = features.shape[0]
-    # Broadcast features to: (batch_size, n_categorical, n_features)
-    expanded_shape = (self.n_categorical,) + features.shape
-    expanded_features = np.swapaxes(
-        np.broadcast_to(features, expanded_shape), 1, 0)
     # Mask each row (which represents a categorical param) to remove values in
     # indices that aren't associated with the parameter indices.
-    param_features = expanded_features * self._categorical_params_mask
+    param_features = features[:, jnp.newaxis, :] * self._categorical_params_mask
     # Create probabilities from non-normalized parameter features values.
-    probs = param_features / np.sum(param_features, axis=-1, keepdims=True)
+    probs = param_features / jnp.sum(param_features, axis=-1, keepdims=True)
     # Generate random uniform values to use for sampling.
     # TODO: Pre-compute random values in batch to improve performance.
-    unifs = self.rng.uniform(0.0, 1.0, size=(batch_size, self.n_categorical))
+    unifs = jax.random.uniform(seed, shape=(batch_size, self.n_categorical, 1))
     # Find the locations of the indices that exceed random values.
-    locs = np.cumsum(probs, axis=-1) >= np.expand_dims(unifs, axis=-1)
+    locs = jnp.cumsum(probs, axis=-1) >= unifs
     # Multiply by 'categorical_mask' to mask off cumsum in non-categorical
     # indices, and add 'tiebreak_mask' to find the first index.
     masked_locs = locs * self._categorical_params_mask + self._tiebreak_array
     # Generate the samples so that each parameter features has a single 1 value.
-    sampled_categorical_params = np.float_(
-        np.int_(masked_locs / np.max(masked_locs, axis=-1, keepdims=True)))
+    sampled_categorical_params = jnp.trunc(
+        masked_locs / jnp.max(masked_locs, axis=-1, keepdims=True)
+    )
     # Flatten all the categories features to dimension (batch_size, n_features)
-    sampled_features = np.sum(sampled_categorical_params, axis=1)
+    sampled_features = jnp.sum(sampled_categorical_params, axis=1)
     # Mask categorical features and add the new sampled categorical values.
     return sampled_features + features * (1 - self._categorical_mask)
 
-  def random_features(self, batch_size: int, n_features: int) -> np.ndarray:
+  def random_features(
+      self, batch_size: int, seed: jax.random.KeyArray
+  ) -> jax.Array:
     """Create random features with uniform distribution.
 
     In case there are CATEGORICAL features with OOV we use the 'oov_mask' which
@@ -198,21 +198,21 @@ class EagleParamHandler:
 
     Arguments:
       batch_size:
-      n_features:
+      seed: Random seed.
 
     Returns:
       The random features with out of vocabulary indices zeroed out.
     """
-    size = (batch_size, n_features)
+    size = (batch_size, self.n_features)
     if self._oov_mask is not None:
       # Don't create random values for CATEGORICAL features OOV indices.
       # Broadcasting: (batch_size, n_features) x (n_features,)
-      return self.rng.uniform(0.0, 1.0, size=size) * self._oov_mask
+      return jax.random.uniform(seed, shape=size) * self._oov_mask
     else:
-      return self.rng.uniform(0.0, 1.0, size=size)
+      return jax.random.uniform(seed, shape=size)
 
   @property
-  def perturbation_factors(self) -> np.ndarray:
+  def perturbation_factors(self) -> jax.Array:
     """Create the perturbations factors.
 
     Returns:
@@ -232,4 +232,4 @@ class EagleParamHandler:
 
         elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
           perturbation_factors.append(1.0)
-    return np.array(perturbation_factors)
+    return jnp.array(perturbation_factors)

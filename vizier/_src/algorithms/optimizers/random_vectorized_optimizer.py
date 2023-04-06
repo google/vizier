@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-import numpy as np
+import jax
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import types
 from vizier.pyvizier import converters
@@ -31,22 +31,27 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
       self,
       converter: converters.TrialToArrayConverter,
       suggestion_batch_size: int,
-      seed: Optional[int] = None,
-      prior_features: Optional[np.ndarray] = None,
-      prior_rewards: Optional[np.ndarray] = None,
   ):
     self._converter = converter
     self._suggestion_batch_size = suggestion_batch_size
-    self._rng = np.random.default_rng(seed)
     self._n_features = sum(
         [spec.num_dimensions for spec in self._converter.output_specs]
     )
 
-  def suggest(self) -> types.Array:
-    return self._rng.uniform(
-        low=0,
-        high=1,
-        size=(
+  def init_state(
+      self,
+      seed: jax.random.KeyArray,
+      prior_features: Optional[types.Array] = None,
+      prior_rewards: Optional[types.Array] = None,
+  ) -> None:
+    del seed
+    return
+
+  def suggest(self, state: None, seed: jax.random.KeyArray) -> jax.Array:
+    del state
+    return jax.random.uniform(
+        seed,
+        shape=(
             self._suggestion_batch_size,
             self._n_features,
         ),
@@ -55,24 +60,24 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
   def suggestion_batch_size(self) -> int:
     return self._suggestion_batch_size
 
-  def update(self, rewards: types.Array) -> None:
-    pass
+  def update(
+      self,
+      state: None,
+      batch_features: types.Array,
+      batch_rewards: types.Array,
+      seed: jax.random.KeyArray,
+  ) -> None:
+    return
 
 
 def _random_strategy_factory(
     converter: converters.TrialToArrayConverter,
     suggestion_batch_size: int,
-    seed: Optional[int] = None,
-    prior_features: Optional[np.ndarray] = None,
-    prior_rewards: Optional[np.ndarray] = None,
 ) -> vb.VectorizedStrategy:
   """Creates a new vectorized strategy based on the Protocol."""
   return RandomVectorizedStrategy(
       converter=converter,
       suggestion_batch_size=suggestion_batch_size,
-      seed=seed,
-      prior_features=prior_features,
-      prior_rewards=prior_rewards,
   )
 
 
