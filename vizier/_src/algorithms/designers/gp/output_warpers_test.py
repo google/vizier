@@ -102,15 +102,6 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
   def always_maps_to_finite(self) -> bool:
     return True
 
-  def test_all_nonfinite_labels(self):
-    labels_infeaible = np.array([[-np.inf], [np.nan], [np.nan], [-np.inf]])
-    self.assertTrue(
-        (
-            self.warper.warp(labels_infeaible)
-            == -1 * np.ones(shape=labels_infeaible.shape).flatten()
-        ).all()
-    )
-
   @parameterized.parameters([
       dict(labels=np.zeros(shape=(5, 1))),
       dict(labels=np.ones(shape=(5, 1))),
@@ -135,7 +126,17 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
   def test_default_warper_empty_warpers(self):
     with self.assertRaises(ValueError):
       output_warpers.create_default_warper(
-          half_rank_warp=False, log_warp=False, infeasible_warp=False)
+          half_rank_warp=False, log_warp=False, infeasible_warp=False
+      )
+
+  def test_unwarp(self):
+    warper = self.warper
+    labels_arr = np.array(
+        [[-100.0], [-200.0], [1.0], [2.0], [3.0], [10.0], [15.0]]
+    )
+    np.testing.assert_array_almost_equal(
+        warper.unwarp(warper.warp(labels_arr)), labels_arr
+    )
 
 
 class ZScoreLabelsTest(_OutputWarperTestCase):
@@ -198,6 +199,12 @@ class TransformToGaussianTest(_OutputWarperTestCase):
 
 class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
 
+  def setUp(self):
+    super().setUp()
+    self.labels_arr = np.array(
+        [[-100.0], [-200.0], [1.0], [2.0], [3.0], [10.0], [15.0]]
+    )
+
   @property
   def warper(self) -> output_warpers.HalfRankComponent:
     return output_warpers.HalfRankComponent()
@@ -259,6 +266,63 @@ class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
     actual = self.warper.warp(unwarped)
     np.testing.assert_allclose(
         actual, expected, err_msg=f'actual: {actual.tolist()}'
+    )
+
+  def test_unwarp_shape(self):
+    warper = self.warper
+    _ = warper.warp(self.labels_arr)
+    np.testing.assert_equal(
+        warper.unwarp(self.labels_arr).shape, self.labels_arr.shape
+    )
+
+  def test_bijective_at_exact_points(self):
+    warper = self.warper
+    labels_arr_warped = warper.warp(self.labels_arr)
+    np.testing.assert_array_almost_equal(
+        self.labels_arr, warper.unwarp(labels_arr_warped)
+    )
+
+  def test_unwarp_preserve_rank_interpolate(self):
+    """Tests rank preservation among points interpolated between the training labels."""
+    warper = self.warper
+    _ = warper.warp(self.labels_arr)
+    labels_test_warped = np.array([
+        [-4.05487106],
+        [-9.20688355],
+        [-0.80017519],
+        [2.0],
+        [3.0],
+        [10.0],
+        [15.0],
+        [1.0],
+        [11.0],
+        [-2.0],
+    ])
+    labels_test = warper.unwarp(labels_test_warped)
+    np.testing.assert_array_almost_equal(
+        np.argsort(labels_test, axis=0), np.argsort(labels_test_warped, axis=0)
+    )
+
+  def test_unwarp_preserve_rank_extrapolate(self):
+    """Tests rank preservation among points extrapolated beyond the training labels."""
+    warper = self.warper
+    _ = warper.warp(self.labels_arr)
+    labels_test_warped = np.array([
+        [-4.05487106],
+        [-9.20688355],
+        [-0.80017519],
+        [2.0],
+        [3.0],
+        [10.0],
+        [15.0],
+        [-10.0],
+        [-20.0],
+        [30.0],
+        [50.0],
+    ])
+    labels_test = warper.unwarp(labels_test_warped)
+    np.testing.assert_array_almost_equal(
+        np.argsort(labels_test, axis=0), np.argsort(labels_test_warped, axis=0)
     )
 
 
@@ -375,6 +439,21 @@ class InfeasibleWarperTest(parameterized.TestCase):
   def test_known_arrays(self):
     # TODO: Add a couple of parameterized test cases.
     self.skipTest('No test cases provided')
+
+
+class OutputWarperPipelineTest(absltest.TestCase):
+  """Tests the default outpur warper edge cases."""
+
+  def test_all_nonfinite_labels(self):
+    warper = output_warpers.OutputWarperPipeline()
+    labels_infeaible = np.array([[-np.inf], [np.nan], [np.nan], [-np.inf]])
+    self.assertTrue(
+        (
+            warper.warp(labels_infeaible)
+            == -1 * np.ones(shape=labels_infeaible.shape).flatten()
+        ).all()
+    )
+
 
 if __name__ == '__main__':
   absltest.main()
