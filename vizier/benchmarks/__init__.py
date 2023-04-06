@@ -18,6 +18,7 @@ from __future__ import annotations
 from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurve
 from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurveComparator
 from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurveConverter
+from vizier._src.benchmarks.analyzers.convergence_curve import HypervolumeCurveConverter
 from vizier._src.benchmarks.analyzers.state_analyzer import BenchmarkStateAnalyzer
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkRunner
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkSubroutine

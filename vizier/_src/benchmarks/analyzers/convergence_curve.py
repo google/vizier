@@ -16,15 +16,18 @@ from __future__ import annotations
 
 """Converters and comparators for convergence curves."""
 
-import dataclasses
 import enum
 from typing import Callable, List, Optional, Sequence, Union
 
+import attr
 import numpy as np
 from vizier import pyvizier
+from vizier.pyvizier import converters
+from vizier.pyvizier import multimetric
+from vizier.pyvizier.multimetric import xla_pareto
 
 
-@dataclasses.dataclass
+@attr.s(auto_attribs=True)
 class ConvergenceCurve:
   """Represents a batch of convergence curves on the same task."""
   xs: np.ndarray  # [T] array. All curves share the x axis.
@@ -41,6 +44,21 @@ class ConvergenceCurve:
     DECREASING = 'decreasing'
 
   trend: YTrend = YTrend.UNKNOWN
+
+  def __attrs_post_init__(self):
+    if len(self.ys.shape) != 2:
+      raise ValueError(f'Shapes for ys should be batch size by time {self.ys}')
+    if len(self.xs) != self.ys.shape[1]:
+      raise ValueError(
+          f'Shape mismatch for time dim: {len(self.xs)} vs {self.ys.shape}'
+      )
+    if self.trend == ConvergenceCurve.YTrend.INCREASING:
+      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) >= 0):
+        raise ValueError(f'Increasing trend not found: {self.ys}')
+
+    if self.trend == ConvergenceCurve.YTrend.DECREASING:
+      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) <= 0):
+        raise ValueError(f'Decreasing trend not found: {self.ys}')
 
   @property
   def batch_size(self) -> int:
@@ -210,6 +228,66 @@ class ConvergenceCurveConverter:
     return np.nanmax if (
         self.metric_information.goal
         == pyvizier.ObjectiveMetricGoal.MAXIMIZE) else np.nanmin
+
+
+class HypervolumeCurveConverter:
+  """Converts Trials to cumulative hypervolume curve for multiobjective."""
+
+  def __init__(
+      self,
+      metric_informations: Sequence[pyvizier.MetricInformation],
+      *,
+      reference_value: float = 0.0,
+      num_vectors: int = 10000,
+  ):
+    """Init.
+
+    Args:
+      metric_informations:
+      reference_value: Reference point value from which hypervolume is computed.
+        Default uses the origin and the value is broadcasted for all dimensions.
+      num_vectors: Number of vectors from which hypervolume is computed.
+    """
+    if len(metric_informations) < 2:
+      raise ValueError(
+          'Should not use hypervolume curve with less than'
+          f'two metrics {metric_informations}'
+      )
+    self._metric_informations = metric_informations
+    self._num_vectors = num_vectors
+
+    def create_metric_converter(mc):
+      return converters.DefaultModelOutputConverter(
+          mc,
+          flip_sign_for_minimization_metrics=True,
+          raise_errors_for_missing_metrics=False,
+      )
+
+    self._converter = converters.DefaultTrialConverter(
+        parameter_converters=[],
+        metric_converters=[
+            create_metric_converter(mc) for mc in metric_informations
+        ],
+    )
+    self._origin_value = reference_value
+
+  def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
+    """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
+    # Returns a len(trials) x number of metrics np.ndarray.
+    metrics = self._converter.to_labels_array(trials)
+    front = multimetric.ParetoFrontier(
+        points=metrics,
+        origin=np.array([self._origin_value] * metrics.shape[1]),
+        num_vectors=self._num_vectors,
+        cum_hypervolume_base=xla_pareto.jax_cum_hypervolume_origin,
+    )
+    hv_curve = front.hypervolume(is_cumulative=True)
+    return ConvergenceCurve(
+        xs=np.asarray(range(1, len(hv_curve) + 1)),
+        ys=np.asarray(hv_curve).reshape([1, -1]),
+        trend=ConvergenceCurve.YTrend.INCREASING,
+        ylabel='hypervolume',
+    )
 
 
 class ConvergenceCurveComparator:

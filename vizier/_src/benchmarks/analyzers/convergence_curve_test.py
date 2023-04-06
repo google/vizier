@@ -95,8 +95,9 @@ class ConvergenceCurveTest(absltest.TestCase):
   def test_align_xs_on_increasing_and_dicreasing_fails(self):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 3, 4]),
-        ys=np.array([[2, 1, 1]]),
-        trend=convergence.ConvergenceCurve.YTrend.INCREASING)
+        ys=np.array([[2, 3, 3]]),
+        trend=convergence.ConvergenceCurve.YTrend.INCREASING,
+    )
     c2 = convergence.ConvergenceCurve(
         xs=np.array([2]),
         ys=np.array([[3]]),
@@ -117,6 +118,39 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     curve = generator.convert(trials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_equal(curve.ys, expected)
+
+
+class HyperConvergenceCurveConverterTest(parameterized.TestCase):
+
+  def test_convert_basic(self):
+    generator = convergence.HypervolumeCurveConverter([
+        pyvizier.MetricInformation(
+            name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+        ),
+        pyvizier.MetricInformation(
+            name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+        ),
+    ])
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': 2.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 3.0, 'min': -1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 3.0, 8.0]], decimal=1)
 
 
 class ConvergenceComparatorTest(absltest.TestCase):
