@@ -34,4 +34,5 @@ from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperim
 from vizier._src.benchmarks.experimenters.shifting_experimenter import ShiftingExperimenter
 from vizier._src.benchmarks.experimenters.sign_flip_experimenter import SignFlipExperimenter
 from vizier._src.benchmarks.experimenters.sparse_experimenter import SparseExperimenter
+from vizier._src.benchmarks.experimenters.surrogate_experimenter import PredictorExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
