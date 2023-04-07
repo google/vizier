@@ -49,62 +49,78 @@ from vizier.utils import json_utils
 class VizierGPBandit(vza.Designer, vza.Predictor):
   """GP-Bandit using a Flax model.
 
+  A minimal example of creating this designer:
+  problem = vz.ProblemStatement(...)  # Configure a minimal problem statement.
+  designer = VizierGPBandit(problem)
+
+  Optionally set other attributes to change the defaults, e.g.:
+  problem = vz.ProblemStatement(...)  # Configure a minimal problem statement.
+  designer = VizierGPBandit(problem, use_trust_region=False)
+
   Attributes:
     problem: Must be a flat study with a single metric.
     acquisition_optimizer: Typically either a designer wrapped as an optimizer
       or a batched optimizer (like Eagle).
-    metadata_ns: Metadata namespace that this designer writes to.
     ard_optimizer: An optimizer which should return a batch of hyperparameters
       to be ensembled.
-    use_trust_region: Uses trust region.
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
+    use_output_warping: Whether labels are warped to [-0.5, 0.5] prior to
+      building the GP and running ARD.
+    acquisition_builder: An acquisition builder instance specifying the
+      acqusition function to use.
+    use_trust_region: Uses trust region to constrain initial exploration.
     rng: If not set, uses random numbers.
-    incorporated_trials_count: The number of trials that have been incorporated
-      into the designer state (Cholesky decomposition, ARD).
-    features: Numpy array representing the current trials' features.
-    labels: Numpy array representing the current recent trials' metrics.
-    state: The current designer state (Cholesky decomposition, model params).
-    use_vmap: Whether the ARD optimizer outputs multiple results using vmap.
-    model: The current GP model.
-    acquisition_builder: The current acquisition builder instance.
+    metadata_ns: Metadata namespace that this designer writes to.
   """
 
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
-  _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
-      factory=lambda: VizierGPBandit.default_ard_optimizer_noensemble,
-      kw_only=True,
-  )
   _acquisition_optimizer: vb.VectorizedOptimizer = attr.field(
       kw_only=True,
       factory=lambda: VizierGPBandit.default_acquisition_optimizer,
   )
+  _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
+      factory=lambda: VizierGPBandit.default_ard_optimizer_noensemble,
+      kw_only=True,
+  )
+  _num_seed_trials: int = attr.field(default=1, kw_only=True)
+  _use_output_warping: bool = attr.field(default=True, kw_only=True)
   _acquisition_builder: acquisitions.AcquisitionBuilder = attr.field(
       factory=acquisitions.GPBanditAcquisitionBuilder, kw_only=True
   )
-  _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
-  _use_output_warping: bool = attr.field(default=True, kw_only=True)
   _rng: jax.random.KeyArray = attr.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
   )
-  # Internal attributes
   _metadata_ns: str = attr.field(
       default='oss_gp_bandit', kw_only=True, init=False
   )
+
+  # ------------------------------------------------------------------
+  # Internal attributes which should not be set by callers.
+  # ------------------------------------------------------------------
   _trials: list[vz.Trial] = attr.field(factory=list, init=False)
+  # The number of trials that have been incorporated
+  # into the designer state (Cholesky decomposition, ARD).
   _incorporated_trials_count: int = attr.field(
       default=0, kw_only=True, init=False
   )
+  # Numpy array representing the current trials' features.
   _features: types.Array = attr.field(init=False)
+  # Numpy array representing the current recent trials' metrics.
   _labels: types.Array = attr.field(init=False)
+  # The current designer state (Cholesky decomposition, model params).
   _state: types.ModelState = attr.field(init=False)
+  # The current GP model.
   _model: sp.StochasticProcessModel = attr.field(init=False)
-  # not an attr field.
+
+  # ------------------------------------------------------------------
+  # Below are class contants which are not attr fields.
+  # ------------------------------------------------------------------
   # Only one of these optimizers will be used.
-  # `default_ard_optimizer` returns the best 5 parameter values for ensembling,
-  # while `default_ard_optimizer_noensemble` returns only
+  # `default_ard_optimizer_ensemble` returns the best 5 parameter values for
+  # ensembling, while `default_ard_optimizer_noensemble` returns only
   # the single best parameter value.
   default_ard_optimizer_ensemble = optimizers.JaxoptLbfgsB(
       random_restarts=8, best_n=5
@@ -112,7 +128,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   default_ard_optimizer_noensemble = optimizers.JaxoptLbfgsB(
       random_restarts=4, best_n=1
   )
-  # not an attr field.
   default_acquisition_optimizer = vb.VectorizedOptimizer(
       strategy_factory=es.VectorizedEagleStrategyFactory())
 
