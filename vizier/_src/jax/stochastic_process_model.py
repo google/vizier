@@ -20,6 +20,7 @@ import abc
 from typing import Callable, Generator, Generic, Optional, Protocol, TypeVar
 
 import attr
+from flax import config as flax_config
 from flax import linen as nn
 import jax
 from jax import numpy as jnp
@@ -28,6 +29,8 @@ from jax.typing import ArrayLike
 from tensorflow_probability.substrates import jax as tfp
 import tree
 from vizier._src.jax import types
+
+flax_config.update('flax_return_frozendict', False)
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
