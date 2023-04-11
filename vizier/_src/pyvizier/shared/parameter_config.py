@@ -459,6 +459,17 @@ class ParameterConfig:
         scale_type=scale_type,
         default_value=default_value)
 
+  def deterministic_value(self) -> Optional[trial.ParameterValue]:
+    """Returns the value if ParameterConfig only allows one value."""
+    if self.type in [ParameterType.DOUBLE, ParameterType.INTEGER]:
+      min_val, max_val = self.bounds
+      if min_val == max_val:
+        return trial.ParameterValue(min_val)
+    else:
+      if len(self.feasible_values) == 1:
+        return trial.ParameterValue(self.feasible_values[0])
+    return None
+
   @classmethod
   def merge(cls, one: 'ParameterConfig',
             other: 'ParameterConfig') -> 'ParameterConfig':

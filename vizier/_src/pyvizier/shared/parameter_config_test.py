@@ -277,6 +277,31 @@ class ParameterConfigContainsTest(parameterized.TestCase):
     self.assertEqual(config.contains(value), expected)
 
 
+class ParameterConfigPropertyTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      ((-1.0, 1.0), None), ((-1, 1), None), ((-2.0, -2.0), -2.0), ((-2, -2), -2)
+  )
+  def testFloatandInt(self, bounds: Any, expected: Any):
+    config = pc.ParameterConfig.factory('pc1', bounds=bounds)
+    output = config.deterministic_value()
+    if expected is None:
+      self.assertIsNone(output)
+    else:
+      self.assertEqual(output, trial.ParameterValue(expected))
+
+  @parameterized.parameters(
+      ([-1.0, 2.0], None), ([-1.0], -1.0), (['a', 'b'], None), (['a'], 'a')
+  )
+  def testDiscreteandCategorical(self, feasible_values: Any, expected: Any):
+    config = pc.ParameterConfig.factory('pc1', feasible_values=feasible_values)
+    output = config.deterministic_value()
+    if expected is None:
+      self.assertIsNone(output)
+    else:
+      self.assertEqual(output, trial.ParameterValue(expected))
+
+
 class TraverseTest(parameterized.TestCase):
 
   @parameterized.named_parameters(('ShowChildrenTrue', True),
