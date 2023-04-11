@@ -15,19 +15,44 @@
 from __future__ import annotations
 
 """Running Ray Tuners: https://docs.ray.io/en/latest/ray-air/tuner.html."""
-from typing import Any, Optional
+
+from typing import Any, Callable, Optional, List, Tuple
 
 import numpy as np
 from ray import air
+from ray import data
 from ray import tune
 from vizier._src.raytune import converters
 from vizier.benchmarks import experimenters
 
 
+# See https://docs.ray.io/en/latest/data/dataset.html
+def run_tune_distributed(
+    run_tune_args_list: List[Tuple[Any]],
+    run_tune: Callable[[Any], tune.result_grid.ResultGrid],
+) -> List[tune.result_grid.ResultGrid]:
+  """Distributes tuning via Ray datasets API for MapReduce purposes.
+
+  NOTE: There are no datasets processed. However, all MapReduce operations
+  are now done in the Datasets API under Ray.
+
+  Args:
+    run_tune_args_list: List of Tuples that are to be passed into run_tune.
+    run_tune: Callable that accepts args from previous list.
+
+  Returns:
+    List of results.
+  """
+  ds = data.from_items(run_tune_args_list)
+
+  ds.map_batches(run_tune)
+  return ds.take_all()
+
+
 def run_tune_bbob(
     function_name: str,
     dimension: int,
-    shift: np.ndarray,
+    shift: Optional[np.ndarray] = None,
     tune_config: Optional[tune.TuneConfig] = None,
     run_config: Optional[air.RunConfig] = None,
 ) -> tune.result_grid.ResultGrid:
@@ -46,12 +71,13 @@ def run_tune_bbob(
 
   Returns:
   """
-  bbob_factory = experimenters.BBOBExperimenterFactory(
+  experimenter_factory = experimenters.BBOBExperimenterFactory(
       name=function_name, dim=dimension
   )
-  experimenter_factory = experimenters.SingleObjectiveExperimenterFactory(
-      base_factory=bbob_factory, shift=shift
-  )
+  if shift is not None:
+    experimenter_factory = experimenters.SingleObjectiveExperimenterFactory(
+        base_factory=experimenter_factory, shift=shift
+    )
   experimenter = experimenter_factory()
   problem = experimenter.problem_statement()
 

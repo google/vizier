@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 from ray import tune
 from vizier._src.raytune import run_tune
@@ -27,13 +29,32 @@ class RunTuneTest(absltest.TestCase):
     # Uses random search by default.
     tune_config = tune.TuneConfig(num_samples=7, max_concurrent_trials=1)
     results = run_tune.run_tune_bbob(
-        function_name="Sphere",
+        function_name='Sphere',
         dimension=5,
         shift=np.ones(5),
         tune_config=tune_config,
     )
     self.assertLen(results, 7)
 
+  def test_parallelized_fit(self):
+    tune_config = tune.TuneConfig(num_samples=5)
+    function_names = ['Sphere', 'Rastrigin']
+    dimensions = [3, 4, 7]
+    product_list = list(itertools.product(function_names, dimensions))
+    args_list = []
+    for product in product_list:
+      # Add args for shift, tune_config, run_config.
+      args = product + (None, tune_config, None)
+      args_list.append(args)
+    results_list = run_tune.run_tune_distributed(
+        args_list, run_tune.run_tune_bbob
+    )
 
-if __name__ == "__main__":
+    # There should be 6 studies in the product, each with 5 Trials.
+    self.assertLen(results_list, 6)
+    for result in results_list:
+      self.assertLen(result, 5)
+
+
+if __name__ == '__main__':
   absltest.main()
