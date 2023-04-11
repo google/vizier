@@ -66,8 +66,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
-    use_output_warping: Whether labels are warped to [-0.5, 0.5] prior to
-      building the GP and running ARD.
     acquisition_builder: An acquisition builder instance specifying the
       acqusition function to use.
     use_trust_region: Uses trust region to constrain initial exploration.
@@ -85,7 +83,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       kw_only=True,
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
-  _use_output_warping: bool = attr.field(default=True, kw_only=True)
   _acquisition_builder: acquisitions.AcquisitionBuilder = attr.field(
       factory=acquisitions.GPBanditAcquisitionBuilder, kw_only=True
   )
@@ -270,7 +267,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       # state. The assumption is that trials can't be removed.
       return
     self._incorporated_trials_count = len(self._trials)
-    # Convert trials to Numpy arrays.
+    # Convert trials to Numpy arrays. Labels are warped.
     self._features, self._labels = self._convert_trials_to_arrays(self._trials)
     # Update the model.
     self._model, loss_fn = (
