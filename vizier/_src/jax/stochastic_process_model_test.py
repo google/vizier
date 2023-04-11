@@ -102,6 +102,7 @@ def _test_coroutine(
         index_points=inputs,
         observation_noise_variance=np.ones([], dtype=dtype),
         validate_args=True,
+        always_yield_multivariate_student_t=True,
     )
 
   multi_task_kernel = tfpke.Independent(num_tasks=num_tasks, base_kernel=kernel)
@@ -157,10 +158,18 @@ def _make_inputs_with_categorical(
   return x_observed, y_observed, x_predictive
 
 
+class MeanFn(nn.Module):
+
+  @nn.compact
+  def __call__(self, x):
+    x = nn.relu(nn.Dense(3)(x))
+    x = nn.Dense(1)(x)
+    return jnp.squeeze(x, axis=-1)
+
+
 class StochasticProcessModelTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
-      # TODO: Add a test case with categorical data.
       # TODO: Fix support for f32.
       {
           'testcase_name': 'continuous_only',
@@ -249,10 +258,11 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       {
-          'testcase_name': 'continuous_only',
+          'testcase_name': 'continuous_with_mean_fn',
           'num_tasks': 1,
           'kernel_coroutine': _continuous_kernel_coroutine,
           'test_data_fn': _make_inputs,
+          'use_mean_fn': True,
       },
       {
           'testcase_name': 'multitask_continuous',
@@ -267,7 +277,9 @@ class StochasticProcessModelTest(parameterized.TestCase):
           'test_data_fn': _make_inputs_with_categorical,
       },
   )
-  def test_jax_transformations(self, num_tasks, kernel_coroutine, test_data_fn):
+  def test_jax_transformations(
+      self, num_tasks, kernel_coroutine, test_data_fn, use_mean_fn=False
+  ):
     init_key, data_key, prior_key, post_key = jax.random.split(
         random.PRNGKey(0), num=4
     )
@@ -284,7 +296,8 @@ class StochasticProcessModelTest(parameterized.TestCase):
             kernel_coroutine=kernel_coroutine,
             num_tasks=num_tasks,
             dtype=np.float32,
-        )
+        ),
+        mean_fn=MeanFn() if use_mean_fn else None,
     )
 
     batch_size = 10
@@ -335,7 +348,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     log_prob_grad = jax.grad(
         lambda s: jnp.sum(_posterior_sample_and_log_prob(s))
     )(state)
-    for g in log_prob_grad['params'].values():
+    for g in tree.flatten(log_prob_grad['params']):
       self.assertTrue(np.isfinite(g).all())
     self.assertTrue(np.isfinite(pp_log_prob).all())
     self.assertEqual(pp_log_prob.shape, (batch_size,))
@@ -536,20 +549,28 @@ class ConstraintTest(parameterized.TestCase):
       if b_ is not None:
         self.assertTrue((y_ < b_).all())
 
-  def test_get_constraints(self):
-    constraint = sp_model.get_constraints(_test_coroutine)
-    x_part = np.linspace(-5.0, 5.0, 10)
-    x = {'amplitude': x_part, 'inverse_length_scale': x_part}
-    y = constraint.bijector(x)
+  @parameterized.parameters((None,), (MeanFn,))
+  def test_get_constraints(self, mean_fn):
+    if mean_fn:
+      mean_fn = mean_fn()
+
+    x = jnp.ones([5, 3])
+    model = sp_model.StochasticProcessModel(
+        coroutine=_test_coroutine, mean_fn=mean_fn
+    )
+
+    constraint = sp_model.get_constraints(model, x=x)
+    unconstrained_p = model.lazy_init(jax.random.PRNGKey(0), x)['params']
+    p = constraint.bijector(unconstrained_p)
     lower, upper = constraint.bounds
 
-    self.assertSameElements(list(x.keys()), list(y.keys()))
-    for y_, b_ in zip(tree.flatten(y), tree.flatten(lower)):
+    tree.assert_same_structure(p, unconstrained_p)
+    for y_, b_ in zip(tree.flatten(p), tree.flatten(lower)):
       if b_ is not None:
-        self.assertTrue((y_ > b_).all())
-    for y_, b_ in zip(tree.flatten(y), tree.flatten(upper)):
+        self.assertTrue((y_ >= b_).all())
+    for y_, b_ in zip(tree.flatten(p), tree.flatten(upper)):
       if b_ is not None:
-        self.assertTrue((y_ < b_).all())
+        self.assertTrue((y_ <= b_).all())
 
 
 if __name__ == '__main__':

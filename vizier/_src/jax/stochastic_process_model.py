@@ -17,8 +17,9 @@ from __future__ import annotations
 """Flax module for a trainable stochastic process."""
 
 import abc
-from typing import Callable, Generator, Generic, Optional, Protocol, TypeVar
+from typing import Any, Callable, Generator, Generic, Optional, Protocol, TypeVar
 
+from absl import logging
 import attr
 from flax import config as flax_config
 from flax import linen as nn
@@ -519,8 +520,18 @@ class VectorToArrayTree(tfb.Chain):
     return self.inverse(params)
 
 
-def get_constraints(coroutine: ModelCoroutine) -> Constraint:
-  """Gets the parameter constraints from a ModelCoroutine.
+def get_constraints(
+    model: StochasticProcessModel, x: Optional[Any] = None
+) -> Constraint:
+  """Gets the parameter constraints from a StochasticProcessModel.
+
+  If the model contains trainable Flax variables besides those defined by the
+  coroutine (for example, if `mean_fn` is a Flax module), the non-coroutine
+  variables are assumed to be unconstrained (the bijector passes them through
+  unmodified, and their lower/upper bounds are `None`). In this case `x` must be
+  passed, so that the structure of the non-coroutine parameters dict(s) can be
+  generated. `Constraint` objects for models with constrained parameters aside
+  from those defined in the coroutine must be built manually.
 
   This method runs the coroutine, collects the parameter constraints, and
   returns a new Constraint object in which the lower/upper bounds are dicts
@@ -550,7 +561,8 @@ def get_constraints(coroutine: ModelCoroutine) -> Constraint:
         amplitude=amplitude, length_scale=length_scale)
     return tfd.GaussianProcess(kernel, index_points=inputs)
 
-  constraint = GetConstraints(model_coroutine)
+  model = StochasticProcessModel(model_coroutine)
+  constraint = GetConstraints(model)
   constraint.bijector
   # => tfb.JointMap({'amplitude': tfb.Exp(),
                     'length_scale': tfb.Sigmoid(0.0, 10.0)})
@@ -561,13 +573,21 @@ def get_constraints(coroutine: ModelCoroutine) -> Constraint:
   ```
 
   Args:
-    coroutine: A generator function that follows the `ModelCoroutine` protocol.
+    model: A `StochasticProcessModel` instance.
+    x: An input that can be passed to `model.lazy_init`. `x` must be of the same
+      structure as the model inputs and may contain arrays or `ShapeDtypeStruct`
+      instances (see flax.linen.Module.lazy_init docs). If `model` contains Flax
+      variables aside from those defined by `model.coroutine` (e.g. in a
+      trainable `mean_fn`) then this arg is required.
 
   Returns:
     constraint: A `Constraint` instance expressing constraints on the parameters
       specified by `coroutine`.
   """
-  gen = coroutine()
+
+  # Run the coroutine to extract constraints for the model parameters defined in
+  # the coroutine.
+  gen = model.coroutine()
   k = jax.random.PRNGKey(0)
   lower = {}
   upper = {}
@@ -589,4 +609,71 @@ def get_constraints(coroutine: ModelCoroutine) -> Constraint:
       p = gen.send(v)
   except StopIteration:
     pass
-  return Constraint((lower, upper), bijector=tfb.JointMap(bijectors=bijectors))
+
+  # `tfb.JointMap` applies a structure of bijectors to a parallel structure of
+  # inputs. Define a `JointMap` bijector that maps an unconstrained parameters
+  # dict to a constrained parameters dict with a dict of bijectors (all dicts
+  # are keyed by parameter names).
+  bijector = tfb.JointMap(bijectors=bijectors)
+  if x is not None:
+    # Get the parameters dict keys, if any, that do not come from the coroutine
+    # (e.g. `mean_fn` parameters).
+    params = model.lazy_init(jax.random.PRNGKey(0), x)['params']
+    non_coroutine_keys = set(params.keys()) - set(bijectors.keys())
+
+    # Define a bijector that ignores (applies an identity transformation to)
+    # non-coroutine parameters.
+    if non_coroutine_keys:
+      logging.info(
+          (
+              'Defining a constraint object that ignores the following'
+              'non-coroutine parameters: %s'
+          ),
+          non_coroutine_keys,
+      )
+
+      def _wrap_bijector_method_to_ignore_non_coro(f):
+        """Wrap bijector methods to pass non-coroutine params through."""
+
+        def _f(p):
+          p_ = p.copy()
+          non_coroutine_params = {k: p_.pop(k) for k in non_coroutine_keys}
+          y = f(p_)
+          y.update(non_coroutine_params)
+          return y
+
+        return _f
+
+      def _bijector_fldj_with_non_coro(p):
+        """Non-coroutine params do not affect the FLDJ."""
+        p_ = {k: v for k, v in p.items() if k not in non_coroutine_keys}
+        return bijector.forward_log_det_jacobian(p_)
+
+      bijector_forward_min_event_ndims = bijector.forward_min_event_ndims.copy()
+      # Populate `lower` and `upper` bounds dicts with `None` values for entries
+      # corresponding to non-coroutine params.
+      for k in non_coroutine_keys:
+        lower[k] = tree.map_structure(lambda _: None, params[k])
+        upper[k] = tree.map_structure(lambda _: None, params[k])
+        bijector_forward_min_event_ndims[k] = tree.map_structure(
+            lambda _: 0, params[k]
+        )
+      bijector = tfb.Inline(
+          forward_fn=_wrap_bijector_method_to_ignore_non_coro(bijector.forward),
+          inverse_fn=_wrap_bijector_method_to_ignore_non_coro(bijector.inverse),
+          forward_log_det_jacobian_fn=_bijector_fldj_with_non_coro,
+          forward_min_event_ndims=bijector_forward_min_event_ndims,
+      )
+    else:
+      # If the model doesn't have params aside from those defined by the
+      # coroutine, its params should have the same structure as `bijectors`
+      # (this assertion failing indicates a bug).
+      try:
+        tree.assert_same_structure(params, bijectors)
+      except ValueError as exc:
+        raise ValueError(
+            '`params` and `bijectors` should have the same nested structure.'
+            f'Saw: `params={params}` and `bijectors={bijectors}`'
+        ) from exc
+
+  return Constraint((lower, upper), bijector=bijector)

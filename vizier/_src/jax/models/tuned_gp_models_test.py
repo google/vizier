@@ -65,7 +65,7 @@ class VizierGpTest(absltest.TestCase):
     setup = lambda rng: model.init(rng, x_obs)['params']
 
     optimize = optimizers.JaxoptLbfgsB(random_restarts=50)
-    constraints = sp.get_constraints(model.coroutine)
+    constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
         setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
     )

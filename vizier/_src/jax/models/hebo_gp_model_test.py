@@ -69,7 +69,7 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
     optimize = optimizers.OptaxTrainWithRandomRestarts(
         optax.adam(5e-3), epochs=500, verbose=True, random_restarts=20
     )
-    constraints = sp.get_constraints(model.coroutine)
+    constraints = sp.get_constraints(model)
     params, metrics = optimize(setup, loss_fn, key, constraints=constraints)
 
     init_gp = model.apply({'params': init_params}, self.x_obs)

@@ -229,7 +229,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     )
     # Run ARD.
     setup = lambda rng: self._model.init(rng, self._features)['params']
-    constraints = sp.get_constraints(self._model.coroutine)
+    constraints = sp.get_constraints(self._model)
     ard_loss_fn = self._get_loss_fn(loss_fn)
 
     logging.info('Optimizing the loss function...')
