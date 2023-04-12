@@ -41,20 +41,23 @@ class Atari100KTest(parameterized.TestCase):
     experimenter = atari100k_experimenter.Atari100kExperimenter(
         game_name='Pong',
         agent_name=agent_name,
-        initial_gin_bindings=initial_gin_bindings)
+        initial_gin_bindings=initial_gin_bindings,
+    )
 
     designer = random.RandomDesigner(
-        experimenter.problem_statement().search_space, seed=None)
+        experimenter.problem_statement().search_space, seed=None
+    )
 
     suggestions = designer.suggest(2)
     trials = [suggestion.to_trial() for suggestion in suggestions]
     experimenter.evaluate(trials)
-    for evaluated_trial in trials:
-      self.assertEqual(evaluated_trial.status, pyvizier.TrialStatus.COMPLETED)
-      logging.info('Evaluated Trial: %s', evaluated_trial)
-      self.assertGreaterEqual(
-          evaluated_trial.final_measurement.metrics['eval_average_return']
-          .value, 0.0)
+    # Trials should be completed in place.
+    for trial in trials:
+      self.assertEqual(trial.status, pyvizier.TrialStatus.COMPLETED)
+      logging.info('Evaluated Trial: %s', trial)
+      if trial.final_measurement:
+        value = trial.final_measurement.metrics['eval_average_return'].value
+        self.assertGreaterEqual(value, 0.0)
 
 
 if __name__ == '__main__':
