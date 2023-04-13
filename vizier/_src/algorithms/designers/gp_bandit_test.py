@@ -31,6 +31,7 @@ from vizier._src.algorithms.testing import test_runners
 from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
 from vizier.testing import test_studies
+from vizier.utils import profiler
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -102,6 +103,11 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ).run_designer(designer),
         iters * batch_size,
     )
+    # Test that latency tracking works.
+    self.assertIn('VizierGPBandit.suggest', profiler.Storage().runtimes())
+    runtimes = profiler.Storage().runtimes().get('VizierGPBandit.suggest')
+    self.assertGreater(runtimes[0].total_seconds(), 0)
+
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space
     )

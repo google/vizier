@@ -43,6 +43,7 @@ from vizier._src.jax.models import tuned_gp_models
 from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
 from vizier.utils import json_utils
+from vizier.utils import profiler
 
 
 @attr.define(auto_attribs=False)
@@ -168,6 +169,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def _metric_info(self) -> vz.MetricInformation:
     return self._problem.metric_information.item()
 
+  @profiler.record_runtime(
+      name_prefix='VizierGPBandit', name='generate_seed_trials'
+  )
   def _generate_seed_trials(self, count: int) -> Sequence[vz.TrialSuggestion]:
     """Generate seed trials.
 
@@ -202,6 +206,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       )
     return seed_suggestions
 
+  @profiler.record_runtime(
+      name_prefix='VizierGPBandit', name='convert_trials_to_arrays'
+  )
   def _convert_trials_to_arrays(
       self, trials: Sequence[vz.Trial]
   ) -> tuple[types.Array, types.Array]:
@@ -220,6 +227,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
 
+  @profiler.record_runtime(
+      name_prefix='VizierGPBandit', name='ard', also_log=True
+  )
   def _find_best_model_params(self) -> types.ParameterDict:
     """Perform ARD on the current model to find best model parameters."""
     self._model, loss_fn = (
@@ -253,6 +263,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       ard_loss_fn = loss_fn
     return jax.jit(ard_loss_fn)
 
+  @profiler.record_runtime(name_prefix='VizierGPBandit', name='compute_state')
   def _compute_state(self):
     """Compute the designer's state.
 
@@ -275,10 +286,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
             self._features, self._labels
         )
     )
-    ard_start_time = datetime.datetime.now()
     best_model_params = self._find_best_model_params()
     # Logging for debugging purposes.
-    logging.info('ARD duration: %s', (datetime.datetime.now() - ard_start_time))
     logging.info('Best model parameters: %s', best_model_params)
     ard_loss_fn = self._get_loss_fn(loss_fn)
     if self._use_vmap:
@@ -288,6 +297,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     ard_best_loss = ard_all_losses.flatten()[0].item()
     logging.info('ARD best loss: %s', ard_best_loss)
 
+    @profiler.record_runtime(
+        name_prefix='VizierGPBandit', name='precompute_cholesky'
+    )
     @jax.jit
     def precompute_cholesky(params):
       return self._model.apply(
@@ -305,26 +317,27 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # over observed index points). `pp_state` is passed to
     # `model.posterior_predictive` to avoid re-computing the intermediates
     # unnecessarily.
-    precompute_start_time = datetime.datetime.now()
     _, pp_state = precompute_cholesky(best_model_params)
-    logging.info(
-        'Pre-compute Cholesky duration: %s',
-        (datetime.datetime.now() - precompute_start_time),
-    )
     self._state = {'params': best_model_params, **pp_state}
 
     self._acquisition_builder.use_trust_region = self._use_trust_region
 
-    self._acquisition_builder.build(
-        problem=self._problem,
-        model=self._model,
-        state=self._state,
-        features=self._features,
-        labels=self._labels,
-        converter=self._converter,
-        use_vmap=self._use_vmap,
-    )
+    with profiler.record_runtime_context(
+        name='VizierGPBandit.acquisition_build', also_log=True
+    ):
+      self._acquisition_builder.build(
+          problem=self._problem,
+          model=self._model,
+          state=self._state,
+          features=self._features,
+          labels=self._labels,
+          converter=self._converter,
+          use_vmap=self._use_vmap,
+      )
 
+  @profiler.record_runtime(
+      name_prefix='VizierGPBandit', name='optimize_acquisition'
+  )
   def _optimize_acquisition(self, count: int) -> list[vz.Trial]:
     """Optimize the acquisition function."""
     return self._acquisition_optimizer.optimize(
@@ -334,6 +347,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         prior_trials=self._trials,
     )
 
+  @profiler.record_runtime(name_prefix='VizierGPBandit')
   def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
     if count > 1:
       logging.warning(
@@ -353,11 +367,14 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     best_candidates = self._optimize_acquisition(count)
 
     # Convert best_candidates (in scaled space) into suggestions (in unscaled
-    # space); also append debug inforamtion like model predictions.
+    # space); also append debug information like model predictions.
     logging.info('Converting the optimization result into suggestions...')
     optimal_features = self._converter.to_features(best_candidates)  # [N, D]
     # Make predictions (in the warped space). [N]
-    predictions = self._acquisition_builder.predict_on_array(optimal_features)
+    with profiler.record_runtime_context(
+        'VizierGPBandit.predict_on_suggestions'
+    ):
+      predictions = self._acquisition_builder.predict_on_array(optimal_features)
     predict_mean = predictions['mean']  # [N,]
     predict_stddev = predictions['stddev']  # [N,]
     logging.info(
@@ -390,6 +407,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     return suggestions
 
+  @profiler.record_runtime(name_prefix='VizierGPBandit')
   def predict(
       self, trials: Sequence[vz.TrialSuggestion], rng: jax.random.KeyArray
   ) -> vza.Prediction:
