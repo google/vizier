@@ -395,10 +395,27 @@ class ParameterConfig:
     """Returns the default value, or None if not set."""
     return self._default_value
 
+  @property
+  def deterministic_value(self) -> Optional[Union[int, float, str]]:
+    """Returns the value if ParameterConfig only allows one value."""
+    if self.type in [ParameterType.DOUBLE, ParameterType.INTEGER]:
+      min_val, max_val = self.bounds
+      if min_val == max_val:
+        return trial.ParameterValue(min_val).cast_as_internal(self.type)
+    else:
+      feasible_values = self.feasible_values
+      if len(feasible_values) == 1:
+        return trial.ParameterValue(self.feasible_values[0]).cast_as_internal(
+            self.type
+        )
+    return None
+
   # TODO: TO BE DEPRECATED. Used by factory() only.
   def _add_children(
-      self, new_children: Sequence[Tuple[MonotypeParameterSequence,
-                                         'ParameterConfig']]
+      self,
+      new_children: Sequence[
+          Tuple[MonotypeParameterSequence, 'ParameterConfig']
+      ],
   ) -> 'ParameterConfig':
     """Clones the ParameterConfig and adds new children to it.
 
@@ -458,17 +475,6 @@ class ParameterConfig:
         bounds=(float(self.bounds[0]), float(self.bounds[1])),
         scale_type=scale_type,
         default_value=default_value)
-
-  def deterministic_value(self) -> Optional[trial.ParameterValue]:
-    """Returns the value if ParameterConfig only allows one value."""
-    if self.type in [ParameterType.DOUBLE, ParameterType.INTEGER]:
-      min_val, max_val = self.bounds
-      if min_val == max_val:
-        return trial.ParameterValue(min_val)
-    else:
-      if len(self.feasible_values) == 1:
-        return trial.ParameterValue(self.feasible_values[0])
-    return None
 
   @classmethod
   def merge(cls, one: 'ParameterConfig',
