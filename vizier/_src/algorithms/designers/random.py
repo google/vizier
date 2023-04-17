@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Random designer."""
 
+import time
 from typing import Any, Optional, Sequence
 
 import numpy as np
@@ -42,6 +43,8 @@ class RandomDesigner(vza.Designer):
       dtype:
       seed: Any valid seed for np.random.RandomState.
     """
+    if seed is None:
+      seed = np.int32(time.time())
     if search_space.is_conditional:
       # TODO: Add conditional sampling case.
       raise ValueError(
