@@ -23,6 +23,7 @@ from vizier._src.benchmarks.analyzers.state_analyzer import BenchmarkStateAnalyz
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkRunner
 from vizier._src.benchmarks.runners.benchmark_runner import BenchmarkSubroutine
 from vizier._src.benchmarks.runners.benchmark_runner import EvaluateActiveTrials
+from vizier._src.benchmarks.runners.benchmark_runner import FillActiveTrials
 from vizier._src.benchmarks.runners.benchmark_runner import GenerateAndEvaluate
 from vizier._src.benchmarks.runners.benchmark_runner import GenerateSuggestions
 from vizier._src.benchmarks.runners.benchmark_state import BenchmarkState

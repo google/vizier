@@ -120,6 +120,35 @@ class GenerateSuggestions(BenchmarkSubroutine):
 
 
 @attr.define
+class FillActiveTrials(BenchmarkSubroutine):
+  """Generate a number of Suggestions up to a limit of Active Trials."""
+
+  # Upper limit of active Trials to be filled with new Suggestions.
+  num_active_trials_limit: int = attr.field(
+      default=1, validator=attr.validators.instance_of(int)
+  )
+
+  def run(self, state: benchmark_state.BenchmarkState) -> None:
+    active_trials = state.algorithm.supporter.GetTrials(
+        status_matches=vz.TrialStatus.ACTIVE
+    )
+    if (
+        num_suggestions := self.num_active_trials_limit - len(active_trials)
+    ) > 0:
+      suggestions = state.algorithm.suggest(num_suggestions)
+      if not suggestions:
+        logging.info(
+            (
+                'Suggestions did not generate %d suggestions'
+                'to fill active Trials to %d '
+                'because designer returned nothing.'
+            ),
+            num_suggestions,
+            self.num_active_trials_limit,
+        )
+
+
+@attr.define
 class EvaluateActiveTrials(BenchmarkSubroutine):
   """Evaluate a fixed number of Active Trials as Completed Trials."""
 

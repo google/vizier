@@ -44,25 +44,33 @@ class BaseRunnerTest(parameterized.TestCase):
 
   @parameterized.parameters(
       {
-          'runner':
-              benchmark_runner.BenchmarkRunner(
-                  benchmark_subroutines=[
-                      benchmark_runner.GenerateSuggestions(),
-                      benchmark_runner.EvaluateActiveTrials()
-                  ],
-                  num_repeats=7),
-          'expected_trials':
-              7
-      }, {
-          'runner':
-              benchmark_runner.BenchmarkRunner(
-                  benchmark_subroutines=[
-                      benchmark_runner.GenerateAndEvaluate(10)
-                  ],
-                  num_repeats=5),
-          'expected_trials':
-              50
-      })
+          'runner': benchmark_runner.BenchmarkRunner(
+              benchmark_subroutines=[
+                  benchmark_runner.GenerateSuggestions(),
+                  benchmark_runner.EvaluateActiveTrials(),
+              ],
+              num_repeats=7,
+          ),
+          'expected_trials': 7,
+      },
+      {
+          'runner': benchmark_runner.BenchmarkRunner(
+              benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate(10)],
+              num_repeats=5,
+          ),
+          'expected_trials': 50,
+      },
+      {
+          'runner': benchmark_runner.BenchmarkRunner(
+              benchmark_subroutines=[
+                  benchmark_runner.FillActiveTrials(10),
+                  benchmark_runner.EvaluateActiveTrials(),
+              ],
+              num_repeats=5,
+          ),
+          'expected_trials': 50,
+      },
+  )
   def test_benchmark_run(self, runner, expected_trials):
     benchmark_state_factory = _get_designer_benchmark_state_factory()
     bench_state = benchmark_state_factory(seed=5)
@@ -99,6 +107,33 @@ class BaseRunnerTest(parameterized.TestCase):
             status_matches=vz.TrialStatus.COMPLETED
         ),
         6 * 3,
+    )
+
+  def test_fill_active_trials(self):
+    benchmark_state_factory = _get_designer_benchmark_state_factory()
+    bench_state = benchmark_state_factory(seed=5)
+    runner = benchmark_runner.BenchmarkRunner(
+        benchmark_subroutines=[
+            benchmark_runner.FillActiveTrials(10),
+            benchmark_runner.EvaluateActiveTrials(6),  # 6 Completions
+            benchmark_runner.FillActiveTrials(3),  # No-op
+            benchmark_runner.EvaluateActiveTrials(6),  # 4 Completions
+            benchmark_runner.FillActiveTrials(10),
+            benchmark_runner.EvaluateActiveTrials(6),  # 6 completions
+        ]
+    )
+    runner.run(bench_state)
+    self.assertLen(
+        bench_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.ACTIVE
+        ),
+        4,
+    )
+    self.assertLen(
+        bench_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.COMPLETED
+        ),
+        16,
     )
 
   def test_benchmark_run_from_exptr_factory(self):
