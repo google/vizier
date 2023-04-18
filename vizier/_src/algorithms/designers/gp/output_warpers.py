@@ -18,14 +18,19 @@ from __future__ import annotations
 
 import abc
 import copy
-from typing import Sequence, Optional
+from typing import Optional, Sequence
 
+from absl import logging
 import attr
 import attrs
 import chex
+import jax.numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
+
+
+tfb = tfp.bijectors
 
 
 def _validate_labels(labels_arr: chex.Array) -> chex.Array:
@@ -515,7 +520,7 @@ class DetectOutliers(OutputWarper):
 
 
 class TransformToGaussian(OutputWarper):
-  """Transforms the labels into a Gaussian distribution .
+  """Transforms the labels into a Gaussian distribution.
 
   The goal of this warper is to transform the label into a Gaussian sample to
   better suit it for a Gaussian process. Here, we use a non-parametric warper
@@ -571,3 +576,70 @@ class TransformToGaussian(OutputWarper):
     raise NotImplementedError(
         'unwarp  method for TransformToGaussian is not implemented yet.'
     )
+
+
+@attr.define
+class LinearOutputWarper:
+  """Linear output warper.
+
+  The LinearOutputWarper applies affine transformation to transform the labels
+  to fall between low_bound and high_bound.
+  """
+
+  low_bound: float = -2.0
+  high_bound: float = 2.0
+  _min_value: Optional[chex.Array] = None
+  _max_value: Optional[chex.Array] = None
+  _bijector: tfb.Bijector = attr.field(init=False)
+
+  def __attrs_post_init__(self):
+    if self.low_bound >= self.high_bound:
+      raise ValueError('low_bound needs to be smaller than high_bound.')
+
+  def _validate(self) -> None:
+    if self._min_value is None or self._max_value is None:
+      raise ValueError(
+          'Need to set min_value and max_value. Make sure to call `fit` first.'
+      )
+
+  def fit(self, y: chex.Array) -> None:
+    """Find min/max for each metric to be used in the linear transformation."""
+    # y shape: (num_metrics, num_samples)
+    logging.info(
+        'LinearOutputWarping fit is called with shape: %s', str(y.shape)
+    )
+    if len(y.shape) != 2:
+      raise ValueError('shape length is not 2!')
+    if np.any(np.isnan(y)):
+      raise ValueError('labels can not have any NaN entry.')
+    self._min_value = jnp.min(y, axis=1, keepdims=True)
+    self._max_value = jnp.max(y, axis=1, keepdims=True)
+    self.low_bound = jnp.array(self.low_bound)
+    self.high_bound = jnp.array(self.high_bound)
+    # The linear transformation is:
+    # norm_y = (y - self._min_value) / (self._max_value - self._min_value)
+    # return norm_y * (self.high_bound - self.low_bound) + self.low_bound
+    self._bijector = tfb.Chain([
+        tfb.Shift(self.low_bound),
+        tfb.Scale(
+            (self.high_bound - self.low_bound)
+            / (self._max_value - self._min_value)
+        ),
+        tfb.Shift(-self._min_value),
+    ])
+
+  def warp(self, y: chex.Array) -> chex.Array:
+    """Warp the y values into [low_bound, high_bound]."""
+    # y shape: (num_metrics, num_samples)
+    self._validate()
+    return self._bijector.forward(y)
+
+  def unwarp(self, y: chex.Array) -> chex.Array:
+    """Un-warp the y values into [min_value, max_value]."""
+    # y shape: (num_metrics, num_samples)
+    self._validate()
+    return self._bijector.inverse(y)
+
+  @property
+  def bijector(self) -> tfb.Bijector:
+    return self._bijector

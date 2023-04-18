@@ -19,8 +19,10 @@ from __future__ import annotations
 import numpy as np
 import scipy
 from vizier._src.algorithms.designers.gp import output_warpers
+
 from absl.testing import absltest
 from absl.testing import parameterized
+
 
 OutputWarper = output_warpers.OutputWarper
 
@@ -452,6 +454,35 @@ class OutputWarperPipelineTest(absltest.TestCase):
             warper.warp(labels_infeaible)
             == -1 * np.ones(shape=labels_infeaible.shape).flatten()
         ).all()
+    )
+
+
+class LinearOutputWarperTest(parameterized.TestCase):
+  """Tests for LinearOutputWarperTest."""
+
+  @parameterized.parameters(
+      {'low': -2.0, 'high': 2.0},
+      {'low': -5.0, 'high': 7.0},
+      {'low': 0.0, 'high': 1.0},
+      {'low': 8.0, 'high': 10.0},
+      {'low': -10.0, 'high': -2.0},
+  )
+  def test_warp_unwarp_and_range(self, low, high):
+    num_samples = 50
+    num_metrics = 3
+    y = np.random.randn(num_metrics, num_samples)
+    output_warper = output_warpers.LinearOutputWarper(low, high)
+    output_warper.fit(y)
+    np.testing.assert_allclose(output_warper.unwarp(output_warper.warp(y)), y)
+    np.testing.assert_allclose(
+        np.min(output_warper.warp(y), axis=1),
+        np.array([low] * num_metrics),
+        atol=1e-05,
+    )
+    np.testing.assert_allclose(
+        np.max(output_warper.warp(y), axis=1),
+        np.array([high] * num_metrics),
+        atol=1e-05,
     )
 
 
