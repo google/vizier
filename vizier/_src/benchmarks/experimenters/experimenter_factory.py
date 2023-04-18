@@ -16,10 +16,13 @@ from __future__ import annotations
 
 """Experimenter factories."""
 
-from typing import Optional, Protocol
+import abc
+import json
+from typing import Optional
 
 import attr
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters import discretizing_experimenter
 from vizier._src.benchmarks.experimenters import experimenter
 from vizier._src.benchmarks.experimenters import noisy_experimenter
@@ -27,15 +30,22 @@ from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
 from vizier._src.benchmarks.experimenters import shifting_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier.interfaces import serializable
+from vizier.utils import json_utils
+
+BBOB_FACTORY_KEY = 'bbob_factory'
+SINGLE_OBJECTIVE_FACTORY_KEY = 'single_objective_factory'
 
 
-class ExperimenterFactory(Protocol):
+class ExperimenterFactory(serializable.Serializable):
   """Abstraction for creating Experimenters."""
 
+  @abc.abstractmethod
   def __call__(
       self, *, seed: Optional[int] = None
   ) -> experimenter.Experimenter:
     """Creates the Experimenter."""
+    pass
 
 
 @attr.define
@@ -43,10 +53,11 @@ class BBOBExperimenterFactory(ExperimenterFactory):
   """Factory for a BBOB function."""
 
   # Should be a BBOB function name in bbob.py (name should match exactly).
-  name: str = attr.field(validator=attr.validators.instance_of(str))
+  name: str = attr.field(default='', validator=attr.validators.instance_of(str))
   dim: int = attr.field(
-      validator=[attr.validators.instance_of(int),
-                 attr.validators.gt(0)])
+      default=1,
+      validator=[attr.validators.instance_of(int), attr.validators.gt(0)],
+  )
 
   def __call__(
       self, seed: Optional[int] = None
@@ -57,6 +68,17 @@ class BBOBExperimenterFactory(ExperimenterFactory):
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')
     return numpy_experimenter.NumpyExperimenter(
         bbob_function, bbob.DefaultBBOBProblemStatement(self.dim))
+
+  def dump(self) -> vz.Metadata:
+    metadata = vz.Metadata()
+    metadata_dict = {'name': self.name, 'dim': self.dim}
+    metadata[BBOB_FACTORY_KEY] = json.dumps(metadata_dict)
+    return metadata
+
+  @classmethod
+  def recover(cls, metadata: vz.Metadata) -> 'BBOBExperimenterFactory':
+    metadata_dict = json.loads(metadata[BBOB_FACTORY_KEY])
+    return cls(**metadata_dict)
 
 
 @attr.define
@@ -126,3 +148,48 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
       )
 
     return exptr
+
+  def dump(self) -> vz.Metadata:
+    # The resulting metadata stores base factory metadata
+    # and metadata_dict with different keys.
+    metadata = self.base_factory.dump()
+    metadata_dict = {
+        'shift': self.shift,
+        'noise_type': self.noise_type,
+        'num_normalization_samples': self.num_normalization_samples,
+        'discrete_dict': self.discrete_dict,
+        'categorical_dict': self.categorical_dict,
+    }
+    metadata[SINGLE_OBJECTIVE_FACTORY_KEY] = json.dumps(
+        metadata_dict, cls=json_utils.NumpyEncoder
+    )
+    return metadata
+
+  @classmethod
+  def recover(
+      cls, metadata: vz.Metadata
+  ) -> 'SingleObjectiveExperimenterFactory':
+    if BBOB_FACTORY_KEY in metadata:
+      base_factory = BBOBExperimenterFactory.recover(metadata)
+    else:
+      raise serializable.DecodeError(
+          f'No valid base factory found in {metadata}'
+      )
+
+    metadata_dict = json.loads(
+        metadata[SINGLE_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder
+    )
+
+    # Turn string keys back to int for discrete/categorical dicts.
+    int_discrete_dict = {
+        int(k): v for k, v in metadata_dict['discrete_dict'].items()
+    }
+    metadata_dict['discrete_dict'] = int_discrete_dict
+    int_categorical_dict = {
+        int(k): v for k, v in metadata_dict['categorical_dict'].items()
+    }
+    metadata_dict['categorical_dict'] = int_categorical_dict
+
+    return SingleObjectiveExperimenterFactory(
+        base_factory=base_factory, **metadata_dict
+    )

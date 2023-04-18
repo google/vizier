@@ -136,6 +136,36 @@ class ExperimenterFactoryTest(parameterized.TestCase):
           categorical_dict={1: 4},
       )()
 
+  def testSingleObjectiveSerialization(self):
+    dim = 5
+    bbob_factory = experimenter_factory.BBOBExperimenterFactory(
+        name='Sphere', dim=dim
+    )
+    bbob_metadata = bbob_factory.dump()
+    recovered_bbob = experimenter_factory.BBOBExperimenterFactory.recover(
+        bbob_metadata
+    )
+    self.assertEqual(recovered_bbob.dim, dim)
+    self.assertEqual(recovered_bbob.name, 'Sphere')
+
+    exptr_factory = experimenter_factory.SingleObjectiveExperimenterFactory(
+        base_factory=bbob_factory,
+        shift=np.asarray(1.9),
+        noise_type='moderate_gaussian',
+        num_normalization_samples=10,
+        discrete_dict={0: 3, 1: 5},
+    )
+    factory_metadata = exptr_factory.dump()
+    recovered_factory = (
+        experimenter_factory.SingleObjectiveExperimenterFactory.recover(
+            factory_metadata
+        )
+    )
+    self.assertEqual(recovered_factory.noise_type, 'moderate_gaussian')
+    self.assertEqual(recovered_factory.num_normalization_samples, 10)
+    np.testing.assert_array_equal(recovered_factory.shift, np.asarray(1.9))
+    self.assertDictEqual(recovered_factory.discrete_dict, {0: 3, 1: 5})
+
 
 if __name__ == '__main__':
   absltest.main()
