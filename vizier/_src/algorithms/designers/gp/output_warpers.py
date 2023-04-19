@@ -69,7 +69,7 @@ class OutputWarper(abc.ABC):
 
   @abc.abstractmethod
   def unwarp(self, labels_arr: chex.Array) -> chex.Array:
-    """Runs the inverse of output warper of choice on an array of  labels.
+    """Runs the inverse of output warper of choice on an array of labels.
 
     Args:
       labels_arr: (num_points, 1) shaped array of warped labels. Note tha each
@@ -604,7 +604,7 @@ class LinearOutputWarper:
 
   def fit(self, y: chex.Array) -> None:
     """Find min/max for each metric to be used in the linear transformation."""
-    # y shape: (num_metrics, num_samples)
+    # y shape: (num_samples, num_metrics)
     logging.info(
         'LinearOutputWarping fit is called with shape: %s', str(y.shape)
     )
@@ -612,8 +612,8 @@ class LinearOutputWarper:
       raise ValueError('shape length is not 2!')
     if np.any(np.isnan(y)):
       raise ValueError('labels can not have any NaN entry.')
-    self._min_value = jnp.min(y, axis=1, keepdims=True)
-    self._max_value = jnp.max(y, axis=1, keepdims=True)
+    self._min_value = jnp.min(y, axis=0)
+    self._max_value = jnp.max(y, axis=0)
     self.low_bound = jnp.array(self.low_bound)
     self.high_bound = jnp.array(self.high_bound)
     # The linear transformation is:
@@ -630,13 +630,13 @@ class LinearOutputWarper:
 
   def warp(self, y: chex.Array) -> chex.Array:
     """Warp the y values into [low_bound, high_bound]."""
-    # y shape: (num_metrics, num_samples)
+    # y shape: (num_samples, num_metrics)
     self._validate()
     return self._bijector.forward(y)
 
   def unwarp(self, y: chex.Array) -> chex.Array:
     """Un-warp the y values into [min_value, max_value]."""
-    # y shape: (num_metrics, num_samples)
+    # y shape: (num_samples, num_metrics)
     self._validate()
     return self._bijector.inverse(y)
 

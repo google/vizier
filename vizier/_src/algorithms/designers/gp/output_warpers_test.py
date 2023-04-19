@@ -470,17 +470,17 @@ class LinearOutputWarperTest(parameterized.TestCase):
   def test_warp_unwarp_and_range(self, low, high):
     num_samples = 50
     num_metrics = 3
-    y = np.random.randn(num_metrics, num_samples)
+    y = np.random.randn(num_samples, num_metrics)
     output_warper = output_warpers.LinearOutputWarper(low, high)
     output_warper.fit(y)
     np.testing.assert_allclose(output_warper.unwarp(output_warper.warp(y)), y)
     np.testing.assert_allclose(
-        np.min(output_warper.warp(y), axis=1),
+        np.min(output_warper.warp(y), axis=0),
         np.array([low] * num_metrics),
         atol=1e-05,
     )
     np.testing.assert_allclose(
-        np.max(output_warper.warp(y), axis=1),
+        np.max(output_warper.warp(y), axis=0),
         np.array([high] * num_metrics),
         atol=1e-05,
     )
