@@ -23,9 +23,8 @@ from typing import Optional, Sequence
 from absl import logging
 import attr
 import attrs
-import chex
 import jax
-import jax.numpy as jnp
+from jax import numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
@@ -35,7 +34,7 @@ from vizier._src.jax import types
 tfb = tfp.bijectors
 
 
-def _validate_labels(labels_arr: chex.Array) -> chex.Array:
+def _validate_labels(labels_arr: types.Array) -> types.Array:
   """Checks and modifies the shape and values of the labels."""
   labels_arr = labels_arr.astype(float)
   if not (labels_arr.ndim == 2 and labels_arr.shape[-1] == 1):
@@ -54,7 +53,7 @@ class OutputWarper(abc.ABC):
   # they return an error.
 
   @abc.abstractmethod
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """Runs the output warper of choice on an array of labels.
 
     Args:
@@ -70,7 +69,7 @@ class OutputWarper(abc.ABC):
     pass
 
   @abc.abstractmethod
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     """Runs the inverse of output warper of choice on an array of labels.
 
     Args:
@@ -93,7 +92,7 @@ class OutputWarperPipeline(OutputWarper):
   """Performs a sequence of warpings on an input labels array."""
   warpers: Sequence[OutputWarper] = attr.ib(factory=list)
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """Sequntial warping of the labels.
 
     Note that if labels include one unique finite value, pipeline returns
@@ -119,7 +118,7 @@ class OutputWarperPipeline(OutputWarper):
       labels_arr = warper.warp(labels_arr)
     return labels_arr
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     """Sequential unwarping of the warped labels.
 
     Note that if labels include one unique finite value zero, the pipeline
@@ -204,8 +203,8 @@ class HalfRankComponent(OutputWarper):
   untouched.
   """
   _median: Optional[float] = attr.field(default=None)
-  _unique_labels: Optional[chex.Array] = attr.field(default=None)
-  _warped_labels: Optional[chex.Array] = attr.field(default=None)
+  _unique_labels: Optional[types.Array] = attr.field(default=None)
+  _warped_labels: Optional[types.Array] = attr.field(default=None)
 
   def _estimate_std_of_good_half(
       self, unique_labels: np.ndarray, threshold: float
@@ -235,7 +234,7 @@ class HalfRankComponent(OutputWarper):
     )
     return std
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """See base class."""
     labels_arr = _validate_labels(labels_arr)
     if labels_arr.size == 1:
@@ -271,7 +270,7 @@ class HalfRankComponent(OutputWarper):
     self._warped_labels = labels_arr
     return labels_arr[:, np.newaxis]
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     if (
         self._median is None
         or self._unique_labels is None
@@ -324,7 +323,7 @@ class LogWarperComponent(OutputWarper):
   _labels_max: Optional[float] = attr.field(default=None)
   offset: float = attr.field(default=1.5, validator=attrs.validators.gt(0.0))
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """See base class."""
     labels_arr = _validate_labels(labels_arr)
     self._labels_min = np.nanmin(labels_arr)
@@ -344,7 +343,7 @@ class LogWarperComponent(OutputWarper):
     )
     return labels_arr[:, np.newaxis]
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     if self._labels_max is None or self._labels_min is None:
       raise ValueError(' warp() needs to be called before unwarp() is called.')
     labels_arr = labels_arr.flatten()
@@ -358,7 +357,7 @@ class LogWarperComponent(OutputWarper):
 class InfeasibleWarperComponent(OutputWarper):
   """Warps the infeasible/nan value to feasible/finite values."""
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
@@ -366,14 +365,14 @@ class InfeasibleWarperComponent(OutputWarper):
     labels_arr[np.isnan(labels_arr)] = warped_bad_value
     return labels_arr[:, np.newaxis]
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     return labels_arr
 
 
 class ZScoreLabels(OutputWarper):
   """Sandardizes finite label values, leaving the NaNs & infinities out."""
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """Sandardizes finite label values to scale the mean to 0 and std to 1.
 
     Args:
@@ -396,7 +395,7 @@ class ZScoreLabels(OutputWarper):
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     raise NotImplementedError(
         'unwarp  method for ZScoreLabels is not implemented yet.'
     )
@@ -405,7 +404,7 @@ class ZScoreLabels(OutputWarper):
 class NormalizeLabels(OutputWarper):
   """Normalizes the finite label values, leaving the NaNs & infinities out."""
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     """Normalizes the finite label values to bring them between 0 and 1.
 
     Args:
@@ -427,7 +426,7 @@ class NormalizeLabels(OutputWarper):
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     raise NotImplementedError(
         'unwarp  method for NormalizeLabels is not implemented yet.'
     )
@@ -453,7 +452,7 @@ class DetectOutliers(OutputWarper):
   min_zscore: float = attr.field(kw_only=True, default=6.)
   max_zscore: float = attr.field(kw_only=True, default=None)
 
-  def _estimate_variance(self, labels_arr: chex.Array) -> float:
+  def _estimate_variance(self, labels_arr: types.Array) -> float:
     """Estimates the variance of labels array using the top half values.
 
     The estimation is a function of the size of the labels array. For details
@@ -504,7 +503,7 @@ class DetectOutliers(OutputWarper):
            (labels_min_hallucinated - 2 * labels_median + labels_max) /
            (4 * num_points))**2)
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
     labels_finite_ind = np.isfinite(labels_arr)
     labels_arr_finite = labels_arr[labels_finite_ind]
@@ -515,7 +514,7 @@ class DetectOutliers(OutputWarper):
     labels_arr[labels_finite_ind] = labels_arr_finite
     return labels_arr
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     raise NotImplementedError(
         'unwarp  method for DetectOutliers is not implemented yet.'
     )
@@ -549,7 +548,7 @@ class TransformToGaussian(OutputWarper):
     self.softclip_hinge_softness = softclip_hinge_softness
     self.use_rank = use_rank
 
-  def warp(self, labels_arr: chex.Array) -> chex.Array:
+  def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
     labels_arr = np.asarray(labels_arr, dtype=np.float64)
     labels_arr_flattened = labels_arr.flatten()
@@ -574,7 +573,7 @@ class TransformToGaussian(OutputWarper):
                                         labels_arr.shape)
     return labels_arr_transformed
 
-  def unwarp(self, labels_arr: chex.Array) -> chex.Array:
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
     raise NotImplementedError(
         'unwarp  method for TransformToGaussian is not implemented yet.'
     )
