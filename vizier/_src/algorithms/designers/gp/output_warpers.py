@@ -24,10 +24,12 @@ from absl import logging
 import attr
 import attrs
 import chex
+import jax
 import jax.numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
+from vizier._src.jax import types
 
 
 tfb = tfp.bijectors
@@ -588,8 +590,8 @@ class LinearOutputWarper:
 
   low_bound: float = -2.0
   high_bound: float = 2.0
-  _min_value: Optional[chex.Array] = None
-  _max_value: Optional[chex.Array] = None
+  _min_value: Optional[types.Array] = None
+  _max_value: Optional[types.Array] = None
   _bijector: tfb.Bijector = attr.field(init=False)
 
   def __attrs_post_init__(self):
@@ -602,7 +604,7 @@ class LinearOutputWarper:
           'Need to set min_value and max_value. Make sure to call `fit` first.'
       )
 
-  def fit(self, y: chex.Array) -> None:
+  def fit(self, y: types.Array) -> None:
     """Find min/max for each metric to be used in the linear transformation."""
     # y shape: (num_samples, num_metrics)
     logging.info(
@@ -628,13 +630,13 @@ class LinearOutputWarper:
         tfb.Shift(-self._min_value),
     ])
 
-  def warp(self, y: chex.Array) -> chex.Array:
+  def warp(self, y: types.Array) -> jax.Array:
     """Warp the y values into [low_bound, high_bound]."""
     # y shape: (num_samples, num_metrics)
     self._validate()
     return self._bijector.forward(y)
 
-  def unwarp(self, y: chex.Array) -> chex.Array:
+  def unwarp(self, y: types.Array) -> jax.Array:
     """Un-warp the y values into [min_value, max_value]."""
     # y shape: (num_samples, num_metrics)
     self._validate()
