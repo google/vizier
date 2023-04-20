@@ -59,10 +59,14 @@ class ExperimenterConverter:
   def to_callable(
       cls,
       experimenter: experimenters.Experimenter,
-  ) -> Callable[[Dict[str, Any]], Dict[str, float]]:
-    def trainable(config):
+  ) -> Callable[[vz.ParameterDict], Dict[str, float]]:
+    """Returns a callable that takes Parameters and returns metric values."""
+
+    def trainable(config: vz.ParameterDict) -> Dict[str, float]:
       trial = vz.Trial(parameters=config)
       experimenter.evaluate([trial])
+      if trial.final_measurement is None:
+        raise ValueError(f'No final_measurement on trial{trial.id}')
       return dict(trial.final_measurement.metrics)
 
     return trainable

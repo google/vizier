@@ -18,13 +18,18 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Generic, Optional, TypeVar
+from typing import Generic, Optional, Protocol, TypeVar
 from vizier import pythia
 
-_TT = TypeVar('_TT')
+
+class _HasErrorDetails(Protocol):
+  error_details: str
 
 
-class ResponseWaiter(Generic[_TT]):
+_T = TypeVar('_T', bound=_HasErrorDetails)
+
+
+class ResponseWaiter(Generic[_T]):
   """A stored message with a Wait() mechanism.
 
   This is a bridge between two threads; it stores a message, and
@@ -34,10 +39,10 @@ class ResponseWaiter(Generic[_TT]):
 
   def __init__(self):
     self._lock = threading.Lock()
-    self._response: Optional[_TT] = None
+    self._response: Optional[_T] = None
     self._wait = threading.Event()
 
-  def Report(self, update: _TT):
+  def Report(self, update: _T) -> None:
     """Called by the gRPC thread with a message from Vizier.
 
     When called, this unblocks WaitForResponse().
@@ -56,7 +61,7 @@ class ResponseWaiter(Generic[_TT]):
       self._response = update
       self._wait.set()
 
-  def WaitForResponse(self) -> _TT:
+  def WaitForResponse(self) -> _T:
     """Returns the result or raises an error.
 
     Raises:
@@ -66,10 +71,10 @@ class ResponseWaiter(Generic[_TT]):
     self._wait.wait()
     logging.info('About to take _lock in ResponseWaiter.WaitForResponse()')
     with self._lock:
-      if not self._response:
+      if self._response is None:
         logging.info('Raise')
         raise pythia.PythiaProtocolError('No response.')
-      if self._response.error_details:
+      elif self._response.error_details:
         raise pythia.VizierDatabaseError(self._response.error_details)
       logging.info('No raise -- WaitForResponse done')
       return self._response

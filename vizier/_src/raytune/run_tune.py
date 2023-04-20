@@ -22,6 +22,7 @@ import numpy as np
 from ray import air
 from ray import data
 from ray import tune
+from vizier import pyvizier
 from vizier._src.raytune import converters
 from vizier.benchmarks import experimenters
 
@@ -84,7 +85,7 @@ def run_tune_bbob(
   param_space = converters.SearchSpaceConverter.to_dict(problem.search_space)
   objective = converters.ExperimenterConverter.to_callable(experimenter)
 
-  def objective_fn(config: dict[str, Any]):
+  def objective_fn(config: pyvizier.ParameterDict):
     # Config contains parameter names to values.
     result_dict = objective(config)
     air.session.report(result_dict)
