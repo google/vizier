@@ -351,6 +351,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   @profiler.record_runtime(name_prefix='VizierGPBandit')
   def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
+    logging.info('Suggest called with count=%d', count)
     if count > 1:
       logging.warning(
           'GAUSSIAN_PROCESS_BANDIT currently is not optimized for batched'
