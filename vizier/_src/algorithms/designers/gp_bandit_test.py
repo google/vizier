@@ -22,6 +22,7 @@ import jax
 import mock
 import numpy as np
 import optax
+from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
@@ -160,6 +161,39 @@ class GoogleGpBanditTest(parameterized.TestCase):
     self.assertLen(prediction.stddev, 7)
     self.assertFalse(np.isnan(prediction.mean).any())
     self.assertFalse(np.isnan(prediction.stddev).any())
+
+  def test_prediction_accuracy(self):
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    f = lambda x: -((x - 0.5) ** 2)
+
+    suggestions = quasi_random.QuasiRandomDesigner(
+        problem.search_space, seed=1
+    ).suggest(100)
+
+    obs_trials = []
+    for idx, suggestion in enumerate(suggestions):
+      trial = suggestion.to_trial(idx)
+      x = suggestions[idx].parameters['x0'].value
+      trial.complete(vz.Measurement(metrics={'obj': f(x)}))
+      obs_trials.append(trial)
+
+    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=8, best_n=5)
+    gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
+    gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
+    pred_trial = vz.Trial({'x0': 0.0})
+    pred = gp_designer.predict([pred_trial], rng=jax.random.PRNGKey(0))
+    self.assertLess(np.abs(pred.mean[0] - f(0.0)), 1e-2)
 
 
 if __name__ == '__main__':

@@ -112,7 +112,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _state: types.ModelState = attr.field(init=False)
   # The current GP model.
   _model: sp.StochasticProcessModel = attr.field(init=False)
-
+  _output_warper_pipeline: output_warpers.OutputWarperPipeline = attr.field(
+      init=False
+  )
+  _num_samples_for_prediction: int = attr.field(default=1000)
   # ------------------------------------------------------------------
   # Below are class contants which are not attr fields.
   # ------------------------------------------------------------------
@@ -147,6 +150,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     self._quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         self._problem.search_space
     )
+    self._output_warper_pipeline = output_warpers.create_default_warper()
 
   @property
   def _use_vmap(self):
@@ -219,10 +223,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         labels.shape,
         features.shape,
     )
-
     # Warp the output.
-    labels = output_warpers.create_default_warper().warp(labels)
-
+    labels = self._output_warper_pipeline.warp(labels)
     labels = labels.reshape([-1])
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
@@ -356,7 +358,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
           ' similar.'
       )
     suggest_start_time = datetime.datetime.now()
-
     if len(self._trials) < self._num_seed_trials:
       return self._generate_seed_trials(count)
 
@@ -414,6 +415,20 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     """Predicts the mean and stddev for any given trials."""
     self._compute_state()
     xs = self._converter.to_features(trials)
-    pred = self._acquisition_builder.predict_on_array(xs)
-    # TODO: add unwarping operation.
-    return vza.Prediction(mean=pred['mean'], stddev=pred['stddev'])
+    samples = self._acquisition_builder.sample_on_array(
+        xs, num_samples=self._num_samples_for_prediction, key=rng
+    )  # (num_samples, batch_size)
+    unwarped_samples = None
+    # TODO: vectorize output warping.
+    for i in range(samples.shape[0]):
+      unwarp_samples_ = self._output_warper_pipeline.unwarp(
+          samples[i][..., np.newaxis]
+      ).reshape(-1)
+      if unwarped_samples is not None:
+        unwarped_samples = np.vstack([unwarp_samples_, unwarped_samples])
+      else:
+        unwarped_samples = unwarp_samples_
+
+    mean = np.mean(unwarped_samples, axis=0)
+    stddev = np.std(unwarped_samples, axis=0)
+    return vza.Prediction(mean=mean, stddev=stddev)

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import abc
 import copy
+import functools
 from typing import Any, Callable, Dict, Optional, Protocol, Sequence
 
 import attr
@@ -236,6 +237,14 @@ class AcquisitionBuilder(abc.ABC):
     """Prediction function on features array."""
     pass
 
+  @property
+  @abc.abstractmethod
+  def sample_on_array(
+      self,
+  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+    """Sample the underlying model on features array."""
+    pass
+
 
 def _build_predictive_distribution(
     model: sp.StochasticProcessModel,
@@ -348,6 +357,18 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
 
     self._predict_on_array = predict_on_array
 
+    # 'num_samples' affects the array shape and needs to be known during
+    # compile-time knowledge. Marking it static with a decorator, JAX re-JITs
+    # when static argument values change.
+    @functools.partial(jax.jit, static_argnums=1)
+    def sample_on_array(
+        xs: types.Array, num_samples: int, key: jax.random.KeyArray
+    ) -> jax.Array:
+      dist = self._get_predictive_dist(xs)
+      return dist.sample(num_samples, seed=key)
+
+    self._sample_on_array = sample_on_array
+
     # Define acquisition.
     self._tr = TrustRegion(features, converter.output_specs)
 
@@ -407,6 +428,15 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return {'trust_radius': self._tr.trust_radius}
+
+  @property
+  def sample_on_array(
+      self,
+  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+    """Sample the underlying model on features array."""
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return self._sample_on_array
 
 
 @attr.define(slots=False)
@@ -481,6 +511,18 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
 
     self._predict_on_array = predict_mean_and_stddev
 
+    # 'num_samples' affects the array shape and needs to be known during
+    # compile-time knowledge. Marking it static with a decorator, JAX re-JITs
+    # when static argument values change.
+    @functools.partial(jax.jit, static_argnums=1)
+    def sample_on_array(
+        xs: types.Array, num_samples: int, key: jax.random.KeyArray
+    ) -> jax.Array:
+      dist = self._get_predictive_dist(xs)
+      return dist.sample(num_samples, key=key)
+
+    self._sample_on_array = sample_on_array
+
     # Define acquisition.
     self._tr = TrustRegion(features, converter.output_specs)
 
@@ -548,3 +590,12 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return {'trust_radius': self._tr.trust_radius}
+
+  @property
+  def sample_on_array(
+      self,
+  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+    """Sample the underlying model on features array."""
+    if not self._built:
+      raise ValueError('Acquisition must be built first via build().')
+    return self._sample_on_array

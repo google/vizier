@@ -15,11 +15,18 @@
 from __future__ import annotations
 
 """Tests for acquisitions."""
+
+import jax
 from jax import numpy as jnp
 import mock
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+from vizier import algorithms as vza
+from vizier import pyvizier as vz
+from vizier._src.algorithms.designers import gp_bandit
+from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -92,6 +99,45 @@ class TrustRegionTest(absltest.TestCase):
                 [1., 1., 1., 1.],
             ]),), np.array([0.3, 0.2, 0.]))
     self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)
+
+
+class GPBanditAcquisitionBuilderTest(absltest.TestCase):
+
+  def test_sample_on_array(self):
+    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=8, best_n=5)
+    search_space = vz.SearchSpace()
+    for i in range(16):
+      search_space.root.add_float_param(f'x{i}', 0.0, 1.0)
+
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
+    suggestions = quasi_random.QuasiRandomDesigner(
+        problem.search_space
+    ).suggest(11)
+
+    trials = []
+    for idx, suggestion in enumerate(suggestions):
+      trial = suggestion.to_trial(idx)
+      trial.complete(vz.Measurement(metrics={'obj': np.random.randn()}))
+      trials.append(trial)
+
+    gp_designer.update(vza.CompletedTrials(trials), vza.ActiveTrials())
+    gp_designer._compute_state()
+    xs = np.random.randn(10, 16)
+    samples = gp_designer._acquisition_builder.sample_on_array(
+        xs, 15, jax.random.PRNGKey(0)
+    )
+    self.assertEqual(samples.shape, (15, 10))
+    self.assertEqual(np.sum(np.isnan(samples)), 0)
 
 
 if __name__ == '__main__':
