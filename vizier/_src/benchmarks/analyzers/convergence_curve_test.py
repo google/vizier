@@ -119,6 +119,19 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_equal(curve.ys, expected)
 
+  @parameterized.named_parameters(
+      ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[2, 2, 3]]),
+      ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[-2, -1, -1]]),
+  )
+  def test_convert_flip_signs(self, goal, expected):
+    trials = _gen_trials([2, 1, 3])
+    generator = convergence.ConvergenceCurveConverter(
+        pyvizier.MetricInformation(name='', goal=goal), flip_signs_for_min=True
+    )
+    curve = generator.convert(trials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_equal(curve.ys, expected)
+
 
 class HyperConvergenceCurveConverterTest(parameterized.TestCase):
 

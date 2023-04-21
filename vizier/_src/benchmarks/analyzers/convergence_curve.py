@@ -167,24 +167,25 @@ class ConvergenceCurve:
 class ConvergenceCurveConverter:
   """Converter for Trial sequence to ConvergenceCurve."""
 
-  def __init__(self,
-               metric_information: pyvizier.MetricInformation,
-               *,
-               flip_signs: bool = False,
-               cost_fn: Callable[[pyvizier.Trial], Union[float,
-                                                         int]] = lambda _: 1,
-               measurements_type: str = 'final'):
+  def __init__(
+      self,
+      metric_information: pyvizier.MetricInformation,
+      *,
+      flip_signs_for_min: bool = False,
+      cost_fn: Callable[[pyvizier.Trial], Union[float, int]] = lambda _: 1,
+      measurements_type: str = 'final',
+  ):
     """Init.
 
     Args:
       metric_information: Information of relevant metric.
-      flip_signs: If True, flips the signs of metric values to always
-      maximize. Useful when desiring all increasing curves.
+      flip_signs_for_min: If True, flips the signs of metric values to always
+        maximize. Useful when desiring all increasing curves.
       cost_fn: Cost of each Trial (to determine xs in ConvergenceCurve).
       measurements_type: ['final', 'intermediate', 'all']
     """
     self.metric_information = metric_information
-    self.flip_signs = flip_signs
+    self.flip_signs_for_min = flip_signs_for_min
     self.cost_fn = cost_fn
     self.measurements_type = measurements_type
 
@@ -211,16 +212,21 @@ class ConvergenceCurveConverter:
       yvals.append(comparator([yvalue, yvals[-1]]))
 
     yvals = np.asarray(yvals[1:])
-    trend = ConvergenceCurve.YTrend.DECREASING
-    if (self.metric_information.goal == pyvizier.ObjectiveMetricGoal.MAXIMIZE
-       ) or (self.metric_information.goal
-             == pyvizier.ObjectiveMetricGoal.MINIMIZE and self.flip_signs):
+    if self.metric_information.goal == pyvizier.ObjectiveMetricGoal.MAXIMIZE:
       trend = ConvergenceCurve.YTrend.INCREASING
+      flipped = False
+    elif self.flip_signs_for_min:
+      trend = ConvergenceCurve.YTrend.INCREASING
+      flipped = True
+    else:
+      trend = ConvergenceCurve.YTrend.DECREASING
+      flipped = False
     return ConvergenceCurve(
         xs=np.asarray(xvals[1:]),
-        ys=np.asarray(yvals).reshape([1, -1]) * (-1 if self.flip_signs else 1),
+        ys=np.asarray(yvals).reshape([1, -1]) * (-1 if flipped else 1),
         trend=trend,
-        ylabel=self.metric_information.name)
+        ylabel=self.metric_information.name,
+    )
 
   @property
   def comparator(self):
