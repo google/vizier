@@ -69,13 +69,38 @@ class DesignerPolicy(pythia.Policy):
     self._policy_name = policy_name
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
+    logging.info(
+        'Processing request for study guid %s, with max trial id %s',
+        request.study_guid,
+        request.max_trial_id,
+    )
     designer = self._designer_factory(request.study_config)
+    logging.info(
+        'Study guid %s: Designer created. Getting trials from Vizier service.',
+        request.study_guid,
+    )
     completed = self._supporter.GetTrials(
         status_matches=vz.TrialStatus.COMPLETED
     )
+    logging.info(
+        'Study guid %s: got %s COMPLETED trials',
+        request.study_guid,
+        len(completed),
+    )
     active = self._supporter.GetTrials(status_matches=vz.TrialStatus.ACTIVE)
+    logging.info(
+        'Study guid %s: got %s ACTIVE trials', request.study_guid, len(active)
+    )
+    logging.info(
+        'Study guid %s: Updating designer with trials.', request.study_guid
+    )
     designer.update(vza.CompletedTrials(completed), vza.ActiveTrials(active))
     self._designer = designer  # saved for debugging purposes only.
+    logging.info(
+        'Study guid %s: Asking designer for %s suggestions.',
+        request.study_guid,
+        request.count,
+    )
     return pythia.SuggestDecision(
         designer.suggest(request.count), metadata=vz.MetadataDelta()
     )
