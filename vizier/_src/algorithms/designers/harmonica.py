@@ -20,9 +20,10 @@ This is a faithful re-implementation based off
 https://github.com/callowbird/Harmonica.
 """
 # pylint:disable=invalid-name
-import functools
+import abc
 import itertools
-from typing import Callable, Optional, Sequence, Set
+from typing import Optional, Sequence, Set
+import attrs
 import numpy as np
 from sklearn import linear_model
 from sklearn import preprocessing
@@ -32,54 +33,60 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
 
 
-def _binary_subset_enumeration(dim: int,
-                               indices: Sequence[int],
-                               default_value: float = 1.0) -> np.ndarray:
-  """Outputs all possible binary vectors from {-1, 1}^{dim} where only positions from `indices` are changed."""
-  output = default_value * np.ones(
-      shape=(2**len(indices), dim), dtype=np.float32)
-  for i, binary in enumerate(
-      itertools.product([-1.0, 1.0], repeat=len(indices))):
-    output[i, indices] = binary
-  return output
+class _Surrogate(abc.ABC):
+  """Utility class to organize code."""
+
+  @abc.abstractmethod
+  def reset(self) -> None:
+    """Resets internal state."""
+
+  @abc.abstractmethod
+  def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
+    """Performs regression and modifies internal state."""
+
+  @abc.abstractmethod
+  def predict(self, x: np.ndarray) -> float:
+    """Performs prediction. Should NOT modify internal state."""
 
 
-# TODO: Implement __repr__ via `attr`.
-class PolynomialSparseRecovery:
+@attrs.define
+class PolynomialSparseRecovery(_Surrogate):
   """Performs LASSO regression over low (d) degree polynomial coefficients."""
 
-  def __init__(self,
-               d: int = 3,
-               num_top_monomials: int = 5,
-               alpha: float = 3.0):
-    """Init.
+  # Maximum degree of monomials to use during polynomial regression.
+  _d: int = attrs.field(
+      default=3, validator=attrs.validators.ge(1), kw_only=True
+  )
+  # Number of top monomial coefficients to use.
+  _num_top_monomials: int = attrs.field(
+      default=5, validator=attrs.validators.ge(1), kw_only=True
+  )
 
-    Args:
-      d: Maximum degree of monomials to use during polynomial regression.
-      num_top_monomials: Number of top monomial coefficients to use.
-      alpha: LASSO regularization coefficient.
-    """
-    self._d = d
-    self._num_top_monomials = num_top_monomials
-    self._alpha = alpha
+  # LASSO regularization coefficient.
+  _alpha = attrs.field(
+      default=3.0, validator=attrs.validators.ge(0.0), kw_only=True
+  )
+
+  # Internal state after performing regression.
+  _poly_transformer: preprocessing.PolynomialFeatures = attrs.field(init=False)
+  _top_poly_indices: np.ndarray = attrs.field(init=False)
+  _top_poly_coefficients: np.ndarray = attrs.field(init=False)
+
+  def __attrs_post_init__(self):
     self.reset()
 
-  def reset(self):
+  def reset(self) -> None:
     self._poly_transformer = preprocessing.PolynomialFeatures(
-        self._d, interaction_only=True)
-    self._top_poly_indices: Optional[np.ndarray] = None
-    self._top_poly_coefficients: Optional[np.ndarray] = None
+        self._d, interaction_only=True
+    )
+    self._top_poly_indices = np.empty(0)
+    self._top_poly_coefficients = np.empty(0)
 
   def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
     """Performs LASSO regression to obtain top monomial coefficients."""
 
-    # Computes monomial values for every vector in X.
-    X_poly_features = []
-    for x_vector in X:
-      X_poly_features.append(
-          self._poly_transformer.fit_transform(
-              np.array(x_vector).reshape(1, -1))[0].tolist())
-    X_poly_features = np.array(X_poly_features)
+    # Computes monomial features for every vector in X.
+    X_poly_features = self._poly_transformer.fit_transform(X)
 
     # Find optimial coefficients on monomials to the data.
     lasso_solver = linear_model.Lasso(fit_intercept=True, alpha=self._alpha)
@@ -88,14 +95,17 @@ class PolynomialSparseRecovery:
     # Sort and obtain top coefficients.
     lasso_coefficients = lasso_solver.coef_
     poly_indices = np.argsort(-np.abs(lasso_coefficients))
-    self._top_poly_indices = poly_indices[:self._num_top_monomials]
+    self._top_poly_indices = poly_indices[: self._num_top_monomials]
     self._top_poly_coefficients = lasso_coefficients[self._top_poly_indices]
 
-  def surrogate(self, x: np.ndarray) -> float:
-    """Surrogate/Predicted function after regress()."""
-    x_poly_features = self._poly_transformer.fit_transform(x.reshape(1, -1))
+  def predict(self, x: np.ndarray) -> float:
+    """Predicts using polynomial features."""
+    x_poly_features = self._poly_transformer.transform(x.reshape(1, -1))
+    x_poly_features = x_poly_features[0]
+
     top_x_poly_features = np.take_along_axis(
-        x_poly_features[0], self._top_poly_indices, axis=0)
+        x_poly_features, self._top_poly_indices, axis=0
+    )
     return np.dot(top_x_poly_features, self._top_poly_coefficients)
 
   def index_set(self) -> Set[int]:
@@ -104,29 +114,56 @@ class PolynomialSparseRecovery:
     For example, if our monomials corresponding to top cofficients were x0*x1,
     x3, x1*x2*x3, then the output would be Union({0, 1}, {3}, {1, 2, 3}).
     """
-    index_set = set()
+    indices = set()
     poly_feature_one_hots = self._poly_transformer.powers_
     for top_poly_index in self._top_poly_indices:
-      active_indices = np.nonzero(
-          poly_feature_one_hots[top_poly_index])[0].tolist()
-      index_set = index_set | set(active_indices)
-    return index_set
+      active_indices = np.nonzero(poly_feature_one_hots[top_poly_index])
+      active_indices = active_indices[0].tolist()
+      indices = indices | set(active_indices)
+    return indices
 
 
-def _restricted_surrogate(x: np.ndarray, X_restrictors: np.ndarray,
-                          replacement_indices: Sequence[int],
-                          psr: PolynomialSparseRecovery):
+@attrs.define
+class RestrictedSurrogate(_Surrogate):
   """New surrogate with input x's positions replaced from X_restrictor values."""
-  objectives = []
-  for x_restrictor in X_restrictors:
-    x_copy = np.copy(x)
-    x_copy[replacement_indices] = x_restrictor[replacement_indices]
-    objectives.append(psr.surrogate(x_copy))
-  return np.mean(objectives)
+
+  X_restrictors: np.ndarray = attrs.field(init=True, kw_only=True)
+  replacement_indices: Sequence[int] = attrs.field(init=True, kw_only=True)
+  psr: PolynomialSparseRecovery = attrs.field(
+      init=True, kw_only=True, factory=PolynomialSparseRecovery
+  )
+
+  def reset(self) -> None:
+    raise NotImplementedError('Should not be used.')
+
+  def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
+    raise NotImplementedError('Should not be used.')
+
+  def predict(self, x: np.ndarray) -> float:
+    objectives = []
+    for x_restrictor in self.X_restrictors:
+      x_copy = np.copy(x)
+      x_copy[self.replacement_indices] = x_restrictor[self.replacement_indices]
+      objectives.append(self.psr.predict(x_copy))
+    return np.mean(objectives)
 
 
-# TODO: Implement __repr__ via `attr`.
-class HarmonicaQ:
+def _binary_subset_enumeration(
+    dim: int, indices: Sequence[int], default_value: float = 1.0
+) -> np.ndarray:
+  """Outputs all possible binary vectors from {-1, 1}^{dim} where only positions from `indices` are changed."""
+  output = default_value * np.ones(
+      shape=(2 ** len(indices), dim), dtype=np.float32
+  )
+  for i, binary in enumerate(
+      itertools.product([-1.0, 1.0], repeat=len(indices))
+  ):
+    output[i, indices] = binary
+  return output
+
+
+@attrs.define
+class HarmonicaQ(_Surrogate):
   """Q-stage Harmonica.
 
   At each stage:
@@ -137,29 +174,31 @@ class HarmonicaQ:
   surrogate'.
   """
 
-  def __init__(self,
-               psr: Optional[PolynomialSparseRecovery] = None,
-               q: int = 10,
-               t: int = 1,
-               T: int = 300):
-    """Init.
+  # PolynomialSparseRecovery regressor.
+  _psr: PolynomialSparseRecovery = attrs.field(
+      init=True, kw_only=True, factory=PolynomialSparseRecovery
+  )
+  # Number of stages.
+  _q: int = attrs.field(
+      default=10, validator=attrs.validators.ge(0), kw_only=True
+  )
 
-    Args:
-      psr: PolynomialSparseRecovery class. If None, will be constructed with
-        default arguments.
-      q: Number of stages.
-      t: Number of maximizers on the surrogate to use.
-      T: Number of data samples to collect on the restricted surrogate.
-    """
-    self._psr = psr
-    self._psr = psr or PolynomialSparseRecovery()
-    self._q = q
-    self._t = t
-    self._T = T
+  # Number of maximizers on the surrogate to use.
+  _t: int = attrs.field(
+      default=1, validator=attrs.validators.ge(1), kw_only=True
+  )
+  # Number of data samples to collect on the restricted surrogate.
+  _T: int = attrs.field(
+      default=300, validator=attrs.validators.ge(1), kw_only=True
+  )
+
+  _restricted_surrogate: Optional[RestrictedSurrogate] = None
+
+  def __attrs_post_init__(self):
     self.reset()
 
-  def reset(self):
-    self._restricted_surrogate: Optional[Callable[[np.ndarray], float]] = None
+  def reset(self) -> None:
+    self._restricted_surrogate = None
     self._psr.reset()
 
   def regress(self, X: np.ndarray, Y: np.ndarray) -> None:
@@ -176,23 +215,23 @@ class HarmonicaQ:
 
       # Perform brute force maximization to optain top t optimizers.
       all_X_in_J = _binary_subset_enumeration(num_vars, list(J))
-      all_Y_in_J = np.array([self._psr.surrogate(x) for x in all_X_in_J])
-      maximizer_idxs = np.argsort(all_Y_in_J)[-self._t:]
+      all_Y_in_J = np.array([self._psr.predict(x) for x in all_X_in_J])
+      maximizer_idxs = np.argsort(all_Y_in_J)[-self._t :]
       X_maximizers = all_X_in_J[maximizer_idxs]
 
       # Define restricted surrogate and obtain data from it.
-      self._restricted_surrogate = functools.partial(
-          _restricted_surrogate,
+      self._restricted_surrogate = RestrictedSurrogate(
           X_restrictors=X_maximizers,
           replacement_indices=list(J),
-          psr=self._psr)
+          psr=self._psr,
+      )
       X_temp = np.random.choice([-1.0, 1.0], size=(self._T, num_vars))
-      Y_temp = np.array([self._restricted_surrogate(x) for x in X_temp])
+      Y_temp = np.array([self._restricted_surrogate.predict(x) for x in X_temp])
 
-  def surrogate(self, x: np.ndarray) -> float:
+  def predict(self, x: np.ndarray) -> float:
     if self._restricted_surrogate is None:
       raise ValueError('You must call regress() first.')
-    return self._restricted_surrogate(x)
+    return self._restricted_surrogate.predict(x)
 
 
 class HarmonicaDesigner(vza.Designer):
@@ -209,11 +248,13 @@ class HarmonicaDesigner(vza.Designer):
   and return it as a suggestion.
   """
 
-  def __init__(self,
-               problem_statement: vz.ProblemStatement,
-               harmonica_q: Optional[HarmonicaQ] = None,
-               acquisition_samples: int = 100,
-               num_init_samples: int = 10):
+  def __init__(
+      self,
+      problem_statement: vz.ProblemStatement,
+      harmonica_q: Optional[HarmonicaQ] = None,
+      acquisition_samples: int = 100,
+      num_init_samples: int = 10,
+  ):
     """Init.
 
     Args:
@@ -228,7 +269,8 @@ class HarmonicaDesigner(vza.Designer):
 
     if problem_statement.search_space.is_conditional:
       raise ValueError(
-          f'This designer {self} does not support conditional search.')
+          f'This designer {self} does not support conditional search.'
+      )
     for p_config in problem_statement.search_space.parameters:
       if p_config.external_type != vz.ExternalType.BOOLEAN:
         raise ValueError('Only boolean search spaces are supported.')
@@ -249,8 +291,9 @@ class HarmonicaDesigner(vza.Designer):
   ) -> None:
     self._trials += tuple(completed.trials)
 
-  def suggest(self,
-              count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
+  def suggest(
+      self, count: Optional[int] = None
+  ) -> Sequence[vz.TrialSuggestion]:
     """Performs entire q-stage Harmonica using previous trials for regression data.
 
     Args:
@@ -282,8 +325,10 @@ class HarmonicaDesigner(vza.Designer):
     X = np.array(X)
     Y = np.array(Y)
 
-    if self._problem_statement.metric_information.item(
-    ).goal == vz.ObjectiveMetricGoal.MINIMIZE:
+    if (
+        self._problem_statement.metric_information.item().goal
+        == vz.ObjectiveMetricGoal.MINIMIZE
+    ):
       Y = -Y
 
     # Perform q-stage Harmonica.
@@ -292,9 +337,10 @@ class HarmonicaDesigner(vza.Designer):
 
     # Optimize final acquisition function.
     # TODO: Allow any designer instead of just random search.
-    X_temp = np.random.choice([-1.0, 1.0],
-                              size=(self._acquisition_samples, self._num_vars))
-    Y_temp = np.array([self._harmonica_q.surrogate(x) for x in X_temp])
+    X_temp = np.random.choice(
+        [-1.0, 1.0], size=(self._acquisition_samples, self._num_vars)
+    )
+    Y_temp = np.array([self._harmonica_q.predict(x) for x in X_temp])
     x_new = X_temp[np.argmax(Y_temp)]
 
     parameters = vz.ParameterDict()
