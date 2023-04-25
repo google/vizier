@@ -45,8 +45,7 @@ def run_tune_distributed(
     List of results.
   """
   ds = data.from_items(run_tune_args_list)
-
-  ds.map_batches(run_tune)
+  ds = ds.map(lambda args_tuple: run_tune(*args_tuple))
   return ds.take_all()
 
 
