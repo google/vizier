@@ -35,6 +35,7 @@ ParameterType = trial.ParameterType
 
 class ScaleType(enum.Enum):
   """Valid Values for ParameterConfig.scale_type."""
+
   LINEAR = 'LINEAR'
   LOG = 'LOG'
   REVERSE_LOG = 'REVERSE_LOG'
@@ -53,26 +54,27 @@ MonotypeParameterList = Union[List[Union[int, float]], List[str]]
 def _validate_bounds(bounds: Union[Tuple[int, int], Tuple[float, float]]):
   """Validates the bounds."""
   if len(bounds) != 2:
-    raise ValueError('Bounds must have length 2. Given: {}'.format(bounds))
+    raise ValueError(f'Bounds must have length 2. Given: {bounds}')
   lower = bounds[0]
   upper = bounds[1]
   if not all([math.isfinite(v) for v in (lower, upper)]):
     raise ValueError(
-        'Both "lower" and "upper" must be finite. Given: (%f, %f)' %
-        (lower, upper))
+        f'Both "lower" and "upper" must be finite. Given: ({lower}, {upper})'
+    )
   if lower > upper:
     raise ValueError(
-        'Lower cannot be greater than upper: given lower={} upper={}'.format(
-            lower, upper))
+        f'Lower cannot be greater than upper: given lower={lower} upper={upper}'
+    )
 
 
 def _get_feasible_points_and_bounds(
-    feasible_values: Sequence[float]
+    feasible_values: Sequence[float],
 ) -> Tuple[List[float], Union[Tuple[int, int], Tuple[float, float]]]:
   """Validates and converts feasible values to floats."""
   if not all([math.isfinite(p) for p in feasible_values]):
-    raise ValueError('Feasible values must all be finite. Given: {}' %
-                     feasible_values)
+    raise ValueError(
+        f'Feasible values must all be finite. Given: {feasible_values}'
+    )
 
   feasible_points = list(sorted(feasible_values))
   bounds = (feasible_points[0], feasible_points[-1])
@@ -85,30 +87,36 @@ def _get_categories(categories: Sequence[str]) -> List[str]:
 
 
 def _get_default_value(
-    param_type: ParameterType,
-    default_value: Union[float, int, str]) -> Union[float, int, str]:
+    param_type: ParameterType, default_value: Union[float, int, str]
+) -> Union[float, int, str]:
   """Validates and converts the default_value to the right type."""
-  if (param_type in (ParameterType.DOUBLE, ParameterType.DISCRETE) and
-      (isinstance(default_value, float) or isinstance(default_value, int))):
+  if param_type in (ParameterType.DOUBLE, ParameterType.DISCRETE) and (
+      isinstance(default_value, float) or isinstance(default_value, int)
+  ):
     return float(default_value)
-  elif (param_type == ParameterType.INTEGER and
-        (isinstance(default_value, float) or isinstance(default_value, int))):
+  elif param_type == ParameterType.INTEGER and (
+      isinstance(default_value, float) or isinstance(default_value, int)
+  ):
     if isinstance(default_value, int):
       return default_value
     else:
       # Check if the float rounds nicely.
       default_int_value = round(default_value)
       if not math.isclose(default_value, default_int_value):
-        raise ValueError('default_value for an INTEGER parameter should be an '
-                         'integer, got float: [{}]'.format(default_value))
+        raise ValueError(
+            'default_value for an INTEGER parameter should be an '
+            f'integer, got float: [{default_value}]'
+        )
       return default_int_value
-  elif (param_type == ParameterType.CATEGORICAL and
-        isinstance(default_value, str)):
+  elif param_type == ParameterType.CATEGORICAL and isinstance(
+      default_value, str
+  ):
     return default_value
   raise ValueError(
-      'default_value has an incorrect type. ParameterType has type {}, '
-      'but default_value has type {}'.format(param_type.name,
-                                             type(default_value)))
+      'default_value has an incorrect type. '
+      f'ParameterType has type {param_type.name}, '
+      f'but default_value has type {type(default_value)}'
+  )
 
 
 #######################
@@ -134,6 +142,7 @@ class FidelityMode(enum.Enum):
     were separate Trials. Example: Fidelity is the number of total epochs
     to train on.
   """
+
   SEQUENTIAL = 'SEQUENTIAL'
   NOT_SEQUENTIAL = 'NOT_SEQUENTIAL'
   STEPS = 'STEPS'
@@ -143,7 +152,8 @@ class FidelityMode(enum.Enum):
 class FidelityConfig:
   mode: FidelityMode = attr.field(converter=FidelityMode)
   cost_ratio: Sequence[float] = attr.field(
-      converter=tuple, default=tuple(), kw_only=True)
+      converter=tuple, default=tuple(), kw_only=True
+  )
 
 
 ########################
@@ -158,46 +168,61 @@ class ParameterConfig:
   Please use ParameterConfig.factory() to create an instance instead of calling
   the constructor directly.
   """
+
   _name: str = attr.ib(
-      init=True, validator=attr.validators.instance_of(str), kw_only=True)
+      init=True, validator=attr.validators.instance_of(str), kw_only=True
+  )
   _type: ParameterType = attr.ib(
       init=True,
       validator=attr.validators.instance_of(ParameterType),
       repr=lambda v: v.name if v is not None else 'None',
-      kw_only=True)
+      kw_only=True,
+  )
   # Only one of _feasible_values, _bounds will be set at any given time.
   _bounds: Optional[Union[Tuple[int, int], Tuple[float, float]]] = attr.ib(
       init=True,
       validator=attr.validators.optional(
           attr.validators.deep_iterable(
               member_validator=attr.validators.instance_of((int, float)),
-              iterable_validator=attr.validators.instance_of(tuple))),
-      kw_only=True)
+              iterable_validator=attr.validators.instance_of(tuple),
+          )
+      ),
+      kw_only=True,
+  )
   _feasible_values: Optional[MonotypeParameterList] = attr.ib(
       init=True,
       validator=attr.validators.optional(
           attr.validators.deep_iterable(
               member_validator=attr.validators.instance_of((int, float, str)),
-              iterable_validator=attr.validators.instance_of((list, tuple)))),
-      kw_only=True)
+              iterable_validator=attr.validators.instance_of((list, tuple)),
+          )
+      ),
+      kw_only=True,
+  )
   _scale_type: Optional[ScaleType] = attr.ib(
       init=True,
       validator=attr.validators.optional(
-          attr.validators.instance_of(ScaleType)),
+          attr.validators.instance_of(ScaleType)
+      ),
       repr=lambda v: v.name if v is not None else 'None',
-      kw_only=True)
+      kw_only=True,
+  )
   _default_value: Optional[Union[float, int, str]] = attr.ib(
       init=True,
       validator=attr.validators.optional(
-          attr.validators.instance_of((float, int, str))),
-      kw_only=True)
+          attr.validators.instance_of((float, int, str))
+      ),
+      kw_only=True,
+  )
   _external_type: ExternalType = attr.ib(
       init=True,
       converter=lambda v: v or ExternalType.INTERNAL,
       validator=attr.validators.optional(
-          attr.validators.instance_of(ExternalType)),
+          attr.validators.instance_of(ExternalType)
+      ),
       repr=lambda v: v.name if v is not None else 'None',
-      kw_only=True)
+      kw_only=True,
+  )
 
   # TODO: Make this a defaultdict and public.
   _children: dict[Union[float, int, str, bool], 'SearchSpace'] = attr.ib(
@@ -205,11 +230,13 @@ class ParameterConfig:
       factory=dict,
       # For equality checks, drop any empty search spaces.
       eq=lambda d: {k: v for k, v in d.items() if v.parameters},
-      repr=lambda d: json.dumps(d, indent=2, default=repr))
+      repr=lambda d: json.dumps(d, indent=2, default=repr),
+  )
 
   # TODO: Deprecate this field.
   _matching_parent_values: MonotypeParameterSequence = attr.ib(
-      init=True, default=tuple(), kw_only=True, eq=False)
+      init=True, default=tuple(), kw_only=True, eq=False
+  )
 
   # Experimental feature.
   fidelity_config: Optional[FidelityConfig] = attr.ib(
@@ -228,12 +255,13 @@ class ParameterConfig:
       *,
       bounds: Optional[Union[Tuple[int, int], Tuple[float, float]]] = None,
       feasible_values: Optional[MonotypeParameterSequence] = None,
-      children: Optional[Sequence[Tuple[MonotypeParameterSequence,
-                                        'ParameterConfig']]] = None,
+      children: Optional[
+          Sequence[Tuple[MonotypeParameterSequence, 'ParameterConfig']]
+      ] = None,
       fidelity_config: Optional[FidelityConfig] = None,
       scale_type: Optional[ScaleType] = None,
       default_value: Optional[Union[float, int, str]] = None,
-      external_type: Optional[ExternalType] = ExternalType.INTERNAL
+      external_type: Optional[ExternalType] = ExternalType.INTERNAL,
   ) -> 'ParameterConfig':
     """Factory method.
 
@@ -271,25 +299,31 @@ class ParameterConfig:
       raise ValueError(
           'While creating Parameter with name={}: exactly one of '
           '"feasible_values" or "bounds" must be provided, but given '
-          'feasible_values={} and bounds={}.'.format(name, feasible_values,
-                                                     bounds))
+          'feasible_values={} and bounds={}.'.format(
+              name, feasible_values, bounds
+          )
+      )
     if feasible_values:
       if len(set(feasible_values)) != len(feasible_values):
         counter = collections.Counter(feasible_values)
         duplicate_dict = {k: v for k, v in counter.items() if v > 1}
         raise ValueError(
-            'Feasible values cannot have duplicates: {}'.format(duplicate_dict))
+            'Feasible values cannot have duplicates: {}'.format(duplicate_dict)
+        )
       if all(isinstance(v, (float, int)) for v in feasible_values):
         inferred_type = ParameterType.DISCRETE
         feasible_values, bounds = _get_feasible_points_and_bounds(
-            feasible_values)
+            feasible_values
+        )
       elif all(isinstance(v, str) for v in feasible_values):
         inferred_type = ParameterType.CATEGORICAL
         feasible_values = _get_categories(feasible_values)
       else:
         raise ValueError(
             'Feasible values must all be numeric or strings. Given {}'.format(
-                feasible_values))
+                feasible_values
+            )
+        )
     else:  # bounds were specified.
       if isinstance(bounds[0], int) and isinstance(bounds[1], int):
         inferred_type = ParameterType.INTEGER
@@ -299,7 +333,8 @@ class ParameterConfig:
         _validate_bounds(bounds)
       else:
         raise ValueError(
-            'Bounds must both be integers or doubles. Given: {}'.format(bounds))
+            'Bounds must both be integers or doubles. Given: {}'.format(bounds)
+        )
 
     if default_value is not None:
       default_value = _get_default_value(inferred_type, default_value)
@@ -312,7 +347,8 @@ class ParameterConfig:
         scale_type=scale_type,
         default_value=default_value,
         fidelity_config=fidelity_config,
-        external_type=external_type)
+        external_type=external_type,
+    )
     if children:
       pc = pc._add_children(children)
     return pc
@@ -337,8 +373,11 @@ class ParameterConfig:
   def bounds(self) -> Union[Tuple[float, float], Tuple[int, int]]:
     """Returns the bounds, if set, or raises a ValueError."""
     if self.type == ParameterType.CATEGORICAL:
-      raise ValueError('Accessing bounds of a categorical parameter: %s' %
-                       self.name)
+      raise ValueError(
+          'Accessing bounds of a categorical parameter: %s' % self.name
+      )
+    if self._bounds is None:
+      raise ValueError(f'Accessing bounds when not set for {self.name}')
     return self._bounds
 
   @property
@@ -437,9 +476,11 @@ class ParameterConfig:
 
     for child_pair in new_children:
       if len(child_pair) != 2:
-        raise ValueError('Each element in new_children must be a tuple of '
-                         '(Sequence of valid parent values,  ParameterConfig),'
-                         ' given: {}'.format(child_pair))
+        raise ValueError(
+            'Each element in new_children must be a tuple of '
+            '(Sequence of valid parent values,  ParameterConfig),'
+            ' given: {}'.format(child_pair)
+        )
 
     logging.debug('_add_children: new_children=%s', new_children)
     for unsorted_parent_values, child in new_children:
@@ -454,17 +495,24 @@ class ParameterConfig:
       return copy.deepcopy(self)
     elif not self.type.is_numeric():
       raise ValueError(
-          'Cannot convert a non-numeric parameter to DOUBLE: {}'.format(self))
+          'Cannot convert a non-numeric parameter to DOUBLE: {}'.format(self)
+      )
     elif list(self._child_parameter_configs):
       raise ValueError(
-          'Cannot convert a parent parameter to DOUBLE: {}'.format(self))
+          'Cannot convert a parent parameter to DOUBLE: {}'.format(self)
+      )
 
     scale_type = self.scale_type
     if scale_type == ScaleType.UNIFORM_DISCRETE:
       logging.log_every_n(
           logging.WARNING,
-          'Converting a UNIFORM_DISCRETE scaled discrete parameter '
-          'to DOUBLE: %s', 10, self)
+          (
+              'Converting a UNIFORM_DISCRETE scaled discrete parameter '
+              'to DOUBLE: %s'
+          ),
+          10,
+          self,
+      )
       scale_type = None
 
     default_value = self.default_value
@@ -474,11 +522,13 @@ class ParameterConfig:
         self.name,
         bounds=(float(self.bounds[0]), float(self.bounds[1])),
         scale_type=scale_type,
-        default_value=default_value)
+        default_value=default_value,
+    )
 
   @classmethod
-  def merge(cls, one: 'ParameterConfig',
-            other: 'ParameterConfig') -> 'ParameterConfig':
+  def merge(
+      cls, one: 'ParameterConfig', other: 'ParameterConfig'
+  ) -> 'ParameterConfig':
     """Merge two ParameterConfigs.
 
     Args:
@@ -497,34 +547,46 @@ class ParameterConfig:
     """
     if one.child_parameter_configs or other.child_parameter_configs:
       raise ValueError(
-          'Cannot merge parameters with child_parameter_configs: %s and %s' %
-          one, other)
+          'Cannot merge parameters with child_parameter_configs: %s and %s'
+          % one,
+          other,
+      )
     if one.type != other.type:
-      raise ValueError('Type conflicts between {} and {}'.format(
-          one.type.name, other.type.name))
+      raise ValueError(
+          'Type conflicts between {} and {}'.format(
+              one.type.name, other.type.name
+          )
+      )
     if one.scale_type != other.scale_type:
-      logging.warning('Scale type conflicts while merging %s and %s', one,
-                      other)
+      logging.warning(
+          'Scale type conflicts while merging %s and %s', one, other
+      )
 
     if one.type in (ParameterType.CATEGORICAL, ParameterType.DISCRETE):
       new_feasible_values = list(
-          set(one.feasible_values + other.feasible_values))
+          set(one.feasible_values + other.feasible_values)
+      )
       return ParameterConfig.factory(
           name=one.name,
           feasible_values=new_feasible_values,
-          scale_type=one.scale_type)
+          scale_type=one.scale_type,
+      )
     elif one.type in (ParameterType.INTEGER, ParameterType.DOUBLE):
       original_min, original_max = one.bounds
       other_min, other_max = other.bounds
       new_bounds = (min(original_min, other_min), max(original_max, other_max))
       return ParameterConfig.factory(
-          name=one.name, bounds=new_bounds, scale_type=one.scale_type)
-    raise ValueError('Unknown type {}. This is currently'
-                     'an unreachable code.'.format(one.type))
+          name=one.name, bounds=new_bounds, scale_type=one.scale_type
+      )
+    raise ValueError(
+        'Unknown type {}. This is currentlyan unreachable code.'.format(
+            one.type
+        )
+    )
 
   def traverse(
-      self,
-      show_children: bool = False) -> Generator['ParameterConfig', None, None]:
+      self, show_children: bool = False
+  ) -> Generator['ParameterConfig', None, None]:
     """DFS Generator for parameter configs.
 
     Args:
@@ -547,8 +609,8 @@ class ParameterConfig:
 
   # TODO: Rename to `validate_value or is_feasible`
   def contains(
-      self, value: Union[trial.ParameterValueTypes,
-                         trial.ParameterValue]) -> bool:
+      self, value: Union[trial.ParameterValueTypes, trial.ParameterValue]
+  ) -> bool:
     """Check if the `value` is a valid value for this parameter config."""
     if isinstance(value, trial.ParameterValue):
       # TODO: Extract the raw value.
@@ -570,15 +632,19 @@ class ParameterConfig:
 
   def _assert_bounds(self, value: trial.ParameterValueTypes) -> None:
     if not self.bounds[0] <= value <= self.bounds[1]:
-      raise ValueError(f'Parameter {self.name} has bounds: {self.bounds}. '
-                       f'Given: {value}')
+      raise ValueError(
+          f'Parameter {self.name} has bounds: {self.bounds}. Given: {value}'
+      )
 
-  def _assert_in_feasible_values(self,
-                                 value: trial.ParameterValueTypes) -> None:
+  def _assert_in_feasible_values(
+      self, value: trial.ParameterValueTypes
+  ) -> None:
     if value not in self._feasible_values:
-      raise ValueError(f'Parameter {self.name} has feasible values: '
-                       f'{self.feasible_values}. '
-                       f'Given: {value}')
+      raise ValueError(
+          f'Parameter {self.name} has feasible values: '
+          f'{self.feasible_values}. '
+          f'Given: {value}'
+      )
 
   def _assert_feasible(self, value: trial.ParameterValueTypes) -> None:
     """Asserts that the value is feasible for this parameter config.
@@ -595,7 +661,8 @@ class ParameterConfig:
       self.type.assert_correct_type(value)
     except TypeError as e:
       raise TypeError(
-          f'Parameter {self.name} is not compatible with value: {value}') from e
+          f'Parameter {self.name} is not compatible with value: {value}'
+      ) from e
 
     # TODO: We should be able to directly use "value" without
     # casting to the internal type.
@@ -610,7 +677,8 @@ class ParameterConfig:
       self._assert_in_feasible_values(value.as_str)
     else:
       raise RuntimeError(
-          f'Parameter {self.name} has unknown parameter type: {self.type}')
+          f'Parameter {self.name} has unknown parameter type: {self.type}'
+      )
 
   def get_subspace_deepcopy(self, value: ParameterValueTypes) -> 'SearchSpace':
     """Get a deep copy of the subspace.
@@ -663,8 +731,9 @@ class ParameterConfigSelector(Sized):
     else:
       self.__attrs_init__(tuple([selected]))
 
-  def select_values(self,
-                    values: MonotypeParameterSequence) -> 'SearchSpaceSelector':
+  def select_values(
+      self, values: MonotypeParameterSequence
+  ) -> 'SearchSpaceSelector':
     """Select values."""
     values = tuple(values)
 
@@ -708,14 +777,16 @@ class SearchSpaceSelector:
     else:
       self.__attrs_init__(tuple([selected]))
 
-  def add_float_param(self,
-                      name: str,
-                      min_value: float,
-                      max_value: float,
-                      *,
-                      default_value: Optional[float] = None,
-                      scale_type: Optional[ScaleType] = ScaleType.LINEAR,
-                      index: Optional[int] = None) -> 'ParameterConfigSelector':
+  def add_float_param(
+      self,
+      name: str,
+      min_value: float,
+      max_value: float,
+      *,
+      default_value: Optional[float] = None,
+      scale_type: Optional[ScaleType] = None,
+      index: Optional[int] = None,
+  ) -> 'ParameterConfigSelector':
     """Adds floating point parameter config(s) to the selected search space(s).
 
     Args:
@@ -736,6 +807,8 @@ class SearchSpaceSelector:
     Raises:
       ValueError: If `index` is invalid (e.g. negative).
     """
+    if scale_type is None:
+      scale_type = ScaleType.LINEAR
     bounds = (float(min_value), float(max_value))
     param_names = self._get_parameter_names_to_create(name=name, index=index)
 
@@ -745,7 +818,8 @@ class SearchSpaceSelector:
           name=param_name,
           bounds=bounds,
           scale_type=scale_type,
-          default_value=default_value)
+          default_value=default_value,
+      )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
 
@@ -782,12 +856,16 @@ class SearchSpaceSelector:
     """
     int_min_value = int(min_value)
     if not math.isclose(min_value, int_min_value):
-      raise ValueError('min_value for an INTEGER parameter should be an integer'
-                       ', got: [{}]'.format(min_value))
+      raise ValueError(
+          'min_value for an INTEGER parameter should be an integer'
+          ', got: [{}]'.format(min_value)
+      )
     int_max_value = int(max_value)
     if not math.isclose(max_value, int_max_value):
-      raise ValueError('max_value for an INTEGER parameter should be an integer'
-                       ', got: [{}]'.format(min_value))
+      raise ValueError(
+          'max_value for an INTEGER parameter should be an integer'
+          ', got: [{}]'.format(min_value)
+      )
     bounds = (int_min_value, int_max_value)
 
     param_names = self._get_parameter_names_to_create(name=name, index=index)
@@ -799,7 +877,8 @@ class SearchSpaceSelector:
           bounds=bounds,
           scale_type=scale_type,
           fidelity_config=experimental_fidelity_config,
-          default_value=default_value)
+          default_value=default_value,
+      )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
 
@@ -859,7 +938,8 @@ class SearchSpaceSelector:
           scale_type=scale_type,
           fidelity_config=experimental_fidelity_config,
           default_value=default_value,
-          external_type=external_type)
+          external_type=external_type,
+      )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
 
@@ -870,7 +950,8 @@ class SearchSpaceSelector:
       *,
       default_value: Optional[str] = None,
       scale_type: Optional[ScaleType] = None,
-      index: Optional[int] = None) -> 'ParameterConfigSelector':
+      index: Optional[int] = None,
+  ) -> 'ParameterConfigSelector':
     """Adds string-valued parameter config(s) to the selected search space(s).
 
     IMPORTANT: If a parameter is categorical, its values are assumed to be
@@ -900,17 +981,20 @@ class SearchSpaceSelector:
           name=param_name,
           feasible_values=sorted(feasible_values),
           scale_type=scale_type,
-          default_value=default_value)
+          default_value=default_value,
+      )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
 
-  def add_bool_param(self,
-                     name: str,
-                     feasible_values: Optional[Sequence[bool]] = None,
-                     *,
-                     default_value: Optional[bool] = None,
-                     scale_type: Optional[ScaleType] = None,
-                     index: Optional[int] = None) -> 'ParameterConfigSelector':
+  def add_bool_param(
+      self,
+      name: str,
+      feasible_values: Optional[Sequence[bool]] = None,
+      *,
+      default_value: Optional[bool] = None,
+      scale_type: Optional[ScaleType] = None,
+      index: Optional[int] = None,
+  ) -> 'ParameterConfigSelector':
     """Adds boolean-valued parameter config(s) to the selected search space(s).
 
     Args:
@@ -931,10 +1015,14 @@ class SearchSpaceSelector:
       ValueError: If `index` is invalid (e.g. negative).
     """
     allowed_values = (None, (True, False), (False, True), (True,), (False,))
-    if feasible_values is not None and tuple(
-        feasible_values) not in allowed_values:
-      raise ValueError('feasible_values must be one of %s; got: %s.' %
-                       (allowed_values, feasible_values))
+    if (
+        feasible_values is not None
+        and tuple(feasible_values) not in allowed_values
+    ):
+      raise ValueError(
+          'feasible_values must be one of %s; got: %s.'
+          % (allowed_values, feasible_values)
+      )
     # Boolean parameters are represented as categorical parameters internally.
     bool_to_string = lambda x: trial.TRUE_VALUE if x else trial.FALSE_VALUE
     if feasible_values is None:
@@ -955,7 +1043,8 @@ class SearchSpaceSelector:
           feasible_values=sorted(feasible_values),
           scale_type=scale_type,
           default_value=default_value,
-          external_type=ExternalType.BOOLEAN)
+          external_type=ExternalType.BOOLEAN,
+      )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
 
@@ -969,13 +1058,15 @@ class SearchSpaceSelector:
 
   @overload
   def select(
-      self, parameter_name: str,
-      parameter_values: MonotypeParameterSequence) -> 'SearchSpaceSelector':
+      self, parameter_name: str, parameter_values: MonotypeParameterSequence
+  ) -> 'SearchSpaceSelector':
     ...
 
-  def select(self,
-             parameter_name,
-             parameter_values: Optional[MonotypeParameterSequence] = None):
+  def select(
+      self,
+      parameter_name,
+      parameter_values: Optional[MonotypeParameterSequence] = None,
+  ):
     """Selects a parameter config or its subspace.
 
     This method is for constructing a _conditional_ search space.
@@ -1029,11 +1120,13 @@ class SearchSpaceSelector:
       return SearchSpaceSelector(selected_spaces)
 
   @classmethod
-  def _get_parameter_names_to_create(cls,
-                                     *,
-                                     name: str,
-                                     length: Optional[int] = None,
-                                     index: Optional[int] = None) -> List[str]:
+  def _get_parameter_names_to_create(
+      cls,
+      *,
+      name: str,
+      length: Optional[int] = None,
+      index: Optional[int] = None,
+  ) -> List[str]:
     """Returns the names of all parameters which should be created.
 
     Args:
@@ -1053,8 +1146,10 @@ class SearchSpaceSelector:
       ValueError: If `length` or `index` are invalid.
     """
     if length is not None and index is not None:
-      raise ValueError('Only one of `length` and `index` can be specified. Got'
-                       ' length={}, index={}'.format(length, index))
+      raise ValueError(
+          'Only one of `length` and `index` can be specified. Got'
+          ' length={}, index={}'.format(length, index)
+      )
     if length is not None and length < 1:
       raise ValueError('length must be >= 1. Got length={}'.format(length))
     if index is not None and index < 0:
@@ -1082,7 +1177,8 @@ class SearchSpaceSelector:
 
   @classmethod
   def parse_multi_dimensional_parameter_name(
-      cls, name: str) -> Optional[Tuple[str, int]]:
+      cls, name: str
+  ) -> Optional[Tuple[str, int]]:
     """Returns the base name for a multi-dimensional parameter name.
 
     Args:
@@ -1102,7 +1198,8 @@ class SearchSpaceSelector:
 
   # TODO: Add def extend(space: SearchSpace)
   def _add_parameters(
-      self, parameters: List[ParameterConfig]) -> ParameterConfigSelector:
+      self, parameters: List[ParameterConfig]
+  ) -> ParameterConfigSelector:
     """Adds deepcopy of the ParameterConfigs.
 
     Args:
@@ -1111,8 +1208,11 @@ class SearchSpaceSelector:
     Returns:
       A list of SearchSpaceSelectors, one for each parameters added.
     """
-    logging.info('Adding child parameters %s to %s subspaces ',
-                 set(p.name for p in parameters), len(self._selected))
+    logging.info(
+        'Adding child parameters %s to %s subspaces ',
+        set(p.name for p in parameters),
+        len(self._selected),
+    )
     added = []
     for parameter in parameters:
       for selected in self._selected:
@@ -1132,12 +1232,15 @@ class SearchSpace:
   Attribute:
     _parameter_configs: Maps parameter names to configs.
   """
+
   _parameter_configs: dict[str, ParameterConfig] = attr.field(
-      init=False, factory=dict)
+      init=False, factory=dict
+  )
 
   # TODO: To be deprecated.
   _parent_values: MonotypeParameterSequence = attr.field(
-      default=tuple(), converter=tuple, kw_only=True)
+      default=tuple(), converter=tuple, kw_only=True
+  )
 
   @property
   def parameter_names(self) -> AbstractSet[str]:
@@ -1151,11 +1254,9 @@ class SearchSpace:
   def pop(self, name: str) -> ParameterConfig:
     return self._parameter_configs.pop(name)
 
-  def add(self,
-          parameter_config: ParameterConfig,
-         
-          *,
-          replace: bool = False) -> ParameterConfig:
+  def add(
+      self, parameter_config: ParameterConfig, *, replace: bool = False
+  ) -> ParameterConfig:
     """Adds the ParameterConfig.
 
     For advanced users only. Takes a reference to Parameterconfig.
@@ -1176,7 +1277,8 @@ class SearchSpace:
       raise ValueError(
           f'Duplicate name: {parameter_config.name} already exists.\n'
           f'Existing config: {parameter_config}\n'
-          f'New config:{parameter_config}')
+          f'New config:{parameter_config}'
+      )
 
     self._parameter_configs[name] = parameter_config
     return parameter_config
@@ -1241,7 +1343,8 @@ class SearchSpace:
         raise InvalidParameterError(f'{pc.name} is missing in {parameters}.')
       elif not pc.contains(parameters[pc.name]):
         raise InvalidParameterError(
-            f'{parameters[pc.name]} is not feasible in {pc}')
+            f'{parameters[pc.name]} is not feasible in {pc}'
+        )
     return True
 
   def num_parameters(self, param_type: Optional[ParameterType] = None) -> int:
