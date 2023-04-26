@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Running Ray Tuners: https://docs.ray.io/en/latest/ray-air/tuner.html."""
 
-from typing import Any, Callable, Optional, List, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 from ray import air
@@ -84,10 +84,21 @@ def run_tune_bbob(
   param_space = converters.SearchSpaceConverter.to_dict(problem.search_space)
   objective = converters.ExperimenterConverter.to_callable(experimenter)
 
-  def objective_fn(config: pyvizier.ParameterDict):
-    # Config contains parameter names to values.
-    result_dict = objective(config)
-    air.session.report(result_dict)
+  metric_info = problem.metric_information.item()
+  if tune_config is None:
+    tune_config = tune.TuneConfig()
+  tune_config.metric = metric_info.name
+  if metric_info.goal == pyvizier.ObjectiveMetricGoal.MINIMIZE:
+    tune_config.mode = 'min'
+  else:
+    tune_config.mode = 'max'
+
+  def objective_fn(config: pyvizier.ParameterDict) -> None:
+    # Config contains parameter names to values and is autopopulated for each
+    # Trial. Evaluation is static for BBOB so we simply loop.
+    for _ in range(tune_config.num_samples):
+      result_dict = objective(config)
+      air.session.report(result_dict)
 
   tuner = tune.Tuner(
       objective_fn,

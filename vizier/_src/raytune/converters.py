@@ -67,6 +67,6 @@ class ExperimenterConverter:
       experimenter.evaluate([trial])
       if trial.final_measurement is None:
         raise ValueError(f'No final_measurement on trial{trial.id}')
-      return dict(trial.final_measurement.metrics)
+      return {k: v.value for k, v in trial.final_measurement.metrics.items()}
 
     return trainable

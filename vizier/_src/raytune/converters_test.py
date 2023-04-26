@@ -52,6 +52,18 @@ class ConvertersTest(absltest.TestCase):
     tuner.fit()
     self.assertLen(tuner.get_results(), 10)
 
+  def test_conversion(self):
+    dim = 2
+    bbob_factory = experimenters.BBOBExperimenterFactory(name='Sphere', dim=dim)
+    exptr = bbob_factory()
+    search_space = exptr.problem_statement().search_space
+    param_space = converters.SearchSpaceConverter.to_dict(search_space)
+    trainable = converters.ExperimenterConverter.to_callable(exptr)
+
+    config = {k: 1.5 for k in param_space.keys()}
+    output_dict = trainable(config)
+    self.assertEqual(type(output_dict['bbob_eval']), float)
+
   def test_run_study_with_experimenter(self):
     dim = 4
     bbob_factory = experimenters.BBOBExperimenterFactory(name='Sphere', dim=dim)
