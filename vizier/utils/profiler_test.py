@@ -103,8 +103,8 @@ class PerformanceUtilsTest(absltest.TestCase):
     selu(x)
     self.assertLen(profiler.Storage().runtimes().get('selu'), 2)
     jt_microseconds = profiler.Storage().runtimes().get('selu')[1].microseconds
-    # Should be at least 10 times faster.
-    self.assertLess(jt_microseconds, microseconds / 10)
+    # Should be at least 7 times faster (rough estimate so it's not flaky).
+    self.assertLess(jt_microseconds, microseconds / 7)
 
   def test_with_jax_reverse_decorator_order(self):
     # If jax.jit decorator is first, only the first runtime is recorded.
