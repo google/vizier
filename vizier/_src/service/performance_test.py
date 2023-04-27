@@ -20,9 +20,9 @@ import multiprocessing.pool
 import time
 from absl import logging
 
+from vizier._src.service import vizier_client
 from vizier.benchmarks import experimenters
 from vizier.service import pyvizier
-from vizier.service import vizier_client
 from vizier.service import vizier_server
 
 from absl.testing import absltest

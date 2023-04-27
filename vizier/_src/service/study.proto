@@ -348,7 +348,6 @@ message StudySpec {
   // See pyvizier.Algorithm for a list of native Vizier algorithms.
   string algorithm = 3;
 
-
   // Use the deault early stopping policy.
   reserved 4, 5, 8;
   message DefaultEarlyStoppingSpec {}

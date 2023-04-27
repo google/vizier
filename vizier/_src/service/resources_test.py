@@ -16,9 +16,9 @@ from __future__ import annotations
 
 """Tests for vizier.service.resources."""
 
-from vizier.service import resources
-from vizier.service import study_pb2
-from vizier.service.testing import util as test_util
+from vizier._src.service import resources
+from vizier._src.service import study_pb2
+from vizier._src.service.testing import util as test_util
 
 from absl.testing import absltest
 from absl.testing import parameterized

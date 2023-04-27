@@ -21,8 +21,8 @@ from typing import Optional
 from absl import logging
 import grpc
 
-from vizier.service import pythia_service_pb2_grpc
-from vizier.service import vizier_service_pb2_grpc
+from vizier._src.service import pythia_service_pb2_grpc
+from vizier._src.service import vizier_service_pb2_grpc
 
 
 def _create_channel(

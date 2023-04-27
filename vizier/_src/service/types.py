@@ -17,8 +17,8 @@ from __future__ import annotations
 """Convenient types library for the /service/ folder."""
 from typing import Union
 
-from vizier.service import pythia_service_pb2_grpc
-from vizier.service import vizier_service_pb2_grpc
+from vizier._src.service import pythia_service_pb2_grpc
+from vizier._src.service import vizier_service_pb2_grpc
 
 # PythiaService and VizierService aliases allow us to use either a gRPC stub or
 # the actual gRPC servicer implementation (for local setup) interchangeably.

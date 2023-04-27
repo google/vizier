@@ -24,9 +24,9 @@ from vizier import pyvizier as vz
 from vizier._src.pythia import policy
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.pythia import study
-from vizier.service import pythia_service_pb2
-from vizier.service import study_pb2
-from vizier.service import vizier_service_pb2
+from vizier._src.service import pythia_service_pb2
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_service_pb2
 
 ScaleType = vz.ScaleType
 _ScaleTypePb2 = study_pb2.StudySpec.ParameterSpec.ScaleType

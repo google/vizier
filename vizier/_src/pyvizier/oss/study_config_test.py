@@ -17,10 +17,10 @@ from __future__ import annotations
 """Tests for vizier.pyvizier.oss.study_config."""
 import datetime
 
+from vizier._src.service import key_value_pb2
+from vizier._src.service import study_pb2
 from vizier.service import constants
-from vizier.service import key_value_pb2
 from vizier.service import pyvizier as vz
-from vizier.service import study_pb2
 
 from google.protobuf import struct_pb2
 from vizier._src.pyvizier.oss import compare

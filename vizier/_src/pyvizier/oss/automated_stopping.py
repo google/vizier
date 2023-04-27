@@ -18,7 +18,7 @@ from __future__ import annotations
 import copy
 
 import attr
-from vizier.service import study_pb2
+from vizier._src.service import study_pb2
 
 # When new early stopping config protos are added, include them below
 # with a Union[]

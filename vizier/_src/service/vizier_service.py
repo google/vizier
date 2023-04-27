@@ -27,20 +27,20 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.service import custom_errors
+from vizier._src.service import datastore
+from vizier._src.service import grpc_util
+from vizier._src.service import pythia_service
+from vizier._src.service import resources
+from vizier._src.service import sql_datastore
+from vizier._src.service import stubs_util
+from vizier._src.service import study_pb2
+from vizier._src.service import types
+from vizier._src.service import vizier_oss_pb2
+from vizier._src.service import vizier_service_pb2
+from vizier._src.service import vizier_service_pb2_grpc
 from vizier.service import constants
-from vizier.service import custom_errors
-from vizier.service import datastore
-from vizier.service import grpc_util
-from vizier.service import pythia_service
 from vizier.service import pyvizier as svz
-from vizier.service import resources
-from vizier.service import sql_datastore
-from vizier.service import stubs_util
-from vizier.service import study_pb2
-from vizier.service import types
-from vizier.service import vizier_oss_pb2
-from vizier.service import vizier_service_pb2
-from vizier.service import vizier_service_pb2_grpc
 
 from google.longrunning import operations_pb2
 from google.protobuf import empty_pb2

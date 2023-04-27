@@ -17,9 +17,9 @@ from __future__ import annotations
 """Tests for sql_datastore."""
 import sqlalchemy as sqla
 
-from vizier.service import datastore_test_lib
-from vizier.service import sql_datastore
-from vizier.service.testing import util as test_util
+from vizier._src.service import datastore_test_lib
+from vizier._src.service import sql_datastore
+from vizier._src.service.testing import util as test_util
 from absl.testing import absltest
 
 

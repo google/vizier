@@ -26,14 +26,15 @@ import time
 import attr
 import grpc
 import portpicker
+
+from vizier._src.service import datastore
+from vizier._src.service import policy_factory as policy_factory_lib
+from vizier._src.service import pythia_service
+from vizier._src.service import pythia_service_pb2_grpc
+from vizier._src.service import stubs_util
+from vizier._src.service import vizier_service
+from vizier._src.service import vizier_service_pb2_grpc
 from vizier.service import constants
-from vizier.service import datastore
-from vizier.service import policy_factory as policy_factory_lib
-from vizier.service import pythia_service
-from vizier.service import pythia_service_pb2_grpc
-from vizier.service import stubs_util
-from vizier.service import vizier_service
-from vizier.service import vizier_service_pb2_grpc
 
 
 @attr.define

@@ -24,13 +24,13 @@ from __future__ import annotations
 from typing import List
 from absl import logging
 
+from vizier._src.service import resources
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_client
+from vizier._src.service import vizier_service_pb2_grpc
 from vizier.service import constants
 from vizier.service import pyvizier
-from vizier.service import resources
-from vizier.service import study_pb2
-from vizier.service import vizier_client
 from vizier.service import vizier_server
-from vizier.service import vizier_service_pb2_grpc
 
 from absl.testing import absltest
 from absl.testing import parameterized

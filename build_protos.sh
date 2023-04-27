@@ -29,7 +29,7 @@ TMPDIR=$(mktemp -d)
 (cd "$TMPDIR"
   wget https://github.com/googleapis/googleapis/archive/master.tar.gz
   tar xzf master.tar.gz
-  cp -r googleapis-master/google $THIS_DIR/vizier/service/
+  cp -r googleapis-master/google $THIS_DIR/vizier/_src/service/
 )
 rm -rf "$TMPDIR"
 
@@ -39,9 +39,9 @@ rm -rf "$TMPDIR"
 for proto_name in *.proto
 do
   python3 -m grpc_tools.protoc \
-    --python_out=vizier/service \
-    --grpc_python_out=vizier/service \
-    --proto_path=vizier/service \
+    --python_out=vizier/_src/service \
+    --grpc_python_out=vizier/_src/service \
+    --proto_path=vizier/_src/service \
     --experimental_allow_proto3_optional \
-    vizier/service/$proto_name
+    vizier/_src/service/$proto_name
 done

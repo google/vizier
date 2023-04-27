@@ -20,12 +20,12 @@ from __future__ import annotations
 import datetime
 import time
 import grpc
-from vizier.service import key_value_pb2
-from vizier.service import resources
-from vizier.service import study_pb2
-from vizier.service import vizier_service
-from vizier.service import vizier_service_pb2
-from vizier.service.testing import util as test_util
+from vizier._src.service import key_value_pb2
+from vizier._src.service import resources
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_service
+from vizier._src.service import vizier_service_pb2
+from vizier._src.service.testing import util as test_util
 
 from google.longrunning import operations_pb2
 

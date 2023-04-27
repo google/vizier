@@ -15,12 +15,12 @@
 from __future__ import annotations
 
 """Tests for vizier.service.service_policy_supporter."""
+from vizier._src.service import resources
+from vizier._src.service import service_policy_supporter
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_service
+from vizier._src.service.testing import util as test_util
 from vizier.service import pyvizier
-from vizier.service import resources
-from vizier.service import service_policy_supporter
-from vizier.service import study_pb2
-from vizier.service import vizier_service
-from vizier.service.testing import util as test_util
 
 from absl.testing import absltest
 

@@ -26,12 +26,12 @@ import threading
 from typing import Callable, DefaultDict, Dict, Iterable, List, Optional, Tuple
 from absl import logging
 
-from vizier.service import custom_errors
-from vizier.service import key_value_pb2
-from vizier.service import resources
-from vizier.service import study_pb2
-from vizier.service import vizier_oss_pb2
-from vizier.service import vizier_service_pb2
+from vizier._src.service import custom_errors
+from vizier._src.service import key_value_pb2
+from vizier._src.service import resources
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_oss_pb2
+from vizier._src.service import vizier_service_pb2
 from google.longrunning import operations_pb2
 
 UnitMetadataUpdate = vizier_service_pb2.UnitMetadataUpdate

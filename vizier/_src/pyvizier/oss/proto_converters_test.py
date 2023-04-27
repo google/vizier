@@ -24,7 +24,7 @@ from vizier._src.pyvizier.oss import proto_converters
 from vizier._src.pyvizier.pythia import study
 from vizier._src.pyvizier.shared import parameter_config as pc
 from vizier._src.pyvizier.shared import trial
-from vizier.service import study_pb2
+from vizier._src.service import study_pb2
 
 from google.protobuf import struct_pb2
 from google.protobuf import wrappers_pb2

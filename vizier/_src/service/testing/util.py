@@ -17,9 +17,9 @@ from __future__ import annotations
 """Below contain utilities for writing tests to reduce code duplication."""
 from typing import List, Sequence
 
-from vizier.service import resources
-from vizier.service import study_pb2
-from vizier.service import vizier_oss_pb2
+from vizier._src.service import resources
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_oss_pb2
 
 from google.longrunning import operations_pb2
 
@@ -112,8 +112,11 @@ def generate_all_four_parameter_specs(**study_spec_kwargs
   integer_parameter_spec = study_pb2.StudySpec.ParameterSpec(
       parameter_id='num_layers', integer_value_spec=integer_value_spec)
 
-  categorical_value_spec = study_pb2.StudySpec.ParameterSpec.CategoricalValueSpec(
-      values=['relu', 'sigmoid'])
+  categorical_value_spec = (
+      study_pb2.StudySpec.ParameterSpec.CategoricalValueSpec(
+          values=['relu', 'sigmoid']
+      )
+  )
   categorical_parameter_spec = study_pb2.StudySpec.ParameterSpec(
       parameter_id='nonlinearity',
       categorical_value_spec=categorical_value_spec)

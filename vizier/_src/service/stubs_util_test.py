@@ -17,7 +17,7 @@ from __future__ import annotations
 """Tests for vizier.service.stubs_util."""
 
 import grpc
-from vizier.service import stubs_util
+from vizier._src.service import stubs_util
 from absl.testing import absltest
 from absl.testing import parameterized
 

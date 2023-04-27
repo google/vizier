@@ -15,10 +15,10 @@
 from __future__ import annotations
 
 """Tests for vizier.service.datastore."""
-from vizier.service import datastore
-from vizier.service import datastore_test_lib
-from vizier.service import vizier_service_pb2
-from vizier.service.testing import util as test_util
+from vizier._src.service import datastore
+from vizier._src.service import datastore_test_lib
+from vizier._src.service import vizier_service_pb2
+from vizier._src.service.testing import util as test_util
 
 from absl.testing import absltest
 

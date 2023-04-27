@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Optional
 import grpc
-from vizier.service import custom_errors
+from vizier._src.service import custom_errors
 
 
 # TODO: Create a type Union[_InactiveRpcError, LocalRpcError]

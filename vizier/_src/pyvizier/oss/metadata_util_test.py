@@ -17,7 +17,7 @@ from __future__ import annotations
 """Tests for vizier.pyvizier.oss.metadata_util."""
 
 from vizier._src.pyvizier.oss import metadata_util
-from vizier.service import study_pb2
+from vizier._src.service import study_pb2
 
 from absl.testing import absltest
 

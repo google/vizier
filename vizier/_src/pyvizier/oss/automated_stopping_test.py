@@ -17,7 +17,7 @@ from __future__ import annotations
 """Tests for automated_stopping."""
 
 from vizier._src.pyvizier.oss import automated_stopping
-from vizier.service import study_pb2
+from vizier._src.service import study_pb2
 from vizier._src.pyvizier.oss import compare
 from absl.testing import absltest
 

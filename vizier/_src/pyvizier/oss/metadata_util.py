@@ -20,9 +20,9 @@ from typing import Iterable, Optional, Tuple, Type, TypeVar, Union
 
 from vizier._src.pyvizier.shared import common
 from vizier._src.pyvizier.shared import trial
-from vizier.service import key_value_pb2
-from vizier.service import study_pb2
-from vizier.service import vizier_service_pb2
+from vizier._src.service import key_value_pb2
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_service_pb2
 from google.protobuf import any_pb2
 from google.protobuf.message import Message
 

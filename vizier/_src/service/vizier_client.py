@@ -29,14 +29,14 @@ from absl import logging
 import attr
 import grpc
 
+from vizier._src.service import resources
+from vizier._src.service import stubs_util
+from vizier._src.service import study_pb2
+from vizier._src.service import types
+from vizier._src.service import vizier_service_pb2
+from vizier._src.service import vizier_service_pb2_grpc
 from vizier.service import constants
 from vizier.service import pyvizier
-from vizier.service import resources
-from vizier.service import stubs_util
-from vizier.service import study_pb2
-from vizier.service import types
-from vizier.service import vizier_service_pb2
-from vizier.service import vizier_service_pb2_grpc
 from vizier.utils import attrs_utils
 
 from google.longrunning import operations_pb2
@@ -60,7 +60,7 @@ FLAGS = flags.FLAGS
 def _create_local_vizier_servicer() -> (
     vizier_service_pb2_grpc.VizierServiceServicer
 ):
-  from vizier.service import vizier_service  # pylint:disable=g-import-not-at-top
+  from vizier._src.service import vizier_service  # pylint:disable=g-import-not-at-top
 
   return vizier_service.VizierServicer()
 

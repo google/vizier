@@ -23,9 +23,9 @@ from typing import Iterable, List, Optional
 
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.service import types
+from vizier._src.service import vizier_service_pb2
 from vizier.service import pyvizier
-from vizier.service import types
-from vizier.service import vizier_service_pb2
 
 
 # TODO: Consider replacing protos with Pyvizier clients.py.

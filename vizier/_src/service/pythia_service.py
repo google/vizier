@@ -20,13 +20,13 @@ from absl import logging
 import attr
 import grpc
 
-from vizier.service import policy_factory as policy_factory_lib
-from vizier.service import pythia_service_pb2
-from vizier.service import pythia_service_pb2_grpc
+from vizier._src.service import policy_factory as policy_factory_lib
+from vizier._src.service import pythia_service_pb2
+from vizier._src.service import pythia_service_pb2_grpc
+from vizier._src.service import service_policy_supporter
+from vizier._src.service import stubs_util
+from vizier._src.service import types
 from vizier.service import pyvizier as vz
-from vizier.service import service_policy_supporter
-from vizier.service import stubs_util
-from vizier.service import types
 
 from google.protobuf import empty_pb2
 
