@@ -98,6 +98,26 @@ class EI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
+@attr.define
+class QEI(AcquisitionFunction):
+  """Sampling-based batch expected improvement."""
+
+  num_samples: int = attr.field(default=100)
+  seed: Optional[jax.random.KeyArray] = attr.field(default=None)
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
+    del features
+    seed = self.seed or jax.random.PRNGKey(0)
+    return tfp_bo.acquisition.ParallelExpectedImprovement(
+        dist, labels, seed=seed, num_samples=self.num_samples
+    )()
+
+
 # TODO: Support discretes and categoricals.
 # TODO: Support custom distances.
 class TrustRegion:
