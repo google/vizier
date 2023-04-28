@@ -32,6 +32,8 @@ from vizier._src.pyglove import algorithms
 from vizier._src.pyglove import backend
 from vizier._src.pyglove import client
 from vizier._src.pyglove import converters
+from vizier._src.service import clients as pyvizier_clients
+from vizier._src.service import constants
 from vizier._src.service import policy_factory as policy_factory_lib
 from vizier._src.service import pythia_service
 from vizier._src.service import pythia_service_pb2_grpc
@@ -41,8 +43,6 @@ from vizier._src.service import stubs_util
 from vizier._src.service import types as vizier_types
 from vizier._src.service import vizier_client
 from vizier.client import client_abc
-from vizier.service import clients as pyvizier_clients
-from vizier.service import constants
 from vizier.service import pyvizier as svz
 
 from google.protobuf import empty_pb2

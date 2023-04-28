@@ -23,7 +23,7 @@ from absl import logging
 import pyglove as pg
 
 from vizier._src.pyglove import oss_vizier as vizier
-from vizier.service import vizier_server
+from vizier._src.service import vizier_server
 
 from absl.testing import absltest
 from absl.testing import parameterized

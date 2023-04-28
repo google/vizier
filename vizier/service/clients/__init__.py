@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
-"""General modules used throughout the service."""
-from vizier._src.service.constants import NO_ENDPOINT
-from vizier._src.service.constants import SQL_MEMORY_URL
+"""OSS Client API."""
+from vizier._src.service.clients import environment_variables
+from vizier._src.service.clients import Study
+from vizier._src.service.clients import Trial
+from vizier._src.service.clients import TrialIterable

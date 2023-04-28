@@ -27,6 +27,7 @@ import attr
 import grpc
 import portpicker
 
+from vizier._src.service import constants
 from vizier._src.service import datastore
 from vizier._src.service import policy_factory as policy_factory_lib
 from vizier._src.service import pythia_service
@@ -34,7 +35,6 @@ from vizier._src.service import pythia_service_pb2_grpc
 from vizier._src.service import stubs_util
 from vizier._src.service import vizier_service
 from vizier._src.service import vizier_service_pb2_grpc
-from vizier.service import constants
 
 
 @attr.define
@@ -52,7 +52,7 @@ class DefaultVizierServer:
       init=True, factory=policy_factory_lib.DefaultPolicyFactory, kw_only=True
   )
   _early_stop_recycle_period: datetime.timedelta = attr.field(
-      init=False, default=datetime.timedelta(seconds=0.1)
+      init=True, default=datetime.timedelta(seconds=0.1), kw_only=True
   )
   _port: int = attr.field(init=False, factory=portpicker.pick_unused_port)
   _servicer: vizier_service.VizierServicer = attr.field(init=False)
@@ -93,7 +93,12 @@ class DefaultVizierServer:
 
 @attr.define
 class DistributedPythiaVizierServer(DefaultVizierServer):
-  """Separates Pythia from Vizier via over-the-wire distributed communication."""
+  """Separates Pythia from Vizier via over-the-wire distributed communication.
+
+  This is for testing / demonstration purposes only, as in normal use-cases, the
+  Pythia server should actually be created in a separate process from the Vizier
+  server.
+  """
 
   _pythia_port: int = attr.field(
       init=False, factory=portpicker.pick_unused_port

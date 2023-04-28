@@ -21,10 +21,10 @@ from __future__ import annotations
 from typing import Any, Callable, Iterable, Iterator, List, Mapping, Optional, Type
 import attr
 
+from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import vizier_client
 from vizier.client import client_abc
-from vizier.service import constants
 from vizier.service import pyvizier as vz
 
 # Redeclared so users do not have to also import client_abc and clients.py.

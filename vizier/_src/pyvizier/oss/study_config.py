@@ -38,8 +38,8 @@ from vizier import pyvizier as vz
 from vizier._src.pyvizier.oss import automated_stopping
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.oss import proto_converters
+from vizier._src.service import constants
 from vizier._src.service import study_pb2
-from vizier.service import constants
 
 ################### PyTypes ###################
 # Possible types for trial parameter values after cast to external types.

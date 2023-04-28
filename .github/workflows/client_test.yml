@@ -42,4 +42,4 @@ jobs:
           pip freeze
       - name: Check OSS Client import.
         run: |
-          python vizier/service/clients.py
+          python vizier/service/clients/__init__.py

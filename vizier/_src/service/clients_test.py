@@ -16,11 +16,11 @@ from __future__ import annotations
 
 """Tests for clients."""
 from absl import logging
+from vizier._src.service import clients
+from vizier._src.service import constants
+from vizier._src.service import vizier_server
 from vizier.client import client_abc_testing
-from vizier.service import clients
-from vizier.service import constants
 from vizier.service import pyvizier as vz
-from vizier.service import vizier_server
 
 from absl.testing import absltest
 

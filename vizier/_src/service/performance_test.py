@@ -21,9 +21,9 @@ import time
 from absl import logging
 
 from vizier._src.service import vizier_client
+from vizier._src.service import vizier_server
 from vizier.benchmarks import experimenters
 from vizier.service import pyvizier
-from vizier.service import vizier_server
 
 from absl.testing import absltest
 from absl.testing import parameterized

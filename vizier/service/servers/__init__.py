@@ -14,6 +14,6 @@
 
 from __future__ import annotations
 
-"""General modules used throughout the service."""
-from vizier._src.service.constants import NO_ENDPOINT
-from vizier._src.service.constants import SQL_MEMORY_URL
+"""Different servers for the user."""
+from vizier._src.service.vizier_server import DefaultVizierServer
+from vizier._src.service.vizier_server import DistributedPythiaVizierServer

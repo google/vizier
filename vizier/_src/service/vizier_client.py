@@ -29,13 +29,13 @@ from absl import logging
 import attr
 import grpc
 
+from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import stubs_util
 from vizier._src.service import study_pb2
 from vizier._src.service import types
 from vizier._src.service import vizier_service_pb2
 from vizier._src.service import vizier_service_pb2_grpc
-from vizier.service import constants
 from vizier.service import pyvizier
 from vizier.utils import attrs_utils
 

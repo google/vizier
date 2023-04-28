@@ -14,6 +14,9 @@
 
 from __future__ import annotations
 
-"""General modules used throughout the service."""
-from vizier._src.service.constants import NO_ENDPOINT
-from vizier._src.service.constants import SQL_MEMORY_URL
+"""All protos used in the service."""
+from vizier._src.service import key_value_pb2
+from vizier._src.service import pythia_service_pb2
+from vizier._src.service import study_pb2
+from vizier._src.service import vizier_oss_pb2
+from vizier._src.service import vizier_service_pb2
