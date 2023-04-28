@@ -29,7 +29,7 @@ class BenchmarkStateAnalyzer:
   def to_curve(
       cls,
       states: List[benchmark_state.BenchmarkState],
-      flip_signs: bool = False,
+      flip_signs_for_min: bool = False,
   ) -> convergence_curve.ConvergenceCurve:
     """Generates a ConvergenceCurve from a batch of BenchmarkStates.
 
@@ -37,7 +37,8 @@ class BenchmarkStateAnalyzer:
 
     Args:
       states: List of BenchmarkStates.
-      flip_signs: If true, flip signs of curve when it is MINIMIZE metric.
+      flip_signs_for_min: If true, flip signs of curve when it is MINIMIZE
+        metric.
 
     Returns:
       Convergence curve with batch size equal to length of states.
@@ -53,7 +54,8 @@ class BenchmarkStateAnalyzer:
       raise ValueError('Multiobjective Conversion not supported yet.')
 
     converter = convergence_curve.ConvergenceCurveConverter(
-        problem_statement.metric_information.item(), flip_signs=flip_signs
+        problem_statement.metric_information.item(),
+        flip_signs_for_min=flip_signs_for_min,
     )
     curves = []
     for state in states:
