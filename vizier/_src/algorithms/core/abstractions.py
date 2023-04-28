@@ -21,6 +21,7 @@ from typing import Optional, Protocol, Sequence, TypeVar
 
 import attr
 import chex
+import jax
 from vizier import pyvizier as vz
 from vizier.interfaces import serializable
 
@@ -165,9 +166,22 @@ class Predictor(abc.ABC):
 
   @abc.abstractmethod
   def predict(
-      self, trials: Sequence[vz.TrialSuggestion], rng: chex.PRNGKey
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.random.KeyArray] = None,
+      num_samples: Optional[int] = None,
   ) -> Prediction:
-    """Predicts the mean and stddev for any given trials."""
+    """Returns the mean and stddev for any given trials.
+
+    Arguments:
+      trials: The trials where the predictions will be made.
+      rng: The sampling random key used for approximation (if applicable).
+      num_samples: The number of samples used for the approximation (if
+        applicable).
+
+    Returns:
+      The predictions in the specified trials.
+    """
 
 
 class DesignerFactory(Protocol[_T]):

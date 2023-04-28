@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import jax
 import mock
 import numpy as np
 import optax
@@ -113,7 +112,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
         problem.search_space
     )
     predict_trials = quasi_random_sampler.suggest(count=7)
-    prediction = designer.predict(predict_trials, jax.random.PRNGKey(0))
+    prediction = designer.predict(predict_trials)
     self.assertLen(prediction.mean, 7)
     self.assertLen(prediction.stddev, 7)
     self.assertFalse(np.isnan(prediction.mean).any())
@@ -156,7 +155,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
         problem.search_space
     )
     predict_trials = quasi_random_sampler.suggest(count=7)
-    prediction = designer.predict(predict_trials, jax.random.PRNGKey(0))
+    prediction = designer.predict(predict_trials)
     self.assertLen(prediction.mean, 7)
     self.assertLen(prediction.stddev, 7)
     self.assertFalse(np.isnan(prediction.mean).any())
@@ -192,7 +191,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
     gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
     pred_trial = vz.Trial({'x0': 0.0})
-    pred = gp_designer.predict([pred_trial], rng=jax.random.PRNGKey(0))
+    pred = gp_designer.predict([pred_trial])
     self.assertLess(np.abs(pred.mean[0] - f(0.0)), 1e-2)
 
 

@@ -24,7 +24,7 @@ import copy
 import datetime
 import json
 import random
-from typing import Sequence
+from typing import Sequence, Optional
 
 from absl import logging
 import attr
@@ -115,7 +115,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _output_warper_pipeline: output_warpers.OutputWarperPipeline = attr.field(
       init=False
   )
-  _num_samples_for_prediction: int = attr.field(default=1000)
   # ------------------------------------------------------------------
   # Below are class contants which are not attr fields.
   # ------------------------------------------------------------------
@@ -411,13 +410,35 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   @profiler.record_runtime(name_prefix='VizierGPBandit')
   def predict(
-      self, trials: Sequence[vz.TrialSuggestion], rng: jax.random.KeyArray
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.random.KeyArray] = None,
+      num_samples: Optional[int] = None,
   ) -> vza.Prediction:
-    """Predicts the mean and stddev for any given trials."""
+    """Returns the mean and stddev for any given trials.
+
+    The method performs sampling of the warped GP model, unwarp the samples and
+    compute the empirical mean and stadard deviation as an apprixmation.
+
+    Arguments:
+      trials: The trials where the predictions will be made.
+      rng: The sampling random key used for approximation.
+      num_samples: The number of samples used for the approximation.
+
+    Returns:
+      The predictions in the specified trials.
+    """
+    if rng is None:
+      rng = jax.random.PRNGKey(0)
+    if num_samples is None:
+      num_samples = 1000
+
     self._compute_state()
     xs = self._converter.to_features(trials)
     samples = self._acquisition_builder.sample_on_array(
-        xs, num_samples=self._num_samples_for_prediction, key=rng
+        xs,
+        num_samples=num_samples,
+        key=rng,
     )  # (num_samples, batch_size)
     unwarped_samples = None
     # TODO: vectorize output warping.

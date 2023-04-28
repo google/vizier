@@ -15,8 +15,7 @@
 from __future__ import annotations
 
 """Tests for surrogate_experimenter."""
-from typing import Sequence
-import chex
+from typing import Sequence, Optional
 import jax
 
 from vizier import algorithms as vza
@@ -31,7 +30,10 @@ from absl.testing import absltest
 class DummyPredictor(vza.Predictor):
 
   def predict(
-      self, trials: Sequence[vz.TrialSuggestion], rng: chex.PRNGKey
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.random.KeyArray] = None,
+      num_samples: Optional[int] = None,
   ) -> vza.Prediction:
     num_trials = len(trials)
     mean = jax.random.normal(key=rng, shape=(num_trials,))
