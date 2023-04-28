@@ -10,7 +10,7 @@ Codebases
 -  `PyGlove <https://github.com/google/pyglove>`__
 -  `OptFormer <https://github.com/google-research/optformer>`__
 -  `Init2winit <https://github.com/google/init2winit>`__
--  `Tensorflow Federated <https://github.com/tensorflow/federated>__`
+-  `Tensorflow Federated <https://github.com/tensorflow/federated>`__
 -  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `CFU-Playground <https://github.com/google/CFU-Playground>`__
 -  `OpenML (Converter) <https://github.com/josvandervelde/OpenML-Vizier-Converter>`__
