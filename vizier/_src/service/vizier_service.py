@@ -27,9 +27,9 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.service import basic_datastore
 from vizier._src.service import constants
 from vizier._src.service import custom_errors
-from vizier._src.service import datastore
 from vizier._src.service import grpc_util
 from vizier._src.service import pythia_service
 from vizier._src.service import resources
@@ -96,7 +96,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     )
 
     if database_url is None:
-      self.datastore = datastore.NestedDictRAMDataStore()
+      self.datastore = basic_datastore.NestedDictRAMDataStore()
     else:
       engine = sqla.create_engine(
           database_url,

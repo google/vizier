@@ -28,6 +28,8 @@ from vizier._src.service import key_value_pb2
 from vizier._src.service import resources
 from vizier._src.service import study_pb2
 from vizier._src.service import vizier_oss_pb2
+from vizier.service import pyvizier as vz
+
 from google.longrunning import operations_pb2
 
 
@@ -587,7 +589,9 @@ class SQLDataStore(datastore.DataStore):
       original_study = study_pb2.Study.FromString(row['serialized_study'])
 
       # Store Study-related metadata into the database.
-      datastore.merge_study_metadata(original_study.study_spec, study_metadata)
+      vz.metadata_util.merge_study_metadata(
+          original_study.study_spec, study_metadata
+      )
       update_study_query = (
           sqla.update(self._studies_table)
           .where(self._studies_table.c.study_name == study_name)
@@ -618,7 +622,7 @@ class SQLDataStore(datastore.DataStore):
         original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
 
         # Update Trial.
-        datastore.merge_trial_metadata(original_trial, md_list)
+        vz.metadata_util.merge_trial_metadata(original_trial, md_list)
         update_trial_query = (
             sqla.update(self._trials_table)
             .where(self._trials_table.c.trial_name == trial_name)
