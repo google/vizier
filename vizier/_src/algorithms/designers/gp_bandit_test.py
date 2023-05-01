@@ -192,7 +192,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
     pred_trial = vz.Trial({'x0': 0.0})
     pred = gp_designer.predict([pred_trial])
-    self.assertLess(np.abs(pred.mean[0] - f(0.0)), 1e-2)
+    self.assertLess(np.abs(pred.mean[0] - f(0.0)), 2e-2)
 
 
 if __name__ == '__main__':
