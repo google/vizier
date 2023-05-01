@@ -16,5 +16,4 @@ from __future__ import annotations
 
 """General modules used throughout the service."""
 from vizier._src.service.constants import NO_ENDPOINT
-from vizier._src.service.constants import SQL_LOCAL_URL
 from vizier._src.service.constants import SQL_MEMORY_URL

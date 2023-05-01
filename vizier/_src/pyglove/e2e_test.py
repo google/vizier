@@ -18,11 +18,7 @@ from __future__ import annotations
 
 import pyglove as pg
 from vizier._src.pyglove import oss_vizier
-from vizier._src.service import clients as pyvizier_clients
 from absl.testing import absltest
-
-
-pyvizier_clients.environment_variables.servicer_use_sql_ram()
 
 
 class PygloveTest(absltest.TestCase):

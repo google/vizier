@@ -20,8 +20,6 @@ from __future__ import annotations
 import datetime
 import time
 import grpc
-
-from vizier._src.service import constants
 from vizier._src.service import key_value_pb2
 from vizier._src.service import resources
 from vizier._src.service import study_pb2
@@ -43,8 +41,7 @@ class VizierServicerTest(parameterized.TestCase):
     # TODO: Find a way to cleanly test both datastores.
     self.early_stop_recycle_period = datetime.timedelta(seconds=0.1)
     self.vs = vizier_service.VizierServicer(
-        database_url=constants.SQL_MEMORY_URL,
-        early_stop_recycle_period=self.early_stop_recycle_period,
+        early_stop_recycle_period=self.early_stop_recycle_period
     )
     self.owner_id = 'my_username'
     self.study_id = '0123123'

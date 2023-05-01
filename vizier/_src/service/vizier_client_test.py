@@ -42,9 +42,7 @@ class VizierClientTest(parameterized.TestCase):
     super().setUp()
 
     # Setup Vizier Server and some pre-stored data.
-    self.local_server = vizier_server.DefaultVizierServer(
-        database_url=constants.SQL_MEMORY_URL
-    )
+    self.local_server = vizier_server.DefaultVizierServer()
     self.servicer = self.local_server._servicer
     self.owner_id = 'my_username'
     self.study_id = '1231232'
@@ -53,11 +51,10 @@ class VizierClientTest(parameterized.TestCase):
     ).name
 
     # Setup connection to server.
-    vizier_client.environment_variables.server_endpoint = (
-        self.local_server.endpoint
-    )
-    self.client = vizier_client.VizierClient(
-        study_resource_name=self.study_resource_name, client_id='my_client'
+    self.client = vizier_client.VizierClient.from_endpoint(
+        server_endpoint=self.local_server.endpoint,
+        study_resource_name=self.study_resource_name,
+        client_id='my_client',
     )
 
     # Store initial data in the vizier service.
@@ -92,6 +89,7 @@ class VizierClientTest(parameterized.TestCase):
     study_id = 'example_display_name'
 
     client = vizier_client.create_or_load_study(
+        server_endpoint=self.local_server.endpoint,
         owner_id=self.owner_id,
         client_id='a_client',
         study_id=study_id,
@@ -102,6 +100,7 @@ class VizierClientTest(parameterized.TestCase):
     self.assertIsNotNone(study.name)
 
     another_client = vizier_client.create_or_load_study(
+        server_endpoint=self.local_server.endpoint,
         owner_id=self.owner_id,
         client_id='another_client',
         study_id=study_id,
@@ -257,6 +256,7 @@ class VizierClientTest(parameterized.TestCase):
     study_config.algorithm = algorithm
 
     cifar10_client = vizier_client.create_or_load_study(
+        server_endpoint=self.local_server.endpoint,
         owner_id=self.owner_id,
         study_id='cifar10',
         study_config=study_config,
@@ -311,10 +311,9 @@ class VizierClientTest(parameterized.TestCase):
     study_config = pyvizier.StudyConfig()
     study_resource_name = resources.StudyResource(self.owner_id, study_id).name
 
-    vizier_client.environment_variables.server_endpoint = constants.NO_ENDPOINT
-    vizier_client.environment_variables.servicer_use_sql_ram()
-    # Check if servicer is stored in client.
+    # Check if server is stored in client.
     local_client1 = vizier_client.create_or_load_study(
+        server_endpoint=constants.NO_ENDPOINT,
         owner_id=self.owner_id,
         client_id='local_client1',
         study_id=study_id,
@@ -325,16 +324,20 @@ class VizierClientTest(parameterized.TestCase):
     )
 
     # Check if the local server is shared.
-    local_client2 = vizier_client.VizierClient(
-        study_resource_name=study_resource_name, client_id='local_client2'
+    local_client2 = vizier_client.VizierClient.from_endpoint(
+        server_endpoint=constants.NO_ENDPOINT,
+        study_resource_name=study_resource_name,
+        client_id='local_client2',
     )
     self.assertEqual(local_client1._service, local_client2._service)
 
     # Same server still exists globally in cache after clients are deleted.
     del local_client1
     del local_client2
-    local_client3 = vizier_client.VizierClient(
-        study_resource_name=study_resource_name, client_id='local_client3'
+    local_client3 = vizier_client.VizierClient.from_endpoint(
+        server_endpoint=constants.NO_ENDPOINT,
+        study_resource_name=study_resource_name,
+        client_id='local_client3',
     )
     self.assertLen(local_client3.list_studies(), 1)
 

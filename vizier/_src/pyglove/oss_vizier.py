@@ -120,7 +120,9 @@ class _VizierServices:
       pyvizier_clients.environment_variables.server_endpoint = (
           self._vizier_endpoint
       )
-    self._vizier_service = vizier_client.create_vizier_servicer_or_stub()
+    self._vizier_service = vizier_client.create_vizier_servicer_or_stub(
+        self._vizier_endpoint
+    )
 
   @property
   def vizier_service(self) -> vizier_types.VizierService:

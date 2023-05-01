@@ -14,8 +14,8 @@
 
 from __future__ import annotations
 
+from vizier._src.service import basic_datastore
 from vizier._src.service import datastore_test_lib
-from vizier._src.service import ram_datastore
 from vizier._src.service import vizier_service_pb2
 from vizier._src.service.testing import util as test_util
 
@@ -30,7 +30,7 @@ class NestedDictRAMDataStoreTest(datastore_test_lib.DataStoreTestCase):
     self.owner_id = 'my_username'
     self.study_id = '123123123'
     self.client_id = 'client_0'
-    self.datastore = ram_datastore.NestedDictRAMDataStore()
+    self.datastore = basic_datastore.NestedDictRAMDataStore()
     self.example_study = test_util.generate_study(self.owner_id, self.study_id)
     self.example_trials = test_util.generate_trials(
         [1, 2], owner_id=self.owner_id, study_id=self.study_id

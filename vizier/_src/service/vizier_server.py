@@ -46,7 +46,7 @@ class DefaultVizierServer:
 
   _host: str = attr.field(init=True, default='localhost')
   _database_url: str = attr.field(
-      init=True, default=constants.SQL_LOCAL_URL, kw_only=True
+      init=True, default=constants.SQL_MEMORY_URL, kw_only=True
   )
   _policy_factory: policy_factory_lib.PolicyFactory = attr.field(
       init=True, factory=policy_factory_lib.DefaultPolicyFactory, kw_only=True
