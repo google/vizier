@@ -162,7 +162,11 @@ class Prediction:
 
 
 class Predictor(abc.ABC):
-  """Mixin for algorithms to expose prediction API."""
+  """Predicts objective values, given suggestions.
+
+  For algorithms which involve the use of function regressors, this class also
+  acts as a mixin to expose their prediction API.
+  """
 
   @abc.abstractmethod
   def predict(
@@ -171,16 +175,17 @@ class Predictor(abc.ABC):
       rng: Optional[jax.random.KeyArray] = None,
       num_samples: Optional[int] = None,
   ) -> Prediction:
-    """Returns the mean and stddev for any given trials.
+    """Returns the mean and stddev for any given suggestions.
 
     Arguments:
-      trials: The trials where the predictions will be made.
+      trials: The suggestions where the predictions will be made. Can also be
+        completed trials for retrospective predictions.
       rng: The sampling random key used for approximation (if applicable).
       num_samples: The number of samples used for the approximation (if
         applicable).
 
     Returns:
-      The predictions in the specified trials.
+      The predictions for the given suggestions.
     """
 
 
