@@ -33,7 +33,7 @@ class DummyAlgorithm(pg.DNAGenerator):
 
   def setup(self, dna_spec: pg.DNASpec):
     super().setup(dna_spec)
-    self._random = pg.generators.Random(seed=1)
+    self._random = pg.geno.Random(seed=1)
     self._random.setup(dna_spec)
 
   def _propose(self) -> pg.DNA:
@@ -114,7 +114,7 @@ class SampleTest(VizierTest):
       next(
           pg.sample(
               pg.Dict(x=1),  # a fixed value.
-              algorithm=pg.generators.Random(seed=1),
+              algorithm=pg.geno.Random(seed=1),
               name='c',
           )
       )
@@ -147,7 +147,7 @@ class SampleTest(VizierTest):
             >> pg.evolution.mutators.Uniform()
             >> write_metadata
         ),
-        population_init=(pg.generators.Random(), 5),
+        population_init=(pg.geno.Random(), 5),
     )
 
     for i, (x, fx) in enumerate(
@@ -211,7 +211,7 @@ class SampleTest(VizierTest):
             >> pg.evolution.mutators.Uniform()
             >> controller_side_evaluate
         ),
-        population_init=(pg.generators.Sweeping(), 5),
+        population_init=(pg.geno.Sweeping(), 5),
     )
 
     client_side_evaluated = []
@@ -305,7 +305,7 @@ class SampleTest(VizierTest):
     hyper_value = pg.Dict(x=pg.oneof([1, 2, 3]))
     for x, f in pg.sample(
         hyper_value,
-        algorithm=pg.generators.Random(seed=1),
+        algorithm=pg.geno.Random(seed=1),
         name='custom_termination',
     ):
       # Always invoke the feedback function in order to advance
@@ -437,7 +437,7 @@ class SampleTest(VizierTest):
     # Create a new study for sample using Random.
     sample1 = pg.sample(
         hyper_value,
-        algorithm=pg.generators.Random(seed=1),
+        algorithm=pg.geno.Random(seed=1),
         name='distributed_sampling2',
         group=0,
     )
@@ -447,7 +447,7 @@ class SampleTest(VizierTest):
     # a different `group`.
     sample2 = pg.sample(
         hyper_value,
-        algorithm=pg.generators.Random(seed=1),
+        algorithm=pg.geno.Random(seed=1),
         name='distributed_sampling2',
         group=1,
     )
@@ -456,7 +456,7 @@ class SampleTest(VizierTest):
     # with `sample1` by having the same `name` and `group`.
     sample3 = pg.sample(
         hyper_value,
-        algorithm=pg.generators.Random(seed=1),
+        algorithm=pg.geno.Random(seed=1),
         name='distributed_sampling2',
         group=0,
     )

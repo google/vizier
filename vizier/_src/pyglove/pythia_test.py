@@ -29,7 +29,7 @@ class DummyAlgorithm(pg.DNAGenerator):
 
   def __init__(self):
     super().__init__()
-    self._random = pg.generators.Random(seed=1)
+    self._random = pg.geno.Random(seed=1)
 
   def setup(self, dna_spec: pg.DNASpec):
     super().setup(dna_spec)
