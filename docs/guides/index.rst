@@ -22,6 +22,7 @@ For Developers
     developer/pythia_policies
     developer/early_stopping
     developer/metadata
+    developer/predict
 
 For Benchmarking
 ----------------
