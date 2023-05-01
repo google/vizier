@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Hard coded constants used in /service/ folder."""
+import os
 
 # The metadata namespace under which the Pythia endpoint is stored.
 PYTHIA_ENDPOINT_NAMESPACE = 'service'
@@ -33,3 +34,8 @@ MAX_STUDY_ID = 2147483647
 
 # Will use RAM for SQL memory.
 SQL_MEMORY_URL = 'sqlite:///:memory:'
+
+# Will use local file path for HDD storage.
+SERVICE_DIR = os.path.dirname(os.path.realpath(__file__))
+VIZIER_DB_PATH = os.path.join(SERVICE_DIR, 'vizier.db')
+SQL_LOCAL_URL = f'sqlite:///{VIZIER_DB_PATH}'

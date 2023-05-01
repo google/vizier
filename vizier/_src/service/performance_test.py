@@ -20,6 +20,7 @@ import multiprocessing.pool
 import time
 from absl import logging
 
+from vizier._src.service import constants
 from vizier._src.service import vizier_client
 from vizier._src.service import vizier_server
 from vizier.benchmarks import experimenters
@@ -35,7 +36,10 @@ class PerformanceTest(parameterized.TestCase):
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    cls.server = vizier_server.DefaultVizierServer()
+    cls.server = vizier_server.DefaultVizierServer(
+        database_url=constants.SQL_MEMORY_URL
+    )
+    vizier_client.environment_variables.server_endpoint = cls.server.endpoint
 
   @parameterized.parameters(
       (1, 10, 2),
@@ -56,7 +60,6 @@ class PerformanceTest(parameterized.TestCase):
       study_config.algorithm = pyvizier.Algorithm.NSGA2
 
       client = vizier_client.create_or_load_study(
-          server_endpoint=self.server.endpoint,
           owner_id='my_username',
           study_id=self.id(),  # Use the testcase name.
           study_config=study_config,

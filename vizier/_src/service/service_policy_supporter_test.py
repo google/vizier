@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-"""Tests for vizier.service.service_policy_supporter."""
+from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import service_policy_supporter
 from vizier._src.service import study_pb2
@@ -33,7 +33,9 @@ class PythiaSupporterTest(absltest.TestCase):
     self.study_name = resources.StudyResource(
         owner_id=self.owner_id, study_id=self.study_id
     ).name
-    self.vs = vizier_service.VizierServicer()
+    self.vs = vizier_service.VizierServicer(
+        database_url=constants.SQL_MEMORY_URL
+    )
     self.example_study = test_util.generate_study(self.owner_id, self.study_id)
     self.vs.datastore.create_study(self.example_study)
 

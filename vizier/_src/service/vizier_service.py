@@ -27,11 +27,11 @@ import sqlalchemy as sqla
 
 from vizier import pythia
 from vizier import pyvizier as vz
-from vizier._src.service import basic_datastore
 from vizier._src.service import constants
 from vizier._src.service import custom_errors
 from vizier._src.service import grpc_util
 from vizier._src.service import pythia_service
+from vizier._src.service import ram_datastore
 from vizier._src.service import resources
 from vizier._src.service import sql_datastore
 from vizier._src.service import stubs_util
@@ -68,7 +68,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
 
   def __init__(
       self,
-      database_url: Optional[str] = constants.SQL_MEMORY_URL,
+      database_url: Optional[str] = constants.SQL_LOCAL_URL,
       early_stop_recycle_period: datetime.timedelta = datetime.timedelta(
           seconds=60
       ),
@@ -96,7 +96,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     )
 
     if database_url is None:
-      self.datastore = basic_datastore.NestedDictRAMDataStore()
+      self.datastore = ram_datastore.NestedDictRAMDataStore()
     else:
       engine = sqla.create_engine(
           database_url,

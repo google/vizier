@@ -23,6 +23,7 @@ from absl import logging
 import pyglove as pg
 
 from vizier._src.pyglove import oss_vizier as vizier
+from vizier._src.service import constants
 from vizier._src.service import vizier_server
 
 from absl.testing import absltest
@@ -38,7 +39,9 @@ class PerformanceTest(parameterized.TestCase):
   @classmethod
   def setUpClass(cls):
     super().setUpClass()
-    server = vizier_server.DefaultVizierServer(host=os.uname()[1])
+    server = vizier_server.DefaultVizierServer(
+        host=os.uname()[1], database_url=constants.SQL_MEMORY_URL
+    )
     logging.info(server.endpoint)
     vizier._services.reset_for_testing()
     vizier.init(vizier_endpoint=server.endpoint)

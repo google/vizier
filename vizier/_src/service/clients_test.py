@@ -24,6 +24,9 @@ from vizier.service import pyvizier as vz
 
 from absl.testing import absltest
 
+# Affects local Vizier servicer tests only.
+clients.environment_variables.servicer_use_sql_ram()
+
 
 class VizierClientTest(client_abc_testing.TestCase):
   _owner: str
@@ -67,7 +70,9 @@ class VizierClientTestOnDefaultServer(VizierClientTest):
   def setUpClass(cls):
     logging.info('Test setup started.')
     super().setUpClass()
-    cls._server = vizier_server.DefaultVizierServer()
+    cls._server = vizier_server.DefaultVizierServer(
+        database_url=constants.SQL_MEMORY_URL
+    )
     clients.environment_variables.server_endpoint = cls._server.endpoint
     logging.info('Test setup finished.')
 
@@ -84,7 +89,9 @@ class VizierClientTestOnDistributedPythiaServer(VizierClientTest):
   def setUpClass(cls):
     logging.info('Test setup started.')
     super().setUpClass()
-    cls._server = vizier_server.DistributedPythiaVizierServer()
+    cls._server = vizier_server.DistributedPythiaVizierServer(
+        database_url=constants.SQL_MEMORY_URL
+    )
     clients.environment_variables.server_endpoint = cls._server.endpoint
     logging.info('Test setup finished.')
 
