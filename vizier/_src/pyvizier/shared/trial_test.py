@@ -305,6 +305,11 @@ class TrialTest(absltest.TestCase):
     trial1.parameters['x1'] = trial.ParameterValue(5)
     self.assertEmpty(trial2.parameters)
 
+  def testCreationTime(self):
+    trial1 = trial.Trial()
+    trial2 = trial.Trial()
+    self.assertGreater(trial2.creation_time, trial1.creation_time)
+
 
 class ParameterDictTest(parameterized.TestCase):
 

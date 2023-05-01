@@ -340,6 +340,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
             final_measurement=pyvizier.Measurement(
                 steps=1, metrics={'y1': 10.0, 'y2': 20.0}
             ),
+            creation_time=None,
         ),
         pyvizier.Trial(
             parameters={
@@ -349,9 +350,12 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
             final_measurement=pyvizier.Measurement(
                 steps=1, metrics={'y1': 40.0, 'y2': 50.0, 'y3': 60.0}
             ),
+            creation_time=None,
         ),
     ]
     trials = converter.to_trials(actual_features, actual_labels)
+    for t in trials:
+      t.creation_time = None
     self.assertEqual(
         actual_trials,
         trials,
