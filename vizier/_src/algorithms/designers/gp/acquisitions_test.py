@@ -65,15 +65,27 @@ class AcquisitionsTest(absltest.TestCase):
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
     qei = acq(dist, labels=jnp.array([0.2]))
     # QEI reduces over the batch shape.
-    self.assertEmpty(qei.shape, 0)
+    self.assertEmpty(qei.shape)
 
-    dist_single_point = tfd.Normal(
-        jnp.array([0.1], dtype=jnp.float64)[:, jnp.newaxis], 1
-    )
+    dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
     qei_single_point = acq(dist_single_point, labels=jnp.array([0.2]))
     # Parallel matches non-parallel for a single point.
     np.testing.assert_allclose(qei_single_point, 0.346, atol=1e-2)
-    self.assertEmpty(qei.shape, 0)
+    self.assertEmpty(qei_single_point.shape)
+
+  def test_qucb(self):
+    acq = acquisitions.QUCB(num_samples=2000)
+    batch_shape = [6]
+    dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
+    qucb = acq(dist, labels=jnp.array([0.2]))
+    # QUCB reduces over the batch shape.
+    self.assertEmpty(qucb.shape)
+
+    dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
+    qucb_single_point = acq(dist_single_point, labels=jnp.array([0.2]))
+    # Parallel matches non-parallel for a single point.
+    np.testing.assert_allclose(qucb_single_point, 1.894297, atol=1e-2)
+    self.assertEmpty(qucb_single_point.shape)
 
 
 class TrustRegionTest(absltest.TestCase):
