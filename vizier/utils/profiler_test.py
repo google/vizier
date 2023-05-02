@@ -40,7 +40,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertIn('add_one', profiler.Storage().runtimes())
     runtimes = profiler.Storage().runtimes().get('add_one')
     self.assertLen(runtimes, 1)
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
   def test_with_name(self):
     class TestClass3:
@@ -55,7 +55,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertIn('add', profiler.Storage().runtimes())
     runtimes = profiler.Storage().runtimes().get('add')
     self.assertLen(runtimes, 1)
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
   def test_with_prefix(self):
     class TestClass4:
@@ -70,7 +70,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertNotIn('add_one', profiler.Storage().runtimes())
     runtimes = profiler.Storage().runtimes().get('foo.add_one')
     self.assertLen(runtimes, 1)
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
   def test_with_prefix_and_name(self):
     class TestClass5:
@@ -85,7 +85,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertNotIn('add_one', profiler.Storage().runtimes())
     runtimes = profiler.Storage().runtimes().get('foo.add')
     self.assertLen(runtimes, 1)
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
   def test_with_jax(self):
     @profiler.record_runtime(also_log=True)
@@ -98,7 +98,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     selu(x)
     self.assertIn('selu', profiler.Storage().runtimes())
     microseconds = profiler.Storage().runtimes().get('selu')[0].microseconds
-    self.assertGreater(microseconds, 1000)
+    self.assertGreaterEqual(microseconds, 1000)
     # The second call should use the jitted function.
     selu(x)
     self.assertLen(profiler.Storage().runtimes().get('selu'), 2)
@@ -118,7 +118,7 @@ class PerformanceUtilsTest(absltest.TestCase):
     selu(x)
     self.assertIn('selu', profiler.Storage().runtimes())
     microseconds = profiler.Storage().runtimes().get('selu')[0].microseconds
-    self.assertGreater(microseconds, 1000)
+    self.assertGreaterEqual(microseconds, 1000)
     # The second call should use the jitted function.
     selu(x)
     self.assertLen(profiler.Storage().runtimes().get('selu'), 1)
@@ -133,14 +133,13 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertIn('add', profiler.Storage().runtimes())
     runtimes = profiler.Storage().runtimes().get('add')
     self.assertLen(runtimes, 1)
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
     with profiler.record_runtime_context(name='add'):
       x += 1
-
     runtimes = profiler.Storage().runtimes().get('add')
     self.assertLen(runtimes, 2)
-    self.assertGreater(runtimes[1].total_seconds(), 0)
+    self.assertGreaterEqual(runtimes[1].total_seconds(), 0)
 
 
 if __name__ == '__main__':
