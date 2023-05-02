@@ -503,12 +503,13 @@ class Trial(TrialSuggestion):
 
   creation_time: Optional[datetime.datetime] = attr.ib(
       init=True,
-      default=datetime.datetime.now(),
+      factory=datetime.datetime.now,
       converter=_to_local_time,
       kw_only=True,
       repr=lambda v: v.strftime('%x %X') if v is not None else 'None',
       validator=attr.validators.optional(
-          attr.validators.instance_of(datetime.datetime)),
+          attr.validators.instance_of(datetime.datetime)
+      ),
   )
 
   completion_time: Optional[datetime.datetime] = attr.ib(
