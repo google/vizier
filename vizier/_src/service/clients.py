@@ -30,17 +30,8 @@ from vizier.service import pyvizier as vz
 # Redeclared so users do not have to also import client_abc and clients.py.
 ResourceNotFoundError = client_abc.ResourceNotFoundError
 
-
-# TODO: Consider if user should set a one-line flag explicitly to
-# denote local NO_ENDPOINT server will be used.
-@attr.define
-class _EnvironmentVariables:
-  server_endpoint: str = attr.field(
-      default=constants.NO_ENDPOINT, validator=attr.validators.instance_of(str)
-  )
-
-
-environment_variables = _EnvironmentVariables()
+# Redeclared since clients.py is the user-facing client API.
+environment_variables = vizier_client.environment_variables
 
 
 @attr.define
@@ -212,9 +203,6 @@ class Study(client_abc.StudyInterface):
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
     client = vizier_client.VizierClient(
-        vizier_client.create_vizier_servicer_or_stub(
-            environment_variables.server_endpoint
-        ),
         name,
         constants.UNUSED_CLIENT_ID,
     )
@@ -264,7 +252,6 @@ class Study(client_abc.StudyInterface):
     """
     return Study(
         vizier_client.create_or_load_study(
-            environment_variables.server_endpoint,
             owner_id=owner,
             client_id=constants.UNUSED_CLIENT_ID,
             study_id=study_id,

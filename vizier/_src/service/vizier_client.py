@@ -56,16 +56,32 @@ flags.DEFINE_integer(
 FLAGS = flags.FLAGS
 
 
+@attr.define
+class _EnvironmentVariables:
+  server_endpoint: str = attr.field(
+      default=constants.NO_ENDPOINT, validator=attr.validators.instance_of(str)
+  )
+  servicer_kwargs: Dict[str, Any] = attr.field(factory=dict)
+
+  def servicer_use_sql_ram(self) -> None:
+    """Should be used in tests to avoid filepath issues."""
+    self.servicer_kwargs['database_url'] = constants.SQL_MEMORY_URL
+
+
+environment_variables = _EnvironmentVariables()
+
+
 @functools.lru_cache(maxsize=None)
 def _create_local_vizier_servicer() -> (
     vizier_service_pb2_grpc.VizierServiceServicer
 ):
   from vizier._src.service import vizier_service  # pylint:disable=g-import-not-at-top
 
-  return vizier_service.VizierServicer()
+  return vizier_service.VizierServicer(**environment_variables.servicer_kwargs)
 
 
-def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
+def create_vizier_servicer_or_stub() -> types.VizierService:
+  endpoint = environment_variables.server_endpoint
   if endpoint == constants.NO_ENDPOINT:
     logging.info('No endpoint given; using cached local VizierServicer.')
     logging.warning('Python 3.8+ is required in this case.')
@@ -75,58 +91,25 @@ def create_vizier_servicer_or_stub(endpoint: str) -> types.VizierService:
 
 @attr.frozen(init=True)
 class VizierClient:
-  """Client for communicating with the Vizer Service via GRPC.
+  """Client for communicating with the Vizier Service via GRPC.
 
   It can be initialized directly with a VizierService, or
   created from endpoint. See also `create_server_stub`.
   """
 
-  # Note that if we use a literal VizierServicer class, only one client should
-  # interact with the server to prevent deadlocks.
-  _service: types.VizierService = attr.field(repr=False)
   _study_resource_name: str = attr.field(
       validator=attr.validators.instance_of(str)
   )
   _client_id: str = attr.field(
       validator=[attr.validators.instance_of(str), attrs_utils.assert_not_empty]
   )
+  _service: types.VizierService = attr.field(
+      repr=False, factory=create_vizier_servicer_or_stub
+  )
 
   @property
   def _study_resource(self) -> resources.StudyResource:
     return resources.StudyResource.from_name(self._study_resource_name)
-
-  @classmethod
-  def from_endpoint(
-      cls, server_endpoint: str, study_resource_name: str, client_id: str
-  ) -> 'VizierClient':
-    """Create a VizierClient object.
-
-    Use this constructor when you know the study_resource_name, and when the
-    Study already exists. Otherwise, you'll probably want to use
-    create_or_load_study() instead of constructing the
-    VizierClient class directly.
-
-    Args:
-      server_endpoint: Address of Vizier Server for creation of gRPC stub, e.g.
-        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local
-        VizierServicer inside the client.
-      study_resource_name: An identifier of the study. The full study name will
-        be `owners/{owner_id}/studies/{study_id}`.
-      client_id: An ID that identifies the worker requesting a `Trial`. Workers
-        that should run the same trial (for instance, when running a
-        multi-worker model) should have the same ID. If multiple
-        suggestTrialsRequests have the same client_id, the service will return
-        the identical suggested trial if the trial is PENDING, and provide a new
-        trial if the last suggest trial was completed.
-
-    Returns:
-      Vizier client.
-    """
-    return cls(
-        create_vizier_servicer_or_stub(server_endpoint),
-        study_resource_name,
-        client_id,
-    )
 
   @property
   def _owner_id(self) -> str:
@@ -431,7 +414,6 @@ class VizierClient:
 
 
 def create_or_load_study(
-    server_endpoint: str,
     owner_id: str,
     client_id: str,
     study_id: str,
@@ -451,9 +433,6 @@ def create_or_load_study(
   to the same study.
 
   Args:
-      server_endpoint: Address of VizierService for creation of gRPC stub, e.g.
-        'localhost:8998'. If equal to UNSET_ENDPOINT, creates a local
-        VizierServicer inside the client.
       owner_id: An owner id.
       client_id: ID for the VizierClient. See class for notes.
       study_id: Each study is uniquely identified by the tuple (owner_id,
@@ -472,7 +451,7 @@ def create_or_load_study(
       ValueError: Indicates that study_config is not supplied and the study
           with the given study_id does not exist.
   """
-  vizier_stub = create_vizier_servicer_or_stub(server_endpoint)
+  vizier_stub = create_vizier_servicer_or_stub()
   study = study_pb2.Study(
       display_name=study_id, study_spec=study_config.to_proto()
   )
@@ -482,7 +461,7 @@ def create_or_load_study(
   # The response study contains a service assigned `name`, and may have been
   # created by this RPC or a previous RPC from another client.
   study = vizier_stub.CreateStudy(request)
-  return VizierClient(vizier_stub, study.name, client_id)
+  return VizierClient(study.name, client_id, vizier_stub)
 
 
 def PollingDelay(num_attempts: int, time_scale: float) -> datetime.timedelta:  # pylint:disable=invalid-name
