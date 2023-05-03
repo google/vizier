@@ -397,7 +397,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
               'mean': predict_mean[i],
               'stddev': predict_stddev[i],
               'acquisition': acquisition,
-              'state': self._state,
           },
           cls=json_utils.NumpyEncoder,
       )
