@@ -68,4 +68,4 @@ class BenchmarkStateAnalyzer:
       state_trials = state.algorithm.supporter.GetTrials()
       curve = converter.convert(state_trials)
       curves.append(curve)
-    return convergence_curve.ConvergenceCurve.align_xs(curves)
+    return convergence_curve.ConvergenceCurve.align_xs(curves)[0]

@@ -96,13 +96,18 @@ class EfficiencyComparisonTester:
                   candidate_state.algorithm.supporter.GetTrials()))
 
     baseline_curve = benchmarks.ConvergenceCurve.align_xs(
-        baseline_curves, interpolate_repeats=True)
+        baseline_curves, interpolate_repeats=True
+    )[0]
     candidate_curve = benchmarks.ConvergenceCurve.align_xs(
-        candidate_curves, interpolate_repeats=True)
-    comparator = benchmarks.ConvergenceCurveComparator(baseline_curve)
+        candidate_curves, interpolate_repeats=True
+    )[0]
+    comparator = benchmarks.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve
+    )
 
-    if (log_eff_score :=
-        comparator.get_log_efficiency_score(candidate_curve)) < score_threshold:
+    if (
+        log_eff_score := comparator.get_log_efficiency_score(candidate_curve)
+    ) < score_threshold:
       raise FailedComparisonTestError(
           f'Log efficiency score {log_eff_score} is less than {score_threshold}'
           f' when comparing algorithms: {candidate_state_factory} '
