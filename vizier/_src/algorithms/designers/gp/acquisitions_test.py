@@ -73,18 +73,28 @@ class AcquisitionsTest(absltest.TestCase):
     np.testing.assert_allclose(qei_single_point, 0.346, atol=1e-2)
     self.assertEmpty(qei_single_point.shape)
 
-  def test_qucb(self):
-    acq = acquisitions.QUCB(num_samples=2000)
+  def test_qucb_shape(self):
+    acq = acquisitions.QUCB()
     batch_shape = [6]
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
     qucb = acq(dist, labels=jnp.array([0.2]))
     # QUCB reduces over the batch shape.
     self.assertEmpty(qucb.shape)
 
+  def test_qucb_equals_ucb(self):
+    # The QUCB coefficient should be multiplied by sqrt(pi/2) for equivalency
+    # with the UCB coefficient (assuming a Gaussian distribution).
+    acq_ucb = acquisitions.UCB(coefficient=2.0)
+    acq_qucb = acquisitions.QUCB(
+        num_samples=2000, coefficient=2.0 * np.sqrt(np.pi / 2.0)
+    )
     dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
-    qucb_single_point = acq(dist_single_point, labels=jnp.array([0.2]))
+    qucb_single_point = acq_qucb(dist_single_point, labels=jnp.array([0.2]))
+    ucb_single_point = acq_ucb(dist_single_point, labels=jnp.array([0.2]))
     # Parallel matches non-parallel for a single point.
-    np.testing.assert_allclose(qucb_single_point, 1.894297, atol=1e-2)
+    np.testing.assert_allclose(
+        qucb_single_point, ucb_single_point[0], atol=1e-2
+    )
     self.assertEmpty(qucb_single_point.shape)
 
 

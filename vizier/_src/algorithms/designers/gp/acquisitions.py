@@ -120,9 +120,19 @@ class QEI(AcquisitionFunction):
 
 @attr.define
 class QUCB(AcquisitionFunction):
-  """Sampling-based batch upper confidence bound."""
+  """Sampling-based batch upper confidence bound.
 
-  exploration: float = attr.field(default=1.8)
+  Attributes:
+    coefficient: UCB coefficient. For a Gaussian distribution, note that
+      `UCB(coefficient=c)` is equivalent to `QUCB(coefficient=c * sqrt(pi / 2))`
+      if QUCB batch size is 1. See the TensorFlow Probability docs for more
+      details:
+      https://www.tensorflow.org/probability/api_docs/python/tfp/experimental/bayesopt/acquisition/ParallelUpperConfidenceBound
+    num_samples: Number of distribution samples used to compute qUCB.
+    seed: Random seed for sampling.
+  """
+
+  coefficient: float = attr.field(default=1.8)
   num_samples: int = attr.field(default=100)
   seed: Optional[jax.random.KeyArray] = attr.field(default=None)
 
@@ -138,7 +148,7 @@ class QUCB(AcquisitionFunction):
         dist,
         labels,
         seed=seed,
-        exploration=self.exploration,
+        exploration=self.coefficient,
         num_samples=self.num_samples,
     )()
 
