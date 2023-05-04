@@ -71,7 +71,9 @@ class LBFGSBOptimizer(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     # Minimize sum over all features.
     score_fn = lambda x: -jnp.sum(jnp.square(x - 0.52), axis=[-1, -2])
-    optimizer = lo.LBFGSBOptimizer(parallel_batch_size=3, random_restarts=10)
+    optimizer = lo.LBFGSBOptimizer(
+        num_parallel_candidates=3, random_restarts=10
+    )
     best_candidates = optimizer.optimize(
         converter=converter, score_fn=score_fn, count=1
     )

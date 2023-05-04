@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """L-BFGS-B Strategy optimizer."""
 
-from typing import Optional
+from typing import Optional, Union
 
 import attr
 import jax
@@ -35,14 +35,18 @@ class LBFGSBOptimizer:
 
   # Number of parallel runs of L-BFGS-B.
   random_restarts: int = attr.field(init=True, repr=False, default=25)
-  # Number of features to consider at a time. The score function is assumed to
-  # score this many features at a time.
-  parallel_batch_size: Optional[int] = attr.field(default=None)
+  # In parallel optimization (suggesting multiple candidates at once), this is
+  # the number of candidates to consider at once. The score function is assumed
+  # to score this many candidates together and output a scalar.
+  num_parallel_candidates: Optional[int] = attr.field(default=None)
 
   def optimize(
       self,
       converter: converters.TrialToArrayConverter,
-      score_fn: vectorized_base.BatchArrayScoreFunction,
+      score_fn: Union[
+          vectorized_base.ParallelArrayScoreFunction,
+          vectorized_base.ArrayScoreFunction,
+      ],
       *,
       count: int = 1,
       seed: Optional[int] = None,
@@ -51,22 +55,29 @@ class LBFGSBOptimizer:
 
     Arguments:
       converter: Converter to map between trials and arrays.
-      score_fn: `BatchArrayScoreFunction`. Converts (batches of) features to
-        scores.
-      count: The number of best results to store.
+      score_fn: Converts (batches of) features to scores.
+      count: The number of best results to return.
       seed: Optional seed.
 
     Returns:
       The best trials found in the optimization.
     """
+    if self.num_parallel_candidates and count > 1:
+      # Note that we can't distinguish between 'BatchArrayScoreFunction' and
+      # 'ParallelArrayScoreFunction' using 'isinstance' as they both have the
+      # same function names.
+      raise ValueError(
+          "LBFGSBOptimizer doesn't support batch of batches (count > 1 is"
+          " disallowed when num_parallel_candidates is set)."
+      )
     optimize = optimizers.JaxoptLbfgsB(
         random_restarts=self.random_restarts, best_n=count
     )
     num_features = sum(spec.num_dimensions for spec in converter.output_specs)
 
     feature_shape = [num_features]
-    if self.parallel_batch_size is not None:
-      feature_shape = [self.parallel_batch_size, num_features]
+    if self.num_parallel_candidates is not None:
+      feature_shape = [self.num_parallel_candidates, num_features]
 
     def setup(rng):
       return jax.random.uniform(rng, shape=feature_shape)
@@ -91,7 +102,7 @@ class LBFGSBOptimizer:
     )
     new_rewards = np.asarray(score_fn(new_features[jnp.newaxis, ...]))[0]
 
-    if self.parallel_batch_size is None:
+    if self.num_parallel_candidates is None:
       parameters = converter.to_parameters(new_features[jnp.newaxis, ...])
     else:
       parameters = converter.to_parameters(new_features)
@@ -108,9 +119,10 @@ class LBFGSBOptimizerFactory:
   """LBFGSB strategy optimizer factory."""
 
   def __call__(
-      self, random_restarts: int, parallel_batch_size: Optional[int] = None
+      self, random_restarts: int, num_parallel_candidates: Optional[int] = None
   ) -> LBFGSBOptimizer:
     """Generates a new LBFGSBOptimizer object."""
     return LBFGSBOptimizer(
-        parallel_batch_size=parallel_batch_size, random_restarts=random_restarts
+        num_parallel_candidates=num_parallel_candidates,
+        random_restarts=random_restarts,
     )

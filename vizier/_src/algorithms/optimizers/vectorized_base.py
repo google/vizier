@@ -29,6 +29,7 @@ from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
 
+
 _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 
 
@@ -123,17 +124,40 @@ class VectorizedStrategyFactory(Protocol):
     ...
 
 
-class BatchArrayScoreFunction(Protocol):
-  """Protocol for scoring array of batched trials."""
+class ArrayScoreFunction(Protocol):
+  """Protocol for scoring array of trials.
+
+  This protocol is suitable for optimizing batch of candidates (each one with
+  its own separate score).
+  """
 
   def __call__(self, batched_array_trials: types.Array) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
-      batched_array_trials: 2D Array of shape (batch_size, n_features).
+      batched_array_trials: Array of shape (batch_size, n_features).
 
     Returns:
-      1D Array of shape (batch_size,).
+      Array of shape (batch_size,).
+    """
+
+
+class ParallelArrayScoreFunction(Protocol):
+  """Protocol for scoring array of parallel trials.
+
+  This protocol is suitable for optimizing in parallel multiple candidates
+  (e.g. qUCB).
+  """
+
+  def __call__(self, parallel_array_trials: types.Array) -> types.Array:
+    """Evaluates the array of batched trials.
+
+    Arguments:
+      parallel_array_trials: Array of shape (batch_size, n_parallel_candidates,
+        n_features).
+
+    Returns:
+      Array of shape (batch_size).
     """
 
 
@@ -173,7 +197,7 @@ class VectorizedOptimizer:
   def optimize(
       self,
       converter: converters.TrialToArrayConverter,
-      score_fn: BatchArrayScoreFunction,
+      score_fn: ArrayScoreFunction,
       *,
       count: int = 1,
       prior_trials: Optional[Sequence[vz.Trial]] = None,
