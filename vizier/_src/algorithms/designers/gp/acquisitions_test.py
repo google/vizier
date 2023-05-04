@@ -59,6 +59,13 @@ class AcquisitionsTest(absltest.TestCase):
         0.34635347,
     )
 
+  def test_pi(self):
+    acq = acquisitions.PI()
+    self.assertAlmostEqual(
+        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([0.2])),
+        0.46017216,
+    )
+
   def test_qei(self):
     acq = acquisitions.QEI(num_samples=2000)
     batch_shape = [6]

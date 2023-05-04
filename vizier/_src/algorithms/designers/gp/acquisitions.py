@@ -98,6 +98,20 @@ class EI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
+class PI(AcquisitionFunction):
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[types.Array] = None,
+      labels: Optional[types.Array] = None,
+  ) -> jax.Array:
+    del features
+    return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
+        dist, labels
+    )()
+
+
 @attr.define
 class QEI(AcquisitionFunction):
   """Sampling-based batch expected improvement."""
