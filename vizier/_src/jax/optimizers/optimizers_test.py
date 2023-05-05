@@ -85,13 +85,19 @@ class OptimizersTest(parameterized.TestCase):
         if b_ is not None:
           self.assertTrue((y_ < b_).all())
 
-  def test_sinusodial_bestn_optax(self):
+  @parameterized.parameters(
+      (1, 1),
+      (1, 5),
+      (5, 20),
+  )
+  def test_sinusodial_bestn_optax(self, best_n, random_restarts):
     optimize = optimizers.OptaxTrainWithRandomRestarts(
         optax.adam(5e-3),
         epochs=100,
         verbose=True,
-        random_restarts=100,
-        best_n=5)
+        random_restarts=random_restarts,
+        best_n=best_n,
+    )
     constraint_fn = tfb.JointMap({'x1': tfb.Exp(), 'x2': tfb.Softplus()})
     optimal_params, _ = optimize(
         optimizer_setup,
@@ -103,8 +109,9 @@ class OptimizersTest(parameterized.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
 
-    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
-    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
+    batch_shape = (best_n,) if best_n > 1 else ()
+    self.assertSequenceEqual(optimal_params['x2'].shape, batch_shape + (2,))
+    self.assertSequenceEqual(optimal_params['x1'].shape, batch_shape + (1,))
 
   @parameterized.parameters(
       (None,),

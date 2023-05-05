@@ -190,6 +190,7 @@ class OptaxTrainWithRandomRestarts(Optimizer[_Params]):
       train_step = jax.vmap(_train_step)
     else:
       params, opt_state = _setup_all(rng)
+      train_step = _train_step
 
     logging.info('Initialized parameters. %s',
                  jax.tree_map(lambda x: x.shape, params))
@@ -222,12 +223,13 @@ class OptaxTrainWithRandomRestarts(Optimizer[_Params]):
 
     final_losses = metrics['loss'][-1]
     logging.info('Final loss: %s', final_losses)
-    # Extract the best only.
-    argsorted = jnp.argsort(final_losses)
-    logging.info('Best loss(es): %s', final_losses[argsorted[: self.best_n]])
-    params = jax.tree_map(lambda x: x[argsorted[: self.best_n]], params)
-    if self.best_n == 1:
-      params = jax.tree_map(functools.partial(jnp.squeeze, axis=0), params)
+    if self.random_restarts > 1:
+      # Extract the best only.
+      argsorted = jnp.argsort(final_losses)
+      logging.info('Best loss(es): %s', final_losses[argsorted[: self.best_n]])
+      params = jax.tree_map(lambda x: x[argsorted[: self.best_n]], params)
+      if self.best_n == 1:
+        params = jax.tree_map(functools.partial(jnp.squeeze, axis=0), params)
     if bijector is not None:
       params = bijector(params)
     return params, metrics
