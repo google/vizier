@@ -145,6 +145,30 @@ class TrustRegionTest(absltest.TestCase):
             ]),), np.array([0.3, 0.2, 0.]))
     self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)
 
+  def test_trust_region_padded_small(self):
+    # Test that padding still retrieves the same distance computations as
+    # `test_trust_region_small`.
+    tr = acquisitions.TrustRegion(
+        np.array([
+            [0.0, 0.0, 0.0, 0.0, np.nan, np.nan],
+            [1.0, 1.0, 1.0, 1.0, np.nan, np.nan],
+        ]),
+        _build_mock_continuous_array_specs(4),
+        feature_is_missing=np.array([False, False, False, False, True, True]),
+    )
+
+    np.testing.assert_allclose(
+        tr.min_linf_distance(
+            np.array([
+                [0.0, 0.2, 0.3, 0.0, -100.0, 20.0],
+                [0.9, 0.8, 0.9, 0.9, 23.0, 27.0],
+                [1.0, 1.0, 1.0, 1.0, 2.0, -3.0],
+            ]),
+        ),
+        np.array([0.3, 0.2, 0.0]),
+    )
+    self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
+
 
 class GPBanditAcquisitionBuilderTest(absltest.TestCase):
 

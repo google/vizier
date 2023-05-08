@@ -19,18 +19,22 @@ from __future__ import annotations
 import abc
 import datetime
 import logging
-from typing import Generic, Optional, Protocol, Sequence, TypeVar
+from typing import Generic, Optional, Protocol, Sequence, TypeVar, Union
 
 import attr
 import chex
 import jax
 from jax import numpy as jnp
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
 
-
 _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
+
+ArrayConverter = Union[
+    converters.TrialToArrayConverter, converters.PaddedTrialToArrayConverter
+]
 
 
 @chex.dataclass(frozen=True)
@@ -111,7 +115,7 @@ class VectorizedStrategyFactory(Protocol):
 
   def __call__(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: ArrayConverter,
       *,
       suggestion_batch_size: int,
   ) -> VectorizedStrategy:
@@ -196,7 +200,7 @@ class VectorizedOptimizer:
 
   def optimize(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: ArrayConverter,
       score_fn: ArrayScoreFunction,
       *,
       count: int = 1,
@@ -240,6 +244,13 @@ class VectorizedOptimizer:
       # Sort the trials by the order they were created.
       prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
       prior_features = converter.to_features(prior_trials)
+      # TODO: Update this code to work more cleanly with
+      # PaddedArrays.
+      if isinstance(converter, converters.PaddedTrialToArrayConverter):
+        # We need to mask out the `NaN` padded trials with zeroes.
+        prior_features = prior_features.padded_array
+        prior_features[len(prior_trials) :, ...] = 0.0
+
       prior_rewards = score_fn(prior_features).reshape(-1)
     else:
       prior_features, prior_rewards = None, None
@@ -249,10 +260,25 @@ class VectorizedOptimizer:
         suggestion_batch_size=self.suggestion_batch_size,
     )
 
+    dimension_is_missing = None
+
+    if isinstance(converter, converters.PaddedTrialToArrayConverter):
+      n_features = sum(spec.num_dimensions for spec in converter.output_specs)
+      n_padded_features = converter.to_features([]).shape[-1]
+      dimension_is_missing = np.array(
+          [False] * n_features + [True] * (n_padded_features - n_features)
+      )
+
     def _optimization_one_step(_, args):
       state, best_results, seed = args
       suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
       new_features = strategy.suggest(state, suggest_seed)
+      # Ensure masking out padded dimensions in new features.
+      if isinstance(converter, converters.PaddedTrialToArrayConverter):
+        new_features = jnp.where(
+            dimension_is_missing, jnp.zeros_like(new_features), new_features
+        )
+      # We assume `score_fn` is aware of padded dimensions.
       new_rewards = score_fn(new_features)
       new_state = strategy.update(state, new_features, new_rewards, update_seed)
       new_best_results = self._update_best_results(
@@ -262,10 +288,9 @@ class VectorizedOptimizer:
 
     def _optimize():
       init_seed, loop_seed = jax.random.split(seed)
-      n_features = sum(spec.num_dimensions for spec in converter.output_specs)
       init_best_results = VectorizedStrategyResults(
           rewards=-jnp.inf * jnp.ones([count]),
-          features=jnp.zeros([count, n_features]),
+          features=jnp.zeros([count, converter.to_features([]).shape[-1]]),
       )
       init_args = (
           strategy.init_state(
@@ -339,7 +364,7 @@ class VectorizedOptimizer:
   def _best_candidates(
       self,
       best_results: VectorizedStrategyResults,
-      converter: converters.TrialToArrayConverter,
+      converter: ArrayConverter,
   ) -> list[vz.Trial]:
     """Returns the best candidate trials in the original search space."""
     trials = []

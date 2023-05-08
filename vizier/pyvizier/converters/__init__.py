@@ -30,6 +30,7 @@ from vizier.pyvizier.converters.core import TrialToArrayConverter
 from vizier.pyvizier.converters.core import TrialToNumpyDict
 from vizier.pyvizier.converters.embedder import ProblemAndTrialsScaler
 from vizier.pyvizier.converters.feature_mapper import ContinuousCategoricalFeatureMapper
+from vizier.pyvizier.converters.padded_trial_to_array_converter import PaddedTrialToArrayConverter
 from vizier.pyvizier.converters.spatio_temporal import DenseSpatioTemporalConverter
 from vizier.pyvizier.converters.spatio_temporal import SparseSpatioTemporalConverter
 from vizier.pyvizier.converters.spatio_temporal import TimedLabels

@@ -391,8 +391,13 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       gp = e.value
       return gp.copy(mean_fn=self.mean_fn)
 
+  # TODO: Add support for PaddedArrays instead of passing in
+  # masks.
   def precompute_predictive(
-      self, x_observed: _In, y_observed: ArrayLike
+      self,
+      x_observed: _In,
+      y_observed: ArrayLike,
+      observations_is_missing: Optional[ArrayLike] = None,
   ) -> None:
     """Builds a stochastic process regression model conditioned on observations.
 
@@ -404,14 +409,20 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     Args:
       x_observed: Index points on which to condition the posterior predictive.
       y_observed: Observations on which to condition the posterior predictive.
+      observations_is_missing: Boolean array describing which observations are
+        missing.
     """
     # Call the `tfd.Distribution` object's `posterior_predictive` method. This
     # triggers an expensive computation, typically a Cholesky decomposition, and
     # returns a new `tfd.Distribution` representing the posterior predictive.
     # Expensive intermediates are stored in the `precomputed_cholesky` Flax
     # variable and returned as auxiliary output.
+    kwargs = {}
+    if observations_is_missing is not None:
+      kwargs['observations_is_missing'] = observations_is_missing
     predictive_dist = self(x_observed).posterior_predictive(
-        index_points=None, observations=y_observed)
+        index_points=None, observations=y_observed, **kwargs
+    )
     # pylint: disable=protected-access
     cached_predictive_intermediates = {
         '_precomputed_divisor_matrix_cholesky': (
@@ -429,8 +440,15 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
         reduce_fn=lambda _, b: b,
     )
 
+  # TODO: Add support for PaddedArrays instead of passing in
+  # masks.
   def posterior_predictive(
-      self, x_predictive: _In, x_observed: _In, y_observed: ArrayLike
+      self,
+      x_predictive: _In,
+      x_observed: _In,
+      y_observed: ArrayLike,
+      *,
+      observations_is_missing: Optional[ArrayLike] = None,
   ) -> _D:
     """Returns a posterior predictive stochastic process.
 
@@ -446,6 +464,8 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       x_predictive: Predictive index points.
       x_observed: Index points on which to condition the posterior predictive.
       y_observed: Observations on which to condition the posterior predictive.
+      observations_is_missing: Boolean array describing which observations are
+        missing.
 
     Returns:
       pp_dist: The posterior predictive distribution over `x_predictive`.
@@ -462,10 +482,13 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     cached_intermediates = self.get_variable(
         'predictive', 'precomputed_cholesky'
     )
+    kwargs = cached_intermediates
+    if observations_is_missing is not None:
+      kwargs = kwargs.copy({'observations_is_missing': observations_is_missing})
     return self(x_observed).posterior_predictive(
         observations=y_observed,
         predictive_index_points=x_predictive,
-        **cached_intermediates,
+        **kwargs,
     )
 
 

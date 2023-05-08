@@ -31,7 +31,7 @@ from absl.testing import parameterized
 Trial = pyvizier.Trial
 
 
-class TrialToArrayConverterTest(absltest.TestCase):
+class TrialToArrayConverterTest(parameterized.TestCase):
   """Test TrialToArrayConverter class."""
 
   def setUp(self):

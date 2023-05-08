@@ -189,7 +189,12 @@ class TrustRegion:
   """
 
   def __init__(
-      self, trusted: types.Array, specs: Sequence[converters.NumpyArraySpec]
+      self,
+      trusted: types.Array,
+      specs: Sequence[converters.NumpyArraySpec],
+      *,
+      feature_is_missing: Optional[types.Array] = None,
+      observations_is_missing: Optional[types.Array] = None,
   ):
     """Init.
 
@@ -197,10 +202,18 @@ class TrustRegion:
       trusted: Array of shape (N, D) where each element is in [0, 1]. Each row
         is the D-dimensional vector representing a trusted point.
       specs: List of output specs of the `TrialToArrayConverter`.
+      feature_is_missing: Boolean Array of shape (D,), determining which
+        features are padded for reducing JIT compilations.
+      observations_is_missing: Boolean Array of shape (N,), determining which
+        observations are padded for reducing JIT compilations.
     """
     self._trusted = trusted
     self._dof = len(specs)
     self._trust_radius = self._compute_trust_radius(self._trusted)
+    # TODO: Add support for PaddedArrays instead of passing in
+    # masks.
+    self._feature_is_missing = feature_is_missing
+    self._observations_is_missing = observations_is_missing
 
     max_distance = []
     for spec in specs:
@@ -210,6 +223,11 @@ class TrustRegion:
         max_distance.extend([self._trust_radius] * spec.num_dimensions)
       else:
         max_distance.append(np.inf)
+    if feature_is_missing is not None:
+      # These extra dimensions should be ignored.
+      max_distance.extend(
+          [0.0] * (feature_is_missing.shape[-1] - len(max_distance))
+      )
     self._max_distances = np.array(max_distance)
 
   def _compute_trust_radius(self, trusted: types.Array) -> float:
@@ -244,7 +262,18 @@ class TrustRegion:
       (M,) array of floating numbers, L-infinity distances to the nearest
       trusted point.
     """
-    distances = jnp.abs(self._trusted - xs[..., jnp.newaxis, :])  # (M, N, D)
+    trusted = self._trusted
+    if self._feature_is_missing is not None:
+      # Mask out padded dimensions
+      trusted = jnp.where(self._feature_is_missing, 0.0, trusted)
+      xs = jnp.where(self._feature_is_missing, jnp.zeros_like(xs), xs)
+    distances = jnp.abs(trusted - xs[..., jnp.newaxis, :])  # (M, N, D)
+    if self._observations_is_missing is not None:
+      # Mask out padded features. We set these distances to infinite since
+      # they should never be considered.
+      distances = jnp.where(
+          self._observations_is_missing[..., jnp.newaxis], np.inf, distances
+      )
     distances_bounded = jnp.minimum(distances, self._max_distances)
     linf_distance = jnp.max(distances_bounded, axis=-1)  # (M, N)
     return jnp.min(linf_distance, axis=-1)  # (M,)
@@ -320,6 +349,7 @@ def _build_predictive_distribution(
     state: types.ModelState,
     features: types.Array,
     labels: types.Array,
+    observations_is_missing: Optional[types.Array] = None,
     use_vmap: bool = True,
 ) -> Callable[[types.Array], tfd.Distribution]:
   """Generates the predictive distribution on array function."""
@@ -333,6 +363,7 @@ def _build_predictive_distribution(
         features,
         labels,
         method=model.posterior_predictive,
+        observations_is_missing=observations_is_missing,
     )
 
   # Vmaps and combines the predictive distribution over all models.
@@ -397,6 +428,8 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
       features: types.Array,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
+      observations_is_missing: Optional[types.Array] = None,
+      feature_is_missing: Optional[types.Array] = None,
       use_vmap: bool = True,
   ) -> None:
     """Generates the predict and acquisition functions.
@@ -408,6 +441,8 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
       features: See abstraction.
       labels: See abstraction.
       converter: TrialToArrayConverter for TrustRegion configuration.
+      observations_is_missing: See abstraction.
+      feature_is_missing: See abstraction.
       use_vmap: If True, applies Vmap across parameter ensembles.
     """
 
@@ -416,6 +451,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
         state=state,
         features=features,
         labels=labels,
+        observations_is_missing=observations_is_missing,
         use_vmap=use_vmap,
     )
 
@@ -439,7 +475,12 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     self._sample_on_array = sample_on_array
 
     # Define acquisition.
-    self._tr = TrustRegion(features, converter.output_specs)
+    self._tr = TrustRegion(
+        features,
+        converter.output_specs,
+        feature_is_missing=feature_is_missing,
+        observations_is_missing=observations_is_missing,
+    )
 
     # This supports acquisition fns that do arbitrary computations with the
     # input distributions -- e.g. they could take samples or compute quantiles.
@@ -543,6 +584,9 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     # Perform extra initializations.
     self._built = False
 
+  # TODO: Add support for PaddedArrays instead of passing in
+  # masks. Then this could unwrap the PaddedArrays and ignore the masks for the
+  # time being.
   def build(
       self,
       problem: vz.ProblemStatement,
@@ -551,6 +595,8 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
       features: types.Array,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
+      observations_is_missing: Optional[types.Array] = None,
+      feature_is_missing: Optional[types.Array] = None,
       use_vmap: bool = True,
   ) -> None:
     """Generates the predict and acquisition functions.
@@ -562,9 +608,12 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
       features: See abstraction.
       labels: See abstraction.
       converter: TrialToArrayConverter for TrustRegion configuration.
+      observations_is_missing: Unused.
+      feature_is_missing: Unused.
       use_vmap: If True, applies Vmap across parameter ensembles.
     """
-
+    del observations_is_missing
+    del feature_is_missing
     self._get_predictive_dist = _build_predictive_distribution(
         model=model,
         state=state,

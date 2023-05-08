@@ -73,7 +73,7 @@ trials = optimizer.optimize(problem_statement, objective_function)
 import enum
 import logging
 import math
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import attr
 import chex
@@ -152,7 +152,10 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
 
   def __call__(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: Union[
+          converters.TrialToArrayConverter,
+          converters.PaddedTrialToArrayConverter,
+      ],
       suggestion_batch_size: Optional[int] = None,
   ) -> "VectorizedEagleStrategy":
     """Create a new vectorized eagle strategy.
@@ -304,9 +307,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       )
     if prior_features.shape[1] != self._n_features:
       raise ValueError(
-          f"prior features shape ({prior_features.shape[1]}) doesn't match "
-          f"n_features ({self._n_features})!"
+          f"prior features shape ({prior_features.shape[1]}) doesn't match"
+          f" n_features {self._n_features}!"
       )
+
     if len(prior_rewards.shape) > 1:
       raise ValueError("prior rewards is expected to be 1D array!")
 
@@ -472,7 +476,13 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     )  # shape (batch_size, pool_size)
 
     # Normalize the distance by the number of features.
-    force = jnp.exp(-self.config.visibility * dists / self._n_features * 10.0)
+    # Get the number of non-padded features.
+    n_non_padded_features = sum(
+        spec.num_dimensions for spec in self.converter.output_specs
+    )
+    force = jnp.exp(
+        -self.config.visibility * dists / n_non_padded_features * 10.0
+    )
     scaled_force = scaled_directions * force
     # Handle removed fireflies without updated rewards.
     finite_ind = jnp.isfinite(rewards).astype(scaled_force.dtype)

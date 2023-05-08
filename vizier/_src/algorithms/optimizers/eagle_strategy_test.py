@@ -25,6 +25,7 @@ from vizier._src.algorithms.optimizers import eagle_param_handler
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier.pyvizier import converters
+from vizier.pyvizier.converters import padding
 
 from absl.testing import absltest
 
@@ -261,6 +262,24 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     optimizer = vb.VectorizedOptimizer(strategy_factory=eagle_factory)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     optimizer.optimize(converter, score_fn=lambda x: -jnp.sum(x, 1), count=1)
+
+  def test_optimize_with_eagle_padding(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 1.0)
+    root.add_float_param('x2', 0.0, 1.0)
+    root.add_float_param('x3', 0.0, 1.0)
+    converter = converters.PaddedTrialToArrayConverter.from_study_config(
+        problem,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.POWERS_OF_2,
+            num_features=padding.PaddingType.POWERS_OF_2,
+        ),
+    )
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    optimizer = vb.VectorizedOptimizer(strategy_factory=eagle_factory)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    optimizer.optimize(converter, score_fn=lambda x: -np.sum(x, 1), count=1)
 
 
 class EagleParamHandlerTest(parameterized.TestCase):

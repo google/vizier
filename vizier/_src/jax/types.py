@@ -22,12 +22,15 @@ from flax.core import scope as flax_scope
 import jax
 from jax.typing import ArrayLike
 import numpy as np
+from vizier.pyvizier.converters import padding
 
 
 # We define our own Array type since `jax.typing.Array` and `chex.Array` both
 # include scalar types, which result in type errors when array
 # methods/properties like `.shape` are accessed.
 Array = Union[np.ndarray, jax.Array]
+
+MaybePaddedArray = Union[Array, padding.PaddedArray]
 
 ArrayTree = Union[ArrayLike, Iterable['ArrayTree'], Mapping[Any, 'ArrayTree']]
 

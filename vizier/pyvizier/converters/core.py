@@ -623,7 +623,16 @@ class DefaultModelInputConverter(ModelInputConverter):
   def _to_parameter_value(
       self, value: Union['np.float', float, int]
   ) -> Optional[pyvizier.ParameterValue]:
-    """Converts to a single parameter value; see to_parameter_values()."""
+    """Converts to a single parameter value; see to_parameter_values().
+
+    Be aware that the value is automatically truncated.
+
+    Args:
+      value:
+
+    Returns:
+      ParameterValue.
+    """
     # TODO: NaNs and out-of-vocab values should return None instead
     # of raising an error.
     if not self._converts_to_parameter:
@@ -1199,7 +1208,9 @@ class TrialToArrayConverter:
   _experimental_override = 'I am aware that this code may break at any point.'
 
   def __init__(
-      self, impl: DefaultTrialConverter, experimental_override: str = ''
+      self,
+      impl: DefaultTrialConverter,
+      experimental_override: str = '',
   ):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
 
@@ -1211,11 +1222,12 @@ class TrialToArrayConverter:
     self._impl = impl
 
   def to_features(self, trials) -> np.ndarray:
-    """Returns the labels array with dimenion: (n_trials, n_features)."""
+    """Returns the features array with dimension: (n_trials, n_features)."""
     return dict_to_array(self._impl.to_features(trials))
 
   def to_labels(self, trials) -> np.ndarray:
     """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    # Pad up the labels.
     return dict_to_array(self._impl.to_labels(trials))
 
   def to_xy(self, trials) -> Tuple[np.ndarray, np.ndarray]:
@@ -1223,6 +1235,7 @@ class TrialToArrayConverter:
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
+    # TODO: Add a boolean flag to diable automatic clipping.
     arrformat = DictOf2DArrays(self._impl.to_features([]))
     return self._impl.to_parameters(arrformat.dict_like(arr))
 

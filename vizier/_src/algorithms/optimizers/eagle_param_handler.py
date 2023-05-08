@@ -81,19 +81,20 @@ class EagleParamHandler:
         converters.NumpyArraySpecType.ONEHOT_EMBEDDING,
         converters.NumpyArraySpecType.CONTINUOUS
     ]
-    unsupported_params = sum([
-        1 for spec in self.converter.output_specs
+    unsupported_params = sum(
+        1
+        for spec in self.converter.output_specs
         if spec.type not in valid_types
-    ])
+    )
     if unsupported_params:
       raise ValueError('Only CATEGORICAL/CONTINUOUS parameters are supported!')
 
-    self.n_features = sum(
-        [spec.num_dimensions for spec in self.converter.output_specs])
-    self.n_categorical = sum([
-        1 for spec in self.converter.output_specs
+    self.n_features = self.converter.to_features([]).shape[-1]
+    self.n_categorical = sum(
+        1
+        for spec in self.converter.output_specs
         if spec.type == converters.NumpyArraySpecType.ONEHOT_EMBEDDING
-    ])
+    )
     self.has_categorical = self.n_categorical > 0
     self.all_features_categorical = self.n_features == self.n_categorical
     if self.has_categorical:
@@ -203,20 +204,19 @@ class EagleParamHandler:
     Returns:
       The random features with out of vocabulary indices zeroed out.
     """
-    size = (batch_size, self.n_features)
+    features = jax.random.uniform(seed, shape=(batch_size, self.n_features))
     if self._oov_mask is not None:
       # Don't create random values for CATEGORICAL features OOV indices.
       # Broadcasting: (batch_size, n_features) x (n_features,)
-      return jax.random.uniform(seed, shape=size) * self._oov_mask
-    else:
-      return jax.random.uniform(seed, shape=size)
+      features = features * self._oov_mask
+    return features
 
   @property
   def perturbation_factors(self) -> jax.Array:
     """Create the perturbations factors.
 
     Returns:
-      Array of perturbation factors (n_features,)
+      Array of perturbation factors of shape (n_features)
     """
     perturbation_factors = []
 
@@ -232,4 +232,8 @@ class EagleParamHandler:
 
         elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
           perturbation_factors.append(1.0)
+    # Add any extra dimensions at the end.
+    perturbation_factors.extend(
+        [0.0] * (self.n_features - len(perturbation_factors))
+    )
     return jnp.array(perturbation_factors)

@@ -29,6 +29,7 @@ import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import mask_features
 from vizier._src.jax.optimizers import optimizers
 
 # Jax disables float64 computations by default and will silently convert
@@ -57,6 +58,9 @@ class VizierGaussianProcess(
 
   _feature_dim: int
   _use_retrying_cholesky: bool = attr.field(default=True, kw_only=True)
+  _dimension_is_missing: Optional[types.Array] = attr.field(
+      default=None, kw_only=True
+  )
   _boundary_epsilon: float = attr.field(default=1e-12, kw_only=True)
 
   @classmethod
@@ -65,11 +69,15 @@ class VizierGaussianProcess(
       features: types.Array,
       labels: types.Array,
       *,
+      dimension_is_missing: Optional[types.Array] = None,
+      observation_is_missing: Optional[types.Array] = None,
       use_retrying_cholesky: bool = True,
   ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
     """Returns the model and loss function."""
     gp_coroutine = VizierGaussianProcess(
-        features.shape[-1], use_retrying_cholesky=use_retrying_cholesky
+        features.shape[-1],
+        dimension_is_missing=dimension_is_missing,
+        use_retrying_cholesky=use_retrying_cholesky,
     )
     model = sp.StochasticProcessModel(gp_coroutine)
 
@@ -78,9 +86,9 @@ class VizierGaussianProcess(
       gp, mutables = model.apply({'params': params},
                                  features,
                                  mutable=['losses', 'predictive'])
-      loss = -gp.log_prob(labels) + jax.tree_util.tree_reduce(
-          jax.numpy.add, mutables['losses']
-      )
+      loss = -gp.log_prob(
+          labels, is_missing=observation_is_missing
+      ) + jax.tree_util.tree_reduce(jax.numpy.add, mutables['losses'])
       return loss, dict()
 
     return model, loss_fn
@@ -150,6 +158,13 @@ class VizierGaussianProcess(
         name='length_scale_squared',
     )
     kernel = tfpk.FeatureScaled(kernel, scale_diag=jnp.sqrt(length_scale))
+    if self._dimension_is_missing is not None:
+      # Ensure features are zero for this kernel. This will also ensure the
+      # length scales are not trainable, since there will be no signal from
+      # these dimensions.
+      kernel = mask_features.MaskFeatures(
+          kernel, dimension_is_missing=self._dimension_is_missing
+      )
 
     observation_noise_variance = yield sp.ModelParameter(
         init_fn=self._log_uniform_init(*observation_noise_bounds),
