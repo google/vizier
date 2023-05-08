@@ -377,6 +377,18 @@ class MetadataTest(absltest.TestCase):
     self.assertEqual(m3['z'], 'Z')
     self.assertEqual(m3['foo'], 'bar')
 
+  def test_metadata_items_by_cls(self):
+    mm = common.Metadata(foo='bar', nerf='gleep')
+    mm['aaa'] = duration_pb2.Duration(seconds=5)
+    mm.ns('ns1')['foo'] = 'bar1'
+    test1 = list(sorted(mm.items_by_cls(cls=str)))
+    self.assertLen(test1, 2)
+    self.assertEqual(test1[0], ('foo', 'bar'))
+    self.assertEqual(test1[1], ('nerf', 'gleep'))
+    test2 = list(sorted(mm.items_by_cls(cls=duration_pb2.Duration)))
+    self.assertLen(test2, 1)
+    self.assertEqual(test2[0][1].seconds, 5)
+
 
 if __name__ == '__main__':
   absltest.main()

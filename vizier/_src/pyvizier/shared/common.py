@@ -27,11 +27,12 @@ import attr
 from google.protobuf import any_pb2
 from google.protobuf.message import Message
 
-M = TypeVar('M', bound=Message)
+_M = TypeVar('_M', bound=Message)
 T = TypeVar('T')
 T1 = TypeVar('T1')
 T2 = TypeVar('T2')
 MetadataValue = Union[str, any_pb2.Any, Message]
+_V = TypeVar('_V', bound=MetadataValue)
 
 # Namespace Encoding.
 #
@@ -398,8 +399,11 @@ class Metadata(abc.MutableMapping):
     """Prints items in the current namespace."""
     return 'namespace: {} items: {}'.format(str(self._namespace), self._store)
 
-  def get_proto(self, key: str, *, cls: Type[M]) -> Optional[M]:
+  def get_proto(self, key: str, *, cls: Type[_M]) -> Optional[_M]:
     """Deprecated: use get() instead."""
+    logging.warning(
+        'Metadata.get_proto() is deprecated, prefer Metadata.get().'
+    )
     value = self._store.get(key, None)
     if value is None:
       return None
@@ -572,6 +576,22 @@ class Metadata(abc.MutableMapping):
     for ns in self.namespaces():
       for k, v in self.abs_ns(ns).items():
         yield (ns, k, v)
+
+  def items_by_cls(self, *, cls: Type[_V]) -> Iterator[Tuple[str, _V]]:
+    """Yields an iterator over items whose type=$cls in the current namespace.
+
+    This iterates through the metadata items in the current namespace, like
+    __iter__(), except that it only returns items of the specified type.
+
+    Args:
+      cls: What type of objects to filter for?
+
+    Yields:
+      Tuple of (key, value).
+    """
+    for k_v in self.items():
+      if isinstance(k_v[1], cls):
+        yield k_v
 
   # START OF abstract methods inherited from `MutableMapping` base class.
   def __getitem__(self, key: str) -> MetadataValue:
