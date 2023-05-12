@@ -15,48 +15,53 @@
 from __future__ import annotations
 
 """Converters for OSS Vizier's protos from/to PyVizier's classes."""
+
 import datetime
 import logging
 from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 from absl import logging
-from vizier import pyvizier as vz
 from vizier._src.pythia import policy
 from vizier._src.pyvizier.oss import metadata_util
 from vizier._src.pyvizier.pythia import study
+from vizier._src.pyvizier.shared import base_study_config
+from vizier._src.pyvizier.shared import common
+from vizier._src.pyvizier.shared import parameter_config
+from vizier._src.pyvizier.shared import trial
 from vizier._src.service import pythia_service_pb2
 from vizier._src.service import study_pb2
 from vizier._src.service import vizier_service_pb2
 
-ScaleType = vz.ScaleType
+
+ScaleType = parameter_config.ScaleType
 _ScaleTypePb2 = study_pb2.StudySpec.ParameterSpec.ScaleType
-ParameterType = vz.ParameterType
-MonotypeParameterSequence = vz.MonotypeParameterSequence
+ParameterType = parameter_config.ParameterType
+MonotypeParameterSequence = parameter_config.MonotypeParameterSequence
 
 
 class StudyStateConverter:
   """Proto converter for Study states."""
 
   _pyvizier_to_proto = {
-      vz.StudyState.ACTIVE: study_pb2.Study.State.ACTIVE,
-      vz.StudyState.ABORTED: study_pb2.Study.State.INACTIVE,
-      vz.StudyState.COMPLETED: study_pb2.Study.State.COMPLETED,
+      study.StudyState.ACTIVE: study_pb2.Study.State.ACTIVE,
+      study.StudyState.ABORTED: study_pb2.Study.State.INACTIVE,
+      study.StudyState.COMPLETED: study_pb2.Study.State.COMPLETED,
   }
   _proto_to_pyvizier = {v: k for k, v in _pyvizier_to_proto.items()}
 
   @classmethod
-  def to_proto(cls, state: vz.StudyState) -> study_pb2.Study.State:
+  def to_proto(cls, state: study.StudyState) -> study_pb2.Study.State:
     if state in cls._pyvizier_to_proto:
       return cls._pyvizier_to_proto[state]
     return study_pb2.Study.State.STATE_UNSPECIFIED
 
   @classmethod
-  def from_proto(cls, proto: study_pb2.Study.State) -> vz.StudyState:
+  def from_proto(cls, proto: study_pb2.Study.State) -> study.StudyState:
     if proto in cls._proto_to_pyvizier:
       return cls._proto_to_pyvizier[proto]
     elif proto == study_pb2.Study.State.STATE_UNSPECIFIED:
       # OSS Vizier server treats STATE_UNSPECIFIED as ACTIVE.
-      return vz.StudyState.ACTIVE
+      return study.StudyState.ACTIVE
     else:
       raise ValueError(
           'Proto Study state {} has no equivalent in PyVizier.'.format(
@@ -69,18 +74,18 @@ class _ScaleTypeMap:
   """Proto converter for scale type."""
 
   _pyvizier_to_proto = {
-      vz.ScaleType.LINEAR: _ScaleTypePb2.UNIT_LINEAR_SCALE,
-      vz.ScaleType.LOG: _ScaleTypePb2.UNIT_LOG_SCALE,
-      vz.ScaleType.REVERSE_LOG: _ScaleTypePb2.UNIT_REVERSE_LOG_SCALE,
+      ScaleType.LINEAR: _ScaleTypePb2.UNIT_LINEAR_SCALE,
+      ScaleType.LOG: _ScaleTypePb2.UNIT_LOG_SCALE,
+      ScaleType.REVERSE_LOG: _ScaleTypePb2.UNIT_REVERSE_LOG_SCALE,
   }
   _proto_to_pyvizier = {v: k for k, v in _pyvizier_to_proto.items()}
 
   @classmethod
-  def to_proto(cls, pyvizier: vz.ScaleType) -> _ScaleTypePb2:
+  def to_proto(cls, pyvizier: ScaleType) -> _ScaleTypePb2:
     return cls._pyvizier_to_proto[pyvizier]
 
   @classmethod
-  def from_proto(cls, proto: _ScaleTypePb2) -> vz.ScaleType:
+  def from_proto(cls, proto: _ScaleTypePb2) -> ScaleType:
     return cls._proto_to_pyvizier[proto]
 
 
@@ -154,7 +159,7 @@ class ParameterConfigConverter:
       proto: study_pb2.StudySpec.ParameterSpec,
       *,
       strict_validation: bool = False,
-  ) -> vz.ParameterConfig:
+  ) -> parameter_config.ParameterConfig:
     """Creates a ParameterConfig.
 
     Args:
@@ -206,7 +211,7 @@ class ParameterConfigConverter:
       scale_type = _ScaleTypeMap.from_proto(proto.scale_type)
 
     try:
-      config = vz.ParameterConfig.factory(
+      config = parameter_config.ParameterConfig.factory(
           name=proto.parameter_id,
           feasible_values=feasible_values,
           bounds=bounds,
@@ -231,7 +236,7 @@ class ParameterConfigConverter:
   def _set_child_parameter_configs(
       cls,
       parent_proto: study_pb2.StudySpec.ParameterSpec,
-      pc: vz.ParameterConfig,
+      pc: parameter_config.ParameterConfig,
   ):
     """Sets the parent_proto's conditional_parameter_specs field.
 
@@ -242,7 +247,9 @@ class ParameterConfigConverter:
     Raises:
       ValueError: If the child configs are invalid
     """
-    children: List[Tuple[MonotypeParameterSequence, vz.ParameterConfig]] = []
+    children: List[
+        Tuple[MonotypeParameterSequence, parameter_config.ParameterConfig]
+    ] = []
     for child in pc.child_parameter_configs:
       children.append((child.matching_parent_values, child))
     if not children:
@@ -290,7 +297,7 @@ class ParameterConfigConverter:
 
   @classmethod
   def to_proto(
-      cls, pc: vz.ParameterConfig
+      cls, pc: parameter_config.ParameterConfig
   ) -> study_pb2.StudySpec.ParameterSpec:
     """Returns a ParameterConfig Proto."""
     proto = study_pb2.StudySpec.ParameterSpec(parameter_id=pc.name)
@@ -320,7 +327,7 @@ class ParameterValueConverter:
   @classmethod
   def from_proto(
       cls, proto: study_pb2.Trial.Parameter
-  ) -> Optional[vz.ParameterValue]:
+  ) -> Optional[trial.ParameterValue]:
     """Returns whichever value that is populated, or None."""
     value_proto = proto.value
     oneof_name = value_proto.WhichOneof('kind')
@@ -330,13 +337,13 @@ class ParameterValueConverter:
         or isinstance(potential_value, str)
         or isinstance(potential_value, bool)
     ):
-      return vz.ParameterValue(potential_value)
+      return trial.ParameterValue(potential_value)
     else:
       return None
 
   @classmethod
   def to_proto(
-      cls, parameter_value: vz.ParameterValue, name: str
+      cls, parameter_value: trial.ParameterValue, name: str
   ) -> study_pb2.Trial.Parameter:
     """Returns Parameter Proto."""
     proto = study_pb2.Trial.Parameter(parameter_id=name)
@@ -357,7 +364,7 @@ class MeasurementConverter:
   """Converter for vz.Measurement."""
 
   @classmethod
-  def from_proto(cls, proto: study_pb2.Measurement) -> vz.Measurement:
+  def from_proto(cls, proto: study_pb2.Measurement) -> trial.Measurement:
     """Creates a valid instance from proto.
 
     Args:
@@ -389,17 +396,17 @@ class MeasurementConverter:
             metrics[metric.metric_id].value,
         )
       try:
-        metrics[metric.metric_id] = vz.Metric(value=metric.value)
+        metrics[metric.metric_id] = trial.Metric(value=metric.value)
       except ValueError:
         pass
-    return vz.Measurement(
+    return trial.Measurement(
         metrics=metrics,
         elapsed_secs=proto.elapsed_duration.seconds,
         steps=proto.step_count,
     )
 
   @classmethod
-  def to_proto(cls, measurement: vz.Measurement) -> study_pb2.Measurement:
+  def to_proto(cls, measurement: trial.Measurement) -> study_pb2.Measurement:
     """Converts to Measurement proto."""
     proto = study_pb2.Measurement()
     for name, metric in measurement.metrics.items():
@@ -420,9 +427,9 @@ class MetricInformationConverter:
   @classmethod
   def from_proto(
       cls, proto: study_pb2.StudySpec.MetricSpec
-  ) -> vz.MetricInformation:
+  ) -> base_study_config.MetricInformation:
     """Converts a MetricInformation proto to a MetricInformation object."""
-    if proto.goal not in list(vz.ObjectiveMetricGoal):
+    if proto.goal not in list(base_study_config.ObjectiveMetricGoal):
       raise ValueError('Unknown MetricInformation.goal: {}'.format(proto.goal))
 
     safety_threshold = None
@@ -435,7 +442,7 @@ class MetricInformationConverter:
           proto.safety_config.desired_min_safe_trials_fraction
       )
 
-    return vz.MetricInformation(
+    return base_study_config.MetricInformation(
         name=proto.metric_id,
         goal=proto.goal,
         safety_threshold=safety_threshold,
@@ -446,7 +453,7 @@ class MetricInformationConverter:
 
   @classmethod
   def to_proto(
-      cls, obj: vz.MetricInformation
+      cls, obj: base_study_config.MetricInformation
   ) -> study_pb2.StudySpec.MetricSpec:
     """Returns this object as a proto."""
 
@@ -454,7 +461,7 @@ class MetricInformationConverter:
         metric_id=obj.name, goal=obj.goal.value
     )
 
-    if obj.type == vz.MetricType.SAFETY:
+    if obj.type == base_study_config.MetricType.SAFETY:
       proto.safety_config.safety_threshold = obj.safety_threshold
       if obj.desired_min_safe_trials_fraction is not None:
         proto.safety_config.desired_min_safe_trials_fraction = (
@@ -467,16 +474,18 @@ class SearchSpaceConverter:
   """A wrapper for study_pb2.StudySpec."""
 
   @classmethod
-  def from_proto(cls, proto: study_pb2.StudySpec) -> vz.SearchSpace:
+  def from_proto(
+      cls, proto: study_pb2.StudySpec
+  ) -> parameter_config.SearchSpace:
     """Extracts a SearchSpace object from a StudyConfig proto."""
-    space = vz.SearchSpace()
+    space = parameter_config.SearchSpace()
     for pc in proto.parameters:
       space.add(ParameterConfigConverter.from_proto(pc))
     return space
 
   @classmethod
   def parameter_protos(
-      cls, obj: vz.SearchSpace
+      cls, obj: parameter_config.SearchSpace
   ) -> List[study_pb2.StudySpec.ParameterSpec]:
     """Returns the search space as a List of ParameterConfig protos."""
     return [ParameterConfigConverter.to_proto(pc) for pc in obj.parameters]
@@ -488,47 +497,47 @@ class MetricsConfigConverter:
   @classmethod
   def from_protos(
       cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]
-  ) -> vz.MetricsConfig:
-    return vz.MetricsConfig(
+  ) -> base_study_config.MetricsConfig:
+    return base_study_config.MetricsConfig(
         [MetricInformationConverter.from_proto(m) for m in protos]
     )
 
   @classmethod
   def to_protos(
-      cls, obj: vz.MetricsConfig
+      cls, obj: base_study_config.MetricsConfig
   ) -> List[study_pb2.StudySpec.MetricSpec]:
     return [MetricInformationConverter.to_proto(metric) for metric in obj]
 
 
 def _to_pyvizier_trial_status(
     proto_state: study_pb2.Trial.State,
-) -> vz.TrialStatus:
+) -> trial.TrialStatus:
   """from_proto conversion for Trial statuses."""
   if proto_state == study_pb2.Trial.State.REQUESTED:
-    return vz.TrialStatus.REQUESTED
+    return trial.TrialStatus.REQUESTED
   elif proto_state == study_pb2.Trial.State.ACTIVE:
-    return vz.TrialStatus.ACTIVE
+    return trial.TrialStatus.ACTIVE
   if proto_state == study_pb2.Trial.State.STOPPING:
-    return vz.TrialStatus.STOPPING
+    return trial.TrialStatus.STOPPING
   if proto_state == study_pb2.Trial.State.SUCCEEDED:
-    return vz.TrialStatus.COMPLETED
+    return trial.TrialStatus.COMPLETED
   elif proto_state == study_pb2.Trial.State.INFEASIBLE:
-    return vz.TrialStatus.COMPLETED
+    return trial.TrialStatus.COMPLETED
   else:
-    return vz.TrialStatus.UNKNOWN
+    return trial.TrialStatus.UNKNOWN
 
 
 def _from_pyvizier_trial_status(
-    status: vz.TrialStatus, infeasible: bool
+    status: trial.TrialStatus, infeasible: bool
 ) -> study_pb2.Trial.State:
   """to_proto conversion for Trial states."""
-  if status == vz.TrialStatus.REQUESTED:
+  if status == trial.TrialStatus.REQUESTED:
     return study_pb2.Trial.State.REQUESTED
-  elif status == vz.TrialStatus.ACTIVE:
+  elif status == trial.TrialStatus.ACTIVE:
     return study_pb2.Trial.State.ACTIVE
-  elif status == vz.TrialStatus.STOPPING:
+  elif status == trial.TrialStatus.STOPPING:
     return study_pb2.Trial.State.STOPPING
-  elif status == vz.TrialStatus.COMPLETED:
+  elif status == trial.TrialStatus.COMPLETED:
     if infeasible:
       return study_pb2.Trial.State.INFEASIBLE
     else:
@@ -541,7 +550,7 @@ class TrialConverter:
   """Converter for vz.Trial."""
 
   @classmethod
-  def from_proto(cls, proto: study_pb2.Trial) -> vz.Trial:
+  def from_proto(cls, proto: study_pb2.Trial) -> trial.Trial:
     """Converts from Trial proto to object.
 
     Args:
@@ -581,9 +590,9 @@ class TrialConverter:
     elif proto.state == study_pb2.Trial.State.INFEASIBLE:
       infeasibility_reason = proto.infeasible_reason
 
-    metadata = vz.Metadata()
+    metadata = common.Metadata()
     for kv in proto.metadata:
-      metadata.abs_ns(vz.Namespace.decode(kv.ns))[kv.key] = (
+      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value
       )
 
@@ -595,7 +604,7 @@ class TrialConverter:
     if proto.HasField('start_time'):
       creation_ts = proto.start_time.seconds + 1e-9 * proto.start_time.nanos
       creation_time = datetime.datetime.fromtimestamp(creation_ts)
-    return vz.Trial(
+    return trial.Trial(
         id=int(proto.id),
         description=proto.name,
         assigned_worker=proto.client_id or None,
@@ -615,16 +624,16 @@ class TrialConverter:
     )  # pytype: disable=wrong-arg-types
 
   @classmethod
-  def from_protos(cls, protos: Iterable[study_pb2.Trial]) -> List[vz.Trial]:
+  def from_protos(cls, protos: Iterable[study_pb2.Trial]) -> List[trial.Trial]:
     """Convenience wrapper for from_proto."""
     return [TrialConverter.from_proto(proto) for proto in protos]
 
   @classmethod
-  def to_protos(cls, pytrials: Iterable[vz.Trial]) -> List[study_pb2.Trial]:
+  def to_protos(cls, pytrials: Iterable[trial.Trial]) -> List[study_pb2.Trial]:
     return [TrialConverter.to_proto(pytrial) for pytrial in pytrials]
 
   @classmethod
-  def to_proto(cls, pytrial: vz.Trial) -> study_pb2.Trial:
+  def to_proto(cls, pytrial: trial.Trial) -> study_pb2.Trial:
     """Converts a pyvizier Trial to a Trial proto."""
     proto = study_pb2.Trial()
     if pytrial.description is not None:
@@ -673,7 +682,7 @@ class TrialSuggestionConverter:
   @classmethod
   def from_proto(
       cls, proto: pythia_service_pb2.TrialSuggestion
-  ) -> vz.TrialSuggestion:
+  ) -> trial.TrialSuggestion:
     """Converts from TrialSuggestion proto to PyVizier TrialSuggestion."""
     parameters = {}
     for parameter in proto.parameters:
@@ -688,30 +697,30 @@ class TrialSuggestionConverter:
         )
       parameters[parameter.parameter_id] = value
 
-    metadata = vz.Metadata()
+    metadata = common.Metadata()
     for kv in proto.metadata:
-      metadata.abs_ns(vz.Namespace.decode(kv.ns))[kv.key] = (
+      metadata.abs_ns(common.Namespace.decode(kv.ns))[kv.key] = (
           kv.proto if kv.HasField('proto') else kv.value
       )
 
-    return vz.TrialSuggestion(parameters=parameters, metadata=metadata)
+    return trial.TrialSuggestion(parameters=parameters, metadata=metadata)
 
   @classmethod
   def from_protos(
       cls, protos: Iterable[pythia_service_pb2.TrialSuggestion]
-  ) -> List[vz.TrialSuggestion]:
+  ) -> List[trial.TrialSuggestion]:
     """Convenience wrapper for from_proto."""
     return [cls.from_proto(proto) for proto in protos]
 
   @classmethod
   def to_protos(
-      cls, pytrials: Iterable[vz.TrialSuggestion]
+      cls, pytrials: Iterable[trial.TrialSuggestion]
   ) -> List[pythia_service_pb2.TrialSuggestion]:
     return [cls.to_proto(pytrial) for pytrial in pytrials]
 
   @classmethod
   def to_proto(
-      cls, suggestion: vz.TrialSuggestion
+      cls, suggestion: trial.TrialSuggestion
   ) -> pythia_service_pb2.TrialSuggestion:
     """Converts a pyvizier TrialSuggestion to the corresponding proto."""
     proto = pythia_service_pb2.TrialSuggestion()
@@ -730,7 +739,7 @@ class MetadataDeltaConverter:
 
   @classmethod
   def to_protos(
-      cls, delta: vz.MetadataDelta
+      cls, delta: trial.MetadataDelta
   ) -> List[vizier_service_pb2.UnitMetadataUpdate]:
     """Converts pyvizier.MetadataDelta to a List of UnitMetadataUpdate protos."""
     unit_metadata_updates = metadata_util.study_metadata_to_update_list(
@@ -744,12 +753,12 @@ class MetadataDeltaConverter:
   @classmethod
   def from_protos(
       cls, protos: Iterable[vizier_service_pb2.UnitMetadataUpdate]
-  ) -> vz.MetadataDelta:
+  ) -> trial.MetadataDelta:
     """Converts a list of UnitMetadataUpdate protos to pyvizier.MetadataDelta."""
-    mdd = vz.MetadataDelta()
+    mdd = trial.MetadataDelta()
     for u_m_u in protos:
       key_value = u_m_u.metadatum
-      namespace = vz.Namespace.decode(key_value.ns)
+      namespace = common.Namespace.decode(key_value.ns)
       value = (
           key_value.proto if key_value.HasField('proto') else key_value.value
       )
@@ -768,7 +777,7 @@ class ProblemStatementConverter:
   @classmethod
   def to_proto(
       cls,
-      problem_statement: vz.ProblemStatement,
+      problem_statement: base_study_config.ProblemStatement,
   ) -> pythia_service_pb2.ProblemStatement:
     """Converts PyVizier ProblemStatement to Proto version."""
     parameter_spec_protos = SearchSpaceConverter.parameter_protos(
@@ -789,7 +798,7 @@ class ProblemStatementConverter:
   @classmethod
   def from_proto(
       cls, proto: pythia_service_pb2.ProblemStatement
-  ) -> vz.ProblemStatement:
+  ) -> base_study_config.ProblemStatement:
     """Converts ProblemStatement Proto to PyVizier version."""
     study_spec = study_pb2.StudySpec(parameters=proto.search_space)
     search_space = SearchSpaceConverter.from_proto(study_spec)
@@ -797,7 +806,7 @@ class ProblemStatementConverter:
         proto.metric_information
     )
     metadata = metadata_util.from_key_value_list(proto.metadata)
-    return vz.ProblemStatement(
+    return base_study_config.ProblemStatement(
         search_space=search_space,
         metric_information=metric_information,
         metadata=metadata,

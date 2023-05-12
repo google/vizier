@@ -20,7 +20,9 @@ import abc
 from typing import Any, FrozenSet, Optional
 
 import attr
-from vizier import pyvizier as vz
+from vizier._src.pyvizier.pythia import study
+from vizier._src.pyvizier.shared import base_study_config
+from vizier._src.pyvizier.shared import trial
 
 
 def _is_positive(instance: Any, attribute: Any, value: Any):
@@ -63,11 +65,13 @@ class EarlyStopDecision:
   # TODO: Add a proper support for this in the service side.
   # NOTE: As of 2022Q3, the standard deviation field of Metrics in this value
   #   are ignored (i.e. $predicted_final_measurement.metrics[].std).
-  predicted_final_measurement: Optional[vz.Measurement] = attr.ib(
+  predicted_final_measurement: Optional[trial.Measurement] = attr.ib(
       default=None,
       validator=attr.validators.optional(
-          attr.validators.instance_of(vz.Measurement)),
-      on_setattr=attr.setters.validate)
+          attr.validators.instance_of(trial.Measurement)
+      ),
+      on_setattr=attr.setters.validate,
+  )
 
 
 @attr.define
@@ -86,9 +90,10 @@ class EarlyStopDecisions:
           attr.validators.instance_of(EarlyStopDecision)),
       converter=list)
 
-  metadata: vz.MetadataDelta = attr.field(
-      default=attr.Factory(vz.MetadataDelta),
-      validator=attr.validators.instance_of(vz.MetadataDelta))
+  metadata: trial.MetadataDelta = attr.field(
+      default=attr.Factory(trial.MetadataDelta),
+      validator=attr.validators.instance_of(trial.MetadataDelta),
+  )
 
 
 @attr.define
@@ -105,8 +110,9 @@ class EarlyStopRequest:
       path to find one.
     max_trial_id: max(trial.id for all existing Trials in the Study)
   """
-  _study_descriptor: vz.StudyDescriptor = attr.field(
-      kw_only=True, validator=attr.validators.instance_of(vz.StudyDescriptor))
+  _study_descriptor: study.StudyDescriptor = attr.field(
+      kw_only=True, validator=attr.validators.instance_of(study.StudyDescriptor)
+  )
 
   trial_ids: Optional[FrozenSet[int]] = attr.field(
       default=None,
@@ -122,7 +128,7 @@ class EarlyStopRequest:
     return self._study_descriptor.guid
 
   @property
-  def study_config(self) -> vz.ProblemStatement:
+  def study_config(self) -> base_study_config.ProblemStatement:
     return self._study_descriptor.config
 
   @property
@@ -140,16 +146,19 @@ class SuggestDecision:
       Trials.
   """
 
-  suggestions: list[vz.TrialSuggestion] = attr.field(
+  suggestions: list[trial.TrialSuggestion] = attr.field(
       init=True,
       validator=attr.validators.deep_iterable(
-          attr.validators.instance_of(vz.TrialSuggestion)),
-      converter=list)
+          attr.validators.instance_of(trial.TrialSuggestion)
+      ),
+      converter=list,
+  )
 
-  metadata: vz.MetadataDelta = attr.field(
+  metadata: trial.MetadataDelta = attr.field(
       init=True,
-      default=attr.Factory(vz.MetadataDelta),
-      validator=attr.validators.instance_of(vz.MetadataDelta))
+      default=attr.Factory(trial.MetadataDelta),
+      validator=attr.validators.instance_of(trial.MetadataDelta),
+  )
 
 
 @attr.define
@@ -165,10 +174,11 @@ class SuggestRequest:
       store a checkpoint.
     max_trial_id: max(trial.id for all existing Trials in the Study)
   """
-  _study_descriptor: vz.StudyDescriptor = attr.field(
-      validator=attr.validators.instance_of(vz.StudyDescriptor),
+  _study_descriptor: study.StudyDescriptor = attr.field(
+      validator=attr.validators.instance_of(study.StudyDescriptor),
       on_setattr=attr.setters.frozen,
-      kw_only=True)
+      kw_only=True,
+  )
 
   count: int = attr.field(
       validator=[attr.validators.instance_of(int), _is_positive],
@@ -182,7 +192,7 @@ class SuggestRequest:
       kw_only=True)
 
   @property
-  def study_config(self) -> vz.ProblemStatement:
+  def study_config(self) -> base_study_config.ProblemStatement:
     return self._study_descriptor.config
 
   @property

@@ -19,6 +19,7 @@ from __future__ import annotations
 Contains API shared across all platforms (Internal, Cloud, OSS).
 """
 
+from vizier._src.pyvizier.oss.study_config import ParameterValueSequence
 from vizier._src.pyvizier.pythia.study import StudyDescriptor
 from vizier._src.pyvizier.pythia.study import StudyState
 from vizier._src.pyvizier.pythia.study import StudyStateInfo
