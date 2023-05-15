@@ -20,6 +20,7 @@ import abc
 import attrs
 import numpy as np
 
+
 # An observation, that is a expert index (int) along with its reward.
 IndexWithReward = tuple[int, float]
 
@@ -63,13 +64,13 @@ def softmax(x: np.ndarray) -> np.ndarray:
 
 
 # https://bjpcjp.github.io/pdfs/math/bandits-exp3-IX-BA.pdf
-@attrs.define
+@attrs.define(kw_only=True)
 class EXP3IXDesign(EnsembleDesign):
   """The EXP3-IX Algorithm that is robust against small probabilities."""
 
   indices: list[int] = attrs.field()
   stepsize: float = attrs.field(
-      default=1.0,
+      default=0.01,
       validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
   )
   max_reward: float = attrs.field(
@@ -99,7 +100,7 @@ class EXP3IXDesign(EnsembleDesign):
 
 # pytype: disable=attribute-error
 # https://www.cs.princeton.edu/courses/archive/fall16/cos402/lectures/402-lec22.pdf.
-@attrs.define
+@attrs.define(kw_only=True)
 class EXP3UniformDesign(EnsembleDesign):
   """The EXP3 algorithm with uniform exploration."""
 
@@ -175,16 +176,13 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
       default=1.0,
       validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
   )
-  max_reward: float = attrs.field(
-      default=1.0,
-      validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
-  )
   naive_sampling: bool = attrs.field(default=False)
 
   def __attrs_post_init__(self):
     self._log_weights = {}
     self._base_algos = {}
-    self._history = []
+    # The ensemble probs of the each of the base algorithms.
+    self._algo_prob_dict = {}
     for max_length in self.max_lengths:
       # Initialize log_weight = log(1/sqrt(max_length * len(indices))).
       self._base_algos[max_length] = EXP3UniformDesign(
@@ -193,21 +191,15 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
           use_loss_formulation=False,
           use_reward_estimator=True,
       )
+      self._algo_prob_dict[max_length] = self._base_algos[
+          max_length
+      ].ensemble_probs
       self._log_weights[max_length] = (
           -np.log(max_length * len(self.indices)) / 2.0
       )
 
   @property
   def ensemble_probs(self) -> np.ndarray:
-    # Return observation probabilities every other observation.
-    if len(self._history) % 2 == 1:
-      return self.observation_probs
-
-    return self.play_probs
-
-  @property
-  def play_probs(self) -> np.ndarray:
-    """Returns the probability of playing an expert."""
     ensemble_probs = [algo.ensemble_probs for algo in self._base_algos.values()]
     weights = softmax(np.array(list(self._log_weights.values())))
     final_probs = np.zeros(len(self.indices))
@@ -239,13 +231,12 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
 
   def update(self, observation: IndexWithReward):
     expert_idx, reward = observation
-    reward = min(reward, self.max_reward)
-    reward_estimator = reward * 1.0 / self.ensemble_probs[expert_idx]
+    reward_estimator = reward * 1.0 / self.observation_probs[expert_idx]
 
     # Updates the states of base algorithms.
     for max_length, base_algo in self._base_algos.items():
       # If the history is about to be filled, restart.
-      if len(base_algo.history) + 1 >= max_length:
+      if len([]) + 1 >= max_length:
         # Initialize log_weight = log(1/sqrt(max_length * len(indices))).
         self._log_weights[max_length] = (
             -np.log(max_length * len(self.indices)) / 2.0
@@ -261,7 +252,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
 
       # Otherwise, update meta-weights via unbiased reward estimation.
       reward_estimator_base = reward_estimator * (
-          base_algo.ensemble_probs[expert_idx] - self.play_probs[expert_idx]
+          base_algo.ensemble_probs[expert_idx] - self.ensemble_probs[expert_idx]
       )
       # Stepsize is 1/sqrt(max_length).
       gamma = 1.0 / np.sqrt(max_length)
@@ -271,8 +262,6 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
 
       # Propagate observed reward estimator.
       base_algo.update((expert_idx, reward_estimator))
-
-    self._history.append(observation)
 
 
 # pytype: enable=attribute-error

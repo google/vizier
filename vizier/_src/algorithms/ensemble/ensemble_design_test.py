@@ -61,24 +61,6 @@ class EnsembleDesignTest(absltest.TestCase):
     self.assertGreater(probs[1], 0.7)
     self.assertGreater(probs[0], 0.25)
 
-  def testAdaptiveStrategyFixed(self):
-    indices = [0, 1]
-    rewards = [(1, 1), (0, 0.0), (1, 1)] * 3
-
-    strategy = ensemble_design.AdaptiveEnsembleDesign(
-        indices=indices,
-        max_lengths=[5, 10],
-    )
-
-    np.testing.assert_array_equal(strategy.ensemble_probs, [0.5, 0.5])
-
-    for reward in rewards:
-      strategy.update(reward)
-
-    # We should still favor 1 greatly.
-    self.assertGreater(strategy.ensemble_probs[1], 0.7)
-    self.assertGreater(strategy.observation_probs[1], 0.7)
-
   def testAdaptiveStrategy(self):
     indices = [0, 1]
     rewards = [(0, 0), (1, 1), (1, 0), (0, 1)]
