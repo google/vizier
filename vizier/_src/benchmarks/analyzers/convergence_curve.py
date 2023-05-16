@@ -58,12 +58,13 @@ class ConvergenceCurve:
       raise ValueError(
           f'Shape mismatch for time dim: {len(self.xs)} vs {self.ys.shape}'
       )
+    # Allow for small numerical imprecisions.
     if self.trend == ConvergenceCurve.YTrend.INCREASING:
-      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) >= 0):
+      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) >= -1e-8):
         raise ValueError(f'Increasing trend not found: {self.ys}')
 
     if self.trend == ConvergenceCurve.YTrend.DECREASING:
-      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) <= 0):
+      if not np.all(np.nan_to_num(np.diff(self.ys, axis=-1)) <= 1e-8):
         raise ValueError(f'Decreasing trend not found: {self.ys}')
 
   @property
