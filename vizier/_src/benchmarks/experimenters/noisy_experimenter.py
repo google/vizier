@@ -94,7 +94,9 @@ def _create_noise_fn(
     ValueError: if noise is not supported.
   """
   rng = np.random.default_rng(seed or 0)
-  if noise == 'MODERATE_GAUSSIAN':
+  if noise == 'NO_NOISE':
+    noise_fn = lambda v: v
+  elif noise == 'MODERATE_GAUSSIAN':
     noise_fn = lambda v: v * rng.lognormal(0, 0.01)
   elif noise == 'SEVERE_GAUSSIAN':
     noise_fn = lambda v: v * rng.lognormal(0, 0.1)

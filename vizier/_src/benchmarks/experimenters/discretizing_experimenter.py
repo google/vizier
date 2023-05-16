@@ -17,7 +17,7 @@ from __future__ import annotations
 """Experimenter that discretizes the parameters of search space."""
 
 import copy
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Union
 
 import numpy as np
 from vizier import pyvizier
@@ -28,11 +28,13 @@ from vizier.pyvizier import converters
 class DiscretizingExperimenter(experimenter.Experimenter):
   """DiscretizingExperimenter discretizes the parameters of search space."""
 
-  def __init__(self,
-               exptr: experimenter.Experimenter,
-               discretization: Mapping[str, pyvizier.MonotypeParameterSequence],
-               *,
-               allow_oov: bool = False):
+  def __init__(
+      self,
+      exptr: experimenter.Experimenter,
+      discretization: Mapping[str, pyvizier.MonotypeParameterSequence],
+      *,
+      allow_oov: bool = False,
+  ):
     """DiscretizingExperimenter discretizes continuous parameters.
 
     Currently only supports flat double search spaces. Note that the discretized
@@ -56,15 +58,19 @@ class DiscretizingExperimenter(experimenter.Experimenter):
     exptr_problem_statement = exptr.problem_statement()
 
     if exptr_problem_statement.search_space.is_conditional:
-      raise ValueError('Search space should not have conditional'
-                       f' parameters  {exptr_problem_statement}')
+      raise ValueError(
+          'Search space should not have conditional'
+          f' parameters  {exptr_problem_statement}'
+      )
 
     search_params = exptr_problem_statement.search_space.parameters
     param_names = [param.name for param in search_params]
     for name in discretization.keys():
       if name not in param_names:
-        raise ValueError(f'Parameter {name} not in search space'
-                         f' parameters for discretization: {search_params}')
+        raise ValueError(
+            f'Parameter {name} not in search space'
+            f' parameters for discretization: {search_params}'
+        )
 
     self._problem_statement = copy.deepcopy(exptr_problem_statement)
     self._problem_statement.search_space = pyvizier.SearchSpace()
@@ -75,7 +81,8 @@ class DiscretizingExperimenter(experimenter.Experimenter):
 
       if parameter.type != pyvizier.ParameterType.DOUBLE:
         raise ValueError(
-            f'Non-double parameters cannot be discretized {parameter}')
+            f'Non-double parameters cannot be discretized {parameter}'
+        )
       # Discretize the parameters.
       min_value, max_value = parameter.bounds
       for value in discretization[parameter.name]:
@@ -106,7 +113,8 @@ class DiscretizingExperimenter(experimenter.Experimenter):
           if self._allow_oov:
             if param.value not in self._discretization[name]:
               raise ValueError(
-                  f'Parameter {param} not in {self._discretization[name]}')
+                  f'Parameter {param} not in {self._discretization[name]}'
+              )
           new_parameter_dict[name] = param.as_float
         else:
           new_parameter_dict[name] = param
@@ -123,7 +131,7 @@ class DiscretizingExperimenter(experimenter.Experimenter):
       cls,
       exptr: experimenter.Experimenter,
       grid_discretization_count: Mapping[str, int],
-      convert_to_str: bool = False,
+      convert_to_str: Union[bool, Mapping[str, bool]] = False,
   ) -> 'DiscretizingExperimenter':
     """Creates Experimenter with continuous parameters discretized via grid.
 
@@ -134,8 +142,9 @@ class DiscretizingExperimenter(experimenter.Experimenter):
       grid_discretization_count: Mapping from parameter names to number of
         feasible values to generate on grid. Parameter names should be a subset
         of all parameter names in the search space of the exptr.
-      convert_to_str: If true, convert values to categories/strings. Otherwise,
-        the values are discrete numbers.
+      convert_to_str: For each parameter, if true, convert values to
+        categories/strings. Otherwise, the values are discrete numbers. Can also
+        be pure boolean, for all parameters.
 
     Returns:
       DiscreteExperimenter.
@@ -143,6 +152,17 @@ class DiscretizingExperimenter(experimenter.Experimenter):
     Raises:
       ValueError: Invalid keys, discretizing non-double/singleton parameters.
     """
+    if isinstance(convert_to_str, bool):
+      convert_to_str = {
+          k: convert_to_str for k in grid_discretization_count.keys()
+      }
+
+    if set(grid_discretization_count.keys()) != set(convert_to_str.keys()):
+      raise ValueError(
+          f'Grid discretization keys {grid_discretization_count.keys()} must'
+          f' match convert_to_str keys {convert_to_str.keys()}'
+      )
+
     # Create grid for each parameter config.
     discretization = {}
     problem_statement = copy.deepcopy(exptr.problem_statement())
@@ -153,6 +173,7 @@ class DiscretizingExperimenter(experimenter.Experimenter):
           f'Grid discretization keys {grid_discretization_count.keys()}'
           f' are not in search space {problem_statement.search_space}'
       )
+
     for param in problem_statement.search_space.parameters:
       if param.name in grid_discretization_count:
         if param.type != pyvizier.ParameterType.DOUBLE:
@@ -170,7 +191,7 @@ class DiscretizingExperimenter(experimenter.Experimenter):
         grid_scalars = np.linspace(0.0, 1.0, num=num_feasible_points)
         grid_values = converter.to_parameter_values(grid_scalars)
 
-        if convert_to_str:
+        if convert_to_str[param.name]:
           discretization[param.name] = [point.as_str for point in grid_values]
         else:
           discretization[param.name] = [point.as_float for point in grid_values]

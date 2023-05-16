@@ -69,6 +69,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
         t.final_measurement.metrics[metric_name + '_before_noise'].value)
 
   @parameterized.named_parameters(
+      ('NO_NOISE', 'NO_NOISE', 1e-5),
       ('SEVERE_ADDITIVE_GAUSSIAN', 'SEVERE_ADDITIVE_GAUSSIAN', 3),
       ('MODERATE_ADDITIVE_GAUSSIAN', 'MODERATE_ADDITIVE_GAUSSIAN', 0.3),
       ('LIGHT_ADDITIVE_GAUSSIAN', 'LIGHT_ADDITIVE_GAUSSIAN', 0.03),
@@ -79,7 +80,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
       ('MODERATE_SELDOM_CAUCHY', 'MODERATE_SELDOM_CAUCHY', 10.3),
       ('SEVERE_SELDOM_CAUCHY', 'SEVERE_SELDOM_CAUCHY', 100.3),
   )
-  def testGaussianNoiseApply(self, noise, delta):
+  def testGaussianNoiseApply(self, noise: str, delta: float):
     dim = 2
     exptr = numpy_experimenter.NumpyExperimenter(
         bbob.Sphere, bbob.DefaultBBOBProblemStatement(dim))
@@ -103,7 +104,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
     noised_value2 = t.final_measurement.metrics[metric_name].value
 
     # Seldom noise is only injected sporadically.
-    if 'SELDOM' not in noise:
+    if 'SELDOM' not in noise and noise != 'NO_NOISE':
       self.assertNotEqual(noised_value1, noised_value2)
     self.assertAlmostEqual(noised_value1, unnoised_value, delta=delta)
     self.assertAlmostEqual(noised_value2, unnoised_value, delta=delta)
