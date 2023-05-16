@@ -14,7 +14,8 @@
 
 from __future__ import annotations
 
-# Cannot be tested internally but can be on GitHub.
+"""Test for converters. Cannot be tested internally but can be on GitHub."""
+# pytype: skip-file
 from ray import tune
 from vizier import pyvizier as vz
 from vizier._src.raytune import converters
@@ -24,6 +25,35 @@ from absl.testing import absltest
 
 
 class ConvertersTest(absltest.TestCase):
+
+  def test_to_dict(self):
+    param_space = {
+        'float': tune.uniform(1, 2),
+        'float_log': tune.loguniform(2, 3),
+        'int': tune.randint(4, 5),
+        'choice': tune.choice(['a', 'b', 'c']),
+    }
+    search_space = converters.SearchSpaceConverter.to_vizier(param_space)
+    self.assertIsInstance(search_space, vz.SearchSpace)
+    self.assertLen(search_space.parameters, 4)
+
+    config = search_space.get('float')
+    self.assertEqual(config.type, vz.ParameterType.DOUBLE)
+    self.assertEqual(config.bounds, (1, 2))
+    self.assertEqual(config.scale_type, vz.ScaleType.LINEAR)
+
+    config = search_space.get('float_log')
+    self.assertEqual(config.type, vz.ParameterType.DOUBLE)
+    self.assertEqual(config.bounds, (2, 3))
+    self.assertEqual(config.scale_type, vz.ScaleType.LOG)
+
+    config = search_space.get('int')
+    self.assertEqual(config.type, vz.ParameterType.INTEGER)
+    self.assertEqual(config.bounds, (4, 5))
+
+    config = search_space.get('choice')
+    self.assertEqual(config.type, vz.ParameterType.CATEGORICAL)
+    self.assertEqual(config.feasible_values, ['a', 'b', 'c'])
 
   def test_run_study_with_search_space(self):
     space = vz.SearchSpace()

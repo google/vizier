@@ -16,9 +16,10 @@ from __future__ import annotations
 
 """Converters for PyVizier with RayTune."""
 
-from typing import Any, Dict, Callable
+from typing import Any, Dict, Callable, Union
 
 from ray import tune
+from ray.tune.search import sample
 from vizier import pyvizier as vz
 from vizier.benchmarks import experimenters
 
@@ -30,8 +31,8 @@ class SearchSpaceConverter:
   def to_dict(
       cls,
       search_space: vz.SearchSpace,
-  ) -> Dict[str, Any]:
-    """Converts PyVizier ProblemStatement to Proto version."""
+  ) -> Dict[str, Union[sample.Domain, sample.Sampler]]:
+    """Converts PyVizier ProblemStatement to Ray search space."""
     param_space = {}
 
     for param in search_space.parameters:
@@ -50,6 +51,59 @@ class SearchSpaceConverter:
         feasible_values = param.feasible_values
         param_space[param.name] = tune.choice(feasible_values)
     return param_space
+
+  @classmethod
+  def to_vizier(
+      cls,
+      param_space: Dict[str, Any],
+  ) -> vz.SearchSpace:
+    """Converts from a Ray to a Vizier SearchSpace."""
+    space = vz.SearchSpace()
+
+    for param_name, param_config in param_space.items():
+      # Find out if the parameter should be scaled.
+      scale_type = None
+      if isinstance(param_config, sample.Float):
+        if isinstance(param_config.sampler, (sample.Grid, sample.Uniform)):
+          scale_type = vz.ScaleType.LINEAR
+        elif isinstance(param_config.sampler, sample.LogUniform):
+          scale_type = vz.ScaleType.LOG
+        elif isinstance(param_config.sampler, sample.Normal):
+          raise ValueError(
+              f'Normal sampler is not supported: {param_name}: {param_config}'
+          )
+        else:
+          raise ValueError(
+              f'Unknown sampler type encountered: {param_name}: {param_config}'
+          )
+
+      # Add the parameter to the search space.
+      if isinstance(param_config, sample.Function):
+        raise ValueError('Must use tune defined types. Functions not supported')
+      elif isinstance(param_config, sample.Float):
+        space.root.add_float_param(
+            param_name,
+            min_value=param_config.lower,
+            max_value=param_config.upper,
+            scale_type=scale_type,
+        )
+      elif isinstance(param_config, sample.Integer):
+        space.root.add_int_param(
+            param_name,
+            min_value=param_config.lower,
+            max_value=param_config.upper,
+        )
+      elif isinstance(param_config, sample.Categorical):
+        if not all([isinstance(c, str) for c in param_config.categories]):
+          raise ValueError('Only string values are supported for categories')
+        space.root.add_categorical_param(
+            param_name, feasible_values=list(map(str, param_config.categories))
+        )
+      else:
+        raise ValueError(
+            f'Unsupported config encountered: {param_name}: {param_config}'
+        )
+    return space
 
 
 class ExperimenterConverter:
