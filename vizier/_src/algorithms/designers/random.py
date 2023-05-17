@@ -56,6 +56,13 @@ class RandomDesigner(vza.Designer):
 
     self._rng = np.random.RandomState(seed)
 
+  @classmethod
+  def from_problem(
+      cls, problem: vz.ProblemStatement, seed: Optional[int] = None
+  ):
+    """For wrapping via `PartiallySerializableDesignerPolicy`."""
+    return RandomDesigner(problem.search_space, seed=seed)
+
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:

@@ -37,7 +37,7 @@ BBOB_FACTORY_KEY = 'bbob_factory'
 SINGLE_OBJECTIVE_FACTORY_KEY = 'single_objective_factory'
 
 
-class ExperimenterFactory(serializable.Serializable):
+class ExperimenterFactory(abc.ABC):
   """Abstraction for creating Experimenters."""
 
   @abc.abstractmethod
@@ -48,8 +48,14 @@ class ExperimenterFactory(serializable.Serializable):
     pass
 
 
+class SerializableExperimenterFactory(
+    ExperimenterFactory, serializable.Serializable
+):
+  """Abstraction for experimenter factories with dump/recover methods."""
+
+
 @attr.define
-class BBOBExperimenterFactory(ExperimenterFactory):
+class BBOBExperimenterFactory(SerializableExperimenterFactory):
   """Factory for a BBOB function."""
 
   # Should be a BBOB function name in bbob.py (name should match exactly).
@@ -67,7 +73,8 @@ class BBOBExperimenterFactory(ExperimenterFactory):
     if bbob_function is None:
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')
     return numpy_experimenter.NumpyExperimenter(
-        bbob_function, bbob.DefaultBBOBProblemStatement(self.dim))
+        bbob_function, bbob.DefaultBBOBProblemStatement(self.dim)
+    )
 
   def dump(self) -> vz.Metadata:
     metadata = vz.Metadata()
@@ -82,10 +89,10 @@ class BBOBExperimenterFactory(ExperimenterFactory):
 
 
 @attr.define
-class SingleObjectiveExperimenterFactory(ExperimenterFactory):
+class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
   """Factory for a single objective Experimenter."""
 
-  base_factory: ExperimenterFactory = attr.field()
+  base_factory: SerializableExperimenterFactory = attr.field()
   # An array of doubles that is broadcastable to dim of search space.
   shift: Optional[np.ndarray] = attr.field(default=None)
   # Should be one of the noise types in noisy_experimenter.py
@@ -109,7 +116,8 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
     exptr = self.base_factory()
     if self.shift is not None:
       exptr = shifting_experimenter.ShiftingExperimenter(
-          exptr, shift=self.shift)
+          exptr, shift=self.shift
+      )
     if self.num_normalization_samples:
       exptr = normalizing_experimenter.NormalizingExperimenter(
           exptr, num_normalization_samples=self.num_normalization_samples
@@ -118,8 +126,8 @@ class SingleObjectiveExperimenterFactory(ExperimenterFactory):
     # Discretization and categorization.
     if self.discrete_dict.keys() & self.categorical_dict.keys():
       raise ValueError(
-          f'{self.discrete_dict} discretizing indicies overlap with '
-          f'{self.categorical_dict} categorical indicies'
+          f'{self.discrete_dict} discretizing indices overlap with '
+          f'{self.categorical_dict} categorical indices'
       )
 
     pcs = list(exptr.problem_statement().search_space.parameters)
