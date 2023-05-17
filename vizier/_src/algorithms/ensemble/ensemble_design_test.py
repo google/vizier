@@ -25,7 +25,7 @@ class EnsembleDesignTest(absltest.TestCase):
   def testRandom(self):
     indices = [0, 1]
     rewards = [(1, 1), (0, 0), (1, 1)]
-    strategy = ensemble_design.RandomDesign(indices=indices)
+    strategy = ensemble_design.RandomEnsembleDesign(indices=indices)
 
     for reward in rewards:
       strategy.update(reward)
@@ -34,7 +34,9 @@ class EnsembleDesignTest(absltest.TestCase):
   def testEXP3IX(self):
     indices = [0, 1]
     rewards = [(1, 1), (0, 0), (1, 1)]
-    strategy = ensemble_design.EXP3IXDesign(indices=indices, stepsize=1.0)
+    strategy = ensemble_design.EXP3IXEnsembleDesign(
+        indices=indices, stepsize=1.0
+    )
 
     np.testing.assert_array_equal(strategy.ensemble_probs, [0.5, 0.5])
 
@@ -49,7 +51,9 @@ class EnsembleDesignTest(absltest.TestCase):
   def testEXP3Uniform(self):
     indices = [0, 1]
     rewards = [(1, 1), (0, 0), (1, 1)]
-    strategy = ensemble_design.EXP3UniformDesign(indices=indices, stepsize=1.0)
+    strategy = ensemble_design.EXP3UniformEnsembleDesign(
+        indices=indices, stepsize=1.0
+    )
 
     np.testing.assert_array_equal(strategy.ensemble_probs, [0.5, 0.5])
 

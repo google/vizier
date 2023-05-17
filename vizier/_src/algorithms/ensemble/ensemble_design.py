@@ -43,7 +43,7 @@ class EnsembleDesign(abc.ABC):
 
 
 @attrs.define
-class RandomDesign(EnsembleDesign):
+class RandomEnsembleDesign(EnsembleDesign):
   indices: list[int] = attrs.field()
 
   @property
@@ -64,7 +64,7 @@ def softmax(x: np.ndarray) -> np.ndarray:
 
 # https://bjpcjp.github.io/pdfs/math/bandits-exp3-IX-BA.pdf
 @attrs.define
-class EXP3IXDesign(EnsembleDesign):
+class EXP3IXEnsembleDesign(EnsembleDesign):
   """The EXP3-IX Algorithm that is robust against small probabilities."""
 
   indices: list[int] = attrs.field()
@@ -100,7 +100,7 @@ class EXP3IXDesign(EnsembleDesign):
 # pytype: disable=attribute-error
 # https://www.cs.princeton.edu/courses/archive/fall16/cos402/lectures/402-lec22.pdf.
 @attrs.define
-class EXP3UniformDesign(EnsembleDesign):
+class EXP3UniformEnsembleDesign(EnsembleDesign):
   """The EXP3 algorithm with uniform exploration."""
 
   indices: list[int] = attrs.field()
@@ -187,7 +187,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
     self._history = []
     for max_length in self.max_lengths:
       # Initialize log_weight = log(1/sqrt(max_length * len(indices))).
-      self._base_algos[max_length] = EXP3UniformDesign(
+      self._base_algos[max_length] = EXP3UniformEnsembleDesign(
           indices=self.indices,
           stepsize=self.base_stepsize,
           use_loss_formulation=False,
@@ -250,7 +250,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
         self._log_weights[max_length] = (
             -np.log(max_length * len(self.indices)) / 2.0
         )
-        self._base_algos[max_length] = EXP3UniformDesign(
+        self._base_algos[max_length] = EXP3UniformEnsembleDesign(
             indices=self.indices,
             stepsize=self.base_stepsize,
             use_loss_formulation=False,
