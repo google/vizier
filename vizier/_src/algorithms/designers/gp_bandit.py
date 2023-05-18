@@ -89,9 +89,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       factory=acquisitions.GPBanditAcquisitionBuilder, kw_only=True
   )
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
-  _rng: jax.random.KeyArray = attr.field(
-      factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
-  )
+  _seed: Optional[int] = attr.field(default=None, kw_only=True)
   _metadata_ns: str = attr.field(
       default='oss_gp_bandit', kw_only=True, init=False
   )
@@ -99,6 +97,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
   # ------------------------------------------------------------------
+  _rng: jax.random.KeyArray = attr.field(init=False, kw_only=True)
   _trials: list[vz.Trial] = attr.field(factory=list, init=False)
   # The number of trials that have been incorporated
   # into the designer state (Cholesky decomposition, ARD).
@@ -136,7 +135,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       random_restarts=4, best_n=1
   )
   default_acquisition_optimizer = vb.VectorizedOptimizer(
-      strategy_factory=es.VectorizedEagleStrategyFactory())
+      strategy_factory=es.VectorizedEagleStrategyFactory()
+  )
 
   def __attrs_post_init__(self):
     # Extra validations
@@ -145,6 +145,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     elif len(self._problem.metric_information) != 1:
       raise ValueError(f'{type(self)} works with exactly one metric.')
     # Extra initializations.
+    if self._seed is None:
+      self._seed = random.getrandbits(32)
+    self._rng = jax.random.PRNGKey(self._seed)
     # Discrete parameters are continuified to account for their actual values.
     if self._padding_schedule:
       self._converter = (
@@ -380,6 +383,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
           mutable='predictive',
           observations_is_missing=label_is_missing,
       )
+
     if self._use_vmap:
       precompute_cholesky = jax.vmap(precompute_cholesky)
     # `pp_state` contains intermediates that are expensive to compute, depend

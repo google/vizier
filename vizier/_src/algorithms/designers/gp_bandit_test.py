@@ -208,7 +208,9 @@ class GoogleGpBanditTest(parameterized.TestCase):
             batch_size=batch_size,
             verbose=1,
             validate_parameters=True,
-        ).run_designer(designer), iters * batch_size)
+        ).run_designer(designer),
+        iters * batch_size,
+    )
 
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space
@@ -252,6 +254,30 @@ class GoogleGpBanditTest(parameterized.TestCase):
     pred_trial = vz.Trial({'x0': 0.0})
     pred = gp_designer.predict([pred_trial])
     self.assertLess(np.abs(pred.mean[0] - f(0.0)), 2e-2)
+
+  def test_seed_specified(self):
+    problem = vz.ProblemStatement(
+        test_studies.flat_continuous_space_with_scaling()
+    )
+    designer = gp_bandit.VizierGPBandit(problem=problem, seed=346778)
+    completed1 = test_runners.RandomMetricsRunner(
+        problem,
+        iters=3,
+        batch_size=1,
+        verbose=1,
+        validate_parameters=True,
+    ).run_designer(designer)
+    designer2 = gp_bandit.VizierGPBandit(problem=problem, seed=346778)
+    completed2 = test_runners.RandomMetricsRunner(
+        problem,
+        iters=3,
+        batch_size=1,
+        verbose=1,
+        validate_parameters=True,
+    ).run_designer(designer2)
+    # Test that suggestions are identical.
+    for trial1, trial2 in zip(completed1, completed2):
+      self.assertEqual(trial1.parameters, trial2.parameters)
 
 
 if __name__ == '__main__':
