@@ -35,6 +35,7 @@ flax_config.update('flax_return_frozendict', False)
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
+tfpke = tfp.experimental.psd_kernels
 
 _In = TypeVar('_In', bound=types.ArrayTree)
 _D = TypeVar('_D', bound=tfd.Distribution)
@@ -420,6 +421,12 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     kwargs = {}
     if observations_is_missing is not None:
       kwargs['observations_is_missing'] = observations_is_missing
+
+    if isinstance(x_observed, types.ContinuousAndCategoricalArray):
+      x_observed = tfpke.ContinuousAndCategoricalValues(
+          continuous=x_observed.continuous, categorical=x_observed.categorical
+      )
+
     predictive_dist = self(x_observed).posterior_predictive(
         index_points=None, observations=y_observed, **kwargs
     )
@@ -485,6 +492,13 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     kwargs = cached_intermediates
     if observations_is_missing is not None:
       kwargs = kwargs.copy({'observations_is_missing': observations_is_missing})
+
+    if isinstance(x_predictive, types.ContinuousAndCategoricalArray):
+      x_predictive = tfpke.ContinuousAndCategoricalValues(
+          continuous=x_predictive.continuous,
+          categorical=x_predictive.categorical,
+      )
+
     return self(x_observed).posterior_predictive(
         observations=y_observed,
         predictive_index_points=x_predictive,

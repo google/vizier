@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping, Optional, Union
 
+from flax import struct
 from flax.core import scope as flax_scope
 import jax
 from jax.typing import ArrayLike
@@ -42,3 +43,9 @@ ArrayTreeOptional = Union[
 ]
 ParameterDict = flax_scope.Collection
 ModelState = flax_scope.VariableDict
+
+
+@struct.dataclass
+class ContinuousAndCategoricalArray:
+  continuous: Array
+  categorical: Array

@@ -16,16 +16,9 @@ from __future__ import annotations
 
 """Mappers between different feature formats."""
 
-import collections
-
 import numpy as np
+from vizier._src.jax import types
 from vizier.pyvizier.converters import core
-
-
-# This namedtuple was copied from TFP to reduce dependency.
-ContinuousAndCategoricalValues = collections.namedtuple(
-    'ContinuousAndCategoricalValues', ['continuous', 'categorical']
-)
 
 
 class ContinuousCategoricalFeatureMapper:
@@ -84,7 +77,7 @@ class ContinuousCategoricalFeatureMapper:
     # generate [0, 3, 5], so shift will be [0, 3].
     self.shift = np.cumsum(np.pad(categorical_dims, (1, 0)))[0:-1]  # (P,)
 
-  def map(self, features: np.ndarray) -> ContinuousAndCategoricalValues:
+  def map(self, features: np.ndarray) -> types.ContinuousAndCategoricalArray:
     """Split features by 'continuous' and 'categorical'.
 
     In addition to splitting the method converts the one-hot encoding
@@ -126,6 +119,6 @@ class ContinuousCategoricalFeatureMapper:
           np.reshape(nonzero_indices, (-1, self._n_categorical_params))  # (B,P)
           - self.shift  # (P,)
       )  # (B,P)
-    return ContinuousAndCategoricalValues(
+    return types.ContinuousAndCategoricalArray(
         continuous=continuous_features, categorical=categorical_index_features
     )

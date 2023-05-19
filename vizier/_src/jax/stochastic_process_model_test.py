@@ -21,7 +21,6 @@ from unittest import mock
 
 from absl.testing import parameterized
 from flax import linen as nn
-
 import jax
 from jax import numpy as jnp
 from jax import random
@@ -30,7 +29,10 @@ import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 import tree
 from vizier._src.jax import stochastic_process_model as sp_model
+from vizier._src.jax import types
+
 from absl.testing import absltest
+
 
 config.update('jax_enable_x64', True)
 
@@ -94,6 +96,11 @@ def _test_coroutine(
     dtype=np.float64,
 ):
   """A coroutine that follows the `ModelCoroutine` protocol."""
+  if isinstance(inputs, types.ContinuousAndCategoricalArray):
+    inputs = tfpke.ContinuousAndCategoricalValues(
+        inputs.continuous, inputs.categorical
+    )
+
   kernel = yield from kernel_coroutine(dtype=dtype)
   if num_tasks == 1:
     return tfd.StudentTProcess(
@@ -140,7 +147,7 @@ def _make_inputs_with_categorical(
   x_observed_cat = random.randint(
       cat_obs_key, shape=(num_observed, cat_dim), minval=0, maxval=6
   )
-  x_observed = tfpke.ContinuousAndCategoricalValues(
+  x_observed = types.ContinuousAndCategoricalArray(
       x_observed_cont, x_observed_cat
   )
   y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
@@ -152,7 +159,7 @@ def _make_inputs_with_categorical(
   x_predictive_cat = random.randint(
       cat_pred_key, shape=(num_predictive, cat_dim), minval=0, maxval=6
   )
-  x_predictive = tfpke.ContinuousAndCategoricalValues(
+  x_predictive = types.ContinuousAndCategoricalArray(
       x_predictive_cont, x_predictive_cat
   )
   return x_observed, y_observed, x_predictive

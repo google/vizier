@@ -26,6 +26,9 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
+from vizier._src.jax.models import tuned_gp_models
 from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
 
@@ -119,10 +122,13 @@ class TrustRegionTest(absltest.TestCase):
     np.testing.assert_allclose(
         tr.min_linf_distance(
             np.array([
-                [0., .2, .3, 0.],
-                [.9, .8, .9, .9],
-                [1., 1., 1., 1.],
-            ]),), np.array([0.3, 0.2, 0.]))
+                [0.0, 0.2, 0.3, 0.0],
+                [0.9, 0.8, 0.9, 0.9],
+                [1.0, 1.0, 1.0, 1.0],
+            ]),
+        ),
+        np.array([0.3, 0.2, 0.0]),
+    )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
 
   def test_trust_region_bigger(self):
@@ -139,10 +145,13 @@ class TrustRegionTest(absltest.TestCase):
     np.testing.assert_allclose(
         tr.min_linf_distance(
             np.array([
-                [0., .2, .3, 0.],
-                [.9, .8, .9, .9],
-                [1., 1., 1., 1.],
-            ]),), np.array([0.3, 0.2, 0.]))
+                [0.0, 0.2, 0.3, 0.0],
+                [0.9, 0.8, 0.9, 0.9],
+                [1.0, 1.0, 1.0, 1.0],
+            ]),
+        ),
+        np.array([0.3, 0.2, 0.0]),
+    )
     self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)
 
   def test_trust_region_padded_small(self):
@@ -168,6 +177,48 @@ class TrustRegionTest(absltest.TestCase):
         np.array([0.3, 0.2, 0.0]),
     )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
+
+
+class TrustRegionWithCategoricalTest(absltest.TestCase):
+
+  def test_trust_region_with_categorical(self):
+    n_trusted = 20
+    n_samples = 5
+    d_cont = 6
+    d_cat = 3
+
+    trusted = types.ContinuousAndCategoricalArray(
+        np.random.randn(n_trusted, d_cont), np.random.randn(n_trusted, d_cat)
+    )
+    xs = types.ContinuousAndCategoricalArray(
+        continuous=np.random.randn(n_samples, d_cont),
+        categorical=np.random.randn(n_samples, d_cat),
+    )
+    tr = acquisitions.TrustRegionWithCategorical(trusted)
+    self.assertEqual(tr.min_linf_distance(xs).shape, (n_samples,))
+
+  def test_trust_region_small(self):
+    trusted = types.ContinuousAndCategoricalArray(
+        continuous=np.array([
+            [0.0, 0.0],
+            [1.0, 1.0],
+        ]),
+        categorical=np.random.randint(0, 10, size=(2, 4)),
+    )
+    tr = acquisitions.TrustRegionWithCategorical(trusted)
+    np.testing.assert_allclose(
+        tr.min_linf_distance(
+            types.ContinuousAndCategoricalArray(
+                continuous=np.array([
+                    [0.0, 0.3],
+                    [0.9, 0.8],
+                    [1.0, 1.0],
+                ]),
+                categorical=np.random.randint(0, 10, size=(3, 4)),
+            )
+        ),
+        np.array([0.3, 0.2, 0.0]),
+    )
 
 
 class GPBanditAcquisitionBuilderTest(absltest.TestCase):
@@ -207,6 +258,86 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
     )
     self.assertEqual(samples.shape, (15, 10))
     self.assertEqual(np.sum(np.isnan(samples)), 0)
+
+  def test_categorical_kernel(self, best_n=2):
+    # Random key
+    key = jax.random.PRNGKey(0)
+    # Simulate data
+    n_samples = 10
+    n_continuous = 3
+    n_categorical = 5
+    features = types.ContinuousAndCategoricalArray(
+        jax.random.normal(key, shape=(n_samples, n_continuous)),
+        jax.random.normal(key, shape=(n_samples, n_categorical)),
+    )
+    labels = jax.random.normal(key, shape=(n_samples,))
+    xs = features
+    # Model
+    model, loss_fn = (
+        tuned_gp_models.VizierGaussianProcessWithCategorical.model_and_loss_fn(
+            features, labels
+        )
+    )
+    setup = lambda rng: model.init(rng, features)['params']
+    constraints = sp.get_constraints(model)
+
+    # ARD
+    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=4, best_n=best_n)
+    use_vmap = ard_optimizer.best_n != 1
+    best_model_params, _ = ard_optimizer(
+        setup, loss_fn, key, constraints=constraints
+    )
+
+    def precompute_cholesky(params):
+      _, pp_state = model.apply(
+          {'params': params},
+          features,
+          labels,
+          method=model.precompute_predictive,
+          mutable='predictive',
+      )
+      return pp_state
+
+    if not use_vmap:
+      pp_state = precompute_cholesky(best_model_params)
+    else:
+      pp_state = jax.vmap(precompute_cholesky)(best_model_params)
+
+    # Create the state.
+    state = {'params': best_model_params, **pp_state}
+    # Define the problem.
+    space = vz.SearchSpace()
+    root = space.root
+    for j in range(n_continuous):
+      root.add_float_param(f'f{j}', -1.0, 2.0)
+    for j in range(n_categorical):
+      root.add_categorical_param(f'c{j}', ['a', 'b', 'c'])
+    problem = vz.ProblemStatement(space)
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    converter = converters.TrialToArrayConverter.from_study_config(
+        problem,
+        scale=True,
+        pad_oovs=True,
+        max_discrete_indices=0,
+        flip_sign_for_minimization_metrics=True,
+    )
+    acq_builder = acquisitions.GPBanditAcquisitionBuilder(
+        use_trust_region=False
+    )
+    acq_builder.build(
+        problem, model, state, features, labels, converter, use_vmap=use_vmap
+    )
+    pred_dict = jax.tree_map(
+        np.sum,
+        jax.tree_map(np.isnan, acq_builder.predict_on_array(xs)),
+    )
+    self.assertEqual(pred_dict['mean'], 0.0)
+    self.assertEqual(pred_dict['stddev'], 0.0)
+    self.assertEqual(np.sum(np.isnan(acq_builder.acquisition_on_array(xs))), 0)
 
 
 if __name__ == '__main__':

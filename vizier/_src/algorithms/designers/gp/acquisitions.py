@@ -19,7 +19,7 @@ from __future__ import annotations
 import abc
 import copy
 import functools
-from typing import Any, Callable, Dict, Optional, Protocol, Sequence
+from typing import Any, Callable, Dict, Generic, Optional, Protocol, Sequence, TypeVar
 
 import attr
 import jax
@@ -34,6 +34,7 @@ from vizier.pyvizier import converters
 
 tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
+tfpke = tfp.experimental.psd_kernels
 
 
 class AcquisitionFunction(Protocol):
@@ -236,8 +237,8 @@ class TrustRegion:
     min_radius = 0.2  # Hyperparameter
     dimension_factor = 5.0  # Hyperparameter
 
-    # TODO: Discount the infeasible points.
-
+    # TODO: Discount the infeasible points. The 0.1 and 0.9 split
+    # is associated with weights to feasible and infeasbile trials.
     trust_level = (0.1 * trusted.shape[0] + 0.9 * trusted.shape[0]) / (
         dimension_factor * (self._dof + 1)
     )
@@ -262,7 +263,7 @@ class TrustRegion:
       (M,) array of floating numbers, L-infinity distances to the nearest
       trusted point.
     """
-    trusted = self._trusted
+    trusted = self._trusted  # (N,D)
     if self._feature_is_missing is not None:
       # Mask out padded dimensions
       trusted = jnp.where(self._feature_is_missing, 0.0, trusted)
@@ -274,12 +275,97 @@ class TrustRegion:
       distances = jnp.where(
           self._observations_is_missing[..., jnp.newaxis], np.inf, distances
       )
-    distances_bounded = jnp.minimum(distances, self._max_distances)
+    distances_bounded = jnp.minimum(distances, self._max_distances)  # (M, N, D)
     linf_distance = jnp.max(distances_bounded, axis=-1)  # (M, N)
     return jnp.min(linf_distance, axis=-1)  # (M,)
 
 
-class AcquisitionBuilder(abc.ABC):
+# TODO: Consolidate with TrustRegion and support padding.
+class TrustRegionWithCategorical:
+  """L-inf norm based trust region for ContinuousAndCategorical strucutre.
+
+  Limits the suggestion within the union of small L-inf norm balls around each
+  of the trusted points, which are in most cases observed points. The radius
+  of the L-inf norm ball grows in the number of observed points.
+
+  Assumes that all points are in the unit hypercube.
+
+  The trust region can be used e.g. during acquisition optimization:
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    features, labels = converter.to_xy(trials)
+    features = feature_mapper(features)
+    tr = TrustRegion(features)
+    # xs is a point in the search space (ContinuousAndCategoricalValues type).
+    distance = tr.min_linf_distance(xs)
+    if distance <= tr.trust_radius:
+      print('xs in trust region')
+  """
+
+  def __init__(
+      self,
+      trusted: types.ContinuousAndCategoricalArray,
+      min_radius: float = 0.2,
+      dimension_factor: float = 5.0,
+  ):
+    """Init function.
+
+    Args:
+      trusted: ContinuousAndCategoricalValues with arrays of shape (N, D) where
+        each element is in [0, 1]. Each row is the D-dimensional vector
+        representing a trusted point.
+      min_radius: minimum radius.
+      dimension_factor: dimension factor.
+    """
+    self._trusted = trusted
+    self._min_radius = min_radius
+    self._dimension_factor = dimension_factor
+    self._dof = (
+        self._trusted.continuous.shape[-1] + self._trusted.categorical.shape[-1]
+    )
+    self._trust_radius = self._compute_trust_radius()
+    self._max_distance_cont = np.array(
+        [np.inf] * self._trusted.continuous.shape[-1]
+    )
+
+  def _compute_trust_radius(self) -> float:
+    """Computes the trust region radius."""
+    # TODO: Discount the infeasible points.
+    num_trusted_obs = jax.tree_util.tree_leaves(self._trusted)[0].shape[0]
+    trust_level = num_trusted_obs / (self._dimension_factor * (self._dof + 1))
+    trust_region_radius = (
+        self._min_radius + (0.5 - self._min_radius) * trust_level
+    )
+    return trust_region_radius
+
+  @property
+  def trust_radius(self) -> float:
+    return self._trust_radius
+
+  def min_linf_distance(
+      self, xs: types.ContinuousAndCategoricalArray
+  ) -> jax.Array:
+    """l-inf norm distance to the closest trusted point.
+
+    Args:
+      xs: ContinuousAndCategoricalValues with (M, D) arrays where each element
+        is in [0, 1].
+
+    Returns:
+      (M,) array of floating numbers, L-infinity distances to the nearest
+      trusted point.
+    """
+    # TODO: Consider accounting for categorical features.
+    distances_cont = jnp.abs(
+        self._trusted.continuous - xs.continuous[..., jnp.newaxis, :]
+    )  # (M, N, D)
+    linf_distance_cont = jnp.max(distances_cont, axis=-1)  # (M, N)
+    return jnp.min(linf_distance_cont, axis=-1)  # (M,)
+
+
+_F = TypeVar('_F', types.Array, types.ContinuousAndCategoricalArray)
+
+
+class AcquisitionBuilder(abc.ABC, Generic[_F]):
   """Acquisition/prediction builder.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -293,7 +379,7 @@ class AcquisitionBuilder(abc.ABC):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: types.Array,
+      features: _F,
       labels: types.Array,
       *args,
       **kwargs,
@@ -325,13 +411,13 @@ class AcquisitionBuilder(abc.ABC):
 
   @property
   @abc.abstractmethod
-  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
     """Acquisition function on features array."""
     pass
 
   @property
   @abc.abstractmethod
-  def predict_on_array(self) -> Callable[[types.Array], jax.Array]:
+  def predict_on_array(self) -> Callable[[_F], jax.Array]:
     """Prediction function on features array."""
     pass
 
@@ -339,7 +425,7 @@ class AcquisitionBuilder(abc.ABC):
   @abc.abstractmethod
   def sample_on_array(
       self,
-  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     pass
 
@@ -347,7 +433,7 @@ class AcquisitionBuilder(abc.ABC):
 def _build_predictive_distribution(
     model: sp.StochasticProcessModel,
     state: types.ModelState,
-    features: types.Array,
+    features: _F,
     labels: types.Array,
     observations_is_missing: Optional[types.Array] = None,
     use_vmap: bool = True,
@@ -355,7 +441,7 @@ def _build_predictive_distribution(
   """Generates the predictive distribution on array function."""
 
   def _predict_on_array_one_model(
-      state: types.ModelState, *, xs: types.Array
+      state: types.ModelState, *, xs: _F
   ) -> tfd.Distribution:
     return model.apply(
         state,
@@ -367,7 +453,7 @@ def _build_predictive_distribution(
     )
 
   # Vmaps and combines the predictive distribution over all models.
-  def _get_predictive_dist(xs: types.Array) -> tfd.Distribution:
+  def _get_predictive_dist(xs: _F) -> tfd.Distribution:
     if not use_vmap:
       return _predict_on_array_one_model(state, xs=xs)
 
@@ -389,7 +475,7 @@ def _build_predictive_distribution(
 
 
 @attr.define(slots=False)
-class GPBanditAcquisitionBuilder(AcquisitionBuilder):
+class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
   """Acquisition/prediction builder for the GPBandit-type designers.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -425,7 +511,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: types.Array,
+      features: _F,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
       observations_is_missing: Optional[types.Array] = None,
@@ -475,12 +561,16 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     self._sample_on_array = sample_on_array
 
     # Define acquisition.
-    self._tr = TrustRegion(
-        features,
-        converter.output_specs,
-        feature_is_missing=feature_is_missing,
-        observations_is_missing=observations_is_missing,
-    )
+    if self.use_trust_region:
+      if isinstance(features, types.Array):
+        self._tr = TrustRegion(
+            features,
+            converter.output_specs,
+            feature_is_missing=feature_is_missing,
+            observations_is_missing=observations_is_missing,
+        )
+      else:
+        self._tr = TrustRegionWithCategorical(features)
 
     # This supports acquisition fns that do arbitrary computations with the
     # input distributions -- e.g. they could take samples or compute quantiles.
@@ -522,13 +612,13 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[types.Array], jax.Array]:
+  def predict_on_array(self) -> Callable[[_F], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array
@@ -537,12 +627,14 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
   def metadata_dict(self) -> dict[str, Any]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
+    if not self.use_trust_region:
+      return {}
     return {'trust_radius': self._tr.trust_radius}
 
   @property
   def sample_on_array(
       self,
-  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
@@ -550,7 +642,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder):
 
 
 @attr.define(slots=False)
-class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
+class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
   """Acquisition/prediction builder for the GPBandit-type designers.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -592,7 +684,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: types.Array,
+      features: _F,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
       observations_is_missing: Optional[types.Array] = None,
@@ -623,7 +715,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     )
 
     @jax.jit
-    def predict_mean_and_stddev(xs: types.Array) -> Dict[str, jax.Array]:
+    def predict_mean_and_stddev(xs: _F) -> Dict[str, jax.Array]:
       dist = self._get_predictive_dist(xs)
       return {'mean': dist.mean(), 'stddev': dist.stddev()}
 
@@ -634,7 +726,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     # when static argument values change.
     @functools.partial(jax.jit, static_argnums=1)
     def sample_on_array(
-        xs: types.Array, num_samples: int, key: jax.random.KeyArray
+        xs: _F, num_samples: int, key: jax.random.KeyArray
     ) -> jax.Array:
       dist = self._get_predictive_dist(xs)
       return dist.sample(num_samples, key=key)
@@ -642,7 +734,14 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     self._sample_on_array = sample_on_array
 
     # Define acquisition.
-    self._tr = TrustRegion(features, converter.output_specs)
+    if self.use_trust_region:
+      if isinstance(features, types.Array):
+        self._tr = TrustRegion(features, converter.output_specs)
+      else:
+        raise ValueError(
+            f'{type(self)} does not support trust region with continuous and'
+            ' categorical.'
+        )
 
     # This supports acquisition fns that do arbitrary computations with the
     # input distributions -- e.g. they could take samples or compute quantiles.
@@ -692,13 +791,13 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[types.Array], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[types.Array], Dict[str, jax.Array]]:
+  def predict_on_array(self) -> Callable[[_F], Dict[str, jax.Array]]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array
@@ -707,12 +806,14 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder):
   def metadata_dict(self) -> dict[str, Any]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
+    if not self.use_trust_region:
+      return {}
     return {'trust_radius': self._tr.trust_radius}
 
   @property
   def sample_on_array(
       self,
-  ) -> Callable[[types.Array, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')

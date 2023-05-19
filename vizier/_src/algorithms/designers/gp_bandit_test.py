@@ -20,7 +20,6 @@ from typing import Any, Optional
 
 import mock
 import numpy as np
-import optax
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
@@ -38,13 +37,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-ensemble_ard_optimizer = optimizers.OptaxTrainWithRandomRestarts(
-    optax.adam(5e-3), epochs=10, verbose=False, random_restarts=10, best_n=5
-)
-
-noensemble_ard_optimizer = optimizers.OptaxTrainWithRandomRestarts(
-    optax.adam(5e-3), epochs=10, verbose=False, random_restarts=10, best_n=1
-)
+ensemble_ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=10, best_n=5)
+noensemble_ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=5, best_n=1)
 
 
 def _build_mock_continuous_array_specs(n):
@@ -61,6 +55,13 @@ class GoogleGpBanditTest(parameterized.TestCase):
       dict(iters=5, batch_size=1, num_seed_trials=2),
       dict(ard_optimizer='ensemble'),
       dict(ard_optimizer='noensemble'),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          ard_optimizer='ensemble',
+          use_categorical_kernel=True,
+      ),
       dict(
           iters=3,
           batch_size=5,
@@ -93,6 +94,20 @@ class GoogleGpBanditTest(parameterized.TestCase):
               num_features=padding.PaddingType.POWERS_OF_2,
           ),
       ),
+      dict(
+          ard_optimizer='ensemble',
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.NONE,
+              num_features=padding.PaddingType.NONE,
+          ),
+      ),
+      dict(
+          ard_optimizer='noensemble',
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.NONE,
+              num_features=padding.PaddingType.NONE,
+          ),
+      ),
   )
   def test_on_flat_continuous_space(
       self,
@@ -102,6 +117,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
       num_seed_trials: int = 1,
       ard_optimizer: Any = 'noensemble',
       padding_schedule: Optional[padding.PaddingSchedule] = None,
+      use_categorical_kernel: bool = False,
+      use_trust_region: bool = True,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -121,17 +138,15 @@ class GoogleGpBanditTest(parameterized.TestCase):
         strategy_factory=es.VectorizedEagleStrategyFactory(),
         max_evaluations=10,
     )
-    if not padding_schedule:
-      padding_schedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,
-          num_features=padding.PaddingType.NONE,
-      )
+
     designer = gp_bandit.VizierGPBandit(
         problem=problem,
         acquisition_optimizer=vectorized_optimizer,
         num_seed_trials=num_seed_trials,
         ard_optimizer=ard_optimizer,
         padding_schedule=padding_schedule,
+        use_categorical_kernel=use_categorical_kernel,
+        use_trust_region=use_trust_region,
     )
     self.assertLen(
         test_runners.RandomMetricsRunner(
@@ -171,6 +186,30 @@ class GoogleGpBanditTest(parameterized.TestCase):
               num_features=padding.PaddingType.POWERS_OF_2,
           ),
       ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.NONE,
+              num_features=padding.PaddingType.NONE,
+          ),
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.NONE,
+              num_features=padding.PaddingType.NONE,
+          ),
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          use_categorical_kernel=True,
+      ),
   )
   def test_on_flat_mixed_space(
       self,
@@ -178,6 +217,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
       batch_size: int,
       num_seed_trials: int,
       padding_schedule: Optional[padding.PaddingSchedule] = None,
+      use_categorical_kernel: bool = False,
+      use_trust_region: bool = True,
   ):
     problem = vz.ProblemStatement(
         test_studies.flat_continuous_space_with_scaling()
@@ -190,16 +231,14 @@ class GoogleGpBanditTest(parameterized.TestCase):
     vectorized_optimizer = vb.VectorizedOptimizer(
         strategy_factory=es.VectorizedEagleStrategyFactory(), max_evaluations=10
     )
-    if not padding_schedule:
-      padding_schedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,
-          num_features=padding.PaddingType.NONE,
-      )
+
     designer = gp_bandit.VizierGPBandit(
         problem=problem,
         acquisition_optimizer=vectorized_optimizer,
         num_seed_trials=num_seed_trials,
         padding_schedule=padding_schedule,
+        use_categorical_kernel=use_categorical_kernel,
+        use_trust_region=use_trust_region,
     )
     self.assertLen(
         test_runners.RandomMetricsRunner(
@@ -208,7 +247,9 @@ class GoogleGpBanditTest(parameterized.TestCase):
             batch_size=batch_size,
             verbose=1,
             validate_parameters=True,
-        ).run_designer(designer), iters * batch_size)
+        ).run_designer(designer),
+        iters * batch_size,
+    )
 
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space
