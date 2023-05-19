@@ -188,9 +188,9 @@ class VectorizedOptimizer:
     max_duration: The maximum duration of the optimization process.
     suggestion_batch_size: The batch size of the suggestion vector received at
       each 'suggest' call.
-    jit_loop: If True, JIT compile the optimization loop. If False, the loop
-      body (an optimization step) will still be JIT compiled, but the outer loop
-      will not be. (This arg is for speed testing and may be removed later.)
+    jit_loop: If True, JIT compile the entire optimization loop. Note that in
+      this case 'score_fn', which is used within the optimization loop, needs to
+      be jittable. The functionality is intended to improve latency.
   """
 
   strategy_factory: VectorizedStrategyFactory
