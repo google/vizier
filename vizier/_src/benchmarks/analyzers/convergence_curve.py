@@ -378,8 +378,16 @@ class ConvergenceComparatorBase(abc.ABC):
 
   _baseline_curve: ConvergenceCurve = attr.field()
   _compared_curve: ConvergenceCurve = attr.field()
-  _baseline_quantile: float = attr.field(default=0.5, kw_only=True)
-  _compared_quantile: float = attr.field(default=0.5, kw_only=True)
+  _baseline_quantile: float = attr.field(
+      default=0.5,
+      validator=[attr.validators.le(1), attr.validators.ge(0)],
+      kw_only=True,
+  )
+  _compared_quantile: float = attr.field(
+      default=0.5,
+      validator=[attr.validators.le(1), attr.validators.ge(0)],
+      kw_only=True,
+  )
   _sign: float = attr.field(init=False)
 
   def __attrs_post_init__(self):
@@ -402,14 +410,6 @@ class ConvergenceComparatorBase(abc.ABC):
       raise ValueError(
           f'Baseline curve trend {self._baseline_curve.trend}'
           f' must match compared curve trend {self._compared_curve.trend}'
-      )
-    if not (0.0 <= self._baseline_quantile <= 1.0):
-      raise ValueError(
-          f'Baseline quantile {self._baseline_quantile} must be in [0, 1].'
-      )
-    if not (0.0 <= self._compared_quantile <= 1.0):
-      raise ValueError(
-          f'Compared quantile {self._compared_quantile} must be in [0, 1].'
       )
     self._sign = (
         1.0
@@ -475,8 +475,8 @@ class ConvergenceComparatorBase(abc.ABC):
     ...
 
 
-# TODO: Adjust to ConvergenceComparatorBase structure.
-class LogEfficiencyConvergenceCurveComparator:
+@attr.define
+class LogEfficiencyConvergenceCurveComparator(ConvergenceComparatorBase):
   """Comparator methods for ConvergenceCurves.
 
   Methods in this class generally return comparison metrics for a compared curve
@@ -488,28 +488,14 @@ class LogEfficiencyConvergenceCurveComparator:
     comparator = LogEfficiencyConvergenceCurveComparator(baseline_curve)
     comparator.log_efficiency_curve(compared_curve)
   """
+  max_score: float = attr.field(
+      default=5.0, validator=[attr.validators.ge(0)], kw_only=True
+  )
+  summary_function: Callable[[np.ndarray], float] = attr.field(
+      default=np.median
+  )
 
-  def __init__(self, baseline_curve: ConvergenceCurve):
-    """Initialize class with baseline curve.
-
-    Args:
-      baseline_curve: A baseline ConvergenceCurve to compare against.
-
-    Raises:
-      ValueError: If baseline curve is not INCREASING or DECREASING.
-    """
-    if baseline_curve.trend not in (ConvergenceCurve.YTrend.INCREASING,
-                                    ConvergenceCurve.YTrend.DECREASING):
-      raise ValueError(f'Curve trend {baseline_curve.trend} must be either'
-                       'increasing or decreasing.')
-    self._baseline_curve = baseline_curve
-    self._sign = 1.0 if (self._baseline_curve.trend
-                         == ConvergenceCurve.YTrend.INCREASING) else -1.0
-
-  def log_efficiency_curve(self,
-                           compared_curve: ConvergenceCurve,
-                           baseline_quantile: float = 0.5,
-                           compared_quantile: float = 0.5) -> ConvergenceCurve:
+  def log_efficiency_curve(self) -> ConvergenceCurve:
     """Builds the log sample efficiency curve.
 
     The compared curve should approximately use exp(-relative efficiency)% less
@@ -517,15 +503,6 @@ class LogEfficiencyConvergenceCurveComparator:
     demonstrates that the compared curve is better than the baseline. Also,
     the relative efficiency CURVES are not fully symmetric due to differences
     in drops in objective values.
-
-    Args:
-      compared_curve: Compared convergence curve.
-      baseline_quantile: Quantile in [0, 1] of the batched baseline curve to use
-        for efficiency comparison. The higher the quantile, the better the
-        quality of the baseline batch.
-      compared_quantile: Quantile in [0, 1] of the batched compared curve to use
-        for efficiency comparison. The higher the quantile, the better the
-        quality of the baseline batch.
 
     Returns:
       ConvergenceCurves with ys (batch size 1) as the relative efficiency curve.
@@ -538,12 +515,10 @@ class LogEfficiencyConvergenceCurveComparator:
       ValueError: If the trends do mismatch.
       ValueError: If baseline_quantile or compared_quantile are not in [0, 1].
     """
-    if self._baseline_curve.trend != compared_curve.trend:
-      raise ValueError(
-          f'Baseline curve trend {self._baseline_curve.trend}'
-          f' must match compared curve trend {compared_curve.trend}')
+
     baseline_quantile = np.nanquantile(
-        self._sign * self._baseline_curve.ys, baseline_quantile, axis=0)
+        self._sign * self._baseline_curve.ys, self._baseline_quantile, axis=0
+    )
     # This may not be [1,2,...] due to repeats.
     baseline_index_curve = build_convergence_curve(baseline_quantile,
                                                    baseline_quantile)
@@ -551,33 +526,23 @@ class LogEfficiencyConvergenceCurveComparator:
     other_index_curve = build_convergence_curve(
         baseline_quantile,
         np.nanquantile(
-            self._sign * compared_curve.ys, compared_quantile, axis=0))
+            self._sign * self._compared_curve.ys,
+            self._compared_quantile,
+            axis=0,
+        ),
+    )
 
     ys = np.log(1 + np.asarray(baseline_index_curve)) - np.log(
         1 + np.asarray(other_index_curve))
     return ConvergenceCurve(
         xs=self._baseline_curve.xs, ys=ys.reshape(1, len(ys)))
 
-  def get_log_efficiency_score(self,
-                               compared_curve: ConvergenceCurve,
-                               baseline_quantile=0.5,
-                               compared_quantile=0.5,
-                               max_score=5) -> float:
+  def score(self) -> float:
     """Gets a finalized log efficiency score.
 
     The compared curve should approximately use exp(-score)% Trials compared to
     the baseline curve. Note that a high positive score demonstrates that the
     compared curve uses less Trials and is better than the baseline.
-
-    Args:
-      compared_curve: Compared convergence curve.
-      baseline_quantile: Quantile in [0, 1] of the batched baseline curve to use
-        for efficiency comparison. The higher the quantile, the better the
-        quality of the baseline batch.
-      compared_quantile: Quantile in [0, 1] of the batched compared curve to use
-        for efficiency comparison. The higher the quantile, the better the
-        quality of the baseline batch.
-      max_score: Maximum log efficiency score.
 
     Returns:
       Sample efficiency score. This score is symmetric and always finite when
@@ -587,7 +552,7 @@ class LogEfficiencyConvergenceCurveComparator:
         [self._baseline_curve], interpolate_repeats=True
     )[0]
     compared_curve = ConvergenceCurve.align_xs(
-        [compared_curve], interpolate_repeats=True
+        [self._compared_curve], interpolate_repeats=True
     )[0]
     # Combined curve (as the baseline) becomes the y-values at which
     # Trial efficiency is evaluated.
@@ -595,31 +560,35 @@ class LogEfficiencyConvergenceCurveComparator:
         [baseline_curve, compared_curve]
     )[0]
     combined_curve.ys = np.nanmedian(combined_curve.ys, axis=0, keepdims=True)
-    comparator = LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=combined_curve
-    )
 
     # Look ahead for exp(max_score)*T steps, as score is in the log space.
-    extend_steps = int(np.exp(max_score) * len(self._baseline_curve.xs))
+    extend_steps = int(np.exp(self.max_score) * len(self._baseline_curve.xs))
     extended_baseline = ConvergenceCurve.extrapolate_ys(
-        self._baseline_curve, extend_steps
+        baseline_curve, extend_steps
     )
     extended_compared = ConvergenceCurve.extrapolate_ys(
         compared_curve, extend_steps
     )
-
-    efficiency_baseline = comparator.log_efficiency_curve(
-        extended_baseline, compared_quantile=baseline_quantile
+    baseline_comparator = LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=combined_curve,
+        compared_curve=extended_baseline,
+        compared_quantile=self._baseline_quantile,
     )
-    efficiency_compared = comparator.log_efficiency_curve(
-        extended_compared, compared_quantile=compared_quantile
+    efficiency_baseline = baseline_comparator.log_efficiency_curve()
+    compared_comparator = LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=combined_curve,
+        compared_curve=extended_compared,
+        compared_quantile=self._compared_quantile,
     )
+    efficiency_compared = compared_comparator.log_efficiency_curve()
 
     # Clip log efficiency and return median log efficiency in last half.
     diff = np.clip(
-        efficiency_compared.ys, a_min=-max_score, a_max=max_score
-    ) - np.clip(efficiency_baseline.ys, a_min=-max_score, a_max=max_score)
-    return np.median(diff[int(len(diff) / 2) :])
+        efficiency_compared.ys, a_min=-self.max_score, a_max=self.max_score
+    ) - np.clip(
+        efficiency_baseline.ys, a_min=-self.max_score, a_max=self.max_score
+    )
+    return self.summary_function(diff)
 
 
 @attr.define
@@ -630,7 +599,7 @@ class SimpleConvergenceCurveComparator(ConvergenceComparatorBase):
     burn_cutoff: The cutoff below which values not included in score.
   """
 
-  _burn_cutoff: Optional[float] = None
+  _xs_cutoff: Optional[float] = None
 
   def score(self) -> float:
     """Computes the simple convergence score.
@@ -646,7 +615,7 @@ class SimpleConvergenceCurveComparator(ConvergenceComparatorBase):
       ValueError: If curve trends are not INCREASING or DECREASING, or not
       equal.
     """
-    baseline_ys, compared_ys = self._standardize_curves(self._burn_cutoff)
+    baseline_ys, compared_ys = self._standardize_curves(self._xs_cutoff)
     # Compute mean indices that compared is better than baseline.
     return np.mean(baseline_ys < compared_ys)
 
@@ -659,7 +628,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparatorBase):
     burn_cutoff: The cutoff below which values not included in score.
   """
 
-  _burn_cutoff: Optional[float] = None
+  _xs_cutoff: Optional[float] = None
 
   def _compute_directional_score(
       self, baseline: np.ndarray, compared: np.ndarray
@@ -715,7 +684,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparatorBase):
       ValueError: If curve trends are not INCREASING or DECREASING, or not
       equal.
     """
-    baseline_ys, compared_ys = self._standardize_curves(self._burn_cutoff)
+    baseline_ys, compared_ys = self._standardize_curves(self._xs_cutoff)
     baseline_compared_score = self._compute_directional_score(
         baseline_ys, compared_ys
     )

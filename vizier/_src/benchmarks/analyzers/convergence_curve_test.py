@@ -204,9 +204,6 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         xs=xs,
         ys=np.exp(np.array([-0.9, -1.0, -1.1]).reshape(3, 1) * xs_t),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
-    self._baseline = convergence.LogEfficiencyConvergenceCurveComparator(
-        self._baseline_curve
-    )
 
     self._worse_curves = convergence.ConvergenceCurve(
         xs=xs,
@@ -219,9 +216,14 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
 
   def test_get_relative_efficiency_curve(self):
     baseline_length = len(self._baseline_curve.xs)
-    rel_effiency = self._baseline.log_efficiency_curve(self._better_curves)
-    higher_quantile = self._baseline.log_efficiency_curve(
-        self._better_curves, compared_quantile=0.9)
+    rel_effiency = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    ).log_efficiency_curve()
+    higher_quantile = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=self._baseline_curve,
+        compared_curve=self._better_curves,
+        compared_quantile=0.9,
+    ).log_efficiency_curve()
 
     self.assertEqual(rel_effiency.ys.shape, (1, baseline_length))
     self.assertEqual(higher_quantile.ys.shape, (1, baseline_length))
@@ -235,8 +237,9 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         xs=np.array(range(0, 20)),
         ys=np.array([4.0, 3.0, 2.0] + [1.5] * 17).reshape(1, 20),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
-    comparator = convergence.LogEfficiencyConvergenceCurveComparator(flat_curve)
-    self_eff = comparator.log_efficiency_curve(flat_curve)
+    self_eff = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=flat_curve, compared_curve=flat_curve
+    ).log_efficiency_curve()
     # Relative efficiency of a curve on itself is close to 0.
     self.assertAlmostEqual(np.linalg.norm(self_eff.ys), 0.0, delta=0.1)
 
@@ -247,26 +250,42 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         xs=self._baseline_curve.xs[:short_length],
         ys=self._baseline_curve.ys[:, :short_length],
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
-    short_efficiency = self._baseline.log_efficiency_curve(short_curve)
+    short_efficiency = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=self._baseline_curve, compared_curve=short_curve
+    ).log_efficiency_curve()
     self.assertEqual(short_efficiency.ys.shape, (1, baseline_length))
     self.assertEqual(float(short_efficiency.ys[:, -1]), -float('inf'))
 
   def test_get_efficiency_score(self):
     # Higher compared quantile should increase score. Higher baseline
     # quantile should decrease score.
-    median_score = self._baseline.get_log_efficiency_score(self._better_curves)
+    median_score = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    ).score()
     self.assertGreater(
-        self._baseline.get_log_efficiency_score(
-            self._better_curves, compared_quantile=0.9), median_score)
+        convergence.LogEfficiencyConvergenceCurveComparator(
+            baseline_curve=self._baseline_curve,
+            compared_curve=self._better_curves,
+            compared_quantile=0.9,
+        ).score(),
+        median_score,
+    )
     self.assertLess(
-        self._baseline.get_log_efficiency_score(
-            self._better_curves, baseline_quantile=0.9), median_score)
+        convergence.LogEfficiencyConvergenceCurveComparator(
+            baseline_curve=self._baseline_curve,
+            compared_curve=self._better_curves,
+            baseline_quantile=0.9,
+        ).score(),
+        median_score,
+    )
 
   def test_effiency_score_symmetry(self):
-    base_score = self._baseline.get_log_efficiency_score(self._better_curves)
+    base_score = convergence.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    ).score()
     reversed_score = convergence.LogEfficiencyConvergenceCurveComparator(
-        self._better_curves
-    ).get_log_efficiency_score(self._baseline_curve)
+        baseline_curve=self._better_curves, compared_curve=self._baseline_curve
+    ).score()
     self.assertAlmostEqual(base_score, -reversed_score, delta=0.01)
 
   def test_efficiency_score_value(self):
@@ -282,15 +301,27 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         ys=np.exp(np.array([-1.5, -1.8, -2.0]).reshape(3, 1) * xs_t),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
     # Efficiency score for exponential curves can be approximated.
+
     self.assertGreater(
-        self._baseline.get_log_efficiency_score(better_curves), 0.4)
-    self.assertLess(self._baseline.get_log_efficiency_score(worse_curves), -0.4)
+        convergence.LogEfficiencyConvergenceCurveComparator(
+            baseline_curve=self._baseline_curve, compared_curve=better_curves
+        ).score(),
+        0.4,
+    )
+    self.assertLess(
+        convergence.LogEfficiencyConvergenceCurveComparator(
+            baseline_curve=self._baseline_curve, compared_curve=worse_curves
+        ).score(),
+        -0.4,
+    )
 
   def test_comparator_failure(self):
     unknown_curve = convergence.ConvergenceCurve(
         xs=self._baseline_curve.xs, ys=self._baseline_curve.ys)
     with self.assertRaisesRegex(ValueError, 'increasing or decreasing'):
-      convergence.LogEfficiencyConvergenceCurveComparator(unknown_curve)
+      convergence.LogEfficiencyConvergenceCurveComparator(
+          baseline_curve=unknown_curve, compared_curve=self._baseline_curve
+      )
 
 
 class SimpleConvergenceComparatorTest(parameterized.TestCase):
@@ -343,7 +374,7 @@ class SimpleConvergenceComparatorTest(parameterized.TestCase):
         xs=xs2, ys=ys2, trend=convergence.ConvergenceCurve.YTrend.INCREASING
     )
     comparator = convergence.SimpleConvergenceCurveComparator(
-        curve1, curve2, burn_cutoff=cutoff
+        curve1, curve2, xs_cutoff=cutoff
     )
     self.assertEqual(comparator.score(), res)
 
