@@ -22,8 +22,8 @@ from __future__ import annotations
 # add_trial, OR turn it into a private module
 
 from typing import List
-from absl import logging
 
+from absl import logging
 from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import study_pb2
@@ -220,17 +220,18 @@ class VizierClientTest(parameterized.TestCase):
   # Only test algorithms which don't depend on external libraries (except for
   # numpy).
   @parameterized.parameters(
-      (pyvizier.Algorithm.RANDOM_SEARCH, 50, 1, False),
-      (pyvizier.Algorithm.QUASI_RANDOM_SEARCH, 50, 1, False),
-      (pyvizier.Algorithm.GRID_SEARCH, 50, 1, False),
-      (pyvizier.Algorithm.NSGA2, 50, 1, True),
+      dict(algorithm=pyvizier.Algorithm.RANDOM_SEARCH),
+      dict(algorithm=pyvizier.Algorithm.QUASI_RANDOM_SEARCH),
+      dict(algorithm=pyvizier.Algorithm.GRID_SEARCH),
+      dict(algorithm=pyvizier.Algorithm.NSGA2, multi_objective=True),
   )
   def test_e2e_tuning(
       self,
+      *,
       algorithm,
-      num_iterations: int,
-      batch_size: int,
-      multi_objective: bool,
+      num_iterations: int = 50,
+      batch_size: int = 1,
+      multi_objective: bool = False,
   ):
     # Runs end-to-end tuning via back-and-forth communication to server.
     def learning_curve_generator(learning_rate: float) -> List[float]:

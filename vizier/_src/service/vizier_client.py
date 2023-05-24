@@ -43,7 +43,7 @@ from google.longrunning import operations_pb2
 from google.protobuf import duration_pb2
 from google.protobuf import json_format
 
-flags.DEFINE_integer(
+_VIZIER_NEW_SUGGESTION_POLLING_SECONDS = flags.DEFINE_integer(
     'vizier_new_suggestion_polling_secs',
     1,
     (
@@ -54,6 +54,14 @@ flags.DEFINE_integer(
     ),
 )
 FLAGS = flags.FLAGS
+
+
+# TODO: Add an e2e test for this.
+def _get_new_suggestion_polling_secs() -> int:
+  if FLAGS.is_parsed():
+    return _VIZIER_NEW_SUGGESTION_POLLING_SECONDS.value
+  else:
+    return int(_VIZIER_NEW_SUGGESTION_POLLING_SECONDS.default)
 
 
 @attr.define
@@ -165,7 +173,7 @@ class VizierClient:
     num_attempts = 0
     while not operation.done:
       sleep_time = PollingDelay(
-          num_attempts, FLAGS.vizier_new_suggestion_polling_secs
+          num_attempts, _get_new_suggestion_polling_secs()
       )
       num_attempts += 1
       logging.info(
