@@ -597,10 +597,15 @@ class LinearOutputWarper:
     if self.low_bound >= self.high_bound:
       raise ValueError('low_bound needs to be smaller than high_bound.')
 
-  def _validate(self) -> None:
+  def _validate(self, y: types.Array) -> None:
     if self._min_value is None or self._max_value is None:
       raise ValueError(
           'Need to set min_value and max_value. Make sure to call `fit` first.'
+      )
+    if y.shape[-1] != self._min_value.shape[-1]:
+      raise ValueError(
+          f'The input array last dimension {y.shape[-1]} is not the same as'
+          f' expected {self._min_value.shape[-1]}. Input shape: {y.shape}.'
       )
 
   def fit(self, y: types.Array) -> None:
@@ -632,13 +637,13 @@ class LinearOutputWarper:
   def warp(self, y: types.Array) -> jax.Array:
     """Warp the y values into [low_bound, high_bound]."""
     # y shape: (num_samples, num_metrics)
-    self._validate()
+    self._validate(y)
     return self._bijector.forward(y)
 
   def unwarp(self, y: types.Array) -> jax.Array:
     """Un-warp the y values into [min_value, max_value]."""
     # y shape: (num_samples, num_metrics)
-    self._validate()
+    self._validate(y)
     return self._bijector.inverse(y)
 
   @property
