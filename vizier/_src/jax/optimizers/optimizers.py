@@ -239,7 +239,7 @@ class OptaxTrainWithRandomRestarts(Optimizer[_Params]):
 class JaxoptLbfgsB(Optimizer[_Params]):
   """Jaxopt's L-BFGS-B optimizer.
 
-  Jaxopt calls Scipy's L-BFGS-B, which wraps a Fortran implementation.
+  Jaxopt calls the Scipy or Jax implementation of L-BFGS-B.
   L-BFGS-B is a version of L-BFGS that incorporates box constraints on
   parameters.
   https://digital.library.unt.edu/ark:/67531/metadc666315/m2/1/high_res_d/204262.pdf
@@ -250,12 +250,19 @@ class JaxoptLbfgsB(Optimizer[_Params]):
       optimization.
     best_n: Number of best values to return from the initializations; must be
       less than or equal to `random_restarts`.
+     use_scipy: Uses the scipy version of L-BFGS-B. If False, uses the pure JAX
+       L-BFGS-B in Jaxopt, which runs on accelerators.
+     tol: Tolerance for stopping criteria.
+     maxiter: Max number of iterations.
     _speed_test: If True, return speed test results.
   """
 
   num_line_search_steps: int = attr.field(kw_only=True, default=20)
   random_restarts: int = attr.field(kw_only=True, default=4)
   best_n: int = attr.field(kw_only=True, default=1)
+  use_scipy: bool = attr.field(kw_only=True, default=True)
+  tol: float = attr.field(kw_only=True, default=1e-8)
+  maxiter: int = attr.field(kw_only=True, default=50)
   _speed_test: bool = attr.field(kw_only=True, default=False)
 
   def __attrs_post_init__(self):
@@ -304,34 +311,63 @@ class JaxoptLbfgsB(Optimizer[_Params]):
       bounds = (lb, ub)
 
     loss = lambda p: loss_fn(p)[0]
-    lbfgsb = jaxopt.ScipyBoundedMinimize(
-        fun=loss,
-        method='L-BFGS-B',
-        options={'maxls': self.num_line_search_steps},
-    )
+
+    if self.use_scipy:
+      lbfgsb = jaxopt.ScipyBoundedMinimize(
+          fun=loss,
+          method='L-BFGS-B',
+          maxiter=self.maxiter,
+          options={
+              'gtol': self.tol,
+              'maxls': self.num_line_search_steps,
+          },
+      )
+    else:
+      lbfgsb = jaxopt.LBFGSB(
+          fun=loss,
+          maxls=self.num_line_search_steps,
+          tol=self.tol,
+          maxiter=self.maxiter,
+      )
 
     metrics = {}
     if self._speed_test:
       start_time = time.time()
       _ = lbfgsb.run(init_params=p, bounds=bounds)
-      metrics['compile_time'] = time.time() - start_time
+      metrics['compile+runtime'] = time.time() - start_time
 
+    # TODO: Make sure the loss fn isn't retraced for new instances
+    # of the optimizer.
     train_times = []
     losses = []
     params = []
-    for i, rng in enumerate(jax.random.split(rng, num=self.random_restarts)):
-      with jax.profiler.StepTraceAnnotation('train', step_num=i):
+    if self.use_scipy:
+      logging.info('Using SCIPY L-BFGS-B w/ %d restarts.', self.random_restarts)
+      for rng in jax.random.split(rng, num=self.random_restarts):
         p = setup(rng)
         start_time = time.time()
-        # TODO: Avoid using `run` since it re-JITs unnecessarily.
+
         position, opt_state = lbfgsb.run(init_params=p, bounds=bounds)
         train_times.append(time.time() - start_time)
         losses.append(opt_state.fun_val)
         params.append(position)
-        logging.info('Loss: %s', opt_state.fun_val)
-        logging.info('Last step time: %s', train_times[-1])
+        logging.info(
+            'Loss: %s, last step time: %s', opt_state.fun_val, train_times[-1]
+        )
 
-    all_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *params)
+      all_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *params)
+    else:
+      logging.info('Using JAX L-BFGS-B w/ %d restarts.', self.random_restarts)
+      rngs = jax.random.split(rng, num=self.random_restarts)
+      init_params = jax.vmap(setup)(rngs)
+
+      start_time = time.time()
+      all_params, opt_states = jax.lax.map(
+          lambda p: lbfgsb.run(init_params=p, bounds=bounds), init_params
+      )
+      train_times = time.time() - start_time
+      losses = opt_states.value
+
     losses = jnp.array(losses)
     argsorted = jnp.argsort(losses)
     logging.info('Best loss(es): %s', losses[argsorted[: self.best_n]])

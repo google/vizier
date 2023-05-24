@@ -119,14 +119,47 @@ class OptimizersTest(parameterized.TestCase):
       ((None, 5.0), False),
       ((-3.0, 3.0),),
   )
-  def test_sinusodial_bestn_l_bfgs_b(self, bounds, nest_constraint=True):
+  def test_sinusodial_bestn_scipy_l_bfgs_b(self, bounds, nest_constraint=True):
     if bounds is None:
       constraints = None
     else:
       if nest_constraint:
         bounds = tree.map_structure(_make_constraint_array, bounds)
       constraints = sp.Constraint.create(bounds, tfb.SoftClip)
-    optimize = optimizers.JaxoptLbfgsB(random_restarts=10, best_n=5)
+    optimize = optimizers.JaxoptLbfgsB(
+        random_restarts=6, best_n=5, use_scipy=True
+    )
+    optimal_params, _ = optimize(
+        optimizer_setup, loss_fn, jax.random.PRNGKey(0), constraints=constraints
+    )
+    logging.info('Optimal: %s', optimal_params)
+
+    self.assertSequenceEqual(optimal_params['x2'].shape, (5, 2))
+    self.assertSequenceEqual(optimal_params['x1'].shape, (5, 1))
+    if bounds is not None:
+      for y_, b_ in zip(tree.flatten(optimal_params), tree.flatten(bounds[0])):
+        if b_ is not None:
+          self.assertTrue((y_ > b_).all())
+      for y_, b_ in zip(tree.flatten(optimal_params), tree.flatten(bounds[1])):
+        if b_ is not None:
+          self.assertTrue((y_ < b_).all())
+
+  @parameterized.parameters(
+      (None,),
+      ((-4.0, None),),
+      ((None, 5.0), False),
+      ((-3.0, 3.0),),
+  )
+  def test_sinusodial_bestn_jax_l_bfgs_b(self, bounds, nest_constraint=True):
+    if bounds is None:
+      constraints = None
+    else:
+      if nest_constraint:
+        bounds = tree.map_structure(_make_constraint_array, bounds)
+      constraints = sp.Constraint.create(bounds, tfb.SoftClip)
+    optimize = optimizers.JaxoptLbfgsB(
+        random_restarts=6, best_n=5, use_scipy=False
+    )
     optimal_params, _ = optimize(
         optimizer_setup, loss_fn, jax.random.PRNGKey(0), constraints=constraints
     )
