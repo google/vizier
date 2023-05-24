@@ -36,13 +36,15 @@ tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
 tfpke = tfp.experimental.psd_kernels
 
+Features = TypeVar('Features', types.Array, types.ContinuousAndCategoricalArray)
+
 
 class AcquisitionFunction(Protocol):
 
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     pass
@@ -59,7 +61,7 @@ class UCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features, labels
@@ -77,7 +79,7 @@ class HyperVolumeScalarization(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features, labels
@@ -92,7 +94,7 @@ class EI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features
@@ -104,7 +106,7 @@ class PI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features
@@ -123,7 +125,7 @@ class QEI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features
@@ -154,7 +156,7 @@ class QUCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Array] = None,
+      features: Optional[Features] = None,
       labels: Optional[types.Array] = None,
   ) -> jax.Array:
     del features
@@ -362,10 +364,7 @@ class TrustRegionWithCategorical:
     return jnp.min(linf_distance_cont, axis=-1)  # (M,)
 
 
-_F = TypeVar('_F', types.Array, types.ContinuousAndCategoricalArray)
-
-
-class AcquisitionBuilder(abc.ABC, Generic[_F]):
+class AcquisitionBuilder(abc.ABC, Generic[Features]):
   """Acquisition/prediction builder.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -379,7 +378,7 @@ class AcquisitionBuilder(abc.ABC, Generic[_F]):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: _F,
+      features: Features,
       labels: types.Array,
       *args,
       **kwargs,
@@ -411,13 +410,13 @@ class AcquisitionBuilder(abc.ABC, Generic[_F]):
 
   @property
   @abc.abstractmethod
-  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[Features], jax.Array]:
     """Acquisition function on features array."""
     pass
 
   @property
   @abc.abstractmethod
-  def predict_on_array(self) -> Callable[[_F], jax.Array]:
+  def predict_on_array(self) -> Callable[[Features], jax.Array]:
     """Prediction function on features array."""
     pass
 
@@ -425,7 +424,7 @@ class AcquisitionBuilder(abc.ABC, Generic[_F]):
   @abc.abstractmethod
   def sample_on_array(
       self,
-  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[Features, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     pass
 
@@ -433,7 +432,7 @@ class AcquisitionBuilder(abc.ABC, Generic[_F]):
 def _build_predictive_distribution(
     model: sp.StochasticProcessModel,
     state: types.ModelState,
-    features: _F,
+    features: Features,
     labels: types.Array,
     observations_is_missing: Optional[types.Array] = None,
     use_vmap: bool = True,
@@ -441,7 +440,7 @@ def _build_predictive_distribution(
   """Generates the predictive distribution on array function."""
 
   def _predict_on_array_one_model(
-      state: types.ModelState, *, xs: _F
+      state: types.ModelState, *, xs: Features
   ) -> tfd.Distribution:
     return model.apply(
         state,
@@ -453,7 +452,7 @@ def _build_predictive_distribution(
     )
 
   # Vmaps and combines the predictive distribution over all models.
-  def _get_predictive_dist(xs: _F) -> tfd.Distribution:
+  def _get_predictive_dist(xs: Features) -> tfd.Distribution:
     if not use_vmap:
       return _predict_on_array_one_model(state, xs=xs)
 
@@ -475,7 +474,7 @@ def _build_predictive_distribution(
 
 
 @attr.define(slots=False)
-class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
+class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[Features]):
   """Acquisition/prediction builder for the GPBandit-type designers.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -511,7 +510,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: _F,
+      features: Features,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
       observations_is_missing: Optional[types.Array] = None,
@@ -562,15 +561,15 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
 
     # Define acquisition.
     if self.use_trust_region:
-      if isinstance(features, types.Array):
+      if isinstance(features, types.ContinuousAndCategoricalArray):
+        self._tr = TrustRegionWithCategorical(features)
+      else:
         self._tr = TrustRegion(
             features,
             converter.output_specs,
             feature_is_missing=feature_is_missing,
             observations_is_missing=observations_is_missing,
         )
-      else:
-        self._tr = TrustRegionWithCategorical(features)
 
     # This supports acquisition fns that do arbitrary computations with the
     # input distributions -- e.g. they could take samples or compute quantiles.
@@ -612,13 +611,13 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[Features], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[_F], jax.Array]:
+  def predict_on_array(self) -> Callable[[Features], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array
@@ -634,7 +633,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
   @property
   def sample_on_array(
       self,
-  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[Features, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
@@ -642,7 +641,7 @@ class GPBanditAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
 
 
 @attr.define(slots=False)
-class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
+class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[Features]):
   """Acquisition/prediction builder for the GPBandit-type designers.
 
   This builder takes in a Jax/Flax model, along with its hparams, and builds
@@ -684,7 +683,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
       problem: vz.ProblemStatement,
       model: sp.StochasticProcessModel,
       state: types.ModelState,
-      features: _F,
+      features: Features,
       labels: types.Array,
       converter: converters.TrialToArrayConverter,
       observations_is_missing: Optional[types.Array] = None,
@@ -715,7 +714,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
     )
 
     @jax.jit
-    def predict_mean_and_stddev(xs: _F) -> Dict[str, jax.Array]:
+    def predict_mean_and_stddev(xs: Features) -> Dict[str, jax.Array]:
       dist = self._get_predictive_dist(xs)
       return {'mean': dist.mean(), 'stddev': dist.stddev()}
 
@@ -726,7 +725,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
     # when static argument values change.
     @functools.partial(jax.jit, static_argnums=1)
     def sample_on_array(
-        xs: _F, num_samples: int, key: jax.random.KeyArray
+        xs: Features, num_samples: int, key: jax.random.KeyArray
     ) -> jax.Array:
       dist = self._get_predictive_dist(xs)
       return dist.sample(num_samples, key=key)
@@ -791,13 +790,13 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
     return self._acquisition_problem
 
   @property
-  def acquisition_on_array(self) -> Callable[[_F], jax.Array]:
+  def acquisition_on_array(self) -> Callable[[Features], jax.Array]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._acquisition_on_array
 
   @property
-  def predict_on_array(self) -> Callable[[_F], Dict[str, jax.Array]]:
+  def predict_on_array(self) -> Callable[[Features], Dict[str, jax.Array]]:
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
     return self._predict_on_array
@@ -813,7 +812,7 @@ class GPBanditMultiAcquisitionBuilder(AcquisitionBuilder, Generic[_F]):
   @property
   def sample_on_array(
       self,
-  ) -> Callable[[_F, int, jax.random.KeyArray], jax.Array]:
+  ) -> Callable[[Features, int, jax.random.KeyArray], jax.Array]:
     """Sample the underlying model on features array."""
     if not self._built:
       raise ValueError('Acquisition must be built first via build().')
