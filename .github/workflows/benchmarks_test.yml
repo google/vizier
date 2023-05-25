@@ -10,7 +10,7 @@ on:
 
 jobs:
   test-ubuntu:
-    name: "Benchmarks test on ${{ matrix.python-version }} on ${{ matrix.os }}"
+    name: "pytest_benchmarks on ${{ matrix.python-version }} on ${{ matrix.os }}"
     runs-on: "${{ matrix.os }}"
     strategy:
       matrix:
