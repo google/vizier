@@ -23,10 +23,10 @@ from vizier.pyvizier.converters import input_warping
 
 from absl.testing import absltest
 
-
 class InputWarpingTest(absltest.TestCase):
 
   def test_kumaraswamy_transformation(self):
+    # Test the Kumaraswamy transformation
     rng = np.random.default_rng(seed=0)
     for a in np.linspace(0.01, 2.0, 50):
       for b in np.linspace(0.01, 2.0, 50):
@@ -40,6 +40,7 @@ class InputWarpingTest(absltest.TestCase):
         )
 
   def test_convert_trials(self):
+    # Test conversion of trials using input warping
     rng = np.random.default_rng(seed=0)
     search_space = vz.SearchSpace()
     for i in range(16):
@@ -64,7 +65,6 @@ class InputWarpingTest(absltest.TestCase):
             parameters[trial_idx][f"x{i}"].value,
             trial.parameters[f"x{i}"].value,
         )
-
 
 if __name__ == "__main__":
   absltest.main()

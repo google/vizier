@@ -52,14 +52,17 @@ class NumpyArraySpecType(enum.Enum):
       cls, pc: pyvizier.ParameterConfig
   ) -> 'NumpyArraySpecType':
     """SpecType when encoding discretes as integer indices."""
+    # Check if the parameter type is double
     if pc.type == pyvizier.ParameterType.DOUBLE:
       return NumpyArraySpecType.CONTINUOUS
+    # Check if the parameter type is discrete, categorical, or integer
     elif pc.type in (
         pyvizier.ParameterType.DISCRETE,
         pyvizier.ParameterType.CATEGORICAL,
         pyvizier.ParameterType.INTEGER,
     ):
       return NumpyArraySpecType.DISCRETE
+    # Raise an error if the type is unknown
     raise ValueError(f'Unknown type {pc.type}')
 
   @classmethod
@@ -67,14 +70,17 @@ class NumpyArraySpecType(enum.Enum):
       cls, pc: pyvizier.ParameterConfig
   ) -> 'NumpyArraySpecType':
     """SpecType when encoding discretes as onehot embedding."""
+    # Check if the parameter type is double
     if pc.type == pyvizier.ParameterType.DOUBLE:
       return NumpyArraySpecType.CONTINUOUS
+    # Check if the parameter type is discrete, categorical, or integer
     elif pc.type in (
         pyvizier.ParameterType.DISCRETE,
         pyvizier.ParameterType.CATEGORICAL,
         pyvizier.ParameterType.INTEGER,
     ):
       return NumpyArraySpecType.ONEHOT_EMBEDDING
+    # Raise an error if the type is unknown
     raise ValueError(f'Unknown type {pc.type}')
 
 
