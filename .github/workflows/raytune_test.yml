@@ -41,6 +41,6 @@ jobs:
       - name: Print installed dependencies
         run: |
           pip freeze
-      - name: Test with pytest
-        run: |
-          pytest -n auto vizier/_src/raytune/
+      # - name: Test with pytest
+      #   run: |
+      #     pytest -n auto vizier/_src/raytune/

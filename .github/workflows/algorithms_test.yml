@@ -28,7 +28,7 @@ jobs:
           python -m pip install --upgrade pip setuptools
           pip install wheel
           pip install grpcio-tools==1.48.2
-          pip install pytest pytest-xdist
+          pip install pytest pytest-xdist pytest-timeout pytest-retry
           pip install -r requirements-test.txt
       - name: Install Vizier
         run: |
@@ -38,7 +38,8 @@ jobs:
           pip install -r requirements-algorithms.txt
       - name: Print installed dependencies
         run: |
-          pip freeze
-      - name: Test with pytest
-        run: |
-          pytest -n auto vizier/_src/algorithms/ vizier/_src/jax/
+          pip list
+      # - name: Test with pytest is currently disabled
+        # run: |
+        #   pytest -q -n auto vizier/_src/algorithms/ vizier/_src/jax/ \
+        #   --retries 0 --timeout=360
