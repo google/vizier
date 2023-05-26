@@ -70,7 +70,7 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
     return
 
 
-def _random_strategy_factory(
+def random_strategy_factory(
     converter: converters.TrialToArrayConverter,
     suggestion_batch_size: int,
 ) -> vb.VectorizedStrategy:
@@ -82,18 +82,24 @@ def _random_strategy_factory(
 
 
 def create_random_optimizer(
-    max_evaluations: int, suggestion_batch_size: int
+    converter: converters.TrialToArrayConverter,
+    max_evaluations: int,
+    suggestion_batch_size: int,
 ) -> vb.VectorizedOptimizer:
   """Creates a random optimizer."""
-  return vb.VectorizedOptimizer(
-      strategy_factory=_random_strategy_factory,
+  return vb.VectorizedOptimizerFactory(
+      strategy_factory=random_strategy_factory,
       max_evaluations=max_evaluations,
       suggestion_batch_size=suggestion_batch_size,
-  )
+  )(converter=converter)
 
 
-def create_random_optimizer_factory() -> vb.VectorizedOptimizerFactory:
+def create_random_optimizer_factory(
+    max_evaluations: int, suggestion_batch_size: int
+) -> vb.VectorizedOptimizerFactory:
   """Creates a random optimizer factory."""
   return vb.VectorizedOptimizerFactory(
-      strategy_factory=_random_strategy_factory
+      strategy_factory=random_strategy_factory,
+      max_evaluations=max_evaluations,
+      suggestion_batch_size=suggestion_batch_size,
   )

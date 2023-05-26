@@ -17,12 +17,10 @@ from __future__ import annotations
 """Base class for vectorized acquisition optimizers."""
 
 import abc
-import datetime
-import logging
-from typing import Generic, Optional, Protocol, Sequence, TypeVar, Union
+from typing import Generic, Optional, Protocol, TypeVar, Union
 
 import attr
-import chex
+from flax import struct
 import jax
 from jax import numpy as jnp
 import numpy as np
@@ -37,7 +35,7 @@ ArrayConverter = Union[
 ]
 
 
-@chex.dataclass(frozen=True)
+@struct.dataclass
 class VectorizedStrategyResults:
   """Container for a vectorized strategy result."""
 
@@ -139,7 +137,7 @@ class ArrayScoreFunction(Protocol):
     """Evaluates the array of batched trials.
 
     Arguments:
-      batched_array_trials: Array of shape (batch_size, n_features).
+      batched_array_trials: Array of shape (batch_size, n_feature_dimensions).
 
     Returns:
       Array of shape (batch_size,).
@@ -158,14 +156,14 @@ class ParallelArrayScoreFunction(Protocol):
 
     Arguments:
       parallel_array_trials: Array of shape (batch_size, n_parallel_candidates,
-        n_features).
+        n_feature_dimensions).
 
     Returns:
       Array of shape (batch_size).
     """
 
 
-@attr.define(kw_only=True)
+@struct.dataclass
 class VectorizedOptimizer:
   """Vectorized strategy optimizer.
 
@@ -183,30 +181,29 @@ class VectorizedOptimizer:
   objective function evaluations limit has exceeded.
 
   Attributes:
-    strategy_factory: A factory for generating new strategy.
+    strategy: A factory for generating new strategy.
+    n_feature_dimensions_with_padding: Number of feature dimensions including
+      padding.
+    n_feature_dimensions: Number of feature dimensions (less than or equal to
+      `n_feature_dimensions_with_padding`).
+    suggestion_batch_size: Number of suggested points returned at each call.
     max_evaluations: The maximum number of objective function evaluations.
-    max_duration: The maximum duration of the optimization process.
-    suggestion_batch_size: The batch size of the suggestion vector received at
-      each 'suggest' call.
-    jit_loop: If True, JIT compile the entire optimization loop. Note that in
-      this case 'score_fn', which is used within the optimization loop, needs to
-      be jittable. The functionality is intended to improve latency.
   """
 
-  strategy_factory: VectorizedStrategyFactory
-  suggestion_batch_size: int = 25
-  max_evaluations: int = 75_000
-  jit_loop: bool = True
+  strategy: VectorizedStrategy
+  n_feature_dimensions: int = struct.field(pytree_node=False)
+  n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
+  suggestion_batch_size: int = struct.field(pytree_node=False, default=25)
+  max_evaluations: int = struct.field(pytree_node=False, default=75_000)
 
-  def optimize(
+  def __call__(
       self,
-      converter: ArrayConverter,
       score_fn: ArrayScoreFunction,
       *,
       count: int = 1,
-      prior_trials: Optional[Sequence[vz.Trial]] = None,
+      prior_features: Optional[types.Array] = None,
       seed: Optional[int] = None,
-  ) -> list[vz.Trial]:
+  ) -> VectorizedStrategyResults:
     """Optimize the objective function.
 
     The ask-evaluate-tell optimization procedure that runs until the allocated
@@ -226,12 +223,11 @@ class VectorizedOptimizer:
     reached.
 
     Arguments:
-      converter: The converter used to convert Trials to arrays.
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
         features_count) and returns a 1D Array (batch_size,).
       count: The number of suggestions to generate.
-      prior_trials: Completed trials to be used for knowledge transfer. When the
-        optimizer is used to optimize a designer's acquisition function, the
+      prior_features: Completed trials to be used for knowledge transfer. When
+        the optimizer is used to optimize a designer's acquisition function, the
         prior trials are the previous designer suggestions provided in the
         ordered they were suggested.
       seed: The seed to use in the random generator.
@@ -239,93 +235,63 @@ class VectorizedOptimizer:
     Returns:
       The best trials found in the optimization.
     """
-    seed = jax.random.PRNGKey(seed or 0)
-    if prior_trials:
-      # Sort the trials by the order they were created.
-      prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
-      prior_features = converter.to_features(prior_trials)
-      # TODO: Update this code to work more cleanly with
-      # PaddedArrays.
-      if isinstance(converter, converters.PaddedTrialToArrayConverter):
-        # We need to mask out the `NaN` padded trials with zeroes.
-        prior_features = prior_features.padded_array
-        prior_features[len(prior_trials) :, ...] = 0.0
+    seed = jax.random.PRNGKey(0) if seed is None else seed
 
-      prior_rewards = score_fn(prior_features).reshape(-1)
-    else:
-      prior_features, prior_rewards = None, None
-
-    strategy = self.strategy_factory(
-        converter=converter,
-        suggestion_batch_size=self.suggestion_batch_size,
+    input_is_padded = (
+        self.n_feature_dimensions_with_padding > self.n_feature_dimensions
     )
-
     dimension_is_missing = None
-
-    if isinstance(converter, converters.PaddedTrialToArrayConverter):
-      n_features = sum(spec.num_dimensions for spec in converter.output_specs)
-      n_padded_features = converter.to_features([]).shape[-1]
+    if input_is_padded:
       dimension_is_missing = np.array(
-          [False] * n_features + [True] * (n_padded_features - n_features)
+          [False] * self.n_feature_dimensions
+          + [True]
+          * (self.n_feature_dimensions_with_padding - self.n_feature_dimensions)
       )
+    prior_rewards = None
+    if prior_features is not None:
+      prior_rewards = score_fn(prior_features).reshape(-1)
 
     def _optimization_one_step(_, args):
       state, best_results, seed = args
       suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
-      new_features = strategy.suggest(state, suggest_seed)
+      new_features = self.strategy.suggest(state, suggest_seed)
       # Ensure masking out padded dimensions in new features.
-      if isinstance(converter, converters.PaddedTrialToArrayConverter):
+      if input_is_padded:
         new_features = jnp.where(
             dimension_is_missing, jnp.zeros_like(new_features), new_features
         )
       # We assume `score_fn` is aware of padded dimensions.
       new_rewards = score_fn(new_features)
-      new_state = strategy.update(state, new_features, new_rewards, update_seed)
+      new_state = self.strategy.update(
+          state, new_features, new_rewards, update_seed
+      )
       new_best_results = self._update_best_results(
           best_results, count, new_features, new_rewards
       )
       return new_state, new_best_results, new_seed
 
-    def _optimize():
-      init_seed, loop_seed = jax.random.split(seed)
-      init_best_results = VectorizedStrategyResults(
-          rewards=-jnp.inf * jnp.ones([count]),
-          features=jnp.zeros([count, converter.to_features([]).shape[-1]]),
-      )
-      init_args = (
-          strategy.init_state(
-              init_seed,
-              prior_features=prior_features,
-              prior_rewards=prior_rewards,
-          ),
-          init_best_results,
-          loop_seed,
-      )
-      return jax.lax.fori_loop(
-          0,
-          self.max_evaluations // self.suggestion_batch_size,
-          _optimization_one_step,
-          init_args,
-      )
-
-    if self.jit_loop:
-      _optimize = jax.jit(_optimize)  # pylint: disable=invalid-name
-
-    start_time = datetime.datetime.now()
-    _, best_results, _ = _optimize()
-    logging.info(
-        (
-            'Optimization completed. Duration: %s. Evaluations: %s. Best'
-            ' Results: %s'
-        ),
-        datetime.datetime.now() - start_time,
-        (
-            (self.max_evaluations // self.suggestion_batch_size)
-            * self.suggestion_batch_size
-        ),
-        best_results,
+    init_seed, loop_seed = jax.random.split(seed)
+    init_best_results = VectorizedStrategyResults(
+        rewards=-jnp.inf * jnp.ones([count]),
+        features=jnp.zeros([count, self.n_feature_dimensions_with_padding]),
     )
-    return self._best_candidates(best_results, converter)
+    init_args = (
+        self.strategy.init_state(
+            init_seed,
+            prior_features=prior_features,
+            prior_rewards=prior_rewards,
+        ),
+        init_best_results,
+        loop_seed,
+    )
+    _, best_results, _ = jax.lax.fori_loop(
+        0,
+        self.max_evaluations // self.suggestion_batch_size,
+        _optimization_one_step,
+        init_args,
+    )
+
+    return best_results
 
   def _update_best_results(
       self,
@@ -361,25 +327,44 @@ class VectorizedOptimizer:
         features=all_features[top_indices],
     )
 
-  def _best_candidates(
-      self,
-      best_results: VectorizedStrategyResults,
-      converter: ArrayConverter,
-  ) -> list[vz.Trial]:
-    """Returns the best candidate trials in the original search space."""
-    trials = []
-    sorted_ind = jnp.argsort(-best_results.rewards)
-    for i in range(len(best_results.rewards)):
-      # Create trials and convert the strategy features back to parameters.
-      ind = sorted_ind[i]
-      trial = vz.Trial(
-          parameters=converter.to_parameters(
-              jnp.expand_dims(best_results.features[ind], axis=0)
-          )[0]
-      )
-      trial.complete(vz.Measurement({'acquisition': best_results.rewards[ind]}))
-      trials.append(trial)
-    return trials
+
+def best_candidates_to_trials(
+    best_results: VectorizedStrategyResults,
+    converter: ArrayConverter,
+) -> list[vz.Trial]:
+  """Returns the best candidate trials in the original search space."""
+  trials = []
+  sorted_ind = jnp.argsort(-best_results.rewards)
+  for i in range(len(best_results.rewards)):
+    # Create trials and convert the strategy features back to parameters.
+    ind = sorted_ind[i]
+    trial = vz.Trial(
+        parameters=converter.to_parameters(
+            jnp.expand_dims(best_results.features[ind], axis=0)
+        )[0]
+    )
+    trial.complete(vz.Measurement({'acquisition': best_results.rewards[ind]}))
+    trials.append(trial)
+  return trials
+
+
+def trials_to_sorted_array(
+    prior_trials: list[vz.Trial],
+    converter: ArrayConverter,
+) -> Optional[types.Array]:
+  """Sorts trials by the order they were created and converts to array."""
+  if prior_trials:
+    prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
+    prior_features = converter.to_features(prior_trials)
+    # TODO: Update this code to work more cleanly with
+    # PaddedArrays.
+    if isinstance(converter, converters.PaddedTrialToArrayConverter):
+      # We need to mask out the `NaN` padded trials with zeroes.
+      prior_features = prior_features.padded_array
+      prior_features[len(prior_trials) :, ...] = 0.0
+  else:
+    prior_features = None
+  return prior_features
 
 
 @attr.define
@@ -387,15 +372,25 @@ class VectorizedOptimizerFactory:
   """Vectorized strategy optimizer factory."""
 
   strategy_factory: VectorizedStrategyFactory
+  max_evaluations: int = 75_000
+  suggestion_batch_size: int = 25
 
   def __call__(
       self,
-      suggestion_batch_size: int,
-      max_evaluations: int,
+      converter: ArrayConverter,
   ) -> VectorizedOptimizer:
     """Generates a new VectorizedOptimizer object."""
+    strategy = self.strategy_factory(
+        converter, suggestion_batch_size=self.suggestion_batch_size
+    )
+    n_feature_dimensions = sum(
+        spec.num_dimensions for spec in converter.output_specs
+    )
+    n_feature_dimensions_with_padding = converter.to_features([]).shape[-1]
     return VectorizedOptimizer(
-        strategy_factory=self.strategy_factory,
-        suggestion_batch_size=suggestion_batch_size,
-        max_evaluations=max_evaluations,
+        strategy=strategy,
+        n_feature_dimensions=n_feature_dimensions,
+        n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
+        suggestion_batch_size=self.suggestion_batch_size,
+        max_evaluations=self.max_evaluations,
     )

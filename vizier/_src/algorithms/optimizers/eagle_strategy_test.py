@@ -71,10 +71,9 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    self.eagle = eagle_strategy.VectorizedEagleStrategy(
-        converter=converter, config=self.config, batch_size=2
-    )
-    self.eagle._iterations = 2
+    self.eagle = eagle_strategy.VectorizedEagleStrategyFactory(
+        eagle_config=self.config
+    )(converter=converter, suggestion_batch_size=2)
 
   def test_create_features(self):
     features = jnp.array([[1, 2], [3, 4], [7, 7], [8, 8]])
@@ -103,7 +102,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
                 eagle_strategy.MutateNormalizationType.UNNORMALIZED
             )
         ),
-        self.eagle._n_features,
+        self.eagle.n_feature_dimensions,
     )
     actual = self.eagle._create_features(
         features,
@@ -198,8 +197,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
       root.add_float_param(f'x{i}', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     config = eagle_strategy.EagleStrategyConfig(max_pool_size=max_pool_size)
-    eagle = eagle_strategy.VectorizedEagleStrategy(
-        converter=converter, config=config, batch_size=batch_size
+    eagle = eagle_strategy.VectorizedEagleStrategyFactory(eagle_config=config)(
+        converter=converter, suggestion_batch_size=batch_size
     )
     self.assertEqual(eagle.pool_size, max_pool_size)
     self.assertEqual(eagle.batch_size, expected_batch_size)
@@ -249,7 +248,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     eagle = eagle_factory(converter)
-    self.assertEqual(eagle._n_features, 3)
+    self.assertEqual(eagle.n_feature_dimensions, 3)
 
   def test_optimize_with_eagle(self):
     problem = vz.ProblemStatement()
@@ -259,9 +258,11 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root.add_float_param('x3', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
-    optimizer = vb.VectorizedOptimizer(strategy_factory=eagle_factory)
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        converter
+    )
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    optimizer.optimize(converter, score_fn=lambda x: -jnp.sum(x, 1), count=1)
+    optimizer(score_fn=lambda x: -jnp.sum(x, 1), count=1)
 
   def test_optimize_with_eagle_padding(self):
     problem = vz.ProblemStatement()
@@ -277,9 +278,11 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
-    optimizer = vb.VectorizedOptimizer(strategy_factory=eagle_factory)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    optimizer.optimize(converter, score_fn=lambda x: -np.sum(x, 1), count=1)
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        converter
+    )
+    optimizer(score_fn=lambda x: -np.sum(x, 1), count=1)
 
 
 class EagleParamHandlerTest(parameterized.TestCase):
@@ -296,16 +299,18 @@ class EagleParamHandlerTest(parameterized.TestCase):
         problem, max_discrete_indices=0, pad_oovs=True
     )
     self.config = eagle_strategy.EagleStrategyConfig()
-    self.param_handler = eagle_param_handler.EagleParamHandler(
+    self.param_handler = eagle_param_handler.EagleParamHandler.build(
         converter=converter,
         categorical_perturbation_factor=self.config.categorical_perturbation_factor,
         pure_categorical_perturbation_factor=self.config.pure_categorical_perturbation_factor,
     )
 
   def test_init(self):
-    self.assertEqual(self.param_handler.n_features, 9)
-    self.assertFalse(self.param_handler.all_features_categorical)
-    self.assertTrue(self.param_handler.has_categorical)
+    self.assertEqual(self.param_handler.n_feature_dimensions, 9)
+    self.assertLen(
+        self.param_handler.perturbation_factors,
+        self.param_handler.n_feature_dimensions,
+    )
     self.assertEqual(self.param_handler.n_categorical, 2)
 
   def test_categorical_params_mask(self):
@@ -375,11 +380,9 @@ class EagleParamHandlerTest(parameterized.TestCase):
 
     prior_features = jnp.array([[1, -1], [2, 1], [3, 2], [4, 5]])
     prior_rewards = jnp.array([1, 2, 3, 4])
-    eagle = eagle_strategy.VectorizedEagleStrategy(
-        converter=converter,
-        config=config,
-        batch_size=2,
-    )
+    eagle = eagle_strategy.VectorizedEagleStrategyFactory(
+        eagle_config=config,
+    )(converter=converter, suggestion_batch_size=2)
     init_state = eagle.init_state(
         jax.random.PRNGKey(0), prior_features, prior_rewards
     )
@@ -403,11 +406,9 @@ class EagleParamHandlerTest(parameterized.TestCase):
     prior_features = np.random.randn(n_prior_trials, 2)
     prior_rewards = np.random.randn(n_prior_trials)
 
-    eagle = eagle_strategy.VectorizedEagleStrategy(
-        converter=converter,
-        config=config,
-        batch_size=2,
-    )
+    eagle = eagle_strategy.VectorizedEagleStrategyFactory(
+        eagle_config=config,
+    )(converter=converter, suggestion_batch_size=2)
     init_state = eagle.init_state(
         jax.random.PRNGKey(0), prior_features, prior_rewards
     )

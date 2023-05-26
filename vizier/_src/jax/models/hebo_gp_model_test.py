@@ -16,15 +16,21 @@ from __future__ import annotations
 
 """Tests for hebo_gp_model."""
 
+import functools
+
 from absl import logging
 import jax
 from jax import numpy as jnp
+from jax.config import config
 import optax
+from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier._src.jax.models import hebo_gp_model
 from vizier._src.jax.optimizers import optimizers
 
 from absl.testing import absltest
+
 
 VizierHeboGaussianProcess = hebo_gp_model.VizierHeboGaussianProcess
 
@@ -61,8 +67,7 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
                            dtype=jnp.float64)
 
   def test_log_prob_and_loss(self):
-    model, loss_fn = VizierHeboGaussianProcess.model_and_loss_fn(
-        features=self.x_obs, labels=self.y_obs)
+    model = VizierHeboGaussianProcess.build_model(features=self.x_obs)
     setup = lambda rng: model.init(rng, self.x_obs)['params']
     key = jax.random.PRNGKey(2)
     init_params = setup(key)
@@ -70,6 +75,17 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
         optax.adam(5e-3), epochs=500, verbose=True, random_restarts=20
     )
     constraints = sp.get_constraints(model)
+    data = types.StochasticProcessModelData(
+        features=self.x_obs, labels=self.y_obs
+    )
+    loss_fn = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model,
+        data=data,
+    )
     params, metrics = optimize(setup, loss_fn, key, constraints=constraints)
 
     init_gp = model.apply({'params': init_params}, self.x_obs)
@@ -84,4 +100,5 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
+  config.update('jax_enable_x64', True)
   absltest.main()

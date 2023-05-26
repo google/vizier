@@ -21,20 +21,14 @@ from __future__ import annotations
 import functools
 from typing import Any, Generator, Optional, Union
 
-import attr
+from flax import struct
 import jax
 from jax import numpy as jnp
-from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import mask_features
-from vizier._src.jax.optimizers import optimizers
-
-# Jax disables float64 computations by default and will silently convert
-# float64s to float32s. We must explicitly enable float64.
-config.update('jax_enable_x64', True)
 
 tfb = tfp.bijectors
 tfd = tfp.distributions
@@ -60,13 +54,13 @@ def _log_uniform_init(
   """
 
   def sample(key: Any) -> jnp.ndarray:
-    unif = jnp.array(jax.random.uniform(key, shape, dtype=jnp.float64))
+    unif = jax.random.uniform(key, shape, dtype=jnp.float64)
     return jnp.exp(unif * jnp.log(high / low) + jnp.log(low))
 
   return sample
 
 
-@attr.define
+@struct.dataclass
 class VizierGaussianProcess(
     sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
 ):
@@ -81,50 +75,40 @@ class VizierGaussianProcess(
       NaN.
   """
 
-  _feature_dim: int
-  _use_retrying_cholesky: bool = attr.field(default=True, kw_only=True)
-  _dimension_is_missing: Optional[types.Array] = attr.field(
-      default=None, kw_only=True
+  _feature_dim: int = struct.field(pytree_node=False)  # Static shape param.
+  _use_retrying_cholesky: bool = struct.field(
+      pytree_node=False, default=True, kw_only=True
   )
-  _boundary_epsilon: float = attr.field(default=1e-12, kw_only=True)
+  _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
 
+  # TODO: Consider defining this in a `ModelCoroutine` base class.
   @classmethod
-  def model_and_loss_fn(
+  def build_model(
       cls,
       features: types.Array,
-      labels: types.Array,
       *,
-      dimension_is_missing: Optional[types.Array] = None,
-      observation_is_missing: Optional[types.Array] = None,
       use_retrying_cholesky: bool = True,
-  ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
+  ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
     gp_coroutine = VizierGaussianProcess(
         features.shape[-1],
-        dimension_is_missing=dimension_is_missing,
-        use_retrying_cholesky=use_retrying_cholesky,
+        _use_retrying_cholesky=use_retrying_cholesky,
     )
-    model = sp.StochasticProcessModel(gp_coroutine)
-
-    # Run ARD.
-    def loss_fn(params):
-      gp, mutables = model.apply({'params': params},
-                                 features,
-                                 mutable=['losses', 'predictive'])
-      loss = -gp.log_prob(
-          labels, is_missing=observation_is_missing
-      ) + jax.tree_util.tree_reduce(jax.numpy.add, mutables['losses'])
-      return loss, dict()
-
-    return model, loss_fn
+    return sp.StochasticProcessModel(gp_coroutine)
 
   def __call__(
-      self, inputs: Optional[types.Array] = None
+      self,
+      inputs: Optional[types.Array] = None,
+      dimension_is_missing: Optional[types.Array] = None,
   ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:
     """Creates a generator.
 
     Args:
       inputs: Floating array of dimension (num_examples, _feature_dim).
+      dimension_is_missing: Bool array of shape (_feature_ndim,), in which
+        `True` indicates that the feature is padding and should be masked out.
+        Padding allows for a limited set of input shapes to be traced by
+        `jax.jit`.
 
     Yields:
       GaussianProcess whose event shape is `num_examples`.
@@ -159,12 +143,12 @@ class VizierGaussianProcess(
         name='length_scale_squared',
     )
     kernel = tfpk.FeatureScaled(kernel, scale_diag=jnp.sqrt(length_scale))
-    if self._dimension_is_missing is not None:
+    if dimension_is_missing is not None:
       # Ensure features are zero for this kernel. This will also ensure the
       # length scales are not trainable, since there will be no signal from
       # these dimensions.
       kernel = mask_features.MaskFeatures(
-          kernel, dimension_is_missing=self._dimension_is_missing
+          kernel, dimension_is_missing=dimension_is_missing
       )
 
     observation_noise_variance = yield sp.ModelParameter(
@@ -196,7 +180,7 @@ class VizierGaussianProcess(
 
 
 # TODO: Support padding with categorical kernel.
-@attr.define
+@struct.dataclass
 class VizierGaussianProcessWithCategorical(
     sp.ModelCoroutine[types.ContinuousAndCategoricalArray, tfd.GaussianProcess]
 ):
@@ -211,42 +195,27 @@ class VizierGaussianProcessWithCategorical(
       NaN.
   """
 
-  _continuous_dim: int
-  _categorical_dim: int
-  _use_retrying_cholesky: bool = attr.field(default=True, kw_only=True)
-  _boundary_epsilon: float = attr.field(default=1e-12, kw_only=True)
+  _continuous_dim: int = struct.field(pytree_node=False)
+  _categorical_dim: int = struct.field(pytree_node=False)
+  _use_retrying_cholesky: bool = struct.field(
+      pytree_node=False, default=True, kw_only=True
+  )
+  _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
 
   @classmethod
-  def model_and_loss_fn(
+  def build_model(
       cls,
       features: types.ContinuousAndCategoricalArray,
-      labels: types.Array,
       *,
-      dimension_is_missing: Optional[
-          types.ContinuousAndCategoricalArray
-      ] = None,
       use_retrying_cholesky: bool = True,
-  ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
+  ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
     gp_coroutine = VizierGaussianProcessWithCategorical(
-        continuous_dim=features.continuous.shape[-1],
-        categorical_dim=features.categorical.shape[-1],
-        use_retrying_cholesky=use_retrying_cholesky,
+        _continuous_dim=features.continuous.shape[-1],
+        _categorical_dim=features.categorical.shape[-1],
+        _use_retrying_cholesky=use_retrying_cholesky,
     )
-    model = sp.StochasticProcessModel(gp_coroutine)
-
-    # Run ARD.
-    def loss_fn(params):
-      gp, mutables = model.apply(
-          {'params': params}, features, mutable=['losses', 'predictive']
-      )
-      loss = -gp.log_prob(labels) + jax.tree_util.tree_reduce(
-          jax.numpy.add, mutables['losses']
-      )
-
-      return loss, dict()
-
-    return model, loss_fn
+    return sp.StochasticProcessModel(gp_coroutine)
 
   def __call__(
       self, inputs: Optional[types.ContinuousAndCategoricalArray] = None

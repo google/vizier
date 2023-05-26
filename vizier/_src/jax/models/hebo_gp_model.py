@@ -23,49 +23,32 @@ Repo: https://github.com/huawei-noah/HEBO.
 """
 
 from typing import Generator, Optional
-import attr
+from flax import struct
 import jax
 from jax import numpy as jnp
-from jax.config import config
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
-from vizier._src.jax.optimizers import optimizers
-
-config.update('jax_enable_x64', True)
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
 tfpk = tfp.math.psd_kernels
 
 
-@attr.define
+@struct.dataclass
 class VizierHeboGaussianProcess(
     sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
 ):
   """Hebo Gaussian process model."""
 
   @classmethod
-  def model_and_loss_fn(
+  def build_model(
       cls,
       features: types.Array,
-      labels: types.Array,
-  ) -> tuple[sp.StochasticProcessModel, optimizers.LossFunction]:
+  ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
     gp_coroutine = VizierHeboGaussianProcess()
-    model = sp.StochasticProcessModel(gp_coroutine)
-
-    # Define the ARD loss function.
-    def loss_fn(params):
-      gp, mutables = model.apply({'params': params},
-                                 features,
-                                 mutable=['losses', 'predictive'])
-      loss = -gp.log_prob(labels) + jax.tree_util.tree_reduce(
-          jnp.add, mutables['losses']
-      )
-      return loss, dict()
-
-    return model, loss_fn
+    return sp.StochasticProcessModel(gp_coroutine)
 
   def __call__(
       self, inputs: Optional[types.Array] = None

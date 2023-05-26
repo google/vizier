@@ -23,6 +23,7 @@ from absl import logging
 import attr
 from flax import config as flax_config
 from flax import linen as nn
+from flax import struct
 import jax
 from jax import numpy as jnp
 from jax import tree_util
@@ -49,7 +50,7 @@ class InitFn(Protocol):
     pass
 
 
-@attr.frozen
+@struct.dataclass
 class Constraint:
   """Class specifying parameter constraints.
 
@@ -218,8 +219,11 @@ class ModelCoroutine(Protocol, Generic[_In, _D]):
   object. See the full protocol below.
   """
 
-  def __call__(self,
-               inputs: Optional[_In] = None) -> ModelParameterGenerator[_D]:
+  def __call__(
+      self,
+      inputs: Optional[_In] = None,
+      **kwargs,
+  ) -> ModelParameterGenerator[_D]:
     """Coroutine function to be called from `StochasticProcessModel`.
 
     The coroutine is implemented via an enhanced generator
@@ -276,6 +280,7 @@ class ModelCoroutine(Protocol, Generic[_In, _D]):
 
     Args:
       inputs: An ArrayTree of index points or None.
+      **kwargs:
     """
     pass
 
@@ -356,7 +361,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       # the Flax parameters.
       pass
 
-  def __call__(self, x: _In) -> _D:
+  def __call__(self, x: _In, **kwargs) -> _D:
     """Returns a stochastic process distribution.
 
     If the Flax module's `apply` method is called with `mutable=True` or
@@ -364,11 +369,12 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
 
     Args:
       x: ArrayTree of index points in the constrained space.
+      **kwargs:
 
     Returns:
       dist: `tfd.Distribution` instance with x as index points.
     """
-    gen = self.coroutine(inputs=x)
+    gen = self.coroutine(inputs=x, **kwargs)
     if self.is_initializing() and isinstance(self.mean_fn, nn.Module):
       # If mean_fn is a module, call it so its parameters are initialized.
       _ = self.mean_fn(x)  # pylint: disable=not-callable

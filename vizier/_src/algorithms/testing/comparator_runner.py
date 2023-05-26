@@ -33,6 +33,7 @@ use of the class.
 import logging
 
 import attr
+from jax import random
 import numpy as np
 from vizier import benchmarks
 from vizier import pyvizier as vz
@@ -142,29 +143,36 @@ class SimpleRegretComparisonTester:
       self,
       converter: converters.TrialToArrayConverter,
       score_fn: vb.ArrayScoreFunction,
-      baseline_optimizer_factory: vb.VectorizedOptimizerFactory,
-      candidate_optimizer_factory: vb.VectorizedOptimizerFactory,
+      baseline_strategy_factory: vb.VectorizedStrategyFactory,
+      candidate_strategy_factory: vb.VectorizedStrategyFactory,
   ) -> None:
     """Assert if candidate optimizer has better simple regret than the baseline.
     """
     baseline_obj_values = []
     candidate_obj_values = []
 
-    baseline_optimizer = baseline_optimizer_factory(
+    baseline_optimizer_factory = vb.VectorizedOptimizerFactory(
+        baseline_strategy_factory,
         suggestion_batch_size=self.baseline_suggestion_batch_size,
-        max_evaluations=self.baseline_num_trials)
-
-    candidate_optimizer = candidate_optimizer_factory(
+        max_evaluations=self.baseline_num_trials,
+    )
+    candidate_optimizer_factory = vb.VectorizedOptimizerFactory(
+        candidate_strategy_factory,
         suggestion_batch_size=self.candidate_suggestion_batch_size,
-        max_evaluations=self.candidate_num_trials)
+        max_evaluations=self.candidate_num_trials,
+    )
+    baseline_optimizer = baseline_optimizer_factory(converter)
+    candidate_optimizer = candidate_optimizer_factory(converter)
 
     for i in range(self.baseline_num_repeats):
-      trial = baseline_optimizer.optimize(converter, score_fn, count=1, seed=i)
+      res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))
+      trial = vb.best_candidates_to_trials(res, converter)
       baseline_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
 
     for i in range(self.candidate_num_repeats):
-      trial = candidate_optimizer.optimize(converter, score_fn, count=1, seed=i)
+      res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))
+      trial = vb.best_candidates_to_trials(res, converter)
       candidate_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
 

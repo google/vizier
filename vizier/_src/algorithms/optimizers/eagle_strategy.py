@@ -62,7 +62,7 @@ Note that the strategy assumes that the search space is not conditional.
 Example
 =======
 # Construct the optimizer with eagle strategy.
-optimizer = VectorizedOptimizer(
+optimizer = VectorizedOptimizerFactory(
     VectorizedEagleStrategyFactory(),
 )
 # Run the optimization.
@@ -76,7 +76,7 @@ import math
 from typing import Optional, Tuple, Union
 
 import attr
-import chex
+from flax import struct
 import jax
 from jax import numpy as jnp
 from vizier._src.algorithms.optimizers import eagle_param_handler
@@ -94,7 +94,7 @@ class MutateNormalizationType(enum.IntEnum):
   UNNORMALIZED = 2
 
 
-@chex.dataclass(frozen=True)
+@struct.dataclass
 class EagleStrategyConfig:
   """Eagle Strategy optimizer config.
 
@@ -131,17 +131,18 @@ class EagleStrategyConfig:
   perturbation_lower_bound: float = 7e-5
   penalize_factor: float = 7e-1
   # Pool size
-  pool_size_exponent: float = 1.2
-  pool_size: int = 0
-  max_pool_size: int = 100
+  pool_size_exponent: float = struct.field(pytree_node=False, default=1.2)
+  pool_size: int = struct.field(pytree_node=False, default=0)
+  max_pool_size: int = struct.field(pytree_node=False, default=100)
   # Force normalization mode
-  mutate_normalization_type: MutateNormalizationType = (
-      MutateNormalizationType.MEAN
+  mutate_normalization_type: MutateNormalizationType = struct.field(
+      pytree_node=False,
+      default=MutateNormalizationType.MEAN,
   )
   # Multiplier factor when using normalized modes
   normalization_scale: float = 0.5
   # The percentage of the firefly pool to be populated with prior trials
-  prior_trials_pool_pct: float = 0.96
+  prior_trials_pool_pct: float = struct.field(pytree_node=False, default=0.96)
 
 
 @attr.define(frozen=True)
@@ -174,14 +175,46 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     Returns:
       A new instance of VectorizedEagleStrategy.
     """
+    param_handler = eagle_param_handler.EagleParamHandler.build(
+        converter,
+        self.eagle_config.categorical_perturbation_factor,
+        self.eagle_config.pure_categorical_perturbation_factor,
+    )
+    n_feature_dimensions_with_padding = converter.to_features([]).shape[-1]
+    n_features = len(converter.output_specs)
+
+    if self.eagle_config.pool_size > 0:
+      # This allow to override the pool size computation.
+      pool_size = self.eagle_config.pool_size
+    else:
+      pool_size = 10 + int(
+          0.5 * n_features + n_features**self.eagle_config.pool_size_exponent
+      )
+      pool_size = min(pool_size, self.eagle_config.max_pool_size)
+      if suggestion_batch_size is not None:
+        # If the batch_size was set, ensure pool_size is multiply of batch_size.
+        pool_size = int(
+            math.ceil(pool_size / suggestion_batch_size) * suggestion_batch_size
+        )
+    logging.info("Pool size: %d", pool_size)
+    if suggestion_batch_size is None:
+      # This configuration updates all the fireflies in each iteration.
+      suggestion_batch_size = pool_size
+    # Use priors to populate Eagle state
     return VectorizedEagleStrategy(
-        converter=converter,
-        config=self.eagle_config,
+        param_handler=param_handler,
+        n_features=n_features,
+        n_feature_dimensions=sum(
+            spec.num_dimensions for spec in converter.output_specs
+        ),
+        n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
         batch_size=suggestion_batch_size,
+        config=self.eagle_config,
+        pool_size=pool_size,
     )
 
 
-@chex.dataclass(frozen=True)
+@struct.dataclass
 class VectorizedEagleStrategyState:
   """Container for Eagle strategy state."""
 
@@ -192,7 +225,7 @@ class VectorizedEagleStrategyState:
   perturbations: jax.Array  # Shape (pool_size,).
 
 
-@attr.define
+@struct.dataclass
 class VectorizedEagleStrategy(vb.VectorizedStrategy):
   """Eagle strategy implementation for maximization problem based on Numpy.
 
@@ -204,63 +237,25 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     pool_size: The total number of flies in the pool.
   """
 
-  converter: converters.TrialToArrayConverter = attr.field(
-      init=True, repr=False
+  param_handler: eagle_param_handler.EagleParamHandler
+  n_features: int = struct.field(pytree_node=False)
+  n_feature_dimensions: int = struct.field(pytree_node=False)
+  n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
+  pool_size: int = struct.field(pytree_node=False)
+  batch_size: Optional[int] = struct.field(pytree_node=False, default=None)
+  config: EagleStrategyConfig = struct.field(
+      default_factory=EagleStrategyConfig
   )
-  config: EagleStrategyConfig = attr.field(init=True, repr=False)
-  batch_size: Optional[int] = attr.field(init=True, default=None)
-  pool_size: int = attr.field(init=False)
-  # Attributes related to computations.
-  _n_features: int = attr.field(init=False)
-  _perturbation_factors: jax.Array = attr.field(init=False, repr=False)
 
-  def __attrs_post_init__(self):
-    self._initialize()
+  def __post_init__(self):
     logging.info("Eagle class attributes:\n%s", self)
     logging.info("Eagle configuration:\n%s", self.config)
 
-  def __hash__(self):
-    # Make this class hashable so it can be a static arg to a JIT-ed function.
-    return hash(id(self))
-
-  def _compute_pool_size(self) -> int:
-    """Compute the pool size, and ensures it's a multiple of the batch_size."""
-    n_params = len(self.converter.output_specs)
-    pool_size = 10 + int(
-        0.5 * n_params + n_params**self.config.pool_size_exponent
-    )
-    pool_size = min(pool_size, self.config.max_pool_size)
-    if self.batch_size is not None:
-      # If the batch_size was set, ensure pool_size is multiply of batch_size.
-      return int(math.ceil(pool_size / self.batch_size) * self.batch_size)
-    else:
-      return pool_size
-
-  def _initialize(self) -> None:
-    """Initialize the designer state."""
-    self._param_handler = eagle_param_handler.EagleParamHandler(
-        converter=self.converter,
-        categorical_perturbation_factor=self.config.categorical_perturbation_factor,
-        pure_categorical_perturbation_factor=self.config.pure_categorical_perturbation_factor,
-    )
-    self._n_features = self._param_handler.n_features
-    if self.config.pool_size > 0:
-      # This allow to override the pool size computation.
-      self.pool_size = self.config.pool_size
-    else:
-      self.pool_size = self._compute_pool_size()
-    logging.info("Pool size: %d", self.pool_size)
-    if self.batch_size is None:
-      # This configuration updates all the fireflies in each iteration.
-      self.batch_size = self.pool_size
-    self._perturbation_factors = self._param_handler.perturbation_factors
-    # Use priors to populate Eagle state
-
   def init_state(
       self,
-      seed: chex.PRNGKey,
-      prior_features: Optional[chex.Array] = None,
-      prior_rewards: Optional[chex.Array] = None,
+      seed: jax.random.KeyArray,
+      prior_features: Optional[types.Array] = None,
+      prior_rewards: Optional[types.Array] = None,
   ) -> VectorizedEagleStrategyState:
     """Initializes the state."""
     if prior_features is not None or prior_rewards is not None:
@@ -268,7 +263,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           seed, prior_features, prior_rewards
       )
     else:
-      init_features = self._param_handler.random_features(self.pool_size, seed)
+      init_features = self.param_handler.random_features(self.pool_size, seed)
     return VectorizedEagleStrategyState(
         iterations=jnp.array(0),
         features=init_features,
@@ -279,9 +274,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def _populate_pool_with_prior_trials(
       self,
-      seed: chex.PRNGKey,
-      prior_features: chex.Array,
-      prior_rewards: chex.Array,
+      seed: jax.random.KeyArray,
+      prior_features: types.Array,
+      prior_rewards: types.Array,
   ) -> jax.Array:
     """Populate the pool with prior trials.
 
@@ -305,10 +300,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           f"prior features shape ({prior_features.shape[0]}) doesn't match"
           f" prior  rewards shape ({prior_rewards.shape[0]})!"
       )
-    if prior_features.shape[1] != self._n_features:
+    if prior_features.shape[1] != self.n_feature_dimensions_with_padding:
       raise ValueError(
           f"prior features shape ({prior_features.shape[1]}) doesn't match"
-          f" n_features {self._n_features}!"
+          f" n_features {self.n_feature_dimensions_with_padding}!"
       )
 
     if len(prior_rewards.shape) > 1:
@@ -323,14 +318,14 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
     )
     seed1, seed2 = jax.random.split(seed)
-    init_features = self._param_handler.random_features(n_random_flies, seed1)
+    init_features = self.param_handler.random_features(n_random_flies, seed1)
     pool_left_space = self.pool_size - n_random_flies
 
     if prior_features.shape[0] < pool_left_space:
       # Less prior trials than left space. Take all prior trials for the pool.
       init_features = jnp.concatenate([init_features, flipped_prior_features])
       # Randomize the rest of the pool fireflies.
-      random_features = self._param_handler.random_features(
+      random_features = self.param_handler.random_features(
           self.pool_size - len(init_features), seed2
       )
       return jnp.concatenate([init_features, random_features])
@@ -369,7 +364,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     return self.batch_size
 
   def suggest(
-      self, state: VectorizedEagleStrategyState, seed: chex.PRNGKey
+      self, state: VectorizedEagleStrategyState, seed: jax.random.KeyArray
   ) -> jax.Array:
     """Suggest new mutated and perturbed features.
 
@@ -418,9 +413,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         features_batch,
     )
 
-    new_features = self._param_handler.sample_categorical(
-        new_features, cat_seed
-    )
+    new_features = self.param_handler.sample_categorical(new_features, cat_seed)
     # TODO: The range of features is not always [0, 1].
     #   Specifically, for features that are single-point, it can be [0, 0]; we
     #   also want this code to be aware of the feature's bounds to enable
@@ -434,7 +427,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       rewards: jax.Array,
       features_batch: jax.Array,
       rewards_batch: jax.Array,
-      seed: chex.PRNGKey,
+      seed: jax.random.KeyArray,
   ) -> jax.Array:
     """Create new batch of mutated and perturbed features.
 
@@ -477,11 +470,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     # Normalize the distance by the number of features.
     # Get the number of non-padded features.
-    n_non_padded_features = sum(
-        spec.num_dimensions for spec in self.converter.output_specs
-    )
     force = jnp.exp(
-        -self.config.visibility * dists / n_non_padded_features * 10.0
+        -self.config.visibility * dists / self.n_feature_dimensions * 10.0
     )
     scaled_force = scaled_directions * force
     # Handle removed fireflies without updated rewards.
@@ -548,7 +538,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     return features_batch + features_changes
 
   def _create_random_perturbations(
-      self, perturbations_batch: jax.Array, seed: chex.PRNGKey
+      self,
+      perturbations_batch: jax.Array,
+      seed: jax.random.KeyArray,
   ) -> jax.Array:
     """Create random perturbations for the newly created batch.
 
@@ -561,13 +553,13 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     # Generate normalized noise for each batch.
     batch_noise = jax.random.laplace(
-        seed, shape=(self.batch_size, self._n_features)
+        seed, shape=(self.batch_size, self.n_feature_dimensions_with_padding)
     )
     batch_noise /= jnp.max(jnp.abs(batch_noise), axis=1, keepdims=True)
     return (
         batch_noise
         * perturbations_batch[:, jnp.newaxis]
-        * self._perturbation_factors
+        * self.param_handler.perturbation_factors
     )
 
   def update(
@@ -575,7 +567,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       state: VectorizedEagleStrategyState,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: chex.PRNGKey,
+      seed: jax.random.KeyArray,
   ) -> VectorizedEagleStrategyState:
     """Update the firefly pool based on the new batch of results.
 
@@ -688,7 +680,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       batch_rewards: jax.Array,
       batch_perturbations: jax.Array,
       best_reward: jax.Array,
-      seed: chex.PRNGKey,
+      seed: jax.random.KeyArray,
   ) -> Tuple[jax.Array, jax.Array, jax.Array]:
     """Trim the pool by replacing unsuccessful fireflies with new random ones.
 
@@ -714,7 +706,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     indx = indx & (batch_rewards != best_reward)
 
     # Replace fireflies with random features and evaluate rewards.
-    random_features = self._param_handler.random_features(self.batch_size, seed)
+    random_features = self.param_handler.random_features(self.batch_size, seed)
     new_batch_features = jnp.where(
         indx[..., jnp.newaxis], random_features, batch_features
     )

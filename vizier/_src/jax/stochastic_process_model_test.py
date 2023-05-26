@@ -34,8 +34,6 @@ from vizier._src.jax import types
 from absl.testing import absltest
 
 
-config.update('jax_enable_x64', True)
-
 tfb = tfp.bijectors
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
@@ -581,4 +579,5 @@ class ConstraintTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
+  config.update('jax_enable_x64', True)
   absltest.main()

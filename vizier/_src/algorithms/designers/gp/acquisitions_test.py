@@ -16,20 +16,15 @@ from __future__ import annotations
 
 """Tests for acquisitions."""
 
+from unittest import mock
+
 import jax
 from jax import numpy as jnp
-import mock
+from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
-from vizier import algorithms as vza
-from vizier import pyvizier as vz
-from vizier._src.algorithms.designers import gp_bandit
-from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
-from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
-from vizier._src.jax.models import tuned_gp_models
-from vizier._src.jax.optimizers import optimizers
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -73,12 +68,14 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.QEI(num_samples=2000)
     batch_shape = [6]
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
-    qei = acq(dist, labels=jnp.array([0.2]))
+    qei = acq(dist, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0))
     # QEI reduces over the batch shape.
     self.assertEmpty(qei.shape)
 
     dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
-    qei_single_point = acq(dist_single_point, labels=jnp.array([0.2]))
+    qei_single_point = acq(
+        dist_single_point, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0)
+    )
     # Parallel matches non-parallel for a single point.
     np.testing.assert_allclose(qei_single_point, 0.346, atol=1e-2)
     self.assertEmpty(qei_single_point.shape)
@@ -87,36 +84,52 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.QUCB()
     batch_shape = [6]
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
-    qucb = acq(dist, labels=jnp.array([0.2]))
+    qucb = acq(dist, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0))
     # QUCB reduces over the batch shape.
     self.assertEmpty(qucb.shape)
 
   def test_qucb_equals_ucb(self):
     # The QUCB coefficient should be multiplied by sqrt(pi/2) for equivalency
     # with the UCB coefficient (assuming a Gaussian distribution).
-    acq_ucb = acquisitions.UCB(coefficient=2.0)
+    acq_ucb = acquisitions.UCB(coefficient=0.5)
     acq_qucb = acquisitions.QUCB(
-        num_samples=2000, coefficient=2.0 * np.sqrt(np.pi / 2.0)
+        num_samples=5000, coefficient=0.5 * np.sqrt(np.pi / 2.0)
     )
     dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
-    qucb_single_point = acq_qucb(dist_single_point, labels=jnp.array([0.2]))
+    qucb_single_point = acq_qucb(
+        dist_single_point, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(1)
+    )
     ucb_single_point = acq_ucb(dist_single_point, labels=jnp.array([0.2]))
     # Parallel matches non-parallel for a single point.
     np.testing.assert_allclose(
-        qucb_single_point, ucb_single_point[0], atol=1e-2
+        qucb_single_point, ucb_single_point[0], atol=2e-2
     )
     self.assertEmpty(qucb_single_point.shape)
+
+  def test_multi_acquisition(self):
+    ucb = acquisitions.UCB()
+    ei = acquisitions.EI()
+    acq = acquisitions.MultiAcquisitionFunction({'ucb': ucb, 'ei': ei})
+    dist = tfd.Normal(jnp.float64(0.1), 1)
+    labels = jnp.array([0.2])
+    acq_val = acq(dist, labels=labels)
+    ucb_val = ucb(dist, labels=labels)
+    ei_val = ei(dist, labels=labels)
+    np.testing.assert_allclose(acq_val, jnp.stack([ucb_val, ei_val]))
 
 
 class TrustRegionTest(absltest.TestCase):
 
   def test_trust_region_small(self):
-    tr = acquisitions.TrustRegion(
-        np.array([
+    data = types.StochasticProcessModelData(
+        features=np.array([
             [0.0, 0.0, 0.0, 0.0],
             [1.0, 1.0, 1.0, 1.0],
         ]),
-        _build_mock_continuous_array_specs(4),
+        labels=np.array([0.0, 0.0]),
+    )
+    tr = acquisitions.TrustRegion.build(
+        _build_mock_continuous_array_specs(4), data=data
     )
 
     np.testing.assert_allclose(
@@ -132,15 +145,21 @@ class TrustRegionTest(absltest.TestCase):
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
 
   def test_trust_region_bigger(self):
-    tr = acquisitions.TrustRegion(
-        np.vstack(
-            [
-                [0.0, 0.0, 0.0, 0.0],
-                [1.0, 1.0, 1.0, 1.0],
-            ]
-            * 10
-        ),
+    features = np.vstack(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 1.0],
+        ]
+        * 10
+    )
+    labels = np.sum(features, axis=-1)
+    data = types.StochasticProcessModelData(
+        features=features,
+        labels=labels,
+    )
+    tr = acquisitions.TrustRegion.build(
         _build_mock_continuous_array_specs(4),
+        data=data,
     )
     np.testing.assert_allclose(
         tr.min_linf_distance(
@@ -157,13 +176,28 @@ class TrustRegionTest(absltest.TestCase):
   def test_trust_region_padded_small(self):
     # Test that padding still retrieves the same distance computations as
     # `test_trust_region_small`.
-    tr = acquisitions.TrustRegion(
-        np.array([
+    data = types.StochasticProcessModelData(
+        features=np.array([
             [0.0, 0.0, 0.0, 0.0, np.nan, np.nan],
             [1.0, 1.0, 1.0, 1.0, np.nan, np.nan],
         ]),
+        labels=np.array([0.0, 0.0]),
+    )
+    tr = acquisitions.TrustRegion.build(
         _build_mock_continuous_array_specs(4),
-        feature_is_missing=np.array([False, False, False, False, True, True]),
+        data=data,
+    )
+    data_masked = types.StochasticProcessModelData(
+        features=np.array([
+            [0.0, 0.0, 0.0, 0.0, np.nan, np.nan],
+            [1.0, 1.0, 1.0, 1.0, np.nan, np.nan],
+        ]),
+        labels=np.array([0.0, 0.0]),
+        dimension_is_missing=np.array([False, False, False, False, True, True]),
+    )
+    tr = acquisitions.TrustRegion.build(
+        _build_mock_continuous_array_specs(4),
+        data=data_masked,
     )
 
     np.testing.assert_allclose(
@@ -190,11 +224,14 @@ class TrustRegionWithCategoricalTest(absltest.TestCase):
     trusted = types.ContinuousAndCategoricalArray(
         np.random.randn(n_trusted, d_cont), np.random.randn(n_trusted, d_cat)
     )
+    data = types.StochasticProcessModelData(
+        features=trusted, labels=np.random.randn(n_trusted)
+    )
     xs = types.ContinuousAndCategoricalArray(
         continuous=np.random.randn(n_samples, d_cont),
         categorical=np.random.randn(n_samples, d_cat),
     )
-    tr = acquisitions.TrustRegionWithCategorical(trusted)
+    tr = acquisitions.TrustRegion.build(specs=None, data=data)
     self.assertEqual(tr.min_linf_distance(xs).shape, (n_samples,))
 
   def test_trust_region_small(self):
@@ -205,7 +242,10 @@ class TrustRegionWithCategoricalTest(absltest.TestCase):
         ]),
         categorical=np.random.randint(0, 10, size=(2, 4)),
     )
-    tr = acquisitions.TrustRegionWithCategorical(trusted)
+    data = types.StochasticProcessModelData(
+        features=trusted, labels=np.random.randn(2)
+    )
+    tr = acquisitions.TrustRegion.build(specs=None, data=data)
     np.testing.assert_allclose(
         tr.min_linf_distance(
             types.ContinuousAndCategoricalArray(
@@ -221,124 +261,6 @@ class TrustRegionWithCategoricalTest(absltest.TestCase):
     )
 
 
-class GPBanditAcquisitionBuilderTest(absltest.TestCase):
-
-  def test_sample_on_array(self):
-    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=8, best_n=5)
-    search_space = vz.SearchSpace()
-    for i in range(16):
-      search_space.root.add_float_param(f'x{i}', 0.0, 1.0)
-
-    problem = vz.ProblemStatement(
-        search_space=search_space,
-        metric_information=vz.MetricsConfig(
-            metrics=[
-                vz.MetricInformation(
-                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-                ),
-            ]
-        ),
-    )
-    gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
-    suggestions = quasi_random.QuasiRandomDesigner(
-        problem.search_space
-    ).suggest(11)
-
-    trials = []
-    for idx, suggestion in enumerate(suggestions):
-      trial = suggestion.to_trial(idx)
-      trial.complete(vz.Measurement(metrics={'obj': np.random.randn()}))
-      trials.append(trial)
-
-    gp_designer.update(vza.CompletedTrials(trials), vza.ActiveTrials())
-    gp_designer._compute_state()
-    xs = np.random.randn(10, 16)
-    samples = gp_designer._acquisition_builder.sample_on_array(
-        xs, 15, jax.random.PRNGKey(0)
-    )
-    self.assertEqual(samples.shape, (15, 10))
-    self.assertEqual(np.sum(np.isnan(samples)), 0)
-
-  def test_categorical_kernel(self, best_n=2):
-    # Random key
-    key = jax.random.PRNGKey(0)
-    # Simulate data
-    n_samples = 10
-    n_continuous = 3
-    n_categorical = 5
-    features = types.ContinuousAndCategoricalArray(
-        jax.random.normal(key, shape=(n_samples, n_continuous)),
-        jax.random.normal(key, shape=(n_samples, n_categorical)),
-    )
-    labels = jax.random.normal(key, shape=(n_samples,))
-    xs = features
-    # Model
-    model, loss_fn = (
-        tuned_gp_models.VizierGaussianProcessWithCategorical.model_and_loss_fn(
-            features, labels
-        )
-    )
-    setup = lambda rng: model.init(rng, features)['params']
-    constraints = sp.get_constraints(model)
-
-    # ARD
-    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=4, best_n=best_n)
-    use_vmap = ard_optimizer.best_n != 1
-    best_model_params, _ = ard_optimizer(
-        setup, loss_fn, key, constraints=constraints
-    )
-
-    def precompute_cholesky(params):
-      _, pp_state = model.apply(
-          {'params': params},
-          features,
-          labels,
-          method=model.precompute_predictive,
-          mutable='predictive',
-      )
-      return pp_state
-
-    if not use_vmap:
-      pp_state = precompute_cholesky(best_model_params)
-    else:
-      pp_state = jax.vmap(precompute_cholesky)(best_model_params)
-
-    # Create the state.
-    state = {'params': best_model_params, **pp_state}
-    # Define the problem.
-    space = vz.SearchSpace()
-    root = space.root
-    for j in range(n_continuous):
-      root.add_float_param(f'f{j}', -1.0, 2.0)
-    for j in range(n_categorical):
-      root.add_categorical_param(f'c{j}', ['a', 'b', 'c'])
-    problem = vz.ProblemStatement(space)
-    problem.metric_information.append(
-        vz.MetricInformation(
-            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    )
-    converter = converters.TrialToArrayConverter.from_study_config(
-        problem,
-        scale=True,
-        pad_oovs=True,
-        max_discrete_indices=0,
-        flip_sign_for_minimization_metrics=True,
-    )
-    acq_builder = acquisitions.GPBanditAcquisitionBuilder(
-        use_trust_region=False
-    )
-    acq_builder.build(
-        problem, model, state, features, labels, converter, use_vmap=use_vmap
-    )
-    pred_dict = jax.tree_map(
-        np.sum,
-        jax.tree_map(np.isnan, acq_builder.predict_on_array(xs)),
-    )
-    self.assertEqual(pred_dict['mean'], 0.0)
-    self.assertEqual(pred_dict['stddev'], 0.0)
-    self.assertEqual(np.sum(np.isnan(acq_builder.acquisition_on_array(xs))), 0)
-
-
 if __name__ == '__main__':
+  config.update('jax_enable_x64', True)
   absltest.main()

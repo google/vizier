@@ -16,10 +16,14 @@ from __future__ import annotations
 
 """Tests for tuned_gp_models."""
 
+import functools
+
 from absl import logging
 import jax
+from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
@@ -147,18 +151,38 @@ class VizierGpTest(absltest.TestCase):
     modified_x_obs = np.where(dimension_is_missing, np.nan, x_obs)
     modified_y_obs = np.where(observation_is_missing, np.nan, y_obs)
 
-    model1, loss_fn1 = tuned_gp_models.VizierGaussianProcess.model_and_loss_fn(
-        x_obs,
-        y_obs,
-        observation_is_missing=observation_is_missing,
+    data = types.StochasticProcessModelData(
+        features=x_obs,
+        labels=y_obs,
         dimension_is_missing=dimension_is_missing,
+        label_is_missing=observation_is_missing,
+    )
+    model1 = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
+    loss_fn1 = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model1,
+        data=data,
     )
 
-    model2, loss_fn2 = tuned_gp_models.VizierGaussianProcess.model_and_loss_fn(
-        modified_x_obs,
-        modified_y_obs,
-        observation_is_missing=observation_is_missing,
+    modified_data = types.StochasticProcessModelData(
+        features=modified_x_obs,
+        labels=modified_y_obs,
         dimension_is_missing=dimension_is_missing,
+        label_is_missing=observation_is_missing,
+    )
+    model2 = tuned_gp_models.VizierGaussianProcess.build_model(
+        features=modified_x_obs
+    )
+    loss_fn2 = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model2,
+        data=modified_data,
     )
 
     # Check that the model loss and optimal parameters are independent of those
@@ -187,8 +211,15 @@ class VizierGpTest(absltest.TestCase):
   def test_good_log_likelihood(self):
     x_obs, y_obs = self._generate_xys()
     target_loss = -0.2
-    model, loss_fn = tuned_gp_models.VizierGaussianProcess.model_and_loss_fn(
-        x_obs, y_obs
+    data = types.StochasticProcessModelData(features=x_obs, labels=y_obs)
+    model = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
+    loss_fn = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model,
+        data=data,
     )
     setup = lambda rng: model.init(rng, x_obs)['params']
 
@@ -199,7 +230,7 @@ class VizierGpTest(absltest.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
     logging.info('Loss: %s', loss_fn(optimal_params)[0])
-    self.assertLess(metrics['loss'].min(), target_loss)
+    self.assertLess(np.min(metrics['loss']), target_loss)
 
   def test_good_log_likelihood_with_masks(self):
     x_obs, y_obs = self._generate_xys()
@@ -214,12 +245,21 @@ class VizierGpTest(absltest.TestCase):
         [False] * (x_obs.shape[-1] - 3) + [True] * 3
     )
 
-    target_loss = -0.2
-    model, loss_fn = tuned_gp_models.VizierGaussianProcess.model_and_loss_fn(
-        x_obs,
-        y_obs,
-        observation_is_missing=observation_is_missing,
+    data = types.StochasticProcessModelData(
+        features=x_obs,
+        labels=y_obs,
         dimension_is_missing=dimension_is_missing,
+        label_is_missing=observation_is_missing,
+    )
+    target_loss = -0.2
+    model = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
+    loss_fn = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model,
+        data=data,
     )
     setup = lambda rng: model.init(rng, x_obs)['params']
 
@@ -230,7 +270,7 @@ class VizierGpTest(absltest.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
     logging.info('Loss: %s', loss_fn(optimal_params)[0])
-    self.assertLess(metrics['loss'].min(), target_loss)
+    self.assertLess(np.min(metrics['loss']), target_loss)
 
   def test_good_log_likelihood_with_masks_continuous_and_categorical(self):
     x_cont_obs, y_obs = self._generate_xys()
@@ -239,13 +279,19 @@ class VizierGpTest(absltest.TestCase):
         continuous=x_cont_obs, categorical=x_cat_obs
     )
     target_loss = -0.2
-    model, loss_fn = (
-        tuned_gp_models.VizierGaussianProcessWithCategorical.model_and_loss_fn(
-            x_obs,
-            y_obs,
-        )
+    model = tuned_gp_models.VizierGaussianProcessWithCategorical.build_model(
+        x_obs,
     )
     setup = lambda rng: model.init(rng, x_obs)['params']
+    data = types.StochasticProcessModelData(features=x_obs, labels=y_obs)
+    loss_fn = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model,
+        data=data,
+    )
     optimize = optimizers.JaxoptLbfgsB(random_restarts=50)
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
@@ -253,8 +299,11 @@ class VizierGpTest(absltest.TestCase):
     )
     logging.info('Optimal: %s', optimal_params)
     logging.info('Loss: %s', loss_fn(optimal_params)[0])
-    self.assertLess(metrics['loss'].min(), target_loss)
+    self.assertLess(np.min(metrics['loss']), target_loss)
 
 
 if __name__ == '__main__':
+  # Jax disables float64 computations by default and will silently convert
+  # float64s to float32s. We must explicitly enable float64.
+  config.update('jax_enable_x64', True)
   absltest.main()

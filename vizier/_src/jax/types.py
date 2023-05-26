@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Types library for vizier/_src/jax."""
 
-from typing import Any, Iterable, Mapping, Optional, Union
+from typing import Any, Generic, Iterable, Mapping, Optional, TypeVar, Union
 
 from flax import struct
 from flax.core import scope as flax_scope
@@ -49,3 +49,22 @@ ModelState = flax_scope.VariableDict
 class ContinuousAndCategoricalArray:
   continuous: Array
   categorical: Array
+
+
+Features = TypeVar('Features', Array, ContinuousAndCategoricalArray)
+
+
+@struct.dataclass
+class StochasticProcessModelData(Generic[Features]):
+  features: Features
+  labels: Array
+  label_is_missing: Optional[Array] = None
+  dimension_is_missing: Optional[Features] = None
+
+
+@struct.dataclass
+class GPState:
+  """State that changes at each iteration."""
+
+  data: StochasticProcessModelData
+  model_state: ModelState

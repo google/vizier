@@ -350,20 +350,12 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
           num_trial_to_converge=0,
       )
 
-    baseline_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=_baseline_strategy_factory
-    )
-
-    candidate_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=_candidate_strategy_factory
-    )
-
     if should_pass:
       simple_regret_test.assert_optimizer_better_simple_regret(
           self.converter,
           score_fn,
-          baseline_optimizer_factory,
-          candidate_optimizer_factory,
+          _baseline_strategy_factory,
+          _candidate_strategy_factory,
       )
     else:
       with self.assertRaises(  # pylint: disable=g-error-prone-assert-raises
@@ -372,8 +364,8 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
         simple_regret_test.assert_optimizer_better_simple_regret(
             self.converter,
             score_fn,
-            baseline_optimizer_factory,
-            candidate_optimizer_factory,
+            _baseline_strategy_factory,
+            _candidate_strategy_factory,
         )
 
 

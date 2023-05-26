@@ -152,13 +152,12 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: jnp.sum(x, axis=-1)
-    optimizer = vb.VectorizedOptimizer(
+    optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
-    )
-    res = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=count
-    )
+    )(converter=converter)
+    res_array = optimizer(score_fn=score_fn, count=count)
+    res = vb.best_candidates_to_trials(res_array, converter=converter)
     self.assertLen(res, count)
 
   def test_best_candidates_count_is_1(self):
@@ -168,13 +167,14 @@ class VectorizedBaseTest(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1)
     strategy_factory = FakeIncrementVectorizedStrategy
-    optimizer = vb.VectorizedOptimizer(
+    optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=strategy_factory,
         suggestion_batch_size=5,
         max_evaluations=10,
-    )
-    best_candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=1
+    )(converter=converter)
+    best_candidates_array = optimizer(score_fn=score_fn, count=1)
+    best_candidates = vb.best_candidates_to_trials(
+        best_candidates_array, converter=converter
     )
     # check the best candidate
     self.assertEqual(best_candidates[0].parameters['f1'].value, 0.5)
@@ -190,13 +190,14 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1)
-    optimizer = vb.VectorizedOptimizer(
+    optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         suggestion_batch_size=5,
         max_evaluations=10,
-    )
-    best_candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=3
+    )(converter=converter)
+    best_candidates_array = optimizer(score_fn=score_fn, count=3)
+    best_candidates = vb.best_candidates_to_trials(
+        best_candidates_array, converter=converter
     )
     # check 1st best candidate
     self.assertAlmostEqual(best_candidates[0].parameters['f1'].value, 0.5)
@@ -221,19 +222,25 @@ class VectorizedBaseTest(parameterized.TestCase):
     )
 
   def test_vectorized_optimizer_factory(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 1.0)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
     optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=fake_increment_strategy_factory
+        strategy_factory=fake_increment_strategy_factory,
+        suggestion_batch_size=5,
+        max_evaluations=1000,
     )
-    optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=1000)
+    optimizer = optimizer_factory(converter)
     self.assertEqual(optimizer.max_evaluations, 1000)
     self.assertEqual(optimizer.suggestion_batch_size, 5)
 
   def test_prior_trials(self):
     """Test that the optimizer can correctly parsae and pass seed trials."""
     optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=fake_prior_trials_strategy_factory
+        strategy_factory=fake_prior_trials_strategy_factory,
+        suggestion_batch_size=5,
+        max_evaluations=100,
     )
-    optimizer = optimizer_factory(suggestion_batch_size=5, max_evaluations=100)
 
     study_config = vz.ProblemStatement(
         metric_information=[
@@ -246,6 +253,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     root.add_float_param('x1', 0.0, 10.0)
     root.add_float_param('x2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(study_config)
+    optimizer = optimizer_factory(converter)
 
     trial1 = vz.Trial(parameters={'x1': 1, 'x2': 1})
     measurement1 = vz.Measurement(metrics={'obj': vz.Metric(value=-10.33)})
@@ -255,20 +263,27 @@ class VectorizedBaseTest(parameterized.TestCase):
     measurement2 = vz.Measurement(metrics={'obj': vz.Metric(value=5.0)})
     trial2.complete(measurement2, inplace=True)
 
-    best_trial = optimizer.optimize(
-        converter,
+    prior_features = vb.trials_to_sorted_array(
+        [trial1, trial2, trial1], converter=converter
+    )
+    best_trial_array = optimizer(
         lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1),
         count=1,
-        prior_trials=[trial1, trial2, trial1],
+        prior_features=prior_features,
+    )
+    best_trial = vb.best_candidates_to_trials(
+        best_trial_array, converter=converter
     )
     self.assertEqual(best_trial[0].parameters['x1'].value, 2)
     self.assertEqual(best_trial[0].parameters['x2'].value, 2)
 
-    best_trial = optimizer.optimize(
-        converter,
+    best_trial_array = optimizer(
         lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1),
         count=1,
-        prior_trials=[trial1],
+        prior_features=vb.trials_to_sorted_array([trial1], converter=converter),
+    )
+    best_trial = vb.best_candidates_to_trials(
+        best_trial_array, converter=converter
     )
     self.assertEqual(best_trial[0].parameters['x1'].value, 1)
     self.assertEqual(best_trial[0].parameters['x2'].value, 1)

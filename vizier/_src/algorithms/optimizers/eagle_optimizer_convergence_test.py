@@ -25,7 +25,6 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import random_vectorized_optimizer as rvo
-from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import comparator_runner
 from vizier._src.jax import types
 from vizier.pyvizier import converters
@@ -112,12 +111,10 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     eagle_strategy_factory = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=eagle_strategy.EagleStrategyConfig())
-    eagle_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=eagle_strategy_factory)
     optimum_features = randomize_array(converter)
     shifted_score_fn = lambda x, shift=optimum_features: score_fn(x - shift)
     shifted_score_fn = score_fn
-    random_optimizer_factory = rvo.create_random_optimizer_factory()
+    random_strategy_factory = rvo.random_strategy_factory
     # Run simple regret convergence test.
     comparator_runner.SimpleRegretComparisonTester(
         baseline_num_trials=2 * evaluations,
@@ -127,12 +124,13 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
         baseline_num_repeats=5,
         candidate_num_repeats=3,
         alpha=0.05,
-        goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        goal=vz.ObjectiveMetricGoal.MAXIMIZE,
     ).assert_optimizer_better_simple_regret(
         converter=converter,
         score_fn=shifted_score_fn,
-        baseline_optimizer_factory=random_optimizer_factory,
-        candidate_optimizer_factory=eagle_optimizer_factory)
+        baseline_strategy_factory=random_strategy_factory,
+        candidate_strategy_factory=eagle_strategy_factory,
+    )
 
 
 if __name__ == '__main__':
