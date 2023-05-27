@@ -1,7 +1,7 @@
 # Optional Jax library.
 jax>=0.4.2
 jaxlib>=0.4.2
-jaxopt>=0.6
+jaxopt>=0.7
 flax>=0.6.4
 optax>=0.1.4
 chex>=0.1.6
