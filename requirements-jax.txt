@@ -1,8 +1,8 @@
 # Optional Jax library.
-jax>=0.4.2
-jaxlib>=0.4.2
+jax>=0.4.10
+jaxlib>=0.4.10
 jaxopt>=0.7
-flax>=0.6.4
-optax>=0.1.4
-chex>=0.1.6
+flax>=0.6.10
+optax>=0.1.5
+chex>=0.1.7
 tfp-nightly[jax]
