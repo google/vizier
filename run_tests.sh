@@ -13,12 +13,47 @@
 # limitations under the License.
 
 #!/bin/bash
-# Runs all core Python unit tests in the Vizier package.
-pytest vizier --ignore=vizier/_src/benchmarks/ --ignore=vizier/_src/algorithms/
+# Usage: `run_tests.sh (test_name)`
+# where `test_name` can be the following case strings shown below.
+#
+# On a Github workflow, the `test_name` will be supplied from the YML file.
 
-# Run algorithm tests. Disclaimer: Algorithms use multiple external libraries, some of which may break.
-pytest -n auto vizier/_src/algorithms/
-
-# Run benchmark tests. Disclaimer: Benchmarks use multiple external libraries, some of which may break.
-pytest -n auto vizier/_src/benchmarks/
-
+case $1 in
+  "core")
+    pip install -r requirements-jax.txt
+    pytest -n auto vizier \
+    --ignore=vizier/_src/benchmarks/ \
+    --ignore=vizier/_src/algorithms/ \
+    --ignore=vizier/_src/pyglove/ \
+    --ignore=vizier/_src/jax/ \
+    --ignore=vizier/_src/raytune/
+    ;;
+  "algorithms")
+    pip install -r requirements-algorithms.txt \
+    -r requirements-jax.txt
+    echo "These tests are too slow."
+    # pytest -n auto vizier/_src/algorithms/
+    ;;
+  "benchmarks")
+    pip install -r requirements-jax.txt \
+    -r requirements-tf.txt \
+    -r requirements-benchmarks.txt
+    pytest -n auto vizier/_src/benchmarks/
+    ;;
+  "clients")
+    python vizier/service/clients/__init__.py
+    ;;
+  "pyglove")
+    echo "This test is skipped!"
+    pip install -r requirements-jax.txt
+    pip install pyglove
+    # pytest -n auto vizier/_src/pyglove/
+    ;;
+  "raytune")
+    echo "This test is skipped!"
+    # pip install -U ray[tune]
+    # pip install -U ray[air]
+    # pip install pyarrow
+    # pytest -n auto vizier/_src/raytune/
+    ;;
+esac

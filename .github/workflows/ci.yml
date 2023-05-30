@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-ubuntu:
+    name: "pytest_${{ matrix.suffix }} on ${{ matrix.python-version }} on ubuntu-latest"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10"]
+        suffix: ["core", "algorithms", "benchmarks", "clients", "pyglove", "raytune"]
+        include:
+          - suffix: "clients"
+            python-version: "3.7"
+          - suffix: "clients"
+            python-version: "3.8"
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v3.5.2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          # Cache pip packages.
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: '**/requirements.txt'
+      - name: Cache dependencies (for faster installation)
+        # This was taken from: https://github.com/actions/setup-python/issues/330#issuecomment-1500667578
+        uses: actions/cache@v3.3.1
+        id: cache
+        with:
+          path: ${{ env.pythonLocation }}
+          key: >-
+            ${{ env.pythonLocation }}
+            ${{ hashFiles('**/requirements*.txt') }}
+      - name: Install essential dependencies
+        run: |
+          sudo apt-get install -y libprotobuf-dev
+          python -m pip install --upgrade pip setuptools
+          pip install wheel
+          pip install grpcio-tools==1.48.2
+          pip install pytest pytest-xdist
+          pip wheel -e .
+          pip install -e .
+          pip install -r requirements-test.txt
+      - name: Print installed dependencies
+        run: pip list
+      - name: Install test-specific dependencies and run test
+      # TODO: Split install and run.
+        run: bash run_tests.sh ${{ matrix.suffix }}
