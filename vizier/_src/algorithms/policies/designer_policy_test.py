@@ -123,7 +123,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.maxDiff = None  # pylint: disable=invalid-name
+    self.maxDiff = None
 
   def test_restore_fully_serializable_designer(self):
     runner = _create_runner()

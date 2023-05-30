@@ -51,7 +51,7 @@ class TrialToArrayConverterTest(parameterized.TestCase):
     self._trials = test_runners.run_with_random_metrics(
         self._designer, self._study_config, iters=1, batch_size=10
     )
-    self.maxDiff = None  # pylint: disable=invalid-name
+    self.maxDiff = None
 
   def test_back_to_back_conversion(self):
     converter = core.TrialToArrayConverter.from_study_config(self._study_config)
