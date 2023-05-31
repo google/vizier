@@ -90,50 +90,61 @@ class _SuggestionAlgorithm(abc.ABC):
 
 
 class Designer(_SuggestionAlgorithm):
-  """Suggestion algorithm for sequential usage.
+  """Interface for sequential suggestion algorithms.
 
-  Designer is the recommended interface for implementing commonly used
-  algorithms such as GP-UCB and evolutionary algorithms. A Designer can be
-  wrapped into a pythia `Policy` via `DesignerPolicy` (stateless) or
-  '(Partially)SerializableDesignerPolicy' (stateful).
+  A Designer can be wrapped into a pythia `Policy` via `DesignerPolicy`.
+  Prefer implementing a `Designer` interface over `Policy` interface, for
+  shared error handling, performance monitoring, logging, etc.
 
-  If your Designer is stateless it should match with 'DesignerPolicy' which
-  is responsible for calling the 'update' method and pass all completed trials
-  since the beginning of the trials as well as all currently active
-  trials.
 
-  If your Designer can benefit from a persistent state (stateful), implement
-  `(Partially)SerializableDesigner` interface and use
-  `(Partially)SerializableDesignerPolicy` to wrap it.
-  Vizier service will serialize the Designer's state in DB, restore it for
-  the next usage, and update it with the newly completed and active trials
-  since the last suggestion.
+  A big limitation of vanilla `DesignerPolicy` is that it does not retain states
+  between consecutive suggestion requests. It creates a new `Designer` from
+  scratch and calls `Designer.update` with all trials of the study.
+  Many algorithms with a compact state, such as evolutionary search algorithms,
+  can gain a huge performance boost from incremental updates. (Side note:
+  GP-UCB does not fit into this category because its state includes
+  all previous observations, which is not compact).
 
-  IMPORTANT: If your Designer changes its state inside `suggest()` (e.g. to
-  incorporate its own suggestions before completion), then use
-  (Partially)SerializableDesigner interface instead or take advantage of the
-  'all_active' trials argument.
+  If your Designer can take advantage of a persistent state, implement
+  `(Partially)SerializableDesigner` interface, which can be wrapped into
+  `(Partially)SerializableDesignerPolicy`.
+  These Policies serialize the Designer's state, store it in Vizier DB, and
+  load it for the next suggest operation. `Designer.update()` is called only
+  with the newly completed trials (delta).
 
-  Note that when run inside a service binary, a Designer instance does not
-  persist during the lifetime of a `Study`.
+  IMPORTANT: `Designer` should not change its state inside `suggest()` (e.g. to
+  incorporate its own suggestions before completion). If it does, use
+  (Partially)SerializableDesigner interface.
+
+  NOTE: When run inside a service binary, a `Designer` instance does not
+  persist during the lifetime of a `Study`. This goes true even for the
+  serializable variants; the states are recovered into a new `Designer`
+  instance.
+
+  NOTE: `Designer`s are designed to be used directly in benchmarks without
+  a `Policy` wrapper. Create a single `Designer` instance for the entire study,
+  and incrementally update its state with delta only.
   """
 
   @abc.abstractmethod
   def update(
       self, completed: CompletedTrials, all_active: ActiveTrials
   ) -> None:
-    """Incorporates completed and active trials into the designer's state.
+    """Incorporates trials into the designer's state.
 
-    In production, 'completed' refer to all the completed trials in the study.
-    In benchmarking, 'completed' refer to newly created trials that the designer
-      hasn't seen yet ("delta").
-
-    In both production and benchmarking, 'all_active' refers to ALL the current
-    ACTIVE trials.
+    Example:
+      [t1, t2] # CompletedTrials
+      [t3, t4] # Active Trials
+      designer.update([t1], [t3])  # state includes: t1 and t3.
+      designer.update([t2])        # state includes: t1 and t2 (not t3).
+      designer.update([], [t3,t4]) # state includes: t1, t2, t3, and t4.
+      designer.update([], [t3])    # state includes: t1, t2, and t3.
 
     Arguments:
-      completed: COMPLETED trials.
-      all_active: ACTIVE (aka PENDING) trials.
+      completed: COMPLETED trials that this Designer should additionaly
+        incorporate.
+      all_active: All ACTIVE (aka PENDING) trials in the study from its
+        beginning.
     """
     pass
 
