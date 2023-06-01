@@ -135,7 +135,17 @@ class ConvergenceCurve:
       resolution: Optional[int] = None,
       interpolate_repeats: bool = False,
   ) -> list['ConvergenceCurve']:
-    """Align curves (same xs) using linear interpolation and combine all ys."""
+    """Align curves (same xs) using linear interpolation and combine all ys.
+
+    Args:
+      curves:
+      resolution:
+      interpolate_repeats:
+
+    Returns:
+      A one-item list with a ConvergenceCurve having interpolated xs and
+      combined ys.
+    """
     xs, all_ys = cls._interpolate_curves(
         curves, resolution=resolution, interpolate_repeats=interpolate_repeats
     )
@@ -163,7 +173,16 @@ class ConvergenceCurve:
       resolution: Optional[int] = None,
       interpolate_repeats: bool = False,
   ) -> list['ConvergenceCurve']:
-    """Align curves (same xs) using linear interpolation and keep ys."""
+    """Align curves (same xs) using linear interpolation and keep ys.
+
+    Args:
+      curves:
+      resolution:
+      interpolate_repeats:
+
+    Returns:
+      A list of ConvergenceCurves each with interpolated xs and interpolated ys.
+    """
     xs, all_ys = cls._interpolate_curves(
         curves, resolution=resolution, interpolate_repeats=interpolate_repeats
     )
@@ -254,44 +273,93 @@ class ConvergenceCurveConverter:
     self.cost_fn = cost_fn
     self.measurements_type = measurements_type
 
-  def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
-    """Returns ConvergenceCurve of batch size 1."""
-    yvals = [np.nan]
-    xvals = [0]
+  def convert(
+      self,
+      trials: Union[
+          Sequence[pyvizier.Trial], Sequence[Sequence[pyvizier.Trial]]
+      ],
+  ) -> ConvergenceCurve:
+    """Returns ConvergenceCurve.
 
-    for trial in trials:
-      candidates = [np.nan]
-      if self.measurements_type in ('final', 'all'):
-        if trial.final_measurement and (self.metric_information.name
-                                        in trial.final_measurement.metrics):
-          candidates.append(trial.final_measurement.metrics[
-              self.metric_information.name].value)
-      if self.measurements_type in ('intermediate', 'all'):
-        for measurement in trial.measurements:
-          if self.metric_information.name in measurement.metrics:
-            candidates.append(
-                measurement.metrics[self.metric_information.name].value)
+    For list of trials the return convergence curve has a batch size 1,
+    otherwise the batch size equals to the number of trial lists.
 
-      yvalue = self.comparator(candidates)
-      xvals.append(xvals[-1] + self.cost_fn(trial))
-      yvals.append(self.comparator([yvalue, yvals[-1]]))
+    Returns a ConvergenceCurve where curve.xs is an np.ndarray with shape [T]
+    and curve.ys is an np.ndarray with shape [N x T], where N is the batch
+    size. For a list of trials, N=1; otherwise N is equal to the number of
+    lists of trials.
 
-    yvals = np.asarray(yvals[1:])
+    In case the lists of trials don't have the same number of trials they will
+    be aligned using interpolation.
+
+    Args:
+      trials: list of trials or list of lists of trials.
+    """
+    if not isinstance(trials, list):
+      raise ValueError(
+          f'trials must be a list, but type(trials) is {type(trials)}'
+      )
+    elif isinstance(trials[0], list):
+      trials_array = trials
+    elif isinstance(trials[0], pyvizier.Trial):
+      trials_array = [trials]
+    else:
+      raise ValueError(
+          'trials must contain either pyvizier.Trial objects, or lists of'
+          f' pyvizier.Trial objects; trials[0] has type {type(trials[0])}'
+      )
+
     if self.metric_information.goal == pyvizier.ObjectiveMetricGoal.MAXIMIZE:
       trend = ConvergenceCurve.YTrend.INCREASING
       flipped = False
-    elif self.flip_signs_for_min:
-      trend = ConvergenceCurve.YTrend.INCREASING
-      flipped = True
     else:
-      trend = ConvergenceCurve.YTrend.DECREASING
-      flipped = False
-    return ConvergenceCurve(
-        xs=np.asarray(xvals[1:]),
-        ys=np.asarray(yvals).reshape([1, -1]) * (-1 if flipped else 1),
-        trend=trend,
-        ylabel=self.metric_information.name,
-    )
+      if self.flip_signs_for_min:
+        trend = ConvergenceCurve.YTrend.INCREASING
+        flipped = True
+      else:
+        trend = ConvergenceCurve.YTrend.DECREASING
+        flipped = False
+
+    curves = []
+    # Generating 'yvals' and 'xvals' by iterating over all the trials lists.
+    for trials in trials_array:
+      yvals = [np.nan]
+      xvals = [0]
+      for trial in trials:
+        candidates = [np.nan]
+        if self.measurements_type in ('final', 'all'):
+          if trial.final_measurement and (
+              self.metric_information.name in trial.final_measurement.metrics
+          ):
+            candidates.append(
+                trial.final_measurement.metrics[
+                    self.metric_information.name
+                ].value
+            )
+        if self.measurements_type in ('intermediate', 'all'):
+          for measurement in trial.measurements:
+            if self.metric_information.name in measurement.metrics:
+              candidates.append(
+                  measurement.metrics[self.metric_information.name].value
+              )
+        yvalue = self.comparator(candidates)
+        yvals.append(self.comparator([yvalue, yvals[-1]]))
+        xvals.append(xvals[-1] + self.cost_fn(trial))
+      # Remove the first item which is np.nan
+      yvals = np.asarray(yvals[1:]).reshape(1, -1)
+      yvals = yvals * (-1) if flipped else yvals
+      # Remove the first item which is 0.
+      xvals = np.asarray(xvals[1:])
+      curves.append(
+          ConvergenceCurve(
+              xs=xvals,
+              ys=yvals,
+              trend=trend,
+              ylabel=self.metric_information.name,
+          )
+      )
+    # Combine all the curves into one by aligning 'xs' and interpolating 'ys'.
+    return ConvergenceCurve.align_xs(curves, keep_curves_separate=False)[0]
 
   @property
   def comparator(self):

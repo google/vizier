@@ -137,14 +137,23 @@ class ConvergenceCurveTest(absltest.TestCase):
 class ConvergenceCurveConverterTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
-      ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[2, 2, 3]]),
-      ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[2, 1, 1]]))
+      (
+          'maximize',
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          [[2, 2, 3, 10, 10, 15, 15, 17, 17]],
+      ),
+      (
+          'minimize',
+          pyvizier.ObjectiveMetricGoal.MINIMIZE,
+          [[2, 1, 1, 1, 1, 1, 0, 0, 0]],
+      ),
+  )
   def test_convert_basic(self, goal, expected):
-    trials = _gen_trials([2, 1, 3])
+    trials = _gen_trials([2, 1, 3, 10, 4, 15, 0, 17, 16])
     generator = convergence.ConvergenceCurveConverter(
         pyvizier.MetricInformation(name='', goal=goal))
     curve = generator.convert(trials)
-    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3, 4, 5, 6, 7, 8, 9])
     np.testing.assert_array_equal(curve.ys, expected)
 
   @parameterized.named_parameters(
@@ -159,6 +168,53 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     curve = generator.convert(trials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_equal(curve.ys, expected)
+
+  @parameterized.named_parameters(
+      (
+          'maximize_same_length',
+          [2, 1, 3],
+          [8, 7, 6],
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          [1, 2, 3],
+          [[2, 2, 3], [8, 8, 8]],
+      ),
+      (
+          'maximize_different_lengths',
+          [1, 2, 3],
+          [8, 7, 6, 3],
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          [1, 2, 3, 4],
+          [[1, 2, 3, np.nan], [8, 8, 8, 8]],
+      ),
+      (
+          'minimize_same_length',
+          [2, 1, 3],
+          [8, 7, 6],
+          pyvizier.ObjectiveMetricGoal.MINIMIZE,
+          [1, 2, 3],
+          [[-2, -1, -1], [-8, -7, -6]],
+      ),
+      (
+          'minimize_different_lengths',
+          [3, 2, 1],
+          [8, 7, 6, 3],
+          pyvizier.ObjectiveMetricGoal.MINIMIZE,
+          [1, 2, 3, 4],
+          [[-3, -2, -1, np.nan], [-8, -7, -6, -3]],
+      ),
+  )
+  def test_convert_with_batch(
+      self, trials_vals1, trials_vals2, goal, expected_xs, expected_ys
+  ):
+    trials1 = _gen_trials(trials_vals1)
+    trials2 = _gen_trials(trials_vals2)
+    trials = [trials1, trials2]
+    generator = convergence.ConvergenceCurveConverter(
+        pyvizier.MetricInformation(name='', goal=goal), flip_signs_for_min=True
+    )
+    curve = generator.convert(trials)
+    np.testing.assert_array_equal(curve.xs, expected_xs)
+    np.testing.assert_array_equal(curve.ys, expected_ys)
 
 
 class HyperConvergenceCurveConverterTest(parameterized.TestCase):
