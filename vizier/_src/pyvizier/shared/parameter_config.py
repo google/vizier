@@ -17,7 +17,7 @@ from __future__ import annotations
 """ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
 
 import collections
-from typing import Sized, Collection, Set as AbstractSet
+from typing import Collection, Set as AbstractSet, Sized
 import copy
 import enum
 import json
@@ -908,8 +908,8 @@ class SearchSpaceSelector:
       index: Specifies the multi-dimensional index for this parameter. E.g. if
         name='batch_size' and index=0, then a single ParameterConfig with name
         'batch_size[0]' is added. `index` should be >= 0.
-      auto_cast: If False, the external type will be set to INTEGER if all
-        values are castable to an integer without losing precision. If True, the
+      auto_cast: If True, the external type will be set to INTEGER if all values
+        are castable to an integer without losing precision. If False, the
         external type will be set to float.
       experimental_fidelity_config: EXPERIMENTAL. See FidelityConfig doc.
 
