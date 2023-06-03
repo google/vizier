@@ -79,13 +79,11 @@ class NumpyExperimenter(experimenter.Experimenter):
       if not parameter.type.is_numeric():
         raise ValueError(f'Non-numeric parameters {parameter}')
 
-    self._metric_name = (
-        problem_statement.metric_information.of_type(
-            pyvizier.MetricType.OBJECTIVE
-        )
-        .item()
-        .name
+    objective_metrics = problem_statement.metric_information.of_type(
+        pyvizier.MetricType.OBJECTIVE
     )
+    self._metric_name = objective_metrics.item().name
+
     self._problem_statement = copy.deepcopy(problem_statement)
     self._converter = converters.TrialToArrayConverter.from_study_config(
         study_config=self._problem_statement,
