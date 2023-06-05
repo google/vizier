@@ -173,7 +173,8 @@ class MetricInformation:
     requires default_value to have been computed.
 
     Args:
-      default_value_fn: Default value if min_value is not finite.
+      default_value_fn: Default value if min_value is not finite. This function
+        does not run at all if min_value is finite.
     """
     if np.isfinite(self.min_value):
       return self.min_value
@@ -189,7 +190,8 @@ class MetricInformation:
     requires default_value to have been computed.
 
     Args:
-      default_value_fn: Default value if max_value is not configured.
+      default_value_fn: Default value if max_value is not finite. This function
+        does not run at all if max_value is configured.
     """
     if np.isfinite(self.max_value):
       return self.max_value

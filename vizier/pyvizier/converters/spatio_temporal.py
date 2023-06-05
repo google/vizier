@@ -471,9 +471,7 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
     return self.trial_converter.to_features(trials)
 
   def to_xty(
-      self,
-      trials,
-      temporal_selection: str = 'auto'
+      self, trials: Sequence[pyvizier.Trial], temporal_selection: str = 'auto'
   ) -> Tuple[Dict[str, np.ndarray], np.ndarray, Dict[str, np.ndarray]]:
     """Returns x, t, and y.
 
