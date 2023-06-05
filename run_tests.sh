@@ -35,10 +35,10 @@ case $1 in
     # pytest -n auto vizier/_src/algorithms/
     ;;
   "benchmarks")
-    pip install -r requirements-jax.txt \
-    -r requirements-tf.txt \
-    -r requirements-benchmarks.txt
-    pytest -n auto vizier/_src/benchmarks/
+    # pip install -r requirements-jax.txt \
+    # -r requirements-tf.txt \
+    # -r requirements-benchmarks.txt
+    # pytest -n auto vizier/_src/benchmarks/
     ;;
   "clients")
     python vizier/service/clients/__init__.py

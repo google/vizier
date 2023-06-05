@@ -751,7 +751,7 @@ class ParameterConfigSelector(Sized):
     return SearchSpaceSelector(spaces)
 
 
-class InvalidParameterError(Exception):
+class InvalidParameterError(ValueError):
   """Error thrown when parameter values are invalid."""
 
 

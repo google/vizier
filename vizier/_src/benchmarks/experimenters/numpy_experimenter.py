@@ -98,22 +98,19 @@ class NumpyExperimenter(experimenter.Experimenter):
     # Features has shape (num_trials, num_features).
     features = self._converter.to_features(suggestions)
     for idx, suggestion in enumerate(suggestions):
-      if len(features[idx]) != self._dimension:
-        raise ValueError(
-            f'Features {features[idx]} should have length {self._dimension}'
-        )
       val = self.impl(features[idx])
       if math.isfinite(val):
         suggestion.complete(
             pyvizier.Measurement(metrics={self._metric_name: val})
         )
       else:
+        self.problem_statement().search_space.assert_contains(
+            suggestions[idx].parameters
+        )
         suggestion.complete(
             pyvizier.Measurement(),
             infeasibility_reason='Objective value is not finite: %f' % val,
         )
-      if not suggestion.is_completed:
-        raise RuntimeError(f'Trial {suggestion} not completed')
 
   def __repr__(self) -> str:
     return f'NumpyExperimenter {{name: {self._impl_name}}}'

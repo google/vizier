@@ -76,11 +76,21 @@ class NumpyExperimenterTest(parameterized.TestCase):
         param.name: -float(index) for index, param in enumerate(parameters)
     })
 
-    completed_trials = [t1, t2]
-    exptr.evaluate(completed_trials)
-    for trial in completed_trials:
+    trials = [t1, t2]
+    exptr.evaluate(trials)
+    for trial in trials:
       self.assertEmpty(trial.final_measurement.metrics)
       self.assertTrue(trial.infeasible)
+
+  def testNotInSearchSpace(self):
+    exptr = numpy_experimenter.NumpyExperimenter(
+        impl=lambda x: x,
+        problem_statement=bbob.DefaultBBOBProblemStatement(1),
+    )
+
+    t1 = pyvizier.Trial(parameters={'yyyy': 0.0})
+    with self.assertRaises(ValueError):
+      exptr.evaluate([t1])
 
 
 if __name__ == '__main__':
