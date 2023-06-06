@@ -67,15 +67,15 @@ class ContinuousCategoricalFeatureMapper:
         # converted to CONTINUOUS or ONEHOT_EMBEDDING.
         raise ValueError("DISCRETE spec type shouldn't exists.")
       else:
-        raise ValueError('Unexpected spec type %s!' % spec.type)
-    # Create shift array that contains the cumulative number of categorical
-    # dimensions until each categorical parameter such that the categorical
-    # parameter itself is not included, and therefore the padding and [0:-1].
-    # This array will be used to map between the onehot active bit (index) of
-    # each categorical parameter to respective integer categorical value.
+        raise ValueError("Unexpected spec type %s!" % spec.type)
+    # Create shift array containing the cumulative number of categorical
+    # dimensions until each categorical parameter (itself not included). One-hot
+    # active bit (index) is mapped to integer value, by subtracting 'shift'.
     # For example, if categorical_dims=[3, 2], then cumsum(pad(..)) will
-    # generate [0, 3, 5], so shift will be [0, 3].
+    # generate [0, 3, 5], so 'shift' will be [0, 3].
     self.shift = np.cumsum(np.pad(categorical_dims, (1, 0)))[0:-1]  # (P,)
+    self.categorical_dims = categorical_dims
+    self.converter = converter
 
   def map(self, features: np.ndarray) -> types.ContinuousAndCategoricalArray:
     """Split features by 'continuous' and 'categorical'.
@@ -92,10 +92,10 @@ class ContinuousCategoricalFeatureMapper:
     [[0, 1, 0, 0.23, 0, 1]] the result would be:
     ContinuousAndCategoricalValues(
         continuous=[[0.23]]
-        categorical=[[1,1]])
+        categorical=[[1, 1]])
 
     Arguments:
-      features: Numpy array (trials_num, feature_count) which is the output of
+      features: Numpy array (n_trials, n_features) which is the output of
         'to_features' method.
 
     Returns:
@@ -108,13 +108,12 @@ class ContinuousCategoricalFeatureMapper:
     if self._n_categorical_params > 0:
       categorical_features = features[:, self._categorical_indices]  # (B,F)
       # Find the non-zero column indices associated with categorical parameters.
-      # For example (cont. from above), with the input of [0, 1, 0, 0.23, 0, 1]
+      # For example (cont. from above), with the input of [0,1,0, 0.23, 0,1]
       # 'categorical_features' is [[0,1,0,0,1]] and 'nonzero_indices' is [1,4]
       nonzero_indices = np.nonzero(categorical_features)[1]  # (P*B,)
       # Reshape the non-zero indices to align with the no. of categorical params
       # and shift by the cardinality of each parameter to compute the integer
-      # category value expected by ContinuousAndCategoricalValues.
-      # For example (cont. from above), [[1,4]] - [0,3] = [1, 1]
+      # category value. For example (cont. from above), [[1,4]] - [0,3] = [1, 1]
       categorical_index_features = (
           np.reshape(nonzero_indices, (-1, self._n_categorical_params))  # (B,P)
           - self.shift  # (P,)
@@ -122,3 +121,34 @@ class ContinuousCategoricalFeatureMapper:
     return types.ContinuousAndCategoricalArray(
         continuous=continuous_features, categorical=categorical_index_features
     )
+
+  def unmap(self, features: types.ContinuousAndCategoricalArray) -> np.ndarray:
+    """Convert back from ContinuousAndCategoricalArray to features."""
+    if features.continuous.shape[0] != features.categorical.shape[0]:
+      raise ValueError(
+          "'continuous' and 'categorical' first dimension doesn't match!"
+      )
+    batch_size = features.continuous.shape[0]
+    unmapped_features = np.zeros(
+        (batch_size, sum(self.categorical_dims) + len(self._continuous_indices))
+    )
+    con_ind = 0
+    cat_ind = 0
+    ind = 0
+    # Extract the continuous and categorical feature indices.
+    for spec in self.converter.output_specs:
+      if spec.type == core.NumpyArraySpecType.CONTINUOUS:
+        unmapped_features[:, ind] = features.continuous[:, con_ind]
+        con_ind += 1
+        ind += 1
+
+      elif spec.type == core.NumpyArraySpecType.ONEHOT_EMBEDDING:
+        unmapped_features[:, ind : ind + spec.num_dimensions] = np.eye(
+            spec.num_dimensions
+        )[features.categorical[:, cat_ind]]
+        cat_ind += 1
+        ind += spec.num_dimensions
+      else:
+        raise ValueError("Unexpected spec type %s!" % spec.type)
+
+    return unmapped_features
