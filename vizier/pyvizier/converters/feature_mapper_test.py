@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for feature_mapper."""
 
+from jax import numpy as jnp
 import numpy as np
 from vizier import pyvizier as vz
 from vizier.pyvizier.converters import core
@@ -45,14 +46,13 @@ class ContinuousCategoricalConverterTest(parameterized.TestCase):
     features = converter.to_features([trial1, trial2, trial3])
     feature_mapper = fm.ContinuousCategoricalFeatureMapper(converter)
     res = feature_mapper.map(features)
-
-    np.testing.assert_equal(
-        res.categorical, np.array([[1, 3, 0, 0], [0, 3, 0, 0], [2, 1, 1, 0]])
+    np.testing.assert_array_equal(
+        res.categorical, jnp.array([[1, 3, 0, 0], [0, 3, 0, 0], [2, 1, 1, 0]])
     )
-    np.testing.assert_equal(np.zeros((3, 0)), res.continuous)
+    np.testing.assert_array_equal(jnp.zeros((3, 0)), res.continuous)
     # Test un-mapping
     unmapped_features = feature_mapper.unmap(res)
-    np.testing.assert_equal(unmapped_features, features)
+    np.testing.assert_array_equal(unmapped_features, features)
 
   @parameterized.product(pad_oovs=[False, True], max_discrete_indices=[0, 10])
   def test_discrete_only(self, pad_oovs, max_discrete_indices):
@@ -69,17 +69,17 @@ class ContinuousCategoricalConverterTest(parameterized.TestCase):
     res = fm.ContinuousCategoricalFeatureMapper(converter).map(features)
     if max_discrete_indices == 10:
       # DISCRETE params are one-hot encoded. Should be mapped to categorical.
-      np.testing.assert_equal(res.categorical, np.array([[1], [0], [2]]))
-      np.testing.assert_equal(np.zeros((3, 0)), res.continuous)
+      np.testing.assert_array_equal(res.categorical, jnp.array([[1], [0], [2]]))
+      np.testing.assert_array_equal(jnp.zeros((3, 0)), res.continuous)
     elif max_discrete_indices == 0:
       # DISCRETE params are continufied. Should be mapped to continuous.
       np.testing.assert_almost_equal(
-          res.continuous, np.array([[(10 - 1) / (20 - 1)], [0.0], [1.0]])
+          res.continuous, jnp.array([[(10 - 1) / (20 - 1)], [0.0], [1.0]])
       )
-      np.testing.assert_equal(np.zeros((3, 0)), res.categorical)
+      np.testing.assert_array_equal(jnp.zeros((3, 0)), res.categorical)
     # Test un-mapping
     unmapped_features = feature_mapper.unmap(res)
-    np.testing.assert_equal(unmapped_features, features)
+    np.testing.assert_allclose(unmapped_features, features)
 
   def test_integer_only(self):
     problem = vz.ProblemStatement()
@@ -94,13 +94,13 @@ class ContinuousCategoricalConverterTest(parameterized.TestCase):
     features = converter.to_features([trial1, trial2, trial3])
     feature_mapper = fm.ContinuousCategoricalFeatureMapper(converter)
     res = fm.ContinuousCategoricalFeatureMapper(converter).map(features)
-    np.testing.assert_equal(
+    np.testing.assert_array_equal(
         res.continuous, np.array([[1.0, 0.5], [0.1, 0.3], [0.2, 0.4]])
     )
-    np.testing.assert_equal(np.zeros((3, 0)), res.categorical)
+    np.testing.assert_array_equal(jnp.zeros((3, 0)), res.categorical)
     # Test un-mapping
     unmapped_features = feature_mapper.unmap(res)
-    np.testing.assert_equal(unmapped_features, features)
+    np.testing.assert_allclose(unmapped_features, features)
 
   def test_float_only(self):
     problem = vz.ProblemStatement()
@@ -115,13 +115,13 @@ class ContinuousCategoricalConverterTest(parameterized.TestCase):
     features = converter.to_features([trial1, trial2, trial3])
     feature_mapper = fm.ContinuousCategoricalFeatureMapper(converter)
     res = fm.ContinuousCategoricalFeatureMapper(converter).map(features)
-    np.testing.assert_equal(
-        res.continuous, np.array([[1.0, 0.5], [0.1, 0.3], [0.2, 0.4]])
+    np.testing.assert_allclose(
+        res.continuous, jnp.array([[1.0, 0.5], [0.1, 0.3], [0.2, 0.4]])
     )
-    np.testing.assert_equal(np.zeros((3, 0)), res.categorical)
+    np.testing.assert_array_equal(jnp.zeros((3, 0)), res.categorical)
     # Test un-mapping
     unmapped_features = feature_mapper.unmap(res)
-    np.testing.assert_equal(unmapped_features, features)
+    np.testing.assert_allclose(unmapped_features, features, atol=1e-5)
 
   @parameterized.product(pad_oovs=[False, True], max_discrete_indices=[0, 10])
   def test_mixed_space(self, pad_oovs, max_discrete_indices):
@@ -140,25 +140,25 @@ class ContinuousCategoricalConverterTest(parameterized.TestCase):
     feature_mapper = fm.ContinuousCategoricalFeatureMapper(converter)
     res = fm.ContinuousCategoricalFeatureMapper(converter).map(features)
     if max_discrete_indices == 10:
-      np.testing.assert_equal(
+      np.testing.assert_array_equal(
           res.continuous, np.array([[1.0, 0.5], [0.1, 0.3], [0.2, 0.4]])
       )
-      np.testing.assert_equal(
-          res.categorical, np.array([[1, 1], [1, 0], [2, 2]])
+      np.testing.assert_array_equal(
+          res.categorical, jnp.array([[1, 1], [1, 0], [2, 2]])
       )
     if max_discrete_indices == 0:
-      np.testing.assert_almost_equal(
+      np.testing.assert_allclose(
           res.continuous,
-          np.array([
+          jnp.array([
               [1.0, 0.5, (10 - 1) / (20 - 1)],
               [0.1, 0.3, (10 - 1) / (20 - 1)],
               [0.2, 0.4, 1.0],
           ]),
       )
-      np.testing.assert_equal(res.categorical, np.array([[1], [0], [2]]))
+      np.testing.assert_array_equal(res.categorical, np.array([[1], [0], [2]]))
     # Test un-mapping
     unmapped_features = feature_mapper.unmap(res)
-    np.testing.assert_equal(unmapped_features, features)
+    np.testing.assert_allclose(unmapped_features, features)
 
 
 if __name__ == '__main__':

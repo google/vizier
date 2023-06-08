@@ -280,7 +280,10 @@ class HalfRankComponent(OutputWarper):
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
     if len(labels_arr) > len(np.unique(labels_arr)):
-      raise ValueError('unwarp supports unique arrays.')
+      raise ValueError(
+          f'unwarp only supports unique arrays. labels_arr={labels_arr},'
+          f' unique_labels={np.unique(labels_arr)}'
+      )
 
     if np.isnan(labels_arr).any():
       raise ValueError('unwarp does not support nan values.')
