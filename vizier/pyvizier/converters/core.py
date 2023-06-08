@@ -511,7 +511,6 @@ def _create_default_getter(
 class DefaultModelInputConverter(ModelInputConverter):
   """Converts trials into a (None, 1) array corresponding to a parameter.
 
-
   If the parameter_config is continuous, values obtained from `getter()` are
   directly returned as floating numbers. Otherwise, this converter returns
   the index of the value obtained from `getter()` within
