@@ -1,0 +1,126 @@
+# Copyright 2023 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from __future__ import annotations
+
+"""High-level wrappers for stochastic process hyperparameter optimizers."""
+
+import functools
+from typing import Generic, Optional, Protocol, TypeVar
+from absl import logging
+import chex
+import jax
+from jax import numpy as jnp
+from vizier._src.jax import stochastic_process_model as sp
+
+Params = TypeVar('Params', bound=chex.ArrayTree)
+
+
+class Setup(Protocol, Generic[Params]):
+  """Set up the model parameters given RNG key."""
+
+  def __call__(self, rng: jax.random.KeyArray) -> Params:
+    """Set up the model parameters given RNG key."""
+    pass
+
+
+class LossFunction(Protocol, Generic[Params]):
+  """Evaluates model params and returns (loss, dict of auxiliary metrics)."""
+
+  def __call__(self, params: Params) -> tuple[jax.Array, chex.ArrayTree]:
+    """Evaluates model params and returns (loss, dict of auxiliary metrics)."""
+    pass
+
+
+class LossAndGradFunction(Protocol, Generic[Params]):
+  """Computes loss and gradient."""
+
+  def __call__(
+      self, params: Params
+  ) -> tuple[tuple[jax.Array, chex.ArrayTree], jax.Array]:
+    """Returns (loss, tree of auxiliary metrics), grad."""
+
+
+class Optimizer(Protocol[Params]):
+  """Optimizes the LossFunction.
+
+  Example:
+
+  ```python
+  setup: Setup = lambda rng: jax.random.uniform(rng, minval=-5, maxval=5)
+
+  def loss_fn(xs):  # satisfies `LossFunction` Protocol
+    xs = jax.nn.sigmoid(xs)
+    return jnp.cos(xs * 5 * 2 * jnp.pi) * (2 - 5 * (xs - 0.5)**2), dict()
+
+  optimize = optimizers.OptaxTrainWithRandomRestarts(
+      optax.adam(5e-3), epochs=500, verbose=True, random_restarts=50)
+  optimal_params, metrics = optimize(setup, loss_fn, jax.random.PRNGKey(0))
+  ```
+  """
+
+  def __call__(
+      self,
+      setup: Setup[Params],
+      loss_fn: LossFunction,
+      rng: jax.random.KeyArray,
+      *,
+      constraints: Optional[sp.Constraint] = None,
+  ) -> tuple[Params, chex.ArrayTree]:
+    """Optimizes a LossFunction expecting Params as input.
+
+    When constraint bijectors are applied, note that the returned parameters are
+    in the constrained space (the parameter domain), not the unconstrained space
+    over which the optimization takes place.
+
+    If the Optimizer uses lower and upper bounds, then it is responsible for
+    converting `None` bounds to `+inf` or `-inf` as necessary.
+
+    Args:
+      setup: Generates initial points.
+      loss_fn: Evaluates a point.
+      rng: JAX PRNGKey.
+      constraints: Parameter constraints.
+
+    Returns:
+      Tuple containing optimal input in the constrained space and optimization
+      metrics.
+    """
+
+
+def get_best_params(
+    losses: jax.Array, all_params: chex.ArrayTree, *, best_n: int
+) -> chex.ArrayTree:
+  """Returns the top `best_n` parameters that minimize the losses.
+
+  Args:
+    losses: Shape (N,) array
+    all_params: ArrayTree whose leaves have shape (N, ...)
+    best_n: Integer greater than or equal to 1.
+
+  Returns:
+    Top `best_n` parameters.
+  """
+  argsorted = jnp.argsort(losses)
+  logging.info(
+      'Best loss(es): %s at %s', losses[argsorted[:best_n]], argsorted[:best_n]
+  )
+  optimal_params = jax.tree_util.tree_map(
+      lambda p: p[argsorted[:best_n]], all_params
+  )
+  if best_n == 1:
+    optimal_params = jax.tree_map(
+        functools.partial(jnp.squeeze, axis=0), optimal_params
+    )
+  return optimal_params

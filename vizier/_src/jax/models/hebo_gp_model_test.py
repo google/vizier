@@ -27,7 +27,7 @@ from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import hebo_gp_model
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 
 from absl.testing import absltest
 

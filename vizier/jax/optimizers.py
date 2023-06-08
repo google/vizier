@@ -17,8 +17,20 @@ from __future__ import annotations
 """Thin wrappers around Jax optimizers."""
 # pylint: disable=unused-import
 
-from vizier._src.jax.optimizers.optimizers import JaxoptLbfgsB
-from vizier._src.jax.optimizers.optimizers import LossFunction
-from vizier._src.jax.optimizers.optimizers import OptaxTrainWithRandomRestarts
-from vizier._src.jax.optimizers.optimizers import Optimizer
-from vizier._src.jax.optimizers.optimizers import Setup
+import functools
+
+from vizier._src.jax.optimizers.core import LossFunction
+from vizier._src.jax.optimizers.core import Optimizer
+from vizier._src.jax.optimizers.core import Params
+from vizier._src.jax.optimizers.core import Setup
+from vizier._src.jax.optimizers.jaxopt_wrappers import JaxoptLbfgsB
+from vizier._src.jax.optimizers.jaxopt_wrappers import JaxoptScipyLbfgsB
+from vizier._src.jax.optimizers.jaxopt_wrappers import LbfgsBOptions
+from vizier._src.jax.optimizers.optax_wrappers import OptaxTrainWithRandomRestarts
+
+
+@functools.lru_cache
+def default_optimizer() -> Optimizer:
+  """Default optimizer that works okay for most cases."""
+  # NOTE: Production algorithms are recommended to stay away from using this.
+  return JaxoptScipyLbfgsB(LbfgsBOptions(random_restarts=8, best_n=1))

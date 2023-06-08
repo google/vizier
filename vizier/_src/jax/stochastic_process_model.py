@@ -76,19 +76,13 @@ class Constraint:
       of `tfb.JointMap`.
   """
 
-  bounds: Optional[
-      tuple[
-          Optional[types.ArrayTreeOptional], Optional[types.ArrayTreeOptional]
-      ]
-  ] = None
-  bijector: Optional[tfb.Bijector] = None
+  bounds: Optional[types.Bounds] = struct.field(default=None)
+  bijector: Optional[tfb.Bijector] = struct.field(default=None)
 
   @classmethod
   def create(
       cls,
-      bounds: tuple[
-          Optional[types.ArrayTreeOptional], Optional[types.ArrayTreeOptional]
-      ],
+      bounds: types.Bounds,
       bijector_fn: Callable[
           [Optional[ArrayLike], Optional[ArrayLike]], tfb.Bijector
       ],

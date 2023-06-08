@@ -51,11 +51,15 @@ class ContinuousAndCategoricalArray:
   categorical: Array
 
 
+# Tuple representing a box constraint of the form (lower, upper) bounds.
+Bounds = tuple[Optional[ArrayTreeOptional], Optional[ArrayTreeOptional]]
+
 Features = TypeVar('Features', Array, ContinuousAndCategoricalArray)
 
 
 @struct.dataclass
 class StochasticProcessModelData(Generic[Features]):
+  """Data that feed into GP."""
   features: Features
   labels: Array
   label_is_missing: Optional[Array] = None
@@ -65,6 +69,5 @@ class StochasticProcessModelData(Generic[Features]):
 @struct.dataclass
 class GPState:
   """State that changes at each iteration."""
-
   data: StochasticProcessModelData
   model_state: ModelState

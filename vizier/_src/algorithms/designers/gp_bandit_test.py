@@ -31,7 +31,7 @@ from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import test_runners
 from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import predictive_fns
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
 from vizier.testing import test_studies
@@ -41,8 +41,10 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-ensemble_ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=10, best_n=5)
-noensemble_ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=5, best_n=1)
+ensemble_ard_optimizer = optimizers.default_optimizer()
+noensemble_ard_optimizer = optimizers.JaxoptScipyLbfgsB(
+    optimizers.LbfgsBOptions(random_restarts=5, best_n=1)
+)
 
 
 def _build_mock_continuous_array_specs(n):
@@ -288,7 +290,9 @@ class GoogleGpBanditTest(parameterized.TestCase):
       trial.complete(vz.Measurement(metrics={'obj': f(x)}))
       obs_trials.append(trial)
 
-    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=8, best_n=5)
+    ard_optimizer = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=8, best_n=5)
+    )
     gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
     gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
     pred_trial = vz.Trial({'x0': 0.0})

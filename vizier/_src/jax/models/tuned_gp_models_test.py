@@ -27,7 +27,7 @@ from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 
 from absl.testing import absltest
 
@@ -187,7 +187,9 @@ class VizierGpTest(absltest.TestCase):
 
     # Check that the model loss and optimal parameters are independent of those
     # dimensions and observations.
-    optimize = optimizers.JaxoptLbfgsB(random_restarts=1)
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=1)
+    )
     optimal_params1, _ = optimize(
         lambda rng: model1.init(rng, x_obs)['params'],
         loss_fn1,
@@ -223,7 +225,9 @@ class VizierGpTest(absltest.TestCase):
     )
     setup = lambda rng: model.init(rng, x_obs)['params']
 
-    optimize = optimizers.JaxoptLbfgsB(random_restarts=50)
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=50)
+    )
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
         setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
@@ -263,7 +267,9 @@ class VizierGpTest(absltest.TestCase):
     )
     setup = lambda rng: model.init(rng, x_obs)['params']
 
-    optimize = optimizers.JaxoptLbfgsB(random_restarts=50)
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=50)
+    )
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
         setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
@@ -292,7 +298,9 @@ class VizierGpTest(absltest.TestCase):
         model=model,
         data=data,
     )
-    optimize = optimizers.JaxoptLbfgsB(random_restarts=50)
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=50)
+    )
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
         setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints

@@ -43,7 +43,7 @@ from vizier._src.jax import predictive_fns
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import feature_mapper
 from vizier.pyvizier.converters import padding
@@ -112,7 +112,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       factory=lambda: VizierGPBandit.default_acquisition_optimizer_factory,
   )
   _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
-      factory=lambda: VizierGPBandit.default_ard_optimizer_noensemble,
+      factory=optimizers.default_optimizer,
       kw_only=True,
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
@@ -151,19 +151,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   ] = attr.field(init=False, default=None)
   _last_computed_state: types.GPState = attr.field(init=False)
 
-  # ------------------------------------------------------------------
-  # Below are class contants which are not attr fields.
-  # ------------------------------------------------------------------
-  # Only one of these optimizers will be used.
-  # `default_ard_optimizer_ensemble` returns the best 5 parameter values for
-  # ensembling, while `default_ard_optimizer_noensemble` returns only
-  # the single best parameter value.
-  default_ard_optimizer_ensemble = optimizers.JaxoptLbfgsB(
-      random_restarts=8, best_n=5
-  )
-  default_ard_optimizer_noensemble = optimizers.JaxoptLbfgsB(
-      random_restarts=4, best_n=1
-  )
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory()
   )

@@ -25,7 +25,7 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base
 from vizier._src.jax import stochastic_process_model as sp
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 from vizier.pyvizier import converters
 
 
@@ -70,8 +70,10 @@ class LBFGSBOptimizer:
           "LBFGSBOptimizer doesn't support batch of batches (count > 1 is"
           " disallowed when num_parallel_candidates is set)."
       )
-    optimize = optimizers.JaxoptLbfgsB(
-        random_restarts=self.random_restarts, best_n=count
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(
+            random_restarts=self.random_restarts, best_n=count
+        )
     )
     num_features = sum(spec.num_dimensions for spec in converter.output_specs)
 

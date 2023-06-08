@@ -32,7 +32,7 @@ from vizier._src.jax import predictive_fns
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
-from vizier._src.jax.optimizers import optimizers
+from vizier.jax import optimizers
 
 from absl.testing import absltest
 
@@ -43,7 +43,9 @@ tfd = tfp.distributions
 class GPBanditAcquisitionBuilderTest(absltest.TestCase):
 
   def test_sample_on_array(self):
-    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=8, best_n=5)
+    ard_optimizer = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=8, best_n=5)
+    )
     search_space = vz.SearchSpace()
     for i in range(16):
       search_space.root.add_float_param(f'x{i}', 0.0, 1.0)
@@ -113,8 +115,10 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
     constraints = sp.get_constraints(model)
 
     # ARD
-    ard_optimizer = optimizers.JaxoptLbfgsB(random_restarts=4, best_n=best_n)
-    use_vmap = ard_optimizer.best_n != 1
+    ard_optimizer = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=4, best_n=best_n)
+    )
+    use_vmap = best_n != 1
     best_model_params, _ = ard_optimizer(
         setup, loss_fn, key, constraints=constraints
     )
