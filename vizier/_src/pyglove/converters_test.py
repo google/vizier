@@ -83,15 +83,18 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
 
     search_space = pg.Dict(
         a=CustomTypeDecision(),
-        x=pg.oneof([3, 3, 2, 2]),
+        b=pg.manyof(2, [0, 0, 2, 2]),
+        x=pg.oneof([3, 2]),
         y=pg.floatv(0.1, 2.0),
-        z=pg.oneof(['foo', 'bar']))
+        z=pg.oneof(['foo', 'bar']),
+    )
     return pg.dna_spec(search_space)
 
   def test_search_space(self):
     vc = converters.VizierConverter.from_dna_spec(self._dna_spec())
     # Custom-type decision point `a` is not part of the search space.
-    self.assertLen(vc.search_space.parameters, 3)
+    # But `b` has two decision points.
+    self.assertLen(vc.search_space.parameters, 5)
     self.assertNotEmpty(
         vc.problem.metadata.ns(constants.METADATA_NAMESPACE)[
             constants.STUDY_METADATA_KEY_DNA_SPEC])
@@ -99,9 +102,11 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
   def test_dna_to_trial(self):
     dna_spec = self._dna_spec()
     vc = converters.VizierConverter.from_dna_spec(dna_spec)
-    dna = pg.DNA(['abc', 0, 0.5, 1], spec=dna_spec)
+    dna = pg.DNA(['abc', [1, 2], 0, 0.5, 1], spec=dna_spec)
     trial = vc.to_trial(dna, fallback='raise_error')
-    self.assertLen(trial.parameters, 3)
+    self.assertLen(trial.parameters, 5)
+    self.assertEqual(trial.parameters['b[0]'], vz.ParameterValue('1/4 (0)'))
+    self.assertEqual(trial.parameters['b[1]'], vz.ParameterValue('2/4 (2)'))
     self.assertEqual(trial.parameters['x'], vz.ParameterValue(3))
     self.assertEqual(trial.parameters['y'], vz.ParameterValue(0.5))
     self.assertEqual(trial.parameters['z'], vz.ParameterValue('1/2 (\'bar\')'))
@@ -114,12 +119,14 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
     vc = converters.VizierConverter.from_dna_spec(self._dna_spec())
     trial = vz.Trial()
     trial.parameters['x'] = 2.0
+    trial.parameters['b[0]'] = '1/4 (0)'
+    trial.parameters['b[1]'] = '2/4 (2)'
     trial.parameters['y'] = 0.5
     trial.parameters['z'] = '1/2 (\'bar\')'
     trial.metadata.ns(constants.METADATA_NAMESPACE)[
         constants.TRIAL_METADATA_KEY_CUSTOM_TYPE_DECISIONS] = pg.to_json_str(
             {'a': 'abc'})
-    self.assertEqual(vc.to_dna(trial), pg.DNA(['abc', 3, 0.5, 1]))
+    self.assertEqual(vc.to_dna(trial), pg.DNA(['abc', [1, 2], 1, 0.5, 1]))
 
 
 class MakeParameterConfigTest(absltest.TestCase):
@@ -157,15 +164,18 @@ class MakeParameterConfigTest(absltest.TestCase):
         # custom decision point 'a' will not be inserted as a part of
         # parameter config.
         a=CustomDecisionPoint(),
+        b=pg.oneof([2, 1]),
         x=pg.oneof([2, 2, 1]),
         y=[pg.floatv(1e-6, 1.0, scale='log')],
-        z=pg.Dict(p=pg.manyof(2, ['foo', 'bar'])))
+        z=pg.Dict(p=pg.manyof(2, ['foo', 'bar'])),
+    )
     actual = converters.VizierConverter.from_dna_spec(
         pg.dna_spec(search_space)).search_space
     expected = vz.SearchSpace()
     root = expected.root
     # Feasible points of discrete params are sorted.
-    root.add_discrete_param('x', [1, 2])
+    root.add_discrete_param('b', [1, 2])
+    root.add_categorical_param('x', ['0/3 (2)', '1/3 (2)', '2/3 (1)'])
     root.add_float_param('y[0]', 1e-6, 1.0, scale_type=vz.ScaleType.LOG)
     root.add_categorical_param('z.p[0]', ['0/2 (\'foo\')', '1/2 (\'bar\')'])
     root.add_categorical_param('z.p[1]', ['0/2 (\'foo\')', '1/2 (\'bar\')'])

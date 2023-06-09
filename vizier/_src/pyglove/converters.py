@@ -146,8 +146,9 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
       # converted to CATEGORICALs.
       if isinstance(spec, pg.hyper.ManyOf):
         raise NotImplementedError('Manyof is not supported in vizier.')
-      is_discrete = all(isinstance(v, numbers.Number)
-                        for v in spec.literal_values)
+      is_discrete = all(
+          isinstance(v, numbers.Number) for v in spec.literal_values
+      ) and len(set(spec.literal_values)) == len(spec.literal_values)
 
       for choice_idx in range(spec.num_choices):
         choice_path = path
