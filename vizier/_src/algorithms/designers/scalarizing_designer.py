@@ -38,6 +38,24 @@ class Scalarization(Protocol):
 
 
 @attr.define(init=True)
+class LinearScalarization(Scalarization):
+  """Linear Scalarization."""
+
+  # Weights shape should be broadcastable with objectives when called.
+  weights: ArrayLike = attr.ib()
+
+  def __attrs_post_init__(self):
+    if any(self.weights <= 0):
+      raise ValueError(f'Non-positive weights {self.weights}')
+
+  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
+      self,
+      objectives: ArrayLike,
+  ) -> jax.Array:
+    return jnp.sum(self.weights * objectives)
+
+
+@attr.define(init=True)
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
 

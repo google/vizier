@@ -25,6 +25,21 @@ from vizier.testing import test_studies
 from absl.testing import absltest
 
 
+class ScalarizerTest(absltest.TestCase):
+
+  def test_linear_scalarizer(self):
+    scalarizer = scalarizing_designer.LinearScalarization(
+        weights=jnp.array([0.1, 0.2])
+    )
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 1.2)
+
+  def test_hypervolume_scalarizer(self):
+    scalarizer = scalarizing_designer.HyperVolumeScalarization(
+        weights=jnp.array([0.1, 0.2])
+    )
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 22.5)
+
+
 class ScalarizingDesignerTest(absltest.TestCase):
 
   def test_scalarizing_eagle(self):
