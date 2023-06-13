@@ -44,8 +44,8 @@ def run_tune_distributed(
   Returns:
     List of results.
   """
-  ds = data.from_items(run_tune_args_list)
-  ds = ds.map(lambda args_tuple: run_tune(*args_tuple))
+  ds = data.from_items([{'args_tuple': args} for args in run_tune_args_list])
+  ds = ds.map(lambda x: {'result': run_tune(*x['args_tuple'])})
   return ds.take_all()
 
 

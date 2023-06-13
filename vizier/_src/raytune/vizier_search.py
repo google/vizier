@@ -132,7 +132,10 @@ class VizierSearch(search.Searcher):
         - trial_client.materialize().creation_time
     )
     trial_client.add_measurement(
-        svz.Measurement(result, elapsed_secs=elapsed_secs.total_seconds())
+        svz.Measurement(
+            {k: v for k, v in result.items() if isinstance(v, float)},
+            elapsed_secs=elapsed_secs.total_seconds(),
+        )
     )
 
   def on_trial_complete(
@@ -155,7 +158,8 @@ class VizierSearch(search.Searcher):
             - trial_client.materialize().creation_time
         )
         measurement = svz.Measurement(
-            result, elapsed_secs=elapsed_secs.total_seconds()
+            {k: v for k, v in result.items() if isinstance(v, float)},
+            elapsed_secs=elapsed_secs.total_seconds(),
         )
       trial_client.complete(measurement=measurement)
 
