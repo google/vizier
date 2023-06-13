@@ -595,6 +595,7 @@ class LinearOutputWarper:
   _min_value: Optional[types.Array] = None
   _max_value: Optional[types.Array] = None
   _bijector: tfb.Bijector = attr.field(init=False)
+  _slope_bijector: tfb.Bijector = attr.field(init=False)
 
   def __attrs_post_init__(self):
     if self.low_bound >= self.high_bound:
@@ -628,12 +629,13 @@ class LinearOutputWarper:
     # The linear transformation is:
     # norm_y = (y - self._min_value) / (self._max_value - self._min_value)
     # return norm_y * (self.high_bound - self.low_bound) + self.low_bound
+    # Slope-only bijector used to transform the standard deviation.
+    self._slope_bijector = tfb.Scale(
+        (self.high_bound - self.low_bound) / (self._max_value - self._min_value)
+    )
     self._bijector = tfb.Chain([
         tfb.Shift(self.low_bound),
-        tfb.Scale(
-            (self.high_bound - self.low_bound)
-            / (self._max_value - self._min_value)
-        ),
+        self._slope_bijector,
         tfb.Shift(-self._min_value),
     ])
 
@@ -648,6 +650,10 @@ class LinearOutputWarper:
     # y shape: (num_samples, num_metrics)
     self._validate(y)
     return self._bijector.inverse(y)
+
+  def unwarp_stddev(self, warped_stddev: types.Array) -> jax.Array:
+    """Un-warp the standard deviation."""
+    return self._slope_bijector.inverse(warped_stddev)
 
   @property
   def bijector(self) -> tfb.Bijector:
