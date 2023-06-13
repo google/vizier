@@ -28,7 +28,6 @@ FireflyAlgorithmConfig = eagle_strategy.FireflyAlgorithmConfig
 EagleStrategyUtils = eagle_strategy_utils.EagleStrategyUtils
 FireflyPool = eagle_strategy_utils.FireflyPool
 Firefly = eagle_strategy_utils.Firefly
-L1CategorialExperimenter = experimenters.L1CategorialExperimenter
 
 
 def create_fake_trial(
@@ -147,6 +146,7 @@ def create_continuous_exptr(func, dim=6):
   )
 
 
-def create_categorical_exptr():
-  num_categories = [5, 8, 10, 2, 15, 10, 5, 8, 12]
-  return L1CategorialExperimenter(num_categories=num_categories, verbose=True)
+def create_categorical_exptr(num_params: int = 9, num_feasible_values: int = 5):
+  return experimenters.L1CategorialExperimenter(
+      num_categories=[num_feasible_values] * num_params, verbose=True
+  )

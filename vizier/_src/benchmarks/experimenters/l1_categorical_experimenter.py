@@ -46,7 +46,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
     created.
 
     Arguments:
-      num_categories: The number of number of categories in each parameter.
+      num_categories: The number of categories in each parameter.
       optimum: Optional list of indices indicating the optimum point. If not
         set, randomly created from seed.
       seed: Optional random generator seed.
