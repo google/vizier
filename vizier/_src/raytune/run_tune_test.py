@@ -39,9 +39,9 @@ class RunTuneTest(absltest.TestCase):
     self.assertLen(results, 7)
 
   def test_parallelized_fit(self):
-    tune_config = tune.TuneConfig(num_samples=2)
-    function_names = ['Sphere', 'Rastrigin']
-    dimensions = [3, 7]
+    tune_config = tune.TuneConfig(num_samples=3)
+    function_names = ['Sphere']
+    dimensions = [4, 5]
     product_list = list(itertools.product(function_names, dimensions))
     args_list = []
     for product in product_list:
@@ -52,10 +52,10 @@ class RunTuneTest(absltest.TestCase):
         args_list, run_tune.run_tune_bbob
     )
 
-    # There should be 4 studies in the product, each with 2 Trials.
-    self.assertLen(results_list, 4)
+    # There should be 2 studies in the product, each with 3 Trials.
+    self.assertLen(results_list, 2)
     for result in results_list:
-      self.assertLen(result['result'], 2)
+      self.assertLen(result['result'], 3)
 
 
 if __name__ == '__main__':

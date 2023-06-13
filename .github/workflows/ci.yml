@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]  # 3.x disabled b/c of 3.11 grpcio-tools build fail.
+        python-version: ["3.10"]  # 3.x disabled b/c of 3.11 grpcio-tools build fail.
         suffix: ["core", "benchmarks", "algorithms", "clients", "pyglove", "raytune"]
         include:
           - suffix: "clients"
