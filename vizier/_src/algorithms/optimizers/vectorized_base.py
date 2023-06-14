@@ -199,10 +199,10 @@ class VectorizedOptimizer:
   def __call__(
       self,
       score_fn: ArrayScoreFunction,
-      *,
       count: int = 1,
       prior_features: Optional[types.Array] = None,
       seed: Optional[int] = None,
+      **kwargs,
   ) -> VectorizedStrategyResults:
     """Optimize the objective function.
 
@@ -231,6 +231,7 @@ class VectorizedOptimizer:
         prior trials are the previous designer suggestions provided in the
         ordered they were suggested.
       seed: The seed to use in the random generator.
+      **kwargs: Auxiliary inputs to `score_fn`.
 
     Returns:
       The best trials found in the optimization.
@@ -249,7 +250,7 @@ class VectorizedOptimizer:
       )
     prior_rewards = None
     if prior_features is not None:
-      prior_rewards = score_fn(prior_features).reshape(-1)
+      prior_rewards = score_fn(prior_features, **kwargs).reshape(-1)
 
     def _optimization_one_step(_, args):
       state, best_results, seed = args
@@ -261,7 +262,7 @@ class VectorizedOptimizer:
             dimension_is_missing, jnp.zeros_like(new_features), new_features
         )
       # We assume `score_fn` is aware of padded dimensions.
-      new_rewards = score_fn(new_features)
+      new_rewards = score_fn(new_features, **kwargs)
       new_state = self.strategy.update(
           state, new_features, new_rewards, update_seed
       )
