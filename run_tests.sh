@@ -50,11 +50,9 @@ case $1 in
     # pytest -n auto vizier/_src/pyglove/
     ;;
   "raytune")
-    echo "This test is skipped!"
     pip install -U ray[default]
     # pip install -U ray[air]
-    pip install -r requirements-algorithms.txt \
-    -r requirements-jax.txt
+    pip install -r requirements-jax.txt
     pip install pyarrow
     pip install pandas
     pytest -n auto vizier/_src/raytune/

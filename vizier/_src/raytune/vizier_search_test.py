@@ -70,7 +70,7 @@ class VizierSearchTest(absltest.TestCase):
   #  tuner.fit()
   #  self.assertLen(tuner.get_results(), 10)
 
-  def test_search_with_run_tune(self):
+  def test_random_search_with_run_tune(self):
     results = run_tune.run_tune_bbob(
         function_name='Sphere',
         dimension=3,
@@ -83,6 +83,21 @@ class VizierSearchTest(absltest.TestCase):
         run_config=None,
     )
     self.assertLen(results, 9)
+
+  def test_vizier_search_with_run_tune(self):
+    # Use the default algorithm = GP Bandit.
+    results = run_tune.run_tune_bbob(
+        function_name='Sphere',
+        dimension=3,
+        shift=None,
+        tune_config=tune.TuneConfig(
+            search_alg=vizier_search.VizierSearch(),
+            num_samples=5,
+            max_concurrent_trials=1,
+        ),
+        run_config=None,
+    )
+    self.assertLen(results, 5)
 
 
 if __name__ == '__main__':
