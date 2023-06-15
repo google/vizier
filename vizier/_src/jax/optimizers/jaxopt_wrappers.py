@@ -47,10 +47,14 @@ class LbfgsBOptions:
       less than or equal to `random_restarts`.
   """
 
-  num_line_search_steps: int = struct.field(kw_only=True, default=20)
-  random_restarts: int = struct.field(kw_only=True, default=4)
+  num_line_search_steps: int = struct.field(
+      kw_only=True, default=20, pytree_node=False
+  )
+  random_restarts: int = struct.field(
+      kw_only=True, default=4, pytree_node=False
+  )
   tol: float = struct.field(kw_only=True, default=1e-8)
-  maxiter: int = struct.field(kw_only=True, default=50)
+  maxiter: int = struct.field(kw_only=True, default=50, pytree_node=False)
   best_n: int = struct.field(kw_only=True, default=1, pytree_node=False)
 
   def __post_init__(self):
@@ -171,7 +175,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     return self._options.best_n
 
 
-@attr.define
+@struct.dataclass
 class JaxoptLbfgsB(core.Optimizer[core.Params]):
   """Jaxopt's L-BFGS-B optimizer.
 
@@ -193,8 +197,10 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
     _speed_test: If True, return speed test results.
   """
 
-  _options: LbfgsBOptions = attr.field(default=LbfgsBOptions())
-  _speed_test: bool = attr.field(kw_only=True, default=False)
+  _options: LbfgsBOptions = struct.field(default_factory=LbfgsBOptions)
+  _speed_test: bool = struct.field(
+      pytree_node=False, kw_only=True, default=False
+  )
 
   def __call__(
       self,
