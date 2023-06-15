@@ -49,10 +49,11 @@ def optimize_acquisition(
     state: types.GPState,
     seed: jax.random.KeyArray,
     use_vmap: bool,
-    trust_region: Optional[acquisitions.TrustRegion],
+    trust_region: Optional[acquisitions.TrustRegion] = None,
     # TODO: Remove this when Eagle optimizer takes
     # ContinuousAndCategoricalFeatures.
-    mapper: Optional[feature_mapper.ContinuousCategoricalFeatureMapper],
+    mapper: Optional[feature_mapper.ContinuousCategoricalFeatureMapper] = None,
+    num_parallel_candidates: Optional[int] = None,
 ) -> vb.VectorizedStrategyResults:
   """Optimize the acquisition function."""
   base_score_fn = functools.partial(
@@ -64,9 +65,26 @@ def optimize_acquisition(
       use_vmap=use_vmap,
   )
   if mapper is not None:
-    score_fn = lambda xs: base_score_fn(mapper.map(xs))
+    mapped_score_fn = lambda xs: base_score_fn(mapper.map(xs))
   else:
-    score_fn = base_score_fn
+    mapped_score_fn = base_score_fn
+  if num_parallel_candidates:
+    # Unflatten suggested features before passing them to the score_fn.
+    score_fn = lambda x: mapped_score_fn(  # pylint: disable=g-long-lambda
+        jax.tree_util.tree_map(
+            lambda x_: jnp.reshape(  # pylint: disable=g-long-lambda
+                x_,
+                [
+                    -1,
+                    num_parallel_candidates,
+                    x_.shape[-1] // num_parallel_candidates,
+                ],
+            ),
+            x,
+        )
+    )
+  else:
+    score_fn = mapped_score_fn
   return optimizer(
       score_fn=score_fn, count=count, prior_features=prior_features, seed=seed
   )
