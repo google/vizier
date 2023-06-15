@@ -42,7 +42,7 @@ from absl.testing import parameterized
 
 
 ensemble_ard_optimizer = optimizers.default_optimizer()
-noensemble_ard_optimizer = optimizers.JaxoptScipyLbfgsB(
+noensemble_ard_optimizer = optimizers.JaxoptLbfgsB(
     optimizers.LbfgsBOptions(random_restarts=5, best_n=1)
 )
 

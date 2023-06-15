@@ -78,6 +78,39 @@ jit_optimize_acquisition = profiler.record_runtime(
 )
 
 
+def _optimize_ard(
+    optimizer: optimizers.Optimizer[types.ParameterDict],
+    model: sp.StochasticProcessModel,
+    data: types.StochasticProcessModelData,
+    seed: jax.random.KeyArray,
+) -> tuple[types.ParameterDict, Any]:
+  """Perform ARD on the current model to find best model parameters."""
+
+  # Run ARD.
+  def setup(k: jax.random.KeyArray):
+    return jax.jit(
+        gp_bandit_utils.stochastic_process_model_setup,
+        static_argnames=('model',),
+    )(k, model=model, data=data)
+
+  constraints = sp.get_constraints(model)
+  loss_fn = functools.partial(
+      jax.jit(
+          gp_bandit_utils.stochastic_process_model_loss_fn,
+          static_argnames=('model', 'normalize'),
+      ),
+      model=model,
+      data=data,
+      # For SGD, normalize the loss so we can use the same learning rate
+      # regardless of the number of examples (see
+      # `OptaxTrainWithRandomRestarts` docstring).
+      normalize=isinstance(optimizer, optimizers.OptaxTrainWithRandomRestarts),
+  )
+
+  # The ARD optimizers JIT the train step/loop internally.
+  return optimizer(setup, loss_fn, seed, constraints=constraints)
+
+
 @attr.define(auto_attribs=False)
 class VizierGPBandit(vza.Designer, vza.Predictor):
   """GP-Bandit using a Flax model.
@@ -342,26 +375,23 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def _find_best_model_params(
       self,
       model: sp.StochasticProcessModel,
-      loss_fn: optimizers.LossFunction,
       data: types.StochasticProcessModelData,
       seed: jax.random.KeyArray,
   ) -> tuple[types.ParameterDict, Any]:
     """Perform ARD on the current model to find best model parameters."""
     # Run ARD.
-    setup = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_setup,
-            static_argnames=('model',),
-        ),
-        model=model,
-        data=data,
-    )
-    constraints = sp.get_constraints(model)
+    if isinstance(self._ard_optimizer, optimizers.JaxoptLbfgsB):
+      optimize_ard = jax.jit(_optimize_ard, static_argnames='model')
+    else:
+      optimize_ard = _optimize_ard
 
     logging.info('Optimizing the loss function...')
+    run_ard_with_profiling = profiler.record_runtime(
+        optimize_ard, name_prefix='VizierGPBandit', name='ard', also_log=True
+    )
 
-    # The ARD optimizers JIT the train step/loop internally.
-    return self._ard_optimizer(setup, loss_fn, seed, constraints=constraints)
+    logging.info('Optimizing the loss function...')
+    return run_ard_with_profiling(self._ard_optimizer, model, data, seed)
 
   @profiler.record_runtime(name_prefix='VizierGPBandit', name='compute_state')
   def _compute_state(
@@ -404,25 +434,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         dimension_is_missing=dimension_is_missing,
     )
     model = self._build_model(features)
-    # TODO: Avoid retracing vmapped loss when loss function API is
-    # redesigned.
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
-        ),
-        model=model,
-        data=data,
-        # For SGD, normalize the loss so we can use the same learning rate
-        # regardless of the number of examples (see
-        # `OptaxTrainWithRandomRestarts` docstring).
-        normalize=isinstance(
-            self._ard_optimizer, optimizers.OptaxTrainWithRandomRestarts
-        ),
-    )
     self._rng, ard_rng = jax.random.split(self._rng, 2)
     best_model_params, metrics = self._find_best_model_params(
-        model, loss_fn, data, ard_rng
+        model, data, ard_rng
     )
     # Logging for debugging purposes.
     logging.info('Best model parameters: %s', best_model_params)
