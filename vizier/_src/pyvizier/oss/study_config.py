@@ -449,6 +449,8 @@ class StudyConfig(base_study_config.ProblemStatement):
 
     metrics: Dict[str, float] = {}
     if pytrial.is_completed and not pytrial.infeasible:
+      if pytrial.final_measurement is None:
+        return metrics
       for name in pytrial.final_measurement.metrics:
         if (include_all_metrics or
             (not include_all_metrics and name in configured_metrics)):
