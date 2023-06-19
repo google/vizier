@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 """Tests for clients."""
+import functools
+
 from absl import logging
 from vizier._src.service import clients
 from vizier._src.service import constants
@@ -23,6 +25,7 @@ from vizier.client import client_abc_testing
 from vizier.service import pyvizier as vz
 
 from absl.testing import absltest
+
 
 # Affects local Vizier servicer tests only.
 clients.environment_variables.servicer_use_sql_ram()
@@ -41,16 +44,22 @@ class VizierClientTest(client_abc_testing.TestCase):
     )
     return study
 
-  def create_study2(
-      self, problem: vz.ProblemStatement, study_id: str
-  ) -> clients.Study:
-    config = vz.StudyConfig.from_problem(problem)
-    config.algorithm = vz.Algorithm.RANDOM_SEARCH
-    study = clients.Study.from_owner_and_id(owner='owner', study_id=study_id)
-    return study
-
   def test_e2e_tuning(self):
     self.assertPassesE2ETuning()
+
+  def test_e2e_tuning_gp(self):
+    def create_study(
+        problem: vz.ProblemStatement, study_id: str
+    ) -> clients.Study:
+      config = vz.StudyConfig.from_problem(problem)
+      config.algorithm = vz.Algorithm.GAUSSIAN_PROCESS_BANDIT
+      study = clients.Study.from_study_config(
+          config, owner='owner', study_id=study_id
+      )
+      return study
+
+    study_factory = functools.partial(create_study, study_id=self.id())
+    self.assertPassesE2ETuning(study_factory=study_factory, num_iterations=2)
 
 
 class VizierClientTestOnServicer(VizierClientTest):

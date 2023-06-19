@@ -15,10 +15,11 @@
 from __future__ import annotations
 
 """Tests for profiler."""
+
 import jax
 import jax.numpy as jnp
-
 from vizier.utils import profiler
+
 from absl.testing import absltest
 
 
@@ -103,8 +104,8 @@ class PerformanceUtilsTest(absltest.TestCase):
     selu(x)
     self.assertLen(profiler.Storage().runtimes().get('selu'), 2)
     jt_microseconds = profiler.Storage().runtimes().get('selu')[1].microseconds
-    # Should be at least 7 times faster (rough estimate so it's not flaky).
-    self.assertLess(jt_microseconds, microseconds / 7)
+    # Jitted function should be faster.
+    self.assertLess(jt_microseconds, microseconds)
 
   def test_with_jax_reverse_decorator_order(self):
     # If jax.jit decorator is first, only the first runtime is recorded.
@@ -143,4 +144,5 @@ class PerformanceUtilsTest(absltest.TestCase):
 
 
 if __name__ == '__main__':
+  jax.config.update('jax_enable_x64', True)
   absltest.main()

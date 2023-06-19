@@ -351,6 +351,10 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   ):
     """Runs an e2e test.
 
+    This test simulates a hyperparameter tuning scenario, where the model
+    hyperparameters are being tuned, and automated trial early stopping is
+    used to stop trials early.
+
     Args:
       study_factory: If not specified, uses the default factory of this class.
       batch_size:

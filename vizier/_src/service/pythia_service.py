@@ -16,10 +16,10 @@ from __future__ import annotations
 
 """Separate Pythia service for handling algorithmic logic."""
 from typing import Optional
+
 from absl import logging
 import attr
 import grpc
-
 from vizier._src.service import policy_factory as policy_factory_lib
 from vizier._src.service import pythia_service_pb2
 from vizier._src.service import pythia_service_pb2_grpc
@@ -45,6 +45,15 @@ class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
   _policy_factory: policy_factory_lib.PolicyFactory = attr.field(
       init=True, factory=policy_factory_lib.DefaultPolicyFactory
   )
+
+  def __attrs_post_init__(self):
+    try:
+      # If Jax is installed, always use float64 for all policies.
+      import jax  # pylint:disable=g-import-not-at-top
+
+      jax.config.update('jax_enable_x64', True)
+    except ImportError:
+      pass
 
   def connect_to_vizier(self, endpoint: str) -> None:
     """Only needs to be called if VizierService wasn't passed in init."""

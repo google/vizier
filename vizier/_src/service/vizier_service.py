@@ -753,7 +753,17 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       early_stop_request_proto = svz.EarlyStopConverter.to_request_proto(
           early_stop_request
       )
-      early_stop_request_proto.algorithm = study.study_spec.algorithm
+      spec_name = (
+          study.study_spec.WhichOneof('automated_stopping_spec')
+          or 'default_stopping_spec'
+      )
+      if spec_name == 'default_stopping_spec':
+        # TODO: Add TSGP algorithm when open sourced.
+        early_stop_request_proto.algorithm = 'RANDOM_SEARCH'
+      else:
+        raise ValueError(
+            f'Misconfigured automated_stopping_spec: {study.study_spec}'
+        )
 
       # Send request to Pythia.
       temp_pythia_service = self._select_pythia_service(
