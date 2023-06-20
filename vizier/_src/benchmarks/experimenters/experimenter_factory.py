@@ -45,7 +45,6 @@ class ExperimenterFactory(abc.ABC):
       self, *, seed: Optional[int] = None
   ) -> experimenter.Experimenter:
     """Creates the Experimenter."""
-    pass
 
 
 class SerializableExperimenterFactory(

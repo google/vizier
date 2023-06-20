@@ -75,8 +75,9 @@ class _SuggestionAlgorithm(abc.ABC):
   """Suggestion algorithm."""
 
   @abc.abstractmethod
-  def suggest(self,
-              count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
+  def suggest(
+      self, count: Optional[int] = None
+  ) -> Sequence[vz.TrialSuggestion]:
     """Make new suggestions.
 
     Args:
@@ -86,7 +87,6 @@ class _SuggestionAlgorithm(abc.ABC):
     Returns:
       New suggestions.
     """
-    pass
 
 
 class Designer(_SuggestionAlgorithm):
@@ -146,7 +146,6 @@ class Designer(_SuggestionAlgorithm):
       all_active: All ACTIVE (aka PENDING) trials in the study from its
         beginning.
     """
-    pass
 
 
 @attr.define(frozen=True)
