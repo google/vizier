@@ -44,8 +44,10 @@ class VizierSearch(search.Searcher):
 
     Args:
       study_id: The study id in the Vizier service.
-      problem: The study config to optimize over.
-      algorithm: The Vizier algorithm to use.
+      problem: The study config to optimize over. `problem.algorithm` is
+        overwritten by `algorithm`.
+      algorithm: The Vizier algorithm to use. Overrides the algorithm in
+        problem.
       **kwargs:
     """
     super().__init__(**kwargs)
@@ -70,10 +72,13 @@ class VizierSearch(search.Searcher):
         raise ValueError(
             f'Only single objective studies are supported: {problem}'
         )
+      # We can't store StudyConfig since it contains a proto, and it's not
+      # pickleable, so we store problem statement instead.
+      # TODO: store a proto string instead.
+      self._problem = problem.to_problem()
       self._metric = problem.metric_information.item().name
-      self.study_client = clients.Study.from_study_config(
-          problem, owner='raytune', study_id=self.study_id
-      )
+      if self.algorithm is None:
+        self.algorithm = problem.algorithm
 
   def set_search_properties(
       self, metric: Optional[str], mode: Optional[str], config: Dict, **spec  # pylint: disable=g-bare-generic
@@ -126,6 +131,10 @@ class VizierSearch(search.Searcher):
   def on_trial_result(self, trial_id: str, result: Dict) -> None:  # pylint: disable=g-bare-generic
     if trial_id not in self._active_trials:
       raise RuntimeError(f'No active trial for {trial_id}')
+    if self.study_client is None:
+      raise RuntimeError(
+          'VizierSearch not initialized! Set a search space first.'
+      )
     trial_client = self._active_trials[trial_id]
     elapsed_secs = (
         datetime.datetime.now().astimezone()
@@ -143,6 +152,10 @@ class VizierSearch(search.Searcher):
   ) -> None:
     if trial_id not in self._active_trials:
       raise RuntimeError(f'No active trial for {trial_id}')
+    if self.study_client is None:
+      raise RuntimeError(
+          'VizierSearch not initialized! Set a search space first.'
+      )
     trial_client = self._active_trials[trial_id]
 
     if error:
@@ -162,13 +175,16 @@ class VizierSearch(search.Searcher):
             elapsed_secs=elapsed_secs.total_seconds(),
         )
       trial_client.complete(measurement=measurement)
+    self._active_trials.pop(trial_id)
 
   def suggest(self, trial_id):
     if self.study_client is None:
-      raise RuntimeError(
-          'VizierSearch not initialized! Set a search space first.'
+      study_config = svz.StudyConfig.from_problem(self._problem)
+      study_config.algorithm = self.algorithm
+      self.study_client = clients.Study.from_study_config(
+          study_config, owner='raytune', study_id=self.study_id
       )
-    suggestions = self.study_client.suggest(count=1)
+    suggestions = self.study_client.suggest(count=1, client_id=trial_id)
     if not suggestions:
       return search.Searcher.FINISHED
 
