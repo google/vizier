@@ -61,12 +61,13 @@ class PolicySupporter(abc.ABC):
       min_trial_id: Optional[int] = None,
       max_trial_id: Optional[int] = None,
       status_matches: Optional[vz.TrialStatus] = None,
-      include_intermediate_measurements: bool = True) -> List[vz.Trial]:
+      include_intermediate_measurements: bool = True
+  ) -> List[vz.Trial]:
     """Requests Trials from Vizier.
 
     Args:
-      study_guid: The GUID of the study to get Trials from.  Default is None,
-        which means the current Study.
+      study_guid: The GUID of the study to get Trials from. If None, uses the
+        current Study.
       trial_ids: a list of Trial id numbers to acquire.
       min_trial_id: Trials in [min_trial_id, max_trial_id] are selected, if at
         least one of the two is not None.
@@ -78,8 +79,8 @@ class PolicySupporter(abc.ABC):
         should include all available intermediate measurements.  If False,
         PolicySupporter _may_ leave the `measurements` field empty in the
         returned Trials (e.g. to optimize speed).  (Note that the
-        final_measurement field should always be included when available,
-        i.e. for COMPLETED Trials.)
+        final_measurement field should always be included when available, i.e.
+        for COMPLETED Trials.)
 
     Returns:
       Trials obtained from Vizier.
