@@ -337,9 +337,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
   )
   def test_jit_once(self, *args):
     del args
-    problem = vz.ProblemStatement(
-        test_studies.flat_continuous_space_with_scaling()
-    )
+    space = test_studies.flat_continuous_space_with_scaling()
+    problem = vz.ProblemStatement(space)
     problem.metric_information.append(
         vz.MetricInformation(
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
@@ -351,7 +350,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
     padding_schedule = padding.PaddingSchedule(
         num_trials=padding.PaddingType.MULTIPLES_OF_10,
-        num_features=padding.PaddingType.POWERS_OF_2,
+        num_features=padding.PaddingType.MULTIPLES_OF_10,
     )
     designer = gp_bandit.VizierGPBandit(
         problem=problem,
@@ -369,6 +368,22 @@ class GoogleGpBanditTest(parameterized.TestCase):
         verbose=1,
         validate_parameters=True,
     ).run_designer(designer)
+
+    # Padding schedule should avoid retracing with one more feature.
+    space.root.add_float_param('x0', -5.0, 5.0)
+    designer1 = gp_bandit.VizierGPBandit(
+        problem=problem,
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        num_seed_trials=3,
+        padding_schedule=padding_schedule,
+    )
+    test_runners.RandomMetricsRunner(
+        problem,
+        iters=5,
+        batch_size=1,
+        verbose=1,
+        validate_parameters=True,
+    ).run_designer(designer1)
 
     # Retracing should not occur when a new VizierGPBandit instance is created.
     designer2 = gp_bandit.VizierGPBandit(

@@ -238,8 +238,8 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
   """
 
   param_handler: eagle_param_handler.EagleParamHandler
-  n_features: int = struct.field(pytree_node=False)
-  n_feature_dimensions: int = struct.field(pytree_node=False)
+  n_features: int
+  n_feature_dimensions: int
   n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
   pool_size: int = struct.field(pytree_node=False)
   batch_size: Optional[int] = struct.field(pytree_node=False, default=None)

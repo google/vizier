@@ -195,7 +195,7 @@ class VectorizedOptimizer:
   """
 
   strategy: VectorizedStrategy
-  n_feature_dimensions: int = struct.field(pytree_node=False)
+  n_feature_dimensions: int
   n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
   suggestion_batch_size: int = struct.field(pytree_node=False, default=25)
   max_evaluations: int = struct.field(pytree_node=False, default=75_000)
@@ -246,16 +246,11 @@ class VectorizedOptimizer:
     """
     seed = jax.random.PRNGKey(0) if seed is None else seed
 
-    input_is_padded = (
-        self.n_feature_dimensions_with_padding > self.n_feature_dimensions
+    dimension_is_missing = (
+        jnp.arange(self.n_feature_dimensions_with_padding)
+        > self.n_feature_dimensions
     )
-    dimension_is_missing = None
-    if input_is_padded:
-      dimension_is_missing = np.array(
-          [False] * self.n_feature_dimensions
-          + [True]
-          * (self.n_feature_dimensions_with_padding - self.n_feature_dimensions)
-      )
+
     # TODO: We should pass RNGKey to score_fn.
     prior_rewards = None
     if prior_features is not None:
@@ -266,10 +261,9 @@ class VectorizedOptimizer:
       suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
       new_features = self.strategy.suggest(state, suggest_seed)
       # Ensure masking out padded dimensions in new features.
-      if input_is_padded:
-        new_features = jnp.where(
-            dimension_is_missing, jnp.zeros_like(new_features), new_features
-        )
+      new_features = jnp.where(
+          dimension_is_missing, jnp.zeros_like(new_features), new_features
+      )
       # We assume `score_fn` is aware of padded dimensions.
       new_rewards = score_fn(new_features)
       new_state = self.strategy.update(
