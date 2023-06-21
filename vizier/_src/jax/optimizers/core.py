@@ -77,6 +77,7 @@ class Optimizer(Protocol[Params]):
       rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
+      best_n: Optional[int] = None,
   ) -> tuple[Params, chex.ArrayTree]:
     """Optimizes a LossFunction expecting Params as input.
 
@@ -92,6 +93,7 @@ class Optimizer(Protocol[Params]):
       loss_fn: Evaluates a point.
       rng: JAX PRNGKey.
       constraints: Parameter constraints.
+      best_n: If not None, returns a pytree with a batch dimension [best_n].
 
     Returns:
       Tuple containing optimal input in the constrained space and optimization
@@ -100,26 +102,31 @@ class Optimizer(Protocol[Params]):
 
 
 def get_best_params(
-    losses: jax.Array, all_params: chex.ArrayTree, *, best_n: int
+    losses: jax.Array,
+    all_params: chex.ArrayTree,
+    *,
+    best_n: Optional[int] = None,
 ) -> chex.ArrayTree:
   """Returns the top `best_n` parameters that minimize the losses.
 
   Args:
     losses: Shape (N,) array
     all_params: ArrayTree whose leaves have shape (N, ...)
-    best_n: Integer greater than or equal to 1.
+    best_n: Integer greater than or equal to 1. If None, squeezes the leading
+      dimension.
 
   Returns:
     Top `best_n` parameters.
   """
   argsorted = jnp.argsort(losses)
-  logging.info(
-      'Best loss(es): %s at %s', losses[argsorted[:best_n]], argsorted[:best_n]
-  )
-  optimal_params = jax.tree_util.tree_map(
-      lambda p: p[argsorted[:best_n]], all_params
-  )
-  if best_n == 1:
+  if not best_n:
+    best_idx = argsorted[:1]
+  else:
+    best_idx = argsorted[:best_n]
+
+  logging.info('Best loss(es): %s at retry %s', losses[best_idx], best_idx)
+  optimal_params = jax.tree_util.tree_map(lambda p: p[best_idx], all_params)
+  if best_n is None:
     optimal_params = jax.tree_map(
         functools.partial(jnp.squeeze, axis=0), optimal_params
     )

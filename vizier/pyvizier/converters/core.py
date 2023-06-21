@@ -78,7 +78,7 @@ class NumpyArraySpecType(enum.Enum):
     raise ValueError(f'Unknown type {pc.type}')
 
 
-@attr.define(frozen=True, auto_attribs=True)
+@attr.define(frozen=True, auto_attribs=True, eq=True, hash=True)
 class NumpyArraySpec:
   """Encodes what a feature array represents.
 

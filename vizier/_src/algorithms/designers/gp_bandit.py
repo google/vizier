@@ -21,14 +21,14 @@ A Python implementation of Google Vizier's GP-Bandit algorithm.
 # pylint: disable=logging-fstring-interpolation, g-long-lambda
 
 import copy
+import dataclasses
 import datetime
-import functools
-import json
 import random
-from typing import Any, Optional, Sequence, Union
+from typing import Optional, Sequence, Union
 
 from absl import logging
 import attr
+import equinox as eqx
 import jax
 import numpy as np
 from vizier import algorithms as vza
@@ -38,8 +38,6 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
-from vizier._src.jax import gp_bandit_utils
-from vizier._src.jax import predictive_fns
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
@@ -47,35 +45,17 @@ from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import feature_mapper
 from vizier.pyvizier.converters import padding
-from vizier.utils import json_utils
 from vizier.utils import profiler
 
 
-# Define top-level JIT-ed versions of some library functions. See
-# `gp_bandit_utils.py` for function documentation.
-jit_precompute_cholesky = profiler.record_runtime(
-    jax.jit(gp_bandit_utils.precompute_cholesky, static_argnames=('model',)),
-    name_prefix='VizierGPBandit',
-    name='precompute_cholesky',
-)
+def _experimental_override_allowed(fun):
+  """No-op. Marks functions that can be easily overriden for experimentation."""
+  return fun
 
-jit_vmap_precompute_cholesky = profiler.record_runtime(
-    jax.jit(
-        jax.vmap(gp_bandit_utils.precompute_cholesky, in_axes=(None, None, 0)),
-        static_argnames=('model',),
-    ),
-    name_prefix='VizierGPBandit',
-    name='vmap_precompute_cholesky',
-)
 
-jit_optimize_acquisition = profiler.record_runtime(
-    jax.jit(
-        gp_bandit_utils.optimize_acquisition,
-        static_argnames=('count', 'model', 'use_vmap', 'mapper'),
-    ),
-    name_prefix='VizierGPBandit',
-    name='optimize_acquisition',
-)
+_GPBanditState = tuple[
+    sp.UniformEnsemblePredictive, types.StochasticProcessModelData
+]
 
 
 @attr.define(auto_attribs=False)
@@ -99,8 +79,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
-    acquisition_builder: An acquisition builder instance specifying the
-      acqusition function to use.
+    acquisition_function: acquisition function to use.
     use_trust_region: Uses trust region to constrain initial exploration.
     rng: If not set, uses random numbers.
     metadata_ns: Metadata namespace that this designer writes to.
@@ -132,6 +111,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _metadata_ns: str = attr.field(
       default='oss_gp_bandit', kw_only=True, init=False
   )
+  _ensemble_size: Optional[int] = attr.field(default=1, kw_only=True)
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -149,7 +129,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _feature_mapper: Optional[
       feature_mapper.ContinuousCategoricalFeatureMapper
   ] = attr.field(init=False, default=None)
-  _last_computed_state: types.GPState = attr.field(init=False)
+  _last_computed_state: _GPBanditState = attr.field(init=False)
 
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory()
@@ -161,6 +141,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       raise ValueError(f'{type(self)} does not support conditional search.')
     elif len(self._problem.metric_information) != 1:
       raise ValueError(f'{type(self)} works with exactly one metric.')
+    elif self._padding_schedule:
+      raise NotImplementedError('This is temporariliy disabled.')
     if self._use_categorical_kernel and self._padding_schedule:
       raise ValueError(
           f'{type(self)} does not support padding with categorical kernel.'
@@ -189,7 +171,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
           flip_sign_for_minimization_metrics=True,
       )
     self._quasi_random_sampler = quasi_random.QuasiRandomDesigner(
-        self._problem.search_space
+        self._problem.search_space,
+        seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
     )
     self._output_warper_pipeline = output_warpers.create_default_warper()
     if self._use_categorical_kernel:
@@ -223,22 +206,12 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     acquisition_problem.metric_information = acquisition_config
     self._acquisition_problem = acquisition_problem
 
-  def _build_model(self, features):
+  def _get_coroutine(self, features) -> sp.ModelCoroutine:
     if self._use_categorical_kernel:
       return tuned_gp_models.VizierGaussianProcessWithCategorical.build_model(
           features
-      )
-    return tuned_gp_models.VizierGaussianProcess.build_model(features)
-
-  @property
-  def _use_vmap(self):
-    """Returns whether ensemble of parameters is used which requires vmap."""
-    # Derived classes of `optimizers.Optimizer` have a `best_n` property that
-    # indicates whether the optimizer trains an ensemble of parameters and
-    # therefore whether vmap should be used.
-    # If the optimizer has a `best_n` property with value greater than 1, vmap
-    # is used.
-    return getattr(self._ard_optimizer, 'best_n', -1) > 1
+      ).coroutine
+    return tuned_gp_models.VizierGaussianProcess.build_model(features).coroutine
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -253,9 +226,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   # TODO: Check the latency of `_generate_seed_trials` and look
   # into reducing it.
-  @profiler.record_runtime(
-      name_prefix='VizierGPBandit', name='generate_seed_trials'
-  )
+  @profiler.record_runtime
   def _generate_seed_trials(self, count: int) -> Sequence[vz.TrialSuggestion]:
     """Generate seed trials.
 
@@ -290,9 +261,13 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       )
     return seed_suggestions
 
-  @profiler.record_runtime(
-      name_prefix='VizierGPBandit', name='convert_trials_to_arrays'
-  )
+  @_experimental_override_allowed
+  def _warp_labels(self, labels: types.Array) -> types.Array:
+    """Subclasses can override this method for experiments."""
+    labels = self._output_warper_pipeline.warp(labels)
+    return labels.reshape([-1])
+
+  @profiler.record_runtime
   def _convert_trials_to_arrays(
       self, trials: Sequence[vz.Trial]
   ) -> tuple[
@@ -321,8 +296,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       labels = padded_labels[: len(self._trials)]
 
     # Warp the output.
-    labels = self._output_warper_pipeline.warp(labels)
-    labels = labels.reshape([-1])
+    labels = self._warp_labels(labels)
 
     # Pad back
     if self._padding_schedule:
@@ -336,38 +310,56 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
 
-  @profiler.record_runtime(
-      name_prefix='VizierGPBandit', name='ard', also_log=True
-  )
-  def _find_best_model_params(
+  def _trials_to_data(
       self,
-      model: sp.StochasticProcessModel,
-      loss_fn: optimizers.LossFunction,
-      data: types.StochasticProcessModelData,
-      seed: jax.random.KeyArray,
-  ) -> tuple[types.ParameterDict, Any]:
-    """Perform ARD on the current model to find best model parameters."""
-    # Run ARD.
-    setup = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_setup,
-            static_argnames=('model',),
-        ),
-        model=model,
-        data=data,
+      trials: Sequence[vz.Trial],
+  ) -> types.StochasticProcessModelData:
+    features, labels = self._convert_trials_to_arrays(self._trials)
+    dimension_is_missing = None
+    label_is_missing = None
+    if self._padding_schedule:
+      dimension_is_missing = features.is_missing[1]
+      label_is_missing = labels.is_missing[0]
+      features = features.padded_array
+      labels = labels.padded_array
+    # Update the model.
+    # TODO: Add support for PaddedArrays instead of passing in
+    # masks.
+    return types.StochasticProcessModelData(
+        features=features,
+        labels=labels,
+        label_is_missing=label_is_missing,
+        dimension_is_missing=dimension_is_missing,
     )
-    constraints = sp.get_constraints(model)
 
-    logging.info('Optimizing the loss function...')
+  @_experimental_override_allowed
+  def _optimize_params(
+      self, data: types.StochasticProcessModelData
+  ) -> types.ParameterDict:
+    # Convert trials to Numpy arrays. Labels are warped.
+    coroutine = self._get_coroutine(data.features)
+    self._rng, ard_rng = jax.random.split(self._rng, 2)
+    model = sp.CoroutineWithData(coroutine, data)
 
-    # The ARD optimizers JIT the train step/loop internally.
-    return self._ard_optimizer(setup, loss_fn, seed, constraints=constraints)
+    logging.info('CoroutineWithData: %s', model)
 
-  @profiler.record_runtime(name_prefix='VizierGPBandit', name='compute_state')
-  def _compute_state(
-      self,
-  ) -> tuple[types.GPState, Optional[acquisitions.TrustRegion]]:
+    best_params, _ = self._ard_optimizer(
+        model.setup,
+        model.loss_with_aux,
+        ard_rng,
+        constraints=model.constraints(),
+        best_n=self._ensemble_size or 1,
+    )
+    return best_params
+
+  @profiler.record_runtime
+  def _update_state(
+      self, data: types.StochasticProcessModelData
+  ) -> _GPBanditState:
     """Compute the designer's state.
+
+    Args:
+      data: Data to go into GP.
 
     Returns:
       GPBanditState object containing the designer's state.
@@ -382,102 +374,51 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       # If there's no change in the number of completed trials, don't update
       # state. The assumption is that trials can't be removed.
       return self._last_computed_state
-
     self._incorporated_trials_count = len(self._trials)
-    # Convert trials to Numpy arrays. Labels are warped.
-    features, labels = self._convert_trials_to_arrays(self._trials)
 
-    dimension_is_missing = None
-    label_is_missing = None
-    if self._padding_schedule:
-      dimension_is_missing = features.is_missing[1]
-      label_is_missing = labels.is_missing[0]
-      features = features.padded_array
-      labels = labels.padded_array
-    # Update the model.
-    # TODO: Add support for PaddedArrays instead of passing in
-    # masks.
-    data = types.StochasticProcessModelData(
-        features=features,
-        labels=labels,
-        label_is_missing=label_is_missing,
-        dimension_is_missing=dimension_is_missing,
-    )
-    model = self._build_model(features)
-    # TODO: Avoid retracing vmapped loss when loss function API is
-    # redesigned.
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
-        ),
-        model=model,
-        data=data,
-        # For SGD, normalize the loss so we can use the same learning rate
-        # regardless of the number of examples (see
-        # `OptaxTrainWithRandomRestarts` docstring).
-        normalize=isinstance(
-            self._ard_optimizer, optimizers.OptaxTrainWithRandomRestarts
-        ),
-    )
-    self._rng, ard_rng = jax.random.split(self._rng, 2)
-    best_model_params, metrics = self._find_best_model_params(
-        model, loss_fn, data, ard_rng
-    )
+    coroutine = self._get_coroutine(data.features)
+    best_params = self._optimize_params(data)
+    best_models = sp.StochasticProcessWithCoroutine(coroutine, best_params)
     # Logging for debugging purposes.
-    logging.info('Best model parameters: %s', best_model_params)
+    logging.info(
+        'Best models: %s', eqx.tree_pformat(best_models, short_arrays=False)
+    )
+    predictive = sp.UniformEnsemblePredictive(
+        eqx.filter_jit(best_models.precompute_predictive)(data)
+    )
+    self._last_computed_state = (predictive, data)
+    return self._last_computed_state
 
-    # ARD optimizer metrics dicts are assumed to have a 'loss' field.
-    logging.info('All losses: %s', metrics['loss'])
-    logging.info('ARD best loss: %s', np.min(metrics['loss']))
-
-    if self._use_vmap:
-      precompute_cholesky_fn = jit_vmap_precompute_cholesky
-    else:
-      precompute_cholesky_fn = jit_precompute_cholesky
-    # `pp_state` contains intermediates that are expensive to compute, depend
-    # only on observed (not predictive) index points, and are needed to compute
-    # the posterior predictive GP (i.e. the Cholesky factor of the kernel matrix
-    # over observed index points). `pp_state` is passed to
-    # `model.posterior_predictive` to avoid re-computing the intermediates
-    # unnecessarily.
-    _, pp_state = precompute_cholesky_fn(model, data, best_model_params)
-    model_state = {'params': best_model_params, **pp_state}
-
-    trust_region = None
-    if self._use_trust_region:
-      trust_region = acquisitions.TrustRegion.build(
-          self._converter.output_specs,
-          data=data,
-      )
-    state = types.GPState(data=data, model_state=model_state), trust_region
-    self._last_computed_state = state
-    return state
-
+  @_experimental_override_allowed
+  @profiler.record_runtime
   def _optimize_acquisition(
-      self,
-      count: int,
-      state: types.GPState,
-      trust_region: Optional[acquisitions.TrustRegion] = None,
+      self, scoring_fn: acquisitions.BayesianScoringFunction, count: int
   ) -> list[vz.Trial]:
     start_time = datetime.datetime.now()
+    # Set up optimizer and run
+    seed_features = vb.trials_to_sorted_array(self._trials, self._converter)
     acq_rng, self._rng = jax.random.split(self._rng)
 
-    prior_features = vb.trials_to_sorted_array(self._trials, self._converter)
-    model = self._build_model(state.data.features)
-    suggestions = jit_optimize_acquisition(
+    # TODO: remove this if-else.
+    if self._use_categorical_kernel:
+      score = lambda xs: scoring_fn.score(self._feature_mapper.map(xs))
+      score_with_aux = lambda xs: scoring_fn.score_with_aux(
+          self._feature_mapper.map(xs)
+      )
+    else:
+      score, score_with_aux = scoring_fn.score, scoring_fn.score_with_aux
+
+    best_candidates: vb.VectorizedStrategyResults = eqx.filter_jit(
+        self._acquisition_optimizer
+    )(
+        score,
+        prior_features=seed_features,
         count=count,
-        model=model,
-        acquisition_fn=self._acquisition_function,
-        optimizer=self._acquisition_optimizer,
-        prior_features=prior_features,
-        state=state,
         seed=acq_rng,
-        use_vmap=self._use_vmap,
-        trust_region=trust_region,
-        mapper=self._feature_mapper,
+        score_with_aux_fn=score_with_aux,
     )
 
+    # TODO: Move the logging into `VectorizedOptimizer`.
     logging.info(
         (
             'Optimization completed. Duration: %s. Evaluations: %s. Best'
@@ -491,11 +432,25 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
             )
             * self._acquisition_optimizer.suggestion_batch_size
         ),
-        suggestions,
+        best_candidates,
     )
-    return vb.best_candidates_to_trials(suggestions, self._converter)
+    optimal_features = best_candidates.features
+    if self._padding_schedule:
+      raise NotImplementedError('bring it back.')
+    if self._use_categorical_kernel:
+      optimal_features = self._feature_mapper.map(optimal_features)
+    best_candidates = dataclasses.replace(
+        best_candidates, features=optimal_features
+    )
 
-  @profiler.record_runtime(name_prefix='VizierGPBandit')
+    # Convert best_candidates (in scaled space) into suggestions (in unscaled
+    # space); also append debug information like model predictions.
+    logging.info('Converting the optimization result into suggestions...')
+    return vb.best_candidates_to_trials(
+        best_candidates, self._converter
+    )  # [N, D]
+
+  @profiler.record_runtime
   def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
     logging.info('Suggest called with count=%d', count)
     if count > 1:
@@ -504,66 +459,30 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
           ' suggestions. Suggestions in the batch are likely to be very'
           ' similar.'
       )
-    suggest_start_time = datetime.datetime.now()
     if len(self._trials) < self._num_seed_trials:
       return self._generate_seed_trials(count)
 
     logging.info('Updating the designer state based on trials...')
-    state, _ = self._compute_state()
+    predictive, data = self._update_state(self._trials_to_data(self._trials))
 
-    logging.info('Optimizing acquisition...')
-    best_candidates = self._optimize_acquisition(count, state)
+    # Define acquisition function.
+    acquisition = self._acquisition_function
+    scoring_fn = acquisitions.BayesianScoringFunction(
+        predictive,
+        data,
+        acquisition,
+        acquisitions.TrustRegion.build(self._converter.output_specs, data)
+        if self._use_trust_region
+        else None,
+    )
+    logging.info('Optimizing acquisition: %s', scoring_fn)
+    best_trials = self._optimize_acquisition(scoring_fn, count)
+    return [
+        vz.TrialSuggestion(parameters=t.parameters, metadata=t.metadata)
+        for t in best_trials
+    ]
 
-    # Convert best_candidates (in scaled space) into suggestions (in unscaled
-    # space); also append debug information like model predictions.
-    logging.info('Converting the optimization result into suggestions...')
-    optimal_features = self._converter.to_features(best_candidates)  # [N, D]
-    if self._padding_schedule:
-      optimal_features = optimal_features.padded_array
-    if self._use_categorical_kernel:
-      optimal_features = self._feature_mapper.map(optimal_features)
-    # Make predictions (in the warped space). [N]
-    model = self._build_model(state.data.features)
-    with profiler.record_runtime_context(
-        'VizierGPBandit.predict_on_suggestions'
-    ):
-      predictions = jax.jit(
-          predictive_fns.predict_on_array, static_argnames=('model', 'use_vmap')
-      )(
-          optimal_features,
-          model=model,
-          state=state,
-          use_vmap=self._use_vmap,
-      )
-    predict_mean = predictions['mean']  # [N,]
-    predict_stddev = predictions['stddev']  # [N,]
-    # Possibly unpad predictions
-    predict_mean = predict_mean[: len(self._trials)]
-    predict_stddev = predict_stddev[: len(self._trials)]
-    # Create suggestions, injecting the predictions as metadata for
-    # debugging needs.
-    suggestions = []
-    for i, candidate in enumerate(best_candidates):
-      metadata = candidate.metadata.ns(self._metadata_ns).ns('devinfo')
-      acquisition = candidate.final_measurement.metrics.get_value(
-          'acquisition', 'nan'
-      )
-      metadata['prediction_in_warped_y_space'] = json.dumps(
-          {
-              'mean': predict_mean[i],
-              'stddev': predict_stddev[i],
-              'acquisition': acquisition,
-          },
-          cls=json_utils.NumpyEncoder,
-      )
-      metadata['time_spent'] = f'{datetime.datetime.now() - suggest_start_time}'
-      suggestions.append(
-          vz.TrialSuggestion(candidate.parameters, metadata=candidate.metadata)
-      )
-
-    return suggestions
-
-  @profiler.record_runtime(name_prefix='VizierGPBandit')
+  @profiler.record_runtime
   def predict(
       self,
       trials: Sequence[vz.TrialSuggestion],
@@ -588,24 +507,16 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if num_samples is None:
       num_samples = 1000
 
-    state, _ = self._compute_state()
-    model = self._build_model(state.data.features)
+    predictive, _ = self._update_state(self._trials_to_data(trials))
+
     xs = self._converter.to_features(trials)
     if self._padding_schedule:
       xs = xs.padded_array[: len(trials), ...]
     if self._use_categorical_kernel:
       xs = self._feature_mapper.map(xs)
 
-    samples = jax.jit(
-        predictive_fns.sample_on_array,
-        static_argnames=('model', 'use_vmap', 'num_samples'),
-    )(
-        xs,
-        num_samples=num_samples,
-        key=rng,
-        model=model,
-        state=state,
-        use_vmap=self._use_vmap,
+    samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
+        predictive, xs, num_samples, key=rng
     )  # (num_samples, batch_size)
     unwarped_samples = None
     # TODO: vectorize output warping.

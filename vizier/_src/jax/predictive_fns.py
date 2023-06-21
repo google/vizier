@@ -80,19 +80,6 @@ def predict_on_array(
   return {'mean': dist.mean(), 'stddev': dist.stddev()}
 
 
-def sample_on_array(
-    xs: types.Features,
-    num_samples: int,
-    key: jax.random.KeyArray,
-    model: sp.StochasticProcessModel[types.Features],
-    state: types.GPState,
-    use_vmap: bool = True,
-):
-  """Sample the underlying model on features array."""
-  dist = _build_predictive_distribution(xs, model, state, use_vmap)
-  return dist.sample(num_samples, seed=key)
-
-
 def acquisition_on_array(
     xs: types.Features,
     model: sp.StochasticProcessModel,

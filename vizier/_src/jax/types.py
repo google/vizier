@@ -18,9 +18,11 @@ from __future__ import annotations
 
 from typing import Any, Generic, Iterable, Mapping, Optional, TypeVar, Union
 
+import equinox as eqx
 from flax import struct
 from flax.core import scope as flax_scope
 import jax
+from jax import numpy as jnp
 from jax.typing import ArrayLike
 import numpy as np
 from vizier.pyvizier.converters import padding
@@ -45,23 +47,29 @@ ParameterDict = flax_scope.Collection
 ModelState = flax_scope.VariableDict
 
 
-@struct.dataclass
-class ContinuousAndCategoricalArray:
-  continuous: Array
-  categorical: Array
+class ContinuousAndCategoricalArray(eqx.Module):
+  continuous: jax.Array = eqx.field(
+      converter=lambda x: jnp.asarray(x, dtype=x.dtype)
+  )
+  categorical: jax.Array = eqx.field(
+      converter=lambda x: jnp.asarray(x, dtype=x.dtype)
+  )
 
 
 # Tuple representing a box constraint of the form (lower, upper) bounds.
 Bounds = tuple[Optional[ArrayTreeOptional], Optional[ArrayTreeOptional]]
 
+# TODO: Rename to FeatureType, and introduce
+# Feature = Union[jax.Array, PaddedArray, ContinuousAndCategoricalArray]
 Features = TypeVar('Features', Array, ContinuousAndCategoricalArray)
 
 
-@struct.dataclass
-class StochasticProcessModelData(Generic[Features]):
+# TODO: Make this class an eqx.Module.
+class StochasticProcessModelData(Generic[Features], eqx.Module):
   """Data that feed into GP."""
+
   features: Features
-  labels: Array
+  labels: Array = eqx.field(converter=lambda x: jnp.asarray(x, dtype=x.dtype))
   label_is_missing: Optional[Array] = None
   dimension_is_missing: Optional[Features] = None
 
@@ -69,5 +77,6 @@ class StochasticProcessModelData(Generic[Features]):
 @struct.dataclass
 class GPState:
   """State that changes at each iteration."""
+
   data: StochasticProcessModelData
   model_state: ModelState

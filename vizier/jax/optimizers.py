@@ -33,4 +33,4 @@ from vizier._src.jax.optimizers.optax_wrappers import OptaxTrainWithRandomRestar
 def default_optimizer() -> Optimizer:
   """Default optimizer that works okay for most cases."""
   # NOTE: Production algorithms are recommended to stay away from using this.
-  return JaxoptScipyLbfgsB(LbfgsBOptions(random_restarts=4, best_n=1))
+  return JaxoptScipyLbfgsB(LbfgsBOptions(random_restarts=4, best_n=None))

@@ -19,7 +19,9 @@ from __future__ import annotations
 import functools
 from unittest import mock
 
+from absl import logging
 from absl.testing import parameterized
+import equinox as eqx
 from flax import linen as nn
 import jax
 from jax import numpy as jnp
@@ -576,6 +578,93 @@ class ConstraintTest(parameterized.TestCase):
     for y_, b_ in zip(tree.flatten(p), tree.flatten(upper)):
       if b_ is not None:
         self.assertTrue((y_ <= b_).all())
+
+
+@functools.lru_cache(maxsize=None)
+def _test_data() -> types.StochasticProcessModelData:
+  return types.StochasticProcessModelData(
+      features=np.random.random([13, 5]),
+      labels=np.random.random([
+          13,
+      ]),
+  )
+
+
+class EquinoxModulesTest(absltest.TestCase):
+
+  def testCoroutineWithData(self):
+    wrapper = sp_model.CoroutineWithData(_test_coroutine, _test_data())
+
+    # Test setup and loss
+    params = wrapper.setup(jax.random.PRNGKey(0))
+    self.assertTrue(np.all(np.isfinite(wrapper.loss_with_aux(params)[0])))
+
+    # Test constraint
+    constraint = wrapper.constraints()
+    p = constraint.bijector(params)
+    lower, upper = constraint.bounds
+
+    tree.assert_same_structure(p, params)
+    for y_, b_ in zip(tree.flatten(p), tree.flatten(lower)):
+      if b_ is not None:
+        self.assertTrue((y_ >= b_).all())
+    for y_, b_ in zip(tree.flatten(p), tree.flatten(upper)):
+      if b_ is not None:
+        self.assertTrue((y_ <= b_).all())
+
+  def testStochasticProcessWithCoroutine(self):
+    model = sp_model.StochasticProcessWithCoroutine.initialize(
+        _test_coroutine, rng=jax.random.PRNGKey(0)
+    )
+    dist, _ = model.call_with_aux(_test_data())
+    self.assertSequenceEqual(dist.event_shape, (13,))
+    self.assertSequenceEqual(dist.batch_shape, tuple())
+
+    loss, aux = model.loss_with_aux(_test_data())
+    logging.info('%s, %s', loss, aux)
+    logging.info('model:%s', model.params)
+    self.assertTrue(np.isfinite(loss))
+
+  def testPrecomputePredictive(self):
+    model = sp_model.StochasticProcessWithCoroutine.initialize(
+        _test_coroutine, rng=jax.random.PRNGKey(0)
+    )
+    predictive = model.precompute_predictive(_test_data())
+    dist = predictive.predict(_test_data().features[:7])
+    self.assertSequenceEqual(dist.event_shape, (7,))
+    self.assertSequenceEqual(dist.batch_shape, tuple())
+
+
+class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
+
+  def test_no_batch_shape(self):
+    model = sp_model.StochasticProcessWithCoroutine.initialize(
+        _test_coroutine, rng=jax.random.PRNGKey(0)
+    )
+    predictive = model.precompute_predictive(_test_data())
+    dist = predictive.predict(_test_data().features[:7])
+    self.assertSequenceEqual(dist.event_shape, (7,))
+    self.assertSequenceEqual(dist.batch_shape, tuple())
+
+  @parameterized.parameters(dict(n=5), dict(n=1))
+  def test_batch_shape_n(self, n):
+    model = jax.vmap(
+        eqx.Partial(
+            sp_model.StochasticProcessWithCoroutine.initialize,
+            coroutine=_test_coroutine,
+        )
+    )(rng=jax.random.split(jax.random.PRNGKey(0), n))
+
+    predictive = model.precompute_predictive(_test_data())
+    dist = predictive.predict(_test_data().features[:7])
+    self.assertSequenceEqual(dist.event_shape, (7,))
+    self.assertSequenceEqual(dist.batch_shape, (n,))
+
+    # Put it in the UniformEnsemblePredictive and the batch dimension is gone.
+    ensemble = sp_model.UniformEnsemblePredictive(predictive)
+    dist = ensemble.predict(_test_data().features[:7])
+    self.assertSequenceEqual(dist.event_shape, (7,))
+    self.assertSequenceEqual(dist.batch_shape, tuple())
 
 
 if __name__ == '__main__':

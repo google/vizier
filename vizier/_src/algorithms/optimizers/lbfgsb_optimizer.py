@@ -48,7 +48,7 @@ class LBFGSBOptimizer:
           vectorized_base.ArrayScoreFunction,
       ],
       *,
-      count: int = 1,
+      count: Optional[int] = None,
       seed: Optional[int] = None,
   ) -> list[vz.Trial]:
     """Optimize a continuous objective function using L-BFGS-B.
@@ -56,13 +56,14 @@ class LBFGSBOptimizer:
     Arguments:
       converter: Converter to map between trials and arrays.
       score_fn: Converts (batches of) features to scores.
-      count: The number of best results to return.
+      count: The number of best results to return. None means squeezing out the
+        dimension.
       seed: Optional seed.
 
     Returns:
       The best trials found in the optimization.
     """
-    if self.num_parallel_candidates and count > 1:
+    if self.num_parallel_candidates and (count or 0) > 1:
       # Note that we can't distinguish between 'BatchArrayScoreFunction' and
       # 'ParallelArrayScoreFunction' using 'isinstance' as they both have the
       # same function names.
@@ -70,10 +71,10 @@ class LBFGSBOptimizer:
           "LBFGSBOptimizer doesn't support batch of batches (count > 1 is"
           " disallowed when num_parallel_candidates is set)."
       )
+    if self.num_parallel_candidates:
+      count = None
     optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(
-            random_restarts=self.random_restarts, best_n=count
-        )
+        optimizers.LbfgsBOptions(random_restarts=self.random_restarts)
     )
     num_features = sum(spec.num_dimensions for spec in converter.output_specs)
 
@@ -100,10 +101,9 @@ class LBFGSBOptimizer:
       return -score_fn(x[jnp.newaxis, ...])[0], dict()
 
     new_features, _ = optimize(
-        setup, wrapped_score_fn, rng, constraints=constraints
+        setup, wrapped_score_fn, rng, constraints=constraints, best_n=count
     )
     new_rewards = np.asarray(score_fn(new_features[jnp.newaxis, ...]))[0]
-
     if self.num_parallel_candidates is None:
       parameters = converter.to_parameters(new_features[jnp.newaxis, ...])
     else:

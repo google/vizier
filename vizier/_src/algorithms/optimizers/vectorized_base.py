@@ -17,9 +17,11 @@ from __future__ import annotations
 """Base class for vectorized acquisition optimizers."""
 
 import abc
-from typing import Generic, Optional, Protocol, TypeVar, Union
+import json
+from typing import Callable, Generic, Optional, Protocol, TypeVar, Union
 
 import attr
+import equinox as eqx
 from flax import struct
 import jax
 from jax import numpy as jnp
@@ -27,6 +29,8 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
+from vizier.utils import json_utils
+
 
 _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 
@@ -35,12 +39,12 @@ ArrayConverter = Union[
 ]
 
 
-@struct.dataclass
-class VectorizedStrategyResults:
+class VectorizedStrategyResults(eqx.Module):
   """Container for a vectorized strategy result."""
 
   features: types.Array
   rewards: types.Array
+  aux: dict[str, jax.Array] = eqx.field(default_factory=dict)
 
 
 class VectorizedStrategy(abc.ABC, Generic[_S]):
@@ -196,10 +200,13 @@ class VectorizedOptimizer:
   suggestion_batch_size: int = struct.field(pytree_node=False, default=25)
   max_evaluations: int = struct.field(pytree_node=False, default=75_000)
 
+  # TODO: Remove score_fn argument.
+  # pylint: disable=g-bare-generic
   def __call__(
       self,
       score_fn: ArrayScoreFunction,
       *,
+      score_with_aux_fn: Optional[Callable] = None,
       count: int = 1,
       prior_features: Optional[types.Array] = None,
       seed: Optional[int] = None,
@@ -225,6 +232,8 @@ class VectorizedOptimizer:
     Arguments:
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
         features_count) and returns a 1D Array (batch_size,).
+      score_with_aux_fn: A callback similar to score_fn but additionally returns
+        an array tree.
       count: The number of suggestions to generate.
       prior_features: Completed trials to be used for knowledge transfer. When
         the optimizer is used to optimize a designer's acquisition function, the
@@ -247,6 +256,7 @@ class VectorizedOptimizer:
           + [True]
           * (self.n_feature_dimensions_with_padding - self.n_feature_dimensions)
       )
+    # TODO: We should pass RNGKey to score_fn.
     prior_rewards = None
     if prior_features is not None:
       prior_rewards = score_fn(prior_features).reshape(-1)
@@ -286,10 +296,17 @@ class VectorizedOptimizer:
     )
     _, best_results, _ = jax.lax.fori_loop(
         0,
-        self.max_evaluations // self.suggestion_batch_size,
+        jnp.int32(jnp.ceil(self.max_evaluations / self.suggestion_batch_size)),
         _optimization_one_step,
         init_args,
     )
+
+    if score_with_aux_fn:
+      return VectorizedStrategyResults(
+          best_results.features,
+          best_results.rewards,
+          score_with_aux_fn(best_results.features)[1],
+      )
 
     return best_results
 
@@ -328,6 +345,7 @@ class VectorizedOptimizer:
     )
 
 
+# TODO: Should return suggestions not trials.
 def best_candidates_to_trials(
     best_results: VectorizedStrategyResults,
     converter: ArrayConverter,
@@ -343,6 +361,14 @@ def best_candidates_to_trials(
             jnp.expand_dims(best_results.features[ind], axis=0)
         )[0]
     )
+
+    metadata = trial.metadata.ns('devinfo')
+    metadata['acquisition_optimization'] = json.dumps(
+        {'acquisition': best_results.rewards[ind]}
+        | jax.tree_map(lambda x, ind=ind: np.asarray(x[ind]), best_results.aux),
+        cls=json_utils.NumpyEncoder,
+    )
+
     trial.complete(vz.Measurement({'acquisition': best_results.rewards[ind]}))
     trials.append(trial)
   return trials

@@ -36,7 +36,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: jnp.sum(x, axis=-1)
     optimizer = lo.LBFGSBOptimizer(random_restarts=10)
-    res = optimizer.optimize(converter=converter, score_fn=score_fn, count=1)
+    res = optimizer.optimize(converter=converter, score_fn=score_fn)
     self.assertLen(res, 1)
 
   def test_best_candidates_count_is_1(self):
@@ -46,9 +46,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     score_fn = lambda x: -jnp.sum(jnp.square(x - 0.52), axis=-1)
     optimizer = lo.LBFGSBOptimizer(random_restarts=10)
-    candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=1
-    )
+    candidates = optimizer.optimize(converter=converter, score_fn=score_fn)
     # check the best candidate
     self.assertLessEqual(
         np.abs(candidates[0].parameters['f1'].value - 0.52), 1e-6

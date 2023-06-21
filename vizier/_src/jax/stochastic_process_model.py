@@ -21,6 +21,8 @@ from typing import Any, Callable, Generator, Generic, Optional, Protocol, TypeVa
 
 from absl import logging
 import attr
+import chex
+import equinox as eqx
 from flax import config as flax_config
 from flax import linen as nn
 from flax import struct
@@ -714,3 +716,201 @@ def get_constraints(
         ) from exc
 
   return Constraint((lower, upper), bijector=bijector)
+
+
+class PrecomputedPredictive(eqx.Module):
+  """Precomputed model for prediction.
+
+  Conceptually, this module corresponds to the posterior distribution obtained
+  by updating `prior` with `observed_data`.
+
+  Also see `StochasticProcessWithCoroutine.precompute_predictive`.
+
+  Attributes:
+    prior: Defines the prior distribution.
+    observed_data: Observations with batch shape [B].
+  """
+
+  prior: 'StochasticProcessWithCoroutine'
+  observed_data: types.StochasticProcessModelData
+  precomputed_divisor_matrix_cholesky: jax.Array
+  precomputed_solve_on_observation: jax.Array
+
+  @property
+  def _posterior_kwargs(self):
+    return dict(
+        _precomputed_divisor_matrix_cholesky=self.precomputed_divisor_matrix_cholesky,
+        _precomputed_solve_on_observation=self.precomputed_solve_on_observation,
+        observations=self.observed_data.labels,
+        observations_is_missing=self.observed_data.label_is_missing,
+    )
+
+  def predict(self, x_predictive: Any) -> tfd.Distribution:
+    """Returns the posterior distribution on index points `xs`.
+
+    Args:
+      x_predictive: Array(Tree) of batch shape [B].
+
+    Returns:
+      Distribution with sample shape [B].
+    """
+    if isinstance(x_predictive, types.ContinuousAndCategoricalArray):
+      x_predictive = tfpke.ContinuousAndCategoricalValues(
+          continuous=x_predictive.continuous,
+          categorical=x_predictive.categorical,
+      )
+    return self.prior(self.observed_data).posterior_predictive(
+        predictive_index_points=x_predictive, **self._posterior_kwargs
+    )
+
+
+class UniformEnsemblePredictive(eqx.Module):
+  """Uniform ensemble of predictive models.
+
+  Ensembles the `predictives` with equal weights.
+  """
+
+  predictives: PrecomputedPredictive
+
+  def predict(self, xs: chex.ArrayTree) -> tfd.Distribution:
+    return self.predict_with_aux(xs)[0]
+
+  def predict_with_aux(
+      self, xs: chex.ArrayTree
+  ) -> tuple[tfd.Distribution, chex.ArrayTree]:
+    dist = self.predictives.predict(xs)
+    if dist.batch_shape.rank == 0:
+      return dist, {}
+    elif dist.batch_shape[0] == 1:
+      return tfd.BatchReshape(dist, []), {}
+    else:
+      return (
+          tfd.MixtureSameFamily(
+              tfd.Categorical(logits=jnp.zeros(dist.batch_shape[0])), dist
+          ),
+          {
+              'components_mean': dist.mean().T,
+              'components_stddev': dist.stddev().T,
+          },
+      )
+
+
+def _initialize_params(
+    coroutine: ModelCoroutine, rng: jax.random.KeyArray
+) -> chex.ArrayTree:
+  """Randomly initializes a coroutine's parameters."""
+  gen = coroutine()
+  params = {}
+  try:
+    p: ModelParameter = next(gen)
+    while True:
+      # Declare a Flax variable with the name and initialization function from
+      # the `ModelParameter`.
+      rng, init_rng = jax.random.split(rng)
+      param = p.init_fn(init_rng)
+      params[p.name] = param
+      p: ModelParameter = gen.send(param)
+  except StopIteration:
+    return params
+
+
+class StochasticProcessWithCoroutine(eqx.Module):
+  """Fully parameterized stochastic process model."""
+
+  coroutine: ModelCoroutine = eqx.field(static=True)
+  params: chex.ArrayTree
+
+  @classmethod
+  def initialize(cls, coroutine: ModelCoroutine, *, rng: jax.random.KeyArray):
+    """Builds module parameters."""
+    # return cls(coroutine, params=_initialize_params(coroutine, rng))
+    # TODO: Put back the line above. This code currently uses
+    # flax's init routine to exactly match the setup so we can replicate
+    # the trajectories from pre-refactoring.
+    return cls(
+        coroutine, StochasticProcessModel(coroutine).init(rng, None)['params']
+    )
+
+  def call_with_aux(
+      self, data: types.StochasticProcessModelData
+  ) -> tuple[tfd.Distribution, chex.ArrayTree]:
+    """Returns the joint distribution and auxiliary information.
+
+    Args:
+      data:
+
+    Returns:
+      (dist, aux)
+      dist: Distribution
+      aux: A dict where all the leaf nodes in the subtree aux[`losses`] contain
+        regularization losses.
+    """
+    features = data.features
+    if isinstance(features, types.ContinuousAndCategoricalArray):
+      features = tfpke.ContinuousAndCategoricalValues(
+          continuous=data.features.continuous,
+          categorical=data.features.categorical,
+      )
+    gen = self.coroutine(features)
+    params = self.params
+    params_loss = dict()
+    try:
+      p: ModelParameter = next(gen)
+      while True:
+        if p.regularizer:
+          params_loss[p.name] = p.regularizer(params[p.name])
+        # "params" is the name that `nn.Module` gives to the collection of read-
+        # only variables.
+        p = gen.send(params[p.name])
+    except StopIteration as e:
+      # After the generator is exhausted, it raises a `StopIteration` error. The
+      # `StopIteration` object has a property `value` of type `_D`.
+      return e.value, {'losses': params_loss}
+
+  def __call__(
+      self, data: types.StochasticProcessModelData
+  ) -> tfd.Distribution:
+    return self.call_with_aux(data)[0]
+
+  def loss_with_aux(self, data) -> tuple[jax.Array, chex.ArrayTree]:
+    dist, aux = self.call_with_aux(data)
+    nll_data = -dist.log_prob(data.labels, is_missing=data.label_is_missing)
+    loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])
+    return loss, aux
+
+  def precompute_predictive(self, data) -> PrecomputedPredictive:
+    predictive = self(data).posterior_predictive(
+        index_points=None,
+        observations=data.labels,
+        observations_is_missing=data.label_is_missing,
+    )
+    # pylint: disable=protected-access
+    return PrecomputedPredictive(
+        self,
+        data,
+        predictive._precomputed_divisor_matrix_cholesky,
+        predictive._precomputed_solve_on_observation,
+    )
+
+
+class CoroutineWithData(eqx.Module):
+  """Utility module for training (ARD).
+
+  Has setup() and loss_with_aux() that can be readily `eqx.filter_jit`ed
+  """
+
+  coroutine: ModelCoroutine = eqx.field(static=True)
+  data: types.StochasticProcessModelData
+
+  def constraints(self):
+    return get_constraints(StochasticProcessModel(self.coroutine))
+
+  def setup(self, rng: jax.random.KeyArray):
+    return StochasticProcessWithCoroutine.initialize(
+        self.coroutine, rng=rng
+    ).params
+
+  def loss_with_aux(self, params) -> tuple[jax.Array, chex.ArrayTree]:
+    return StochasticProcessWithCoroutine(self.coroutine, params).loss_with_aux(
+        self.data
+    )

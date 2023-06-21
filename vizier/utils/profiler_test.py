@@ -32,7 +32,7 @@ class PerformanceUtilsTest(absltest.TestCase):
   def test_no_args(self):
     class TestClass:
 
-      @profiler.record_runtime(also_log=True)
+      @profiler.record_runtime(name='add_one', also_log=True)
       def add_one(self, x: int) -> int:
         return x + 1
 
@@ -61,7 +61,7 @@ class PerformanceUtilsTest(absltest.TestCase):
   def test_with_prefix(self):
     class TestClass4:
 
-      @profiler.record_runtime(name_prefix='foo')
+      @profiler.record_runtime(name_prefix='foo', name='add_one')
       def add_one(self, x: int) -> int:
         return x + 1
 
@@ -89,7 +89,8 @@ class PerformanceUtilsTest(absltest.TestCase):
     self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
 
   def test_with_jax(self):
-    @profiler.record_runtime(also_log=True)
+
+    @profiler.record_runtime(also_log=True, name='selu')
     @jax.jit
     def selu(x, alpha=1.67, lambda_=1.05):
       return lambda_ * jnp.where(x > 0, x, alpha * jnp.exp(x) - alpha)
@@ -110,7 +111,7 @@ class PerformanceUtilsTest(absltest.TestCase):
   def test_with_jax_reverse_decorator_order(self):
     # If jax.jit decorator is first, only the first runtime is recorded.
     @jax.jit
-    @profiler.record_runtime(also_log=True)
+    @profiler.record_runtime(also_log=True, name='selu')
     def selu(x, alpha=1.67, lambda_=1.05):
       return lambda_ * jnp.where(x > 0, x, alpha * jnp.exp(x) - alpha)
 

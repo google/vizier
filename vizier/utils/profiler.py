@@ -114,7 +114,7 @@ def record_runtime(
   Args:
     func: Function being decorated.
     name_prefix: A prefix to add to the function name.
-    name: The name to record. Defaults to func.__name__.
+    name: The name to record. Defaults to func.__qualname__.
     also_log: Whether to also logging.info the runtime duration.
 
   Returns:
@@ -129,7 +129,7 @@ def record_runtime(
         name=name,
         also_log=also_log,
     )
-  name = name or func.__name__
+  name = name or func.__qualname__
   if name_prefix:
     full_name = f'{name_prefix}.{name}'
   else:

@@ -25,7 +25,7 @@ from absl.testing import absltest
 
 class GetBestParamsTest(absltest.TestCase):
 
-  def test_best_n_1(self):
+  def test_best_n_none(self):
     losses = jnp.array([
         3.0,
         1.0,
@@ -37,7 +37,7 @@ class GetBestParamsTest(absltest.TestCase):
         'a': losses + 0.1,
         'b': jnp.stack([losses + 0.2, losses + 0.3], axis=1),
     }
-    actual = core.get_best_params(losses, all_params, best_n=1)
+    actual = core.get_best_params(losses, all_params, best_n=None)
     expected = {'a': jnp.array(1.1), 'b': jnp.array([1.2, 1.3])}
 
     chex.assert_trees_all_close(actual, expected)

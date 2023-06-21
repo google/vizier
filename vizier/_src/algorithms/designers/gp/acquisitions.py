@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Mapping, Optional, Protocol, Sequence
 
+import chex
+import equinox as eqx
 from flax import struct
 import jax
 from jax import numpy as jnp
@@ -33,14 +35,93 @@ tfpke = tfp.experimental.psd_kernels
 
 
 class AcquisitionFunction(Protocol):
+  """Acquisition function protocol."""
 
+  # TODO: Acquisition functions should take
+  # xs as additional input. All the data terms should go into the factory
+  # or constructor.
   def __call__(
       self,
       dist: tfd.Distribution,
       features: Optional[types.Features] = None,
       labels: Optional[types.Array] = None,
+      seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     pass
+
+
+class Predictive(Protocol):
+  """Protocol for predicting distributions given candidate points."""
+
+  def predict_with_aux(
+      self, features: types.Features
+  ) -> tuple[tfd.Distribution, chex.ArrayTree]:
+    pass
+
+
+class ScoreFunction(Protocol):
+  """Protocol for scoring candidate points."""
+
+  def score(
+      self, xs: types.Features, seed: Optional[jax.random.KeyArray] = None
+  ) -> jax.Array:
+    pass
+
+  def score_with_aux(
+      self, xs: types.Features, seed: Optional[jax.random.KeyArray] = None
+  ) -> tuple[jax.Array, chex.ArrayTree]:
+    pass
+
+
+def sample_from_predictive(
+    predictive: Predictive,
+    xs: chex.ArrayTree,
+    num_samples: int,
+    *,
+    key: jax.random.KeyArray
+) -> chex.ArrayTree:
+  return predictive.predict_with_aux(xs)[0].sample([num_samples], seed=key)
+
+
+class BayesianScoringFunction(eqx.Module):
+  """Combines `Predictive` with acquisition function."""
+
+  predictor: Predictive
+  data: types.StochasticProcessModelData
+  acquisition_fn: AcquisitionFunction
+
+  # TODO: This should be moved out of here.
+  # If set, uses trust region.
+  trust_region: Optional['TrustRegion']
+
+  def score(self, xs, seed: Optional[jax.random.KeyArray] = None) -> jax.Array:
+    return self.score_with_aux(xs, seed)[0]
+
+  def score_with_aux(
+      self, xs, seed: Optional[jax.random.KeyArray] = None
+  ) -> tuple[jax.Array, chex.ArrayTree]:
+    pred, aux = self.predictor.predict_with_aux(xs)
+
+    acquisition = self.acquisition_fn(
+        pred, self.data.features, self.data.labels, seed
+    )
+    if self.trust_region is not None:
+      region: TrustRegion = self.trust_region  #  type: ignore
+      distance = region.min_linf_distance(xs)
+      raw_acquisition = acquisition
+      acquisition = jnp.where(
+          ((distance <= region.trust_radius) | (region.trust_radius > 0.5)),
+          acquisition,
+          -1e12 - distance,
+      )
+      aux = aux | {
+          'mean': pred.mean(),
+          'stddev': pred.stddev(),
+          'raw_acquisition': raw_acquisition,
+          'linf_distance': distance,
+          'radius': jnp.ones_like(distance) * region.trust_radius,
+      }
+    return acquisition, aux
 
 
 # Vizier library acquisition functions use `flax.struct`, instead of `attrs` and
@@ -193,8 +274,7 @@ class MultiAcquisitionFunction(AcquisitionFunction):
 
 # TODO: Support discretes and categoricals.
 # TODO: Support custom distances.
-@struct.dataclass
-class TrustRegion:
+class TrustRegion(eqx.Module):
   """L-inf norm based TrustRegion.
 
   Limits the suggestion within the union of small L-inf norm balls around each
@@ -212,10 +292,13 @@ class TrustRegion:
     if distance <= tr.trust_radius:
       print('xs in trust region')
   """
-
-  max_distances: types.Array
+  max_distances: jax.Array = eqx.field(
+      converter=lambda x: jnp.asarray(x, dtype=jnp.float64)
+  )
   data: types.StochasticProcessModelData
-  trust_radius: types.Array
+  trust_radius: jax.Array = eqx.field(
+      converter=lambda x: jnp.asarray(x, dtype=jnp.float64)
+  )
 
   @classmethod
   def build(
@@ -252,6 +335,9 @@ class TrustRegion:
         dimension_factor * (dof + 1)
     )
     trust_radius = min_radius + (0.5 - min_radius) * trust_level
+
+    if num_obs == 0:
+      trust_radius = 1.0
 
     if isinstance(data.features, types.ContinuousAndCategoricalArray):
       max_distance = [np.inf] * data.features.continuous.shape[-1]

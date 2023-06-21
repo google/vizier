@@ -68,14 +68,16 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
   epochs: int = attr.field(kw_only=True)
   verbose: int = attr.field(kw_only=True, default=0, converter=int)
   random_restarts: int = attr.field(kw_only=True, default=32)
-  best_n: int = attr.field(kw_only=True, default=1)
+  best_n: int = attr.field(kw_only=True, default=None)
 
   def __attrs_post_init__(self):
-    if self.random_restarts < self.best_n:
+    if self.random_restarts < (self.best_n or 1):
       raise ValueError(
           f'Cannot generate {self.best_n} results from'
           f' {self.random_restarts} restarts'
       )
+    if self.best_n is None:
+      self.best_n = 0
 
   # TODO: Prevent retracing.
   def __call__(
@@ -85,6 +87,7 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
       rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
+      best_n: Optional[int] = None,
   ) -> tuple[core.Params, chex.ArrayTree]:
     if constraints is None or constraints.bijector is None:
       bijector = None
@@ -155,7 +158,7 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
 
     final_losses = metrics['loss'][-1]
     logging.info('Final loss: %s', final_losses)
-    best_params = core.get_best_params(final_losses, params, best_n=self.best_n)
+    best_params = core.get_best_params(final_losses, params, best_n=best_n)
     if bijector is not None:
       best_params = bijector(best_params)
     return (best_params, metrics)

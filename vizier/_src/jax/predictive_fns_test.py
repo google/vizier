@@ -22,10 +22,7 @@ import jax
 from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
-from vizier import algorithms as vza
 from vizier import pyvizier as vz
-from vizier._src.algorithms.designers import gp_bandit
-from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import predictive_fns
@@ -41,50 +38,6 @@ tfd = tfp.distributions
 
 
 class GPBanditAcquisitionBuilderTest(absltest.TestCase):
-
-  def test_sample_on_array(self):
-    ard_optimizer = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=8, best_n=5)
-    )
-    search_space = vz.SearchSpace()
-    for i in range(16):
-      search_space.root.add_float_param(f'x{i}', 0.0, 1.0)
-
-    problem = vz.ProblemStatement(
-        search_space=search_space,
-        metric_information=vz.MetricsConfig(
-            metrics=[
-                vz.MetricInformation(
-                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-                ),
-            ]
-        ),
-    )
-    gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
-    suggestions = quasi_random.QuasiRandomDesigner(
-        problem.search_space
-    ).suggest(11)
-
-    trials = []
-    for idx, suggestion in enumerate(suggestions):
-      trial = suggestion.to_trial(idx)
-      trial.complete(vz.Measurement(metrics={'obj': np.random.randn()}))
-      trials.append(trial)
-
-    gp_designer.update(vza.CompletedTrials(trials), vza.ActiveTrials())
-    state, _ = gp_designer._compute_state()
-    xs = np.random.randn(10, 16)
-    samples = predictive_fns.sample_on_array(
-        xs,
-        15,
-        jax.random.PRNGKey(0),
-        model=tuned_gp_models.VizierGaussianProcess.build_model(
-            state.data.features
-        ),
-        state=state,
-    )
-    self.assertEqual(samples.shape, (15, 10))
-    self.assertEqual(np.sum(np.isnan(samples)), 0)
 
   def test_categorical_kernel(self, best_n=2):
     # Random key
@@ -116,11 +69,10 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
 
     # ARD
     ard_optimizer = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=4, best_n=best_n)
+        optimizers.LbfgsBOptions(random_restarts=4)
     )
-    use_vmap = best_n != 1
     best_model_params, _ = ard_optimizer(
-        setup, loss_fn, key, constraints=constraints
+        setup, loss_fn, key, constraints=constraints, best_n=best_n
     )
 
     def precompute_cholesky(params):
@@ -133,10 +85,7 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
       )
       return pp_state
 
-    if not use_vmap:
-      pp_state = precompute_cholesky(best_model_params)
-    else:
-      pp_state = jax.vmap(precompute_cholesky)(best_model_params)
+    pp_state = jax.vmap(precompute_cholesky)(best_model_params)
 
     # Create the state.
     model_state = {'params': best_model_params, **pp_state}

@@ -6,3 +6,4 @@ flax>=0.6.10
 optax>=0.1.5
 chex>=0.1.7
 tfp-nightly[jax]
+equinox>=0.10.6

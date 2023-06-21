@@ -17,11 +17,12 @@ from __future__ import annotations
 """High-level wrappers for stochastic process hyperparameter optimizers."""
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from absl import logging
 import attr
 import chex
+import equinox as eqx
 from flax import struct
 import jax
 from jax import numpy as jnp
@@ -51,10 +52,13 @@ class LbfgsBOptions:
   random_restarts: int = struct.field(kw_only=True, default=4)
   tol: float = struct.field(kw_only=True, default=1e-8)
   maxiter: int = struct.field(kw_only=True, default=50)
-  best_n: int = struct.field(kw_only=True, default=1, pytree_node=False)
+  # TODO: Remove best_n. Now it's a part of optimizer API.
+  best_n: Optional[int] = struct.field(
+      kw_only=True, default=None, pytree_node=False
+  )
 
   def __post_init__(self):
-    if self.random_restarts < self.best_n:
+    if self.random_restarts < (self.best_n or 1):
       raise ValueError(
           f'Cannot generate {self.best_n} results from'
           f' {self.random_restarts} restarts'
@@ -93,7 +97,9 @@ def _get_bounds(
     params = setup(jax.random.PRNGKey(0))
     lb = _none_to_inf(constraints.bounds[0], -jnp.inf, params)
     ub = _none_to_inf(constraints.bounds[1], jnp.inf, params)
-    logging.info('constraints: %s, bounds: %s', constraints, (lb, ub))
+    logging.info(
+        'constraints\n: %s converted to bounds:\n %s', constraints, (lb, ub)
+    )
     return (lb, ub)
 
 
@@ -111,6 +117,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
       rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
+      best_n: Optional[int] = None,
   ) -> tuple[core.Params, chex.ArrayTree]:
     # L-BFGS-B may be used on unconstrained problems (in which case it is
     # slightly different from L-BFGS, in that it uses the Cauchy point/subspace
@@ -119,9 +126,6 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     # None or a pytree with the same structure as the model parameters returned
     # by setup (otherwise Jaxopt will raise an error).
 
-    # Pre-jit the loss function, to avoid retracing it when jitting
-    # value_and_grad.
-    loss_fn = jax.jit(loss_fn)
     lbfgsb = jaxopt.ScipyBoundedMinimize(
         fun=loss_fn,
         method='L-BFGS-B',
@@ -132,7 +136,9 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
         },
         jit=False,
         has_aux=True,
-        value_and_grad=jax.jit(jax.value_and_grad(loss_fn, has_aux=True)),
+        value_and_grad=eqx.filter_jit(
+            eqx.filter_value_and_grad(loss_fn, has_aux=True)
+        ),
     )
     train_times = []
     losses = []
@@ -161,14 +167,38 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     if self._speed_test:
       metrics['train_time'] = train_times
     return (
-        core.get_best_params(losses, all_params, best_n=self._options.best_n),
+        core.get_best_params(losses, all_params, best_n=best_n),
         metrics,
     )
 
   # TODO: Remove dependencies on this property.
   @property
   def best_n(self) -> int:
-    return self._options.best_n
+    return self._options.best_n or 1
+
+
+def _run_parallel_lbfgs(
+    loss_fn: core.LossFunction[core.Params],
+    init_params_batch: core.Params,
+    *,
+    bounds: Optional[tuple[chex.ArrayTree, chex.ArrayTree]],
+    options: LbfgsBOptions,
+) -> tuple[core.Params, Any]:
+  """Called by JaxoptLbfgsB."""
+
+  def _run_one_lbfgs(
+      init_params: core.Params,
+  ) -> tuple[core.Params, Any]:
+    lbfgsb = jaxopt.LBFGSB(
+        fun=loss_fn,
+        maxls=options.num_line_search_steps,
+        tol=options.tol,
+        maxiter=options.maxiter,
+        has_aux=True,
+    )
+    return lbfgsb.run(init_params=init_params, bounds=bounds)
+
+  return jax.lax.map(_run_one_lbfgs, init_params_batch)
 
 
 @attr.define
@@ -203,11 +233,21 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
       rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,
+      best_n: Optional[int] = None,
   ) -> tuple[core.Params, chex.ArrayTree]:
     metrics = {}
+    logging.info(
+        'Using JAX L-BFGS-B w/ %d restarts. RNG: %s',
+        self._options.random_restarts,
+        rng,
+    )
+    rngs = jax.random.split(rng, num=self._options.random_restarts)
+    init_params = eqx.filter_vmap(setup)(rngs)
+    start_time = time.time()
+    bounds = _get_bounds(setup, constraints)
     lbfgsb = jaxopt.LBFGSB(
-        fun=loss_fn,
-        value_and_grad=False,
+        fun=eqx.filter_jit(loss_fn),
+        value_and_grad=eqx.filter_value_and_grad(loss_fn, has_aux=True),
         maxls=self._options.num_line_search_steps,
         tol=self._options.tol,
         maxiter=self._options.maxiter,
@@ -216,30 +256,23 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
         unroll=True,
     )
 
-    logging.info(
-        'Using JAX L-BFGS-B w/ %d restarts.', self._options.random_restarts
-    )
-    rngs = jax.random.split(rng, num=self._options.random_restarts)
-    init_params = jax.vmap(setup)(rngs)
-    start_time = time.time()
-    bounds = _get_bounds(setup, constraints)
-
     all_params, opt_states = jax.lax.map(
         lambda p: lbfgsb.run(init_params=p, bounds=bounds),
         init_params,
     )  # pylint: disable=g-long-lambda
+
     losses = jnp.asarray(opt_states.value)
     metrics['train_time'] = time.time() - start_time
     metrics['loss'] = losses
     return (
-        core.get_best_params(losses, all_params, best_n=self._options.best_n),
+        core.get_best_params(losses, all_params, best_n=best_n),
         metrics,
     )
 
   # TODO: Remove dependencies on this property.
   @property
   def best_n(self) -> int:
-    return self._options.best_n
+    return self._options.best_n or 1
 
   @property
   def jittable(self) -> bool:
