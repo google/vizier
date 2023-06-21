@@ -223,13 +223,12 @@ class _MetadataSingleNameSpace(Dict[str, MetadataValue]):
 
 
 class Metadata(abc.MutableMapping):
-  """Metadata class: a key-value dict-like mapping.
+  """Metadata class: a key-value dict-like mapping, with namespaces.
 
-  This is the main interface for reading metadata from a Trial, or adding
-  metadata to a Trial.
-
-  Metadata behaves like a str->str/proto dict, scoped within a given namespace
-  (see more about namespaces below).
+  This is the main interface for reading metadata from a Trial or StudyConfig,
+  or adding metadata to a Trial/StudyConfig.  Loosely speaking, within each
+  namespace, Metadata acts like a dictionary mapping from a string key to a
+  string or protobuf. (See more about namespaces below.)
 
   Metadata can be initialized from a dictionary:
     mm = Metadata({'foo': 'Foo'})
@@ -240,24 +239,26 @@ class Metadata(abc.MutableMapping):
   More items can be added with:
     mm = Metadata({'foo': 'Foo'})
     mm['bar'] = 'Bar'  # Add a single item
-    mm.update({'a': 'A'}, 'gleep'='Gleep')  # Add two items
-    # If the metadata key is a valid Python variable name, you can also use:
-    mm.update('a'='A', 'gleep'='Gleep')  # Add two items
+    mm.update({'a': 'A'}, gleep='Gleep')  # Add two items
 
-  By default, items are added to the root/empty namespace tree.
+  By default, items are added to the root/empty namespace.
   Vizier users can only add metadata to the empty namespace (the Vizier service
   will reject attempts by users to add metadata elsewhere); Pythia algorithms
   can add metadata to any namespace, but should normally work in a single unique
   namespace, and should avoid the root namespace, unless they intend to
   pass data to/from Vizier users.
+
   1. Keys are namespaced. Each Metadata object only interacts with one
     Namespace.
 
     Namespaces form a tree, and you can walk down the tree.  There are two
-    namespace operators: ns(s) which adds one component on to the current
-    namespace, and abs_ns() which selects the root namespace when empty,
-    or specifies the entire namespace with abs_ns(Iterator[string components])
-    or abs_ns(Namespace(...)).
+    namespace operators: ns(s: str) which takes one step down the namespace
+    tree, abs_ns() which jumps to root namespace, or
+    abs_ns(ns) which jumps to the specified Namespace.
+    (NOTE: ns() and abs_ns() take different argument types!)
+    (NOTE: Neither ns() nor abs_ns() modify the Metadata object they are called
+     on: they return a shallow copy that shares all metadata items, but
+     which displays a different namespace.)
 
     mm = Metadata({'foo': 'foofoo'})
     # $mm is created with its current namespace equal to the root/empty
@@ -265,20 +266,12 @@ class Metadata(abc.MutableMapping):
     mm.ns('NewName')['bar'] = 'Bar'
     # We've added an item in the ":NewName" namespace, but $mm's current
     # namespace is unchanged.
-    mm.ns('NewName').ns('NewName2')['bar'] = 'Bar2'
-    # We've added an item in the ":NewName:NewName2" namespace, but $mm's
-    # current namespace is still unchanged.
-    mm['foo']         # Returns 'foofoo', which is in mm's current ns.
-    mm['bar']         # Throws a KeyError, because we're looking in the root ns.
-    mm.ns('NewName')['foo']     # Throws a KeyError.
-    mm.ns('NewName')['bar']     # Returns 'Bar'
-    mm.ns('NewName').get('bar') # Returns 'Bar'
 
     # Use of abs_ns().
-    mm.abs_ns(Namespace(('NewName',)))  # returns 'Bar'
-    mm.abs_ns(Namespace(('NewName', 'NewName2')))  # returns 'Bar2'
+    mm.abs_ns(['NewName'])  # returns 'Bar'
     mmx = mm.ns('x')
-    mmx.abs_ns(Namespace(('NewName', 'NewName2')))  # returns 'Bar2'
+    mmx.abs_ns(['NewName'])  # returns 'Bar2'
+    mmx.abs_ns().get('foo')  # returns 'foofoo'
 
     # Multi-component namespaces.
     mm = Metadata()
@@ -288,9 +281,8 @@ class Metadata(abc.MutableMapping):
     mm.ns('a')['foo']  # returns 'A-foo'
     mm.ns('a').ns('b')['foo']  # returns 'AB-foo'
     # abs_ns() can be also used:
-    mm.abs_ns(Namespace(('a', 'b'))).get('foo')  # Returns 'ab-foo'
+    mm.abs_ns(['a', 'b']).get('foo')  # Returns 'ab-foo'
     mm.abs_ns(Namespace.decode('a:b')).get('foo')  # Returns 'ab-foo'
-    mm_root = mm.abs_ns()  # Returns a metadata object with the root namespace
 
   2. Values can be protobufs. If `metadata['foo']` is an instance of `MyProto`
     proto message or an `Any` proto that packs a `MyProto` message, then the
@@ -359,6 +351,9 @@ class Metadata(abc.MutableMapping):
     namespace.  (Note that $self is not modified, and the current namespace of
     $self doesn't matter.)
 
+    NOTE: $namespace can be a Namespace object, because you can iterate over
+      a Namespace to get strings.
+
     Args:
       namespace: a list of Namespace components.  (Defaults to the root, empty
         Namespace.)
@@ -370,10 +365,11 @@ class Metadata(abc.MutableMapping):
     return self._copy_core(Namespace(namespace))
 
   def ns(self, component: str) -> 'Metadata':
-    r"""Switches to a deeper namespace by appending a component.
+    r"""Switches to a deeper namespace by appending one component.
 
     The entire tree of metadata is shared between $self and the returned value,
-    but they have a different current namespace.  ($self is not modified.)
+    but the returned value will have a deeper current namespace.  ($self is not
+    modified.)
 
     Args:
       component: one component to be appended to the current namespace.
@@ -542,12 +538,16 @@ class Metadata(abc.MutableMapping):
   def subnamespaces(self) -> Tuple[Namespace, ...]:
     """Returns relative namespaces that are at or below the current namespace.
 
-    For all `ns` in `md.subnamespaces()`, `md.abs_ns(md.current_ns() + ns)` is
-    not empty.  E.g. if namespace 'foo:bar' is non-empty, and you're in
-    namespace 'foo', then the result will contain namespace 'bar'.
+    For all `ns` in the returned value, `self.abs_ns(md.current_ns() + ns)` is
+    not empty.
+    # Examples:
+    md = Metadata()
+    md.ns('foo').ns('bar')['A'] = 'b'
+    md.subnamespaces() == (Namespace(['foo', 'bar']),)
+    md.ns('foo').subnamespaces() == (Namespace(['bar']),)
 
     Returns:
-      For namespaces that begin with the current namespace and are
+      For all namespaces that begin with the current namespace and are
       non-empty, this returns a namespace object that contains the relative
       path from the current namespace.
     """
@@ -663,7 +663,7 @@ class Metadata(abc.MutableMapping):
 
     So, if we have
     other = Metadata()
-    other.abs_ns(Namespace.(('x', 'y', 'z'))['foo'] = 'bar'
+    other.abs_ns(('x', 'y', 'z'))['foo'] = 'bar'
     m = Metadata()
     m.ns('w').attach(other.ns('x'))
     then
