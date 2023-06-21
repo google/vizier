@@ -104,6 +104,15 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
   def always_maps_to_finite(self) -> bool:
     return True
 
+  def test_unwarp_duplicate_labels(self):
+    warper = self.warper
+    _ = warper.warp(np.array([[1.0], [1.0], [5.0], [-1e80]]))
+    labels = np.array([[1.0], [15.0], [10.0], [1.0]])
+    np.testing.assert_array_equal(
+        scipy.stats.rankdata(warper.unwarp(labels).flatten(), method='dense'),
+        scipy.stats.rankdata(labels.flatten(), method='dense'),
+    )
+
   @parameterized.parameters([
       dict(labels=np.zeros(shape=(5, 1))),
       dict(labels=np.ones(shape=(5, 1))),

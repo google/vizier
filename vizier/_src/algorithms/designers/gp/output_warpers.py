@@ -124,7 +124,9 @@ class OutputWarperPipeline(OutputWarper):
     Note that if labels include one unique finite value zero, the pipeline
     returns the array itself. Alternatively, if the labels include only minus
     ones, the pipeline returns an array of NaNs. Otherwise, it *sequentially*
-    performs the unwarpings on labels. Unwarping is not done in place.
+    performs the unwarpings on labels. Unwarping is not done in place. This
+    method accomodates inputs with duplicate entries and outputs equal output
+    values for such entries.
 
     Args:
       labels_arr: (num_points, 1) shaped array of warped labels.
@@ -142,6 +144,7 @@ class OutputWarperPipeline(OutputWarper):
         return labels_arr
       if np.unique(labels_arr).item() == -1.0:
         return np.nan * np.ones(shape=labels_arr.shape)
+
     # reverse the order of warpers for unwarping to maintain bijective property.
     warpers = self.warpers[::-1]
     for warper in warpers:
@@ -279,11 +282,6 @@ class HalfRankComponent(OutputWarper):
       raise ValueError(' warp() needs to be called before unwarp() is called.')
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
-    if len(labels_arr) > len(np.unique(labels_arr)):
-      raise ValueError(
-          f'unwarp only supports unique arrays. labels_arr={labels_arr},'
-          f' unique_labels={np.unique(labels_arr)}'
-      )
 
     if np.isnan(labels_arr).any():
       raise ValueError('unwarp does not support nan values.')
