@@ -489,7 +489,7 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparatorBase):
     comparator.log_efficiency_curve(compared_curve)
   """
   max_score: float = attr.field(
-      default=5.0, validator=[attr.validators.ge(0)], kw_only=True
+      default=1.0, validator=[attr.validators.ge(0)], kw_only=True
   )
   summary_function: Callable[[np.ndarray], float] = attr.field(
       default=np.median
