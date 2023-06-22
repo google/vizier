@@ -113,20 +113,25 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(expected, actual)
 
-  def test_create_random_perturbations(self):
+  @parameterized.parameters(1, 5)
+  def test_create_random_perturbations(self, n_parallel):
     seed = jax.random.PRNGKey(0)
     perturbations_batch = jnp.ones(self.eagle.batch_size)
     perturbations = self.eagle._create_random_perturbations(
-        perturbations_batch, seed=seed
+        perturbations_batch,
+        n_parallel=n_parallel,
+        seed=seed,
     )
-    self.assertEqual(perturbations.shape, (2, 2))
+    self.assertEqual(perturbations.shape, (2, n_parallel, 2))
 
   def test_update_pool_features_and_rewards(self):
-    features = jnp.array([[1, 2], [3, 4], [7, 7], [8, 8]], dtype=jnp.float64)
+    features = jnp.array(
+        [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+    )
     rewards = jnp.array([2, 3, 4, 1], dtype=jnp.float64)
     perturbations = jnp.array([1, 1, 1, 1], dtype=jnp.float64)
 
-    batch_features = jnp.array([[9, 9], [10, 10]], dtype=jnp.float64)
+    batch_features = jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64)
     batch_rewards = jnp.array([5, 0.5], dtype=jnp.float64)
 
     new_features, new_rewards, new_perturbations = (
@@ -140,7 +145,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     np.testing.assert_array_equal(
         new_features,
-        np.array([[9, 9], [3, 4]], dtype=np.float64),
+        np.array([[[9, 9]], [[3, 4]]], dtype=np.float64),
         err_msg='Features are not equal.',
     )
 
@@ -159,7 +164,9 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
   def test_update_best_reward(self):
     # Test replacing the best reward.
-    features = jnp.array([[1, 2], [3, 4], [7, 7], [8, 8]], dtype=jnp.float64)
+    features = jnp.array(
+        [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+    )
     rewards = jnp.array([2, 3, 4, 1], dtype=jnp.float64)
     state = eagle_strategy.VectorizedEagleStrategyState(
         iterations=jnp.array(0),
@@ -168,17 +175,15 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         best_reward=jnp.max(rewards),
         perturbations=jnp.ones_like(rewards),
     )
-    batch_features = jnp.array([[9, 9], [10, 10]], dtype=jnp.float64)
+    batch_features = jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64)
     batch_rewards = jnp.array([5, 0.5], dtype=jnp.float64)
     seed = jax.random.PRNGKey(0)
-    new_state = self.eagle.update(
-        state, batch_features, batch_rewards, seed=seed
-    )
+    new_state = self.eagle.update(seed, state, batch_features, batch_rewards)
     self.assertEqual(new_state.best_reward, 5.0)
     # Test not replacing the best reward.
     batch_rewards = jnp.array([2, 4], dtype=jnp.float64)
     new_new_state = self.eagle.update(
-        new_state, batch_features, batch_rewards, seed=seed
+        seed, new_state, batch_features, batch_rewards
     )
     self.assertEqual(new_new_state.best_reward, 5.0)
 
@@ -205,7 +210,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
   def test_trim_pool(self):
     pc = self.config.perturbation
-    features_batch = jnp.array([[1, 2], [3, 4]], dtype=jnp.float64)
+    features_batch = jnp.array([[[1, 2]], [[3, 4]]], dtype=jnp.float64)
     rewards_batch = jnp.array([2, 3], dtype=jnp.float64)
     perturbations = jnp.array([pc, 0], dtype=jnp.float64)
     seed = jax.random.PRNGKey(0)
@@ -223,7 +228,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         err_msg='Features are not equal.',
     )
     self.assertTrue(
-        all(np.not_equal(new_features[1], features_batch[1])),
+        np.all(np.not_equal(new_features[1], features_batch[1])),
         msg='Features are not equal.',
     )
 
@@ -261,8 +266,13 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
         converter
     )
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    optimizer(score_fn=lambda x: -jnp.sum(x, 1), count=1)
+    n_parallel = 5
+    results = optimizer(
+        score_fn=lambda x: -jnp.sum(x, axis=(1, 2)),
+        count=1,
+        n_parallel=n_parallel,
+    )
+    self.assertSequenceEqual(results.features.shape, (1, n_parallel, 3))
 
   def test_optimize_with_eagle_padding(self):
     problem = vz.ProblemStatement()
@@ -278,11 +288,16 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
     optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
         converter
     )
-    optimizer(score_fn=lambda x: -np.sum(x, 1), count=1)
+    n_parallel = 2
+    results = optimizer(
+        score_fn=lambda x: -jnp.sum(x, axis=(1, 2)),
+        count=1,
+        n_parallel=n_parallel,
+    )
+    self.assertSequenceEqual(results.features.shape, (1, n_parallel, 4))
 
 
 class EagleParamHandlerTest(parameterized.TestCase):
@@ -378,13 +393,15 @@ class EagleParamHandlerTest(parameterized.TestCase):
     root.add_float_param('x2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
 
-    prior_features = jnp.array([[1, -1], [2, 1], [3, 2], [4, 5]])
+    prior_features = jnp.array([[[1, -1]], [[2, 1]], [[3, 2]], [[4, 5]]])
     prior_rewards = jnp.array([1, 2, 3, 4])
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=config,
     )(converter=converter, suggestion_batch_size=2)
     init_state = eagle.init_state(
-        jax.random.PRNGKey(0), prior_features, prior_rewards
+        jax.random.PRNGKey(0),
+        prior_features=prior_features,
+        prior_rewards=prior_rewards,
     )
     np.testing.assert_array_equal(
         init_state.features, jnp.flip(prior_features, axis=0)
@@ -403,16 +420,22 @@ class EagleParamHandlerTest(parameterized.TestCase):
     root.add_float_param('x2', 0.0, 1.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
 
-    prior_features = np.random.randn(n_prior_trials, 2)
+    n_parallel = 3
+    prior_features = np.random.randn(n_prior_trials, n_parallel, 2)
     prior_rewards = np.random.randn(n_prior_trials)
 
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=config,
     )(converter=converter, suggestion_batch_size=2)
     init_state = eagle.init_state(
-        jax.random.PRNGKey(0), prior_features, prior_rewards
+        jax.random.PRNGKey(0),
+        n_parallel=n_parallel,
+        prior_features=prior_features,
+        prior_rewards=prior_rewards,
     )
-    self.assertEqual(init_state.features.shape, (config.pool_size, 2))
+    self.assertEqual(
+        init_state.features.shape, (config.pool_size, n_parallel, 2)
+    )
 
 
 if __name__ == '__main__':

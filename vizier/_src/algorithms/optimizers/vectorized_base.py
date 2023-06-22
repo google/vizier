@@ -42,8 +42,8 @@ ArrayConverter = Union[
 class VectorizedStrategyResults(eqx.Module):
   """Container for a vectorized strategy result."""
 
-  features: types.Array
-  rewards: types.Array
+  features: types.Array  # (batch_size, n_parallel, n_features)
+  rewards: types.Array  # (batch_size,)
   aux: dict[str, jax.Array] = eqx.field(default_factory=dict)
 
 
@@ -59,6 +59,8 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> _S:
@@ -66,7 +68,10 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
 
     Arguments:
       seed: Random seed for state initialization.
-      prior_features: (n_prior_features, features_count)
+      n_parallel: Number of points that the acquisition function maps to a
+        single value. This arg may be greater than 1 if a parallel acquisition
+        function (qEI, qUCB) is used; otherwise it should be 1.
+      prior_features: (n_prior_features, n_parallel, features_count)
       prior_rewards: (n_prior_features, )
 
     Returns:
@@ -74,12 +79,20 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
     """
 
   @abc.abstractmethod
-  def suggest(self, state: _S, seed: jax.random.KeyArray) -> jax.Array:
+  def suggest(
+      self,
+      seed: jax.random.KeyArray,
+      state: _S,
+      n_parallel: int = 1,
+  ) -> jax.Array:
     """Generate new suggestions.
 
     Arguments:
-      state: Optimizer state.
       seed: Random seed.
+      state: Optimizer state.
+      n_parallel: Number of points that the acquisition function maps to a
+        single value. This arg may be greater than 1 if a parallel acquisition
+        function (qEI, qUCB) is used; otherwise it should be 1.
 
     Returns:
       suggested features: (batch_size, features_count)
@@ -93,18 +106,18 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
   @abc.abstractmethod
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: _S,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> _S:
     """Update the strategy state with the results of the last suggestions.
 
     Arguments:
-      state: Optimizer state.
-      batch_features: (batch_size, features_count)
-      batch_rewards: (batch_size, )
       seed: Random seed.
+      state: Optimizer state.
+      batch_features: (batch_size, n_parallel, features_count)
+      batch_rewards: (batch_size, )
     """
 
 
@@ -148,6 +161,8 @@ class ArrayScoreFunction(Protocol):
     """
 
 
+# TODO: Decide on consistent terminology for acquisition functions
+# that evaluate sets of points.
 class ParallelArrayScoreFunction(Protocol):
   """Protocol for scoring array of parallel trials.
 
@@ -159,7 +174,7 @@ class ParallelArrayScoreFunction(Protocol):
     """Evaluates the array of batched trials.
 
     Arguments:
-      parallel_array_trials: Array of shape (batch_size, n_parallel_candidates,
+      parallel_array_trials: Array of shape (batch_size, n_parallel,
         n_feature_dimensions).
 
     Returns:
@@ -204,11 +219,12 @@ class VectorizedOptimizer:
   # pylint: disable=g-bare-generic
   def __call__(
       self,
-      score_fn: ArrayScoreFunction,
+      score_fn: Union[ArrayScoreFunction, ParallelArrayScoreFunction],
       *,
       score_with_aux_fn: Optional[Callable] = None,
       count: int = 1,
       prior_features: Optional[types.Array] = None,
+      n_parallel: Optional[int] = None,
       seed: Optional[int] = None,
   ) -> VectorizedStrategyResults:
     """Optimize the objective function.
@@ -231,6 +247,7 @@ class VectorizedOptimizer:
 
     Arguments:
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
+        features_count) or a 3D array with dimensions (batch_size, n_parallel,
         features_count) and returns a 1D Array (batch_size,).
       score_with_aux_fn: A callback similar to score_fn but additionally returns
         an array tree.
@@ -239,10 +256,20 @@ class VectorizedOptimizer:
         the optimizer is used to optimize a designer's acquisition function, the
         prior trials are the previous designer suggestions provided in the
         ordered they were suggested.
+      n_parallel: This arg should be specified if a parallel acquisition
+        function (e.g. qEI, qUCB) is used, which evaluates a set of points of
+        this size to a single value. Pass `None` when optimizing acquisition
+        functions that evaluate a single point. (Note that `num_parallel=1` and
+        `num_parallel=None` will each return a single suggestion, though they
+        are different in that `num_parallel=1` indicates that the acquisition
+        function consumes the two rightmost dimensions of the input while
+        `num_parallel=None` indicates that only the rightmost dimension is
+        consumed.)
       seed: The seed to use in the random generator.
 
     Returns:
-      The best trials found in the optimization.
+      An array containing the best trials found in the optimization of shape
+      (count, n_parallel or 1, n_feature_dimensions).
     """
     seed = jax.random.PRNGKey(0) if seed is None else seed
 
@@ -251,23 +278,39 @@ class VectorizedOptimizer:
         > self.n_feature_dimensions
     )
 
+    if n_parallel is None:
+      # Squeeze out the singleton dimension of `features` before passing to a
+      # non-parallel acquisition function to avoid batch shape collisions.
+      eval_score_fn = lambda x: score_fn(x[:, 0, :])
+    else:
+      eval_score_fn = score_fn
+
     # TODO: We should pass RNGKey to score_fn.
     prior_rewards = None
+    parallel_dim = n_parallel or 1
     if prior_features is not None:
-      prior_rewards = score_fn(prior_features).reshape(-1)
+      num_prior_obs = prior_features.shape[0]
+      num_prior_batches = num_prior_obs // parallel_dim
+      prior_features = jnp.reshape(
+          prior_features[: num_prior_batches * parallel_dim],
+          [num_prior_batches, parallel_dim, -1],
+      )
+      prior_rewards = eval_score_fn(prior_features)
 
     def _optimization_one_step(_, args):
       state, best_results, seed = args
       suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
-      new_features = self.strategy.suggest(state, suggest_seed)
+      new_features = self.strategy.suggest(
+          suggest_seed, state=state, n_parallel=parallel_dim
+      )
       # Ensure masking out padded dimensions in new features.
       new_features = jnp.where(
           dimension_is_missing, jnp.zeros_like(new_features), new_features
       )
       # We assume `score_fn` is aware of padded dimensions.
-      new_rewards = score_fn(new_features)
+      new_rewards = eval_score_fn(new_features)
       new_state = self.strategy.update(
-          state, new_features, new_rewards, update_seed
+          update_seed, state, new_features, new_rewards
       )
       new_best_results = self._update_best_results(
           best_results, count, new_features, new_rewards
@@ -277,11 +320,14 @@ class VectorizedOptimizer:
     init_seed, loop_seed = jax.random.split(seed)
     init_best_results = VectorizedStrategyResults(
         rewards=-jnp.inf * jnp.ones([count]),
-        features=jnp.zeros([count, self.n_feature_dimensions_with_padding]),
+        features=jnp.zeros(
+            [count, parallel_dim, self.n_feature_dimensions_with_padding]
+        ),
     )
     init_args = (
         self.strategy.init_state(
             init_seed,
+            n_parallel=parallel_dim,
             prior_features=prior_features,
             prior_rewards=prior_rewards,
         ),
@@ -321,7 +367,8 @@ class VectorizedOptimizer:
         as a list of maximum size of 'count'.
       count: The number of best results to store.
       batch_features: The current suggested features batch array with a
-        dimension of (batch_size, feature_dim).
+        dimension of (batch_size, feature_dim) or (batch_size, n_parallel,
+        feature_dim).
       batch_rewards: The current reward batch array with a dimension of
         (batch_size,).
 
@@ -350,21 +397,29 @@ def best_candidates_to_trials(
   for i in range(len(best_results.rewards)):
     # Create trials and convert the strategy features back to parameters.
     ind = sorted_ind[i]
-    trial = vz.Trial(
-        parameters=converter.to_parameters(
-            jnp.expand_dims(best_results.features[ind], axis=0)
-        )[0]
-    )
+    suggested_features = best_results.features[ind]
+    reward = best_results.rewards[ind]
 
-    metadata = trial.metadata.ns('devinfo')
-    metadata['acquisition_optimization'] = json.dumps(
-        {'acquisition': best_results.rewards[ind]}
-        | jax.tree_map(lambda x, ind=ind: np.asarray(x[ind]), best_results.aux),
-        cls=json_utils.NumpyEncoder,
-    )
+    # Loop over the number of candidates per batch (which will be one, unless a
+    # parallel acquisition function is used).
+    for j in range(suggested_features.shape[0]):
+      trial = vz.Trial(
+          parameters=converter.to_parameters(
+              jnp.expand_dims(suggested_features[j], axis=0)
+          )[0]
+      )
 
-    trial.complete(vz.Measurement({'acquisition': best_results.rewards[ind]}))
-    trials.append(trial)
+      metadata = trial.metadata.ns('devinfo')
+      metadata['acquisition_optimization'] = json.dumps(
+          {'acquisition': best_results.rewards[ind]}
+          | jax.tree_map(
+              lambda x, ind=ind: np.asarray(x[ind]), best_results.aux
+          ),
+          cls=json_utils.NumpyEncoder,
+      )
+
+      trial.complete(vz.Measurement({'acquisition': reward}))
+      trials.append(trial)
   return trials
 
 

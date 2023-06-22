@@ -32,12 +32,14 @@ class RandomVectorizedOptimizerTest(absltest.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: np.sum(x, axis=-1)
+    score_fn = lambda x: np.sum(x, axis=(1, 2))
+    n_parallel = 3
     random_optimizer = rvo.create_random_optimizer(
         converter=converter, max_evaluations=100, suggestion_batch_size=10
     )
-    res = random_optimizer(score_fn=score_fn, count=5)
+    res = random_optimizer(score_fn=score_fn, count=5, n_parallel=n_parallel)
     self.assertLen(res.rewards, 5)
+    self.assertSequenceEqual(res.features.shape, (5, n_parallel, 2))
 
   def test_random_optimizer_factory(self):
     random_optimizer_factory = rvo.create_random_optimizer_factory(

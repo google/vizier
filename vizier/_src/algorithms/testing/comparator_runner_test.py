@@ -53,19 +53,27 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> None:
     return
 
-  def suggest(self, state: None, seed: jax.random.KeyArray) -> jax.Array:
+  def suggest(
+      self,
+      seed: jax.random.KeyArray,
+      state: None,
+      n_parallel: int = 1,
+  ) -> jax.Array:
     output_len = sum(
         [spec.num_dimensions for spec in self.converter.output_specs]
     )
+    shape = (1, n_parallel, output_len)
     if self.num_trials_so_far < self.num_trial_to_converge:
-      return jnp.ones((1, output_len)) * self.bad_value
+      return jnp.ones(shape) * self.bad_value
     else:
-      return jnp.ones((1, output_len)) * self.good_value
+      return jnp.ones(shape) * self.good_value
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -73,10 +81,10 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
 
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: None,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> None:
     pass
 

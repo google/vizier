@@ -41,20 +41,24 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> None:
     del seed
     return
 
-  def suggest(self, state: None, seed: jax.random.KeyArray) -> jax.Array:
+  def suggest(
+      self,
+      seed: jax.random.KeyArray,
+      state: None,
+      n_parallel: int = 1,
+  ) -> jax.Array:
     del state
     return jax.random.uniform(
         seed,
-        shape=(
-            self._suggestion_batch_size,
-            self._n_features,
-        ),
+        shape=(self._suggestion_batch_size, n_parallel, self._n_features),
     )
 
   def suggestion_batch_size(self) -> int:
@@ -62,10 +66,10 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
 
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: None,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> None:
     return
 

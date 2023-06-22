@@ -45,8 +45,9 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
 
   def suggest(
       self,
-      state: FakeIncrementVectorizedStrategyState,
       seed: jax.random.KeyArray,
+      state: FakeIncrementVectorizedStrategyState,
+      n_parallel: int = 1,
   ) -> jax.Array:
     # The following structure allows to test the top K results.
     i = state.iterations
@@ -60,7 +61,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
         ])
         / 10
     )
-    return suggestions
+    return jnp.repeat(suggestions[:, jnp.newaxis, :], n_parallel, axis=1)
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -68,16 +69,18 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
 
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: FakeIncrementVectorizedStrategyState,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> FakeIncrementVectorizedStrategyState:
     return FakeIncrementVectorizedStrategyState(iterations=state.iterations + 5)
 
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> FakeIncrementVectorizedStrategyState:
@@ -107,6 +110,8 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ):
@@ -117,9 +122,12 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
     )
 
   def suggest(
-      self, state: FakePriorTrialsStrategyState, seed: jax.random.KeyArray
+      self,
+      seed: jax.random.KeyArray,
+      state: FakePriorTrialsStrategyState,
+      n_parallel: int = 1,
   ) -> jax.Array:
-    return state.features[jnp.argmax(state.rewards, axis=-1)].reshape(1, -1)
+    return state.features[jnp.argmax(state.rewards, axis=-1)][jnp.newaxis, :]
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -127,10 +135,10 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
 
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: FakePriorTrialsStrategyState,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> FakePriorTrialsStrategyState:
     return state
 
@@ -159,6 +167,24 @@ class VectorizedBaseTest(parameterized.TestCase):
     res_array = optimizer(score_fn=score_fn, count=count)
     res = vb.best_candidates_to_trials(res_array, converter=converter)
     self.assertLen(res, count)
+
+  @parameterized.parameters(
+      (1, 3),
+      (2, 4),
+  )
+  def test_optimize_parallel_candidates_len(self, count, n_parallel):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 10.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 10.0)
+    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    score_fn = lambda x: jnp.sum(x, axis=(-1, -2))
+    optimizer = vb.VectorizedOptimizerFactory(
+        strategy_factory=fake_increment_strategy_factory,
+        max_evaluations=100,
+    )(converter=converter)
+    res_array = optimizer(score_fn=score_fn, count=count, n_parallel=n_parallel)
+    res = vb.best_candidates_to_trials(res_array, converter=converter)
+    self.assertLen(res, count * n_parallel)
 
   def test_best_candidates_count_is_1(self):
     problem = vz.ProblemStatement()
@@ -287,6 +313,35 @@ class VectorizedBaseTest(parameterized.TestCase):
     )
     self.assertEqual(best_trial[0].parameters['x1'].value, 1)
     self.assertEqual(best_trial[0].parameters['x2'].value, 1)
+
+  def test_prior_trials_parallel(self):
+    optimizer_factory = vb.VectorizedOptimizerFactory(
+        strategy_factory=fake_prior_trials_strategy_factory,
+        suggestion_batch_size=5,
+        max_evaluations=100,
+    )
+
+    study_config = vz.ProblemStatement(
+        metric_information=[
+            vz.MetricInformation(
+                name='obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            )
+        ]
+    )
+    root = study_config.search_space.root
+    root.add_float_param('x1', 0.0, 10.0)
+    root.add_float_param('x2', 0.0, 10.0)
+    root.add_float_param('x3', 0.0, 10.0)
+    converter = converters.TrialToArrayConverter.from_study_config(study_config)
+    optimizer = optimizer_factory(converter)
+    prior_features = jax.random.uniform(jax.random.PRNGKey(0), (14, 3))
+    suggestions = optimizer(
+        lambda x: -jnp.max(jnp.square(x - 0.52), axis=(-1, -2)),
+        prior_features=prior_features,
+        n_parallel=2,
+    )
+    self.assertSequenceEqual(suggestions.features.shape, (1, 2, 3))
+    self.assertSequenceEqual(suggestions.rewards.shape, (1,))
 
 
 if __name__ == '__main__':

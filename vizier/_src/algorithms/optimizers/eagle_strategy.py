@@ -219,7 +219,7 @@ class VectorizedEagleStrategyState:
   """Container for Eagle strategy state."""
 
   iterations: jax.Array  # Scalar integer.
-  features: jax.Array  # Shape (pool_size, n_features).
+  features: jax.Array  # Shape (pool_size, n_parallel, n_features).
   rewards: jax.Array  # Shape (pool_size,).
   best_reward: jax.Array  # Scalar float.
   perturbations: jax.Array  # Shape (pool_size,).
@@ -254,16 +254,25 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
   def init_state(
       self,
       seed: jax.random.KeyArray,
+      n_parallel: int = 1,
+      *,
       prior_features: Optional[types.Array] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> VectorizedEagleStrategyState:
     """Initializes the state."""
-    if prior_features is not None or prior_rewards is not None:
+    if prior_features is not None and prior_rewards is not None:
+      if prior_features.shape[1] != n_parallel:
+        raise ValueError(
+            f"`prior_features` dimension 1 ({prior_features.shape[1]}) "
+            f"doesn't match n_parallel ({n_parallel})!"
+        )
       init_features = self._populate_pool_with_prior_trials(
           seed, prior_features, prior_rewards
       )
     else:
-      init_features = self.param_handler.random_features(self.pool_size, seed)
+      init_features = self.param_handler.random_features(
+          self.pool_size, n_parallel=n_parallel, seed=seed
+      )
     return VectorizedEagleStrategyState(
         iterations=jnp.array(0),
         features=init_features,
@@ -282,7 +291,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     Args:
       seed: Random seed.
-      prior_features: (n_prior_features, features_count)
+      prior_features: (n_prior_features, n_parallel, features_count)
       prior_rewards: (n_prior_features, )
 
     Returns:
@@ -300,9 +309,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           f"prior features shape ({prior_features.shape[0]}) doesn't match"
           f" prior  rewards shape ({prior_rewards.shape[0]})!"
       )
-    if prior_features.shape[1] != self.n_feature_dimensions_with_padding:
+    if prior_features.shape[-1] != self.n_feature_dimensions_with_padding:
       raise ValueError(
-          f"prior features shape ({prior_features.shape[1]}) doesn't match"
+          f"prior features shape ({prior_features.shape[-1]}) doesn't match"
           f" n_features {self.n_feature_dimensions_with_padding}!"
       )
 
@@ -317,8 +326,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     n_random_flies = int(
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
     )
+
     seed1, seed2 = jax.random.split(seed)
-    init_features = self.param_handler.random_features(n_random_flies, seed1)
+    _, n_parallel, _ = prior_features.shape
+    init_features = self.param_handler.random_features(
+        n_random_flies, n_parallel, seed1
+    )
     pool_left_space = self.pool_size - n_random_flies
 
     if prior_features.shape[0] < pool_left_space:
@@ -326,7 +339,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       init_features = jnp.concatenate([init_features, flipped_prior_features])
       # Randomize the rest of the pool fireflies.
       random_features = self.param_handler.random_features(
-          self.pool_size - len(init_features), seed2
+          self.pool_size - len(init_features), n_parallel, seed2
       )
       return jnp.concatenate([init_features, random_features])
     else:
@@ -337,7 +350,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       def _loop_body(i, args):
         features, rewards = args
         ind = jnp.argmin(
-            jnp.sum(jnp.square(flipped_prior_features[i] - features), axis=-1)
+            jnp.sum(
+                jnp.square(flipped_prior_features[i] - features), axis=(-1, -2)
+            )
         )
         return jax.lax.cond(
             rewards[ind] < flipped_prior_rewards[i],
@@ -364,7 +379,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     return self.batch_size
 
   def suggest(
-      self, state: VectorizedEagleStrategyState, seed: jax.random.KeyArray
+      self,
+      seed: jax.random.KeyArray,
+      state: VectorizedEagleStrategyState,
+      n_parallel: int = 1,
   ) -> jax.Array:
     """Suggest new mutated and perturbed features.
 
@@ -373,11 +391,14 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     fireflies in the pool.
 
     Args:
-      state: Current strategy state.
       seed: Random seed.
+      state: Current strategy state.
+      n_parallel: Number of points that the acquisition function maps to a
+        single value. This arg may be greater than 1 if a parallel acquisition
+        function (qEI, qUCB) is used; otherwise it should be 1.
 
     Returns:
-      suggested batch features: (batch_size, n_features)
+      suggested batch features: (batch_size, n_parallel, n_features)
     """
     batch_id = state.iterations % (self.pool_size // self.batch_size)
     start = batch_id * self.batch_size
@@ -401,7 +422,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           features_seed,
       )
       perturbations = self._create_random_perturbations(
-          perturbations_batch, perturbations_seed
+          perturbations_batch, n_parallel, perturbations_seed
       )
       return mutated_features + perturbations
 
@@ -437,23 +458,25 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     simplex constructed by the unnormalized forces and therefore within bounds.
 
     Args:
-      features: (pool_size, n_features)
+      features: (pool_size, n_parallel, n_features)
       rewards: (pool_size,)
-      features_batch: (batch_size, n_features)
+      features_batch: (batch_size, n_parallel, n_features)
       rewards_batch: (batch_size,)
       seed: Random seed.
 
     Returns:
-      batch features: (batch_size, n_features)
+      batch features: (batch_size, n_parallel, n_features)
     """
     # Compute the pairwise squared distances between the features batch and the
     # pool. We use a less numerically precise squared distance formulation to
     # avoid materializing a possibly large intermediate of shape
     # (batch_size, pool_size, n_features).
+    flat_features = jnp.reshape(features, (self.pool_size, -1))
+    flat_features_batch = jnp.reshape(features_batch, (self.batch_size, -1))
     dists = (
-        jnp.sum(features_batch**2, axis=-1, keepdims=True)
-        + jnp.sum(features**2, axis=-1)
-        - 2.0 * jnp.matmul(features_batch, features.T)
+        jnp.sum(flat_features_batch**2, axis=-1, keepdims=True)
+        + jnp.sum(flat_features**2, axis=-1)
+        - 2.0 * jnp.matmul(flat_features_batch, flat_features.T)
     )  # shape (batch_size, pool_size)
 
     # Compute the scaled direction for applying pull between two flies.
@@ -532,20 +555,25 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     # features_dist[i, j] := distance between fly 'j' and fly 'i'
     # but avoids materializing the large pairwise distance matrix.
     scale = norm_scaled_pulls + norm_scaled_push
-    features_changes = jnp.matmul(scale, features) - features_batch * jnp.sum(
-        scale, axis=-1, keepdims=True
-    )
+    flat_features_changes = jnp.matmul(
+        scale, flat_features
+    ) - flat_features_batch * jnp.sum(scale, axis=-1, keepdims=True)
+    features_changes = jnp.reshape(flat_features_changes, features_batch.shape)
     return features_batch + features_changes
 
   def _create_random_perturbations(
       self,
       perturbations_batch: jax.Array,
+      n_parallel: int,
       seed: jax.random.KeyArray,
   ) -> jax.Array:
     """Create random perturbations for the newly created batch.
 
     Args:
       perturbations_batch: (batch_size,)
+      n_parallel: Number of points that the acquisition function maps to a
+        single value. This arg may be greater than 1 if a parallel acquisition
+        function (qEI, qUCB) is used; otherwise it should be 1.
       seed: Random seed.
 
     Returns:
@@ -553,29 +581,34 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     # Generate normalized noise for each batch.
     batch_noise = jax.random.laplace(
-        seed, shape=(self.batch_size, self.n_feature_dimensions_with_padding)
+        seed,
+        shape=(
+            self.batch_size,
+            n_parallel,
+            self.n_feature_dimensions_with_padding,
+        ),
     )
-    batch_noise /= jnp.max(jnp.abs(batch_noise), axis=1, keepdims=True)
+    batch_noise /= jnp.max(jnp.abs(batch_noise), axis=-1, keepdims=True)
     return (
         batch_noise
-        * perturbations_batch[:, jnp.newaxis]
+        * perturbations_batch[:, jnp.newaxis, jnp.newaxis]
         * self.param_handler.perturbation_factors
     )
 
   def update(
       self,
+      seed: jax.random.KeyArray,
       state: VectorizedEagleStrategyState,
       batch_features: types.Array,
       batch_rewards: types.Array,
-      seed: jax.random.KeyArray,
   ) -> VectorizedEagleStrategyState:
     """Update the firefly pool based on the new batch of results.
 
     Arguments:
-      state: Current state.
-      batch_features: (batch_size, n_features)
-      batch_rewards: (batch_size, )
       seed: Random seed.
+      state: Current state.
+      batch_features: (batch_size, n_parallel, n_features)
+      batch_rewards: (batch_size, )
 
     Returns:
       new_state: Updated state.
@@ -650,9 +683,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """Update the features and rewards for flies with improved rewards.
 
     Arguments:
-      batch_features: (batch_size, n_features), new proposed features batch.
+      batch_features: (batch_size, n_parallel, n_features), new proposed
+        features batch.
       batch_rewards: (batch_size,), rewards for new proposed features batch.
-      prev_batch_features: (batch_size, n_features), previous features batch.
+      prev_batch_features: (batch_size, n_parallel, n_features), previous
+        features batch.
       prev_batch_rewards: (batch_size,), rewards for previous features batch.
       perturbations: (batch_size,)
 
@@ -663,7 +698,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     improve_indx = batch_rewards > prev_batch_rewards
     # Update successful flies' with the associated last features and rewards.
     new_batch_features = jnp.where(
-        improve_indx[..., jnp.newaxis], batch_features, prev_batch_features
+        improve_indx[..., jnp.newaxis, jnp.newaxis],
+        batch_features,
+        prev_batch_features,
     )
     new_batch_rewards = jnp.where(
         improve_indx, batch_rewards, prev_batch_rewards
@@ -691,7 +728,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     yet and we shouldn't use them during suggest.
 
     Args:
-      batch_features: (batch_size, n_features)
+      batch_features: (batch_size, n_parallel, n_features)
       batch_rewards: (batch_size,)
       batch_perturbations: (batch_size,)
       best_reward: Best reward seen so far.
@@ -706,9 +743,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     indx = indx & (batch_rewards != best_reward)
 
     # Replace fireflies with random features and evaluate rewards.
-    random_features = self.param_handler.random_features(self.batch_size, seed)
+    random_features = self.param_handler.random_features(
+        self.batch_size, n_parallel=batch_features.shape[1], seed=seed
+    )
     new_batch_features = jnp.where(
-        indx[..., jnp.newaxis], random_features, batch_features
+        indx[..., jnp.newaxis, jnp.newaxis], random_features, batch_features
     )
     new_batch_perturbations = jnp.where(
         indx, self.config.perturbation, batch_perturbations

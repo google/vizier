@@ -180,24 +180,29 @@ class EagleParamHandler:
     7. Flatten each row sampled values and combine with original features.
 
     Arguments:
-      features: (batch_size, n_feature_dimensions)
+      features: (batch_size, n_parallel, n_feature_dimensions)
       seed: Random seed.
 
     Returns:
       The features with sampled categorical parameters.
-        (batch_size, n_feature_dimensions)
+        (batch_size, n_parallel, n_feature_dimensions)
     """
     if not self.has_categorical:
       return features
-    batch_size = features.shape[0]
+    batch_shape = features.shape[:-1]
+
     # Mask each row (which represents a categorical param) to remove values in
     # indices that aren't associated with the parameter indices.
-    param_features = features[:, jnp.newaxis, :] * self._categorical_params_mask
+    param_features = (
+        features[..., jnp.newaxis, :] * self._categorical_params_mask
+    )
     # Create probabilities from non-normalized parameter features values.
     probs = param_features / jnp.sum(param_features, axis=-1, keepdims=True)
     # Generate random uniform values to use for sampling.
     # TODO: Pre-compute random values in batch to improve performance.
-    unifs = jax.random.uniform(seed, shape=(batch_size, self.n_categorical, 1))
+    unifs = jax.random.uniform(
+        seed, shape=batch_shape + (self.n_categorical, 1)
+    )
     # Find the locations of the indices that exceed random values.
     locs = jnp.cumsum(probs, axis=-1) >= unifs
     # Multiply by 'categorical_mask' to mask off cumsum in non-categorical
@@ -208,13 +213,16 @@ class EagleParamHandler:
         masked_locs / jnp.max(masked_locs, axis=-1, keepdims=True)
     )
     # Flatten all the categories features to dimension
-    # (batch_size, n_feature_dimensions)
-    sampled_features = jnp.sum(sampled_categorical_params, axis=1)
+    # (batch_size, n_parallel, n_feature_dimensions)
+    sampled_features = jnp.sum(sampled_categorical_params, axis=-2)
     # Mask categorical features and add the new sampled categorical values.
     return sampled_features + features * (1 - self._categorical_mask)
 
   def random_features(
-      self, batch_size: int, seed: jax.random.KeyArray
+      self,
+      batch_size: int,
+      n_parallel: int,
+      seed: jax.random.KeyArray,
   ) -> jax.Array:
     """Create random features with uniform distribution.
 
@@ -228,17 +236,19 @@ class EagleParamHandler:
 
     Arguments:
       batch_size:
+      n_parallel:
       seed: Random seed.
 
     Returns:
       The random features with out of vocabulary indices zeroed out.
     """
     features = jax.random.uniform(
-        seed, shape=(batch_size, self.n_feature_dimensions)
+        seed, shape=(batch_size, n_parallel, self.n_feature_dimensions)
     )
     if self._oov_mask is not None:
       # Don't create random values for CATEGORICAL features OOV indices.
       # Broadcasting:
-      #   (batch_size, n_feature_dimensions) x (n_feature_dimensions,)
+      #   (batch_size, n_parallel, n_feature_dimensions)
+      #    x (n_feature_dimensions,)
       features = features * self._oov_mask
     return features
