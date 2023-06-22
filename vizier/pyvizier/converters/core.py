@@ -26,7 +26,6 @@ from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Opt
 from absl import logging
 import attr
 import numpy as np
-
 from vizier import pyvizier
 
 # The study identifier for cross-study learning must be stored in
@@ -1189,6 +1188,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
     )
 
 
+@attr.define
 class TrialToArrayConverter:
   """EXPERIMENTAL: A quick-and-easy converter that returns a single array.
 
@@ -1204,21 +1204,7 @@ class TrialToArrayConverter:
   risk.
   """
 
-  _experimental_override = 'I am aware that this code may break at any point.'
-
-  def __init__(
-      self,
-      impl: DefaultTrialConverter,
-      experimental_override: str = '',
-  ):
-    """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
-
-    if experimental_override != self._experimental_override:
-      raise ValueError(
-          'Set "experimental_override" if you want to call __init__ directly. '
-          'Otherwise, use TrialToArrayConverter.from_study_config.'
-      )
-    self._impl = impl
+  _impl: DefaultTrialConverter
 
   def to_features(self, trials) -> np.ndarray:
     """Returns the features array with dimension: (n_trials, n_features)."""
@@ -1290,7 +1276,7 @@ class TrialToArrayConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information],
     )
-    return cls(converter, cls._experimental_override)
+    return cls(converter)
 
   @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:
@@ -1301,3 +1287,7 @@ class TrialToArrayConverter:
   @property
   def metric_specs(self) -> Sequence[pyvizier.MetricInformation]:
     return [mc.metric_information for mc in self._impl.metric_converters]
+
+  @property
+  def dtype(self) -> np.dtype:
+    return self.to_features([]).dtype

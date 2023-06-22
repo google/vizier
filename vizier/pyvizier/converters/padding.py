@@ -18,15 +18,10 @@ from __future__ import annotations
 
 import enum
 import math
-
-from typing import List, Tuple, Union
+from typing import List, Tuple
 import attrs
-import jax
 import numpy as np
-
-
-# We don't use internal types here since types depends on this file.
-Array = Union[np.ndarray, jax.Array]
+from vizier._src.jax import types
 
 
 class PaddingType(enum.Enum):
@@ -39,18 +34,6 @@ class PaddingType(enum.Enum):
 class PaddingSchedule:
   num_trials: PaddingType = attrs.field(init=True)
   num_features: PaddingType = attrs.field(init=True)
-
-
-@attrs.define(frozen=True, kw_only=True)
-class PaddedArray:
-  # Array of shape [N1, ... Nk].
-  padded_array: Array = attrs.field(init=True)
-  # Mask per dimension padded. List of Arrays of shape [N1], [N2], ..., [Nk].
-  is_missing: List[Array] = attrs.field(init=True)
-
-  @property
-  def shape(self):
-    return self.padded_array.shape
 
 
 def padded_dimensions(
@@ -75,7 +58,7 @@ def padded_dimensions(
 
 def pad_features(
     features: np.ndarray, padding_schedule: PaddingSchedule
-) -> PaddedArray:
+) -> types.PaddedArray:
   """Pads features in to a `PaddedArray`."""
   num_trials, num_features = features.shape[-2], features.shape[-1]
   padding_types = [
@@ -96,7 +79,7 @@ def pad_features(
       ((0, new_num_trials - num_trials), (0, new_num_features - num_features)),
       constant_values=np.nan,
   )
-  return PaddedArray(
+  return types.PaddedArray(
       padded_array=new_features,
       is_missing=[trials_is_missing, features_is_missing],
   )
@@ -104,7 +87,7 @@ def pad_features(
 
 def pad_labels(
     labels: np.ndarray, padding_schedule: PaddingSchedule
-) -> PaddedArray:
+) -> types.PaddedArray:
   """Pads labels in to a `PaddedArray`."""
   num_trials = labels.shape[-2]
   (new_num_trials,) = padded_dimensions(  # pylint:disable=unbalanced-tuple-unpacking
@@ -116,14 +99,16 @@ def pad_labels(
   new_labels = np.pad(
       labels, ((0, new_num_trials - num_trials), (0, 0)), constant_values=np.nan
   )
-  return PaddedArray(padded_array=new_labels, is_missing=[trials_is_missing])
+  return types.PaddedArray(
+      padded_array=new_labels, is_missing=[trials_is_missing]
+  )
 
 
 def pad_features_and_labels(
     features: np.ndarray,
     labels: np.ndarray,
     padding_schedule: PaddingSchedule,
-) -> Tuple[PaddedArray, PaddedArray]:
+) -> Tuple[types.PaddedArray, types.PaddedArray]:
   """Pads `features` and `labels` according to a `padding_schedule`.
 
   Args:

@@ -60,6 +60,16 @@ class TrialToArrayConverterTest(parameterized.TestCase):
         converter.to_parameters(converter.to_features(self._trials)),
     )
 
+  def test_dtype(self):
+    space = pyvizier.SearchSpace()
+    root = space.root
+    root.add_float_param('double', -2.0, 2.0)
+    root.add_int_param('integer', -2, 2)
+    converter = core.TrialToArrayConverter.from_study_config(
+        pyvizier.ProblemStatement(search_space=space)
+    )
+    self.assertEqual(converter.dtype, np.float64)
+
   def test_parameter_continuify(self):
     space = pyvizier.SearchSpace()
     root = space.root

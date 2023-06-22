@@ -424,7 +424,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     if observations_is_missing is not None:
       kwargs['observations_is_missing'] = observations_is_missing
 
-    if isinstance(x_observed, types.ContinuousAndCategoricalArray):
+    if isinstance(x_observed, types.ContinuousAndCategorical):
       x_observed = tfpke.ContinuousAndCategoricalValues(
           continuous=x_observed.continuous, categorical=x_observed.categorical
       )
@@ -495,7 +495,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     if observations_is_missing is not None:
       kwargs = kwargs.copy({'observations_is_missing': observations_is_missing})
 
-    if isinstance(x_predictive, types.ContinuousAndCategoricalArray):
+    if isinstance(x_predictive, types.ContinuousAndCategorical):
       x_predictive = tfpke.ContinuousAndCategoricalValues(
           continuous=x_predictive.continuous,
           categorical=x_predictive.categorical,
@@ -754,7 +754,7 @@ class PrecomputedPredictive(eqx.Module):
     Returns:
       Distribution with sample shape [B].
     """
-    if isinstance(x_predictive, types.ContinuousAndCategoricalArray):
+    if isinstance(x_predictive, types.ContinuousAndCategorical):
       x_predictive = tfpke.ContinuousAndCategoricalValues(
           continuous=x_predictive.continuous,
           categorical=x_predictive.categorical,
@@ -846,7 +846,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
         regularization losses.
     """
     features = data.features
-    if isinstance(features, types.ContinuousAndCategoricalArray):
+    if isinstance(features, types.ContinuousAndCategorical):
       features = tfpke.ContinuousAndCategoricalValues(
           continuous=data.features.continuous,
           categorical=data.features.categorical,

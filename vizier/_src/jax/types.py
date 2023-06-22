@@ -16,8 +16,9 @@ from __future__ import annotations
 
 """Types library for vizier/_src/jax."""
 
-from typing import Any, Generic, Iterable, Mapping, Optional, TypeVar, Union
+from typing import Any, Generic, Iterable, List, Mapping, Optional, TypeVar, Union
 
+import attrs
 import equinox as eqx
 from flax import struct
 from flax.core import scope as flax_scope
@@ -25,7 +26,6 @@ import jax
 from jax import numpy as jnp
 from jax.typing import ArrayLike
 import numpy as np
-from vizier.pyvizier.converters import padding
 
 
 # We define our own Array type since `jax.typing.Array` and `chex.Array` both
@@ -33,7 +33,20 @@ from vizier.pyvizier.converters import padding
 # methods/properties like `.shape` are accessed.
 Array = Union[np.ndarray, jax.Array]
 
-MaybePaddedArray = Union[Array, padding.PaddedArray]
+
+@attrs.define(frozen=True, kw_only=True)
+class PaddedArray:
+  # Array of shape [N1, ... Nk].
+  padded_array: Array = attrs.field(init=True)
+  # Mask per dimension padded. List of Arrays of shape [N1], [N2], ..., [Nk].
+  is_missing: List[Array] = attrs.field(init=True)
+
+  @property
+  def shape(self):
+    return self.padded_array.shape
+
+
+MaybePaddedArray = Union[Array, PaddedArray]
 
 ArrayTree = Union[ArrayLike, Iterable['ArrayTree'], Mapping[Any, 'ArrayTree']]
 
@@ -47,13 +60,16 @@ ParameterDict = flax_scope.Collection
 ModelState = flax_scope.VariableDict
 
 
-class ContinuousAndCategoricalArray(eqx.Module):
-  continuous: jax.Array = eqx.field(
-      converter=lambda x: jnp.asarray(x, dtype=x.dtype)
-  )
-  categorical: jax.Array = eqx.field(
-      converter=lambda x: jnp.asarray(x, dtype=x.dtype)
-  )
+_T = TypeVar('_T')
+
+
+@struct.dataclass
+class ContinuousAndCategorical(Generic[_T]):
+  continuous: _T
+  categorical: _T
+
+
+ContinuousAndCategoricalArray = ContinuousAndCategorical[Array]
 
 
 # Tuple representing a box constraint of the form (lower, upper) bounds.
@@ -75,8 +91,8 @@ class StochasticProcessModelData(Generic[Features], eqx.Module):
 
 
 @struct.dataclass
-class GPState:
+class GPState(Generic[Features]):
   """State that changes at each iteration."""
 
-  data: StochasticProcessModelData
+  data: StochasticProcessModelData[Features]
   model_state: ModelState

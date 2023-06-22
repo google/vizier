@@ -96,7 +96,7 @@ def _test_coroutine(
     dtype=np.float64,
 ):
   """A coroutine that follows the `ModelCoroutine` protocol."""
-  if isinstance(inputs, types.ContinuousAndCategoricalArray):
+  if isinstance(inputs, types.ContinuousAndCategorical):
     inputs = tfpke.ContinuousAndCategoricalValues(
         inputs.continuous, inputs.categorical
     )

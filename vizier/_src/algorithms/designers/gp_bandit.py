@@ -304,7 +304,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       padded_labels = np.concatenate(
           [labels, padded_labels[len(self._trials) :, 0]], axis=0
       )
-      labels = padding.PaddedArray(
+      labels = types.PaddedArray(
           padded_array=padded_labels, is_missing=pre_labels.is_missing
       )
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)

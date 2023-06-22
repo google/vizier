@@ -321,7 +321,7 @@ class TrustRegion(eqx.Module):
     min_radius = 0.2  # Hyperparameter
     dimension_factor = 5.0  # Hyperparameter
 
-    if isinstance(data.features, types.ContinuousAndCategoricalArray):
+    if isinstance(data.features, types.ContinuousAndCategorical):
       dof = sum(x.shape[-1] for x in jax.tree_util.tree_leaves(data.features))
     else:
       dof = len(specs)
@@ -339,7 +339,7 @@ class TrustRegion(eqx.Module):
     if num_obs == 0:
       trust_radius = 1.0
 
-    if isinstance(data.features, types.ContinuousAndCategoricalArray):
+    if isinstance(data.features, types.ContinuousAndCategorical):
       max_distance = [np.inf] * data.features.continuous.shape[-1]
     else:
       max_distance = []
@@ -374,9 +374,9 @@ class TrustRegion(eqx.Module):
       trusted point.
     """
     trusted = self.data.features
-    if isinstance(trusted, types.ContinuousAndCategoricalArray):
+    if isinstance(trusted, types.ContinuousAndCategorical):
       trusted = trusted.continuous
-    if isinstance(xs, types.ContinuousAndCategoricalArray):
+    if isinstance(xs, types.ContinuousAndCategorical):
       xs = xs.continuous
     if self.data.dimension_is_missing is not None:
       # Mask out padded dimensions
