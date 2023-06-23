@@ -458,6 +458,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if len(self._trials) < self._num_seed_trials:
       return self._generate_seed_trials(count)
 
+    suggest_start_time = datetime.datetime.now()
     logging.info('Updating the designer state based on trials...')
     predictive, data = self._update_state(self._trials_to_data(self._trials))
 
@@ -473,10 +474,15 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     )
     logging.info('Optimizing acquisition: %s', scoring_fn)
     best_trials = self._optimize_acquisition(scoring_fn, count)
-    return [
-        vz.TrialSuggestion(parameters=t.parameters, metadata=t.metadata)
-        for t in best_trials
-    ]
+
+    suggestions = []
+    for t in best_trials:
+      metadata = t.metadata.ns(self._metadata_ns).ns('devinfo')
+      metadata['time_spent'] = f'{datetime.datetime.now() - suggest_start_time}'
+      suggestions.append(
+          vz.TrialSuggestion(parameters=t.parameters, metadata=t.metadata)
+      )
+    return suggestions
 
   @profiler.record_runtime
   def predict(
