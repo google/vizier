@@ -165,7 +165,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
   indices: list[int] = attrs.field()
   # List of max lengths
   max_lengths: list[int] = attrs.field()
-  # Base stepsize and meta_stepize should theoretically be 1/sqrt(n) where
+  # Base stepsize and meta_stepsize should theoretically be 1/sqrt(n) where
   # n = # of indices (or underlying arms) when using a reward estimator.
   base_stepsize: float = attrs.field(
       default=1.0,
