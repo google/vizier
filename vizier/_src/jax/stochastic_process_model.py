@@ -851,6 +851,12 @@ class StochasticProcessWithCoroutine(eqx.Module):
           continuous=data.features.continuous,
           categorical=data.features.categorical,
       )
+    if data.dimension_is_missing is not None:
+      features = jax.tree_util.tree_map(
+          lambda x, d: jnp.where(d, jnp.zeros_like(x), x),
+          features,
+          data.dimension_is_missing,
+      )
     gen = self.coroutine(features)
     params = self.params
     params_loss = dict()

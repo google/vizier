@@ -29,6 +29,7 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
+from vizier.pyvizier.converters import feature_mapper
 from vizier.utils import json_utils
 
 
@@ -336,16 +337,21 @@ class VectorizedOptimizer:
     )
     _, best_results, _ = jax.lax.fori_loop(
         0,
-        jnp.int32(jnp.ceil(self.max_evaluations / self.suggestion_batch_size)),
+        (self.max_evaluations - 1) // self.suggestion_batch_size + 1,
         _optimization_one_step,
         init_args,
     )
 
     if score_with_aux_fn:
+      if n_parallel is None:
+        aux = score_with_aux_fn(best_results.features[:, 0, :])[1]
+      else:
+        aux = score_with_aux_fn(best_results.features)[1]
+
       return VectorizedStrategyResults(
           best_results.features,
           best_results.rewards,
-          score_with_aux_fn(best_results.features)[1],
+          aux,
       )
 
     return best_results
@@ -394,10 +400,15 @@ def best_candidates_to_trials(
   """Returns the best candidate trials in the original search space."""
   trials = []
   sorted_ind = jnp.argsort(-best_results.rewards)
+  features = best_results.features
+  if isinstance(features, types.ContinuousAndCategorical):
+    features = feature_mapper.ContinuousCategoricalFeatureMapper(
+        converter
+    ).unmap(features)
   for i in range(len(best_results.rewards)):
     # Create trials and convert the strategy features back to parameters.
     ind = sorted_ind[i]
-    suggested_features = best_results.features[ind]
+    suggested_features = features[ind]
     reward = best_results.rewards[ind]
 
     # Loop over the number of candidates per batch (which will be one, unless a

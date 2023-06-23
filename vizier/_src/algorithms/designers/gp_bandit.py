@@ -141,8 +141,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       raise ValueError(f'{type(self)} does not support conditional search.')
     elif len(self._problem.metric_information) != 1:
       raise ValueError(f'{type(self)} works with exactly one metric.')
-    elif self._padding_schedule:
-      raise NotImplementedError('This is temporariliy disabled.')
     if self._use_categorical_kernel and self._padding_schedule:
       raise ValueError(
           f'{type(self)} does not support padding with categorical kernel.'
@@ -435,8 +433,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         best_candidates,
     )
     optimal_features = best_candidates.features
-    if self._padding_schedule:
-      raise NotImplementedError('bring it back.')
     if self._use_categorical_kernel:
       optimal_features = self._feature_mapper.map(optimal_features)
     best_candidates = dataclasses.replace(
@@ -511,7 +507,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     xs = self._converter.to_features(trials)
     if self._padding_schedule:
-      xs = xs.padded_array[: len(trials), ...]
+      trials_is_missing, features_is_missing = xs.is_missing
+      xs = xs.padded_array[~trials_is_missing]
+      xs[:, features_is_missing] = 0.0
     if self._use_categorical_kernel:
       xs = self._feature_mapper.map(xs)
 

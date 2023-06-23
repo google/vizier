@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import jax
 from jax import numpy as jnp
+import numpy as np
 from vizier._src.jax import types
 from vizier.pyvizier.converters import core
 
@@ -105,22 +106,25 @@ class ContinuousCategoricalFeatureMapper:
       namedtuple with continuous features and categorical integer indices.
     """
     # Split features to continuous and categorical.
-    continuous_features = features[:, self._continuous_indices]  # (B,C)
+    batch_shape = features.shape[:-1]
+    continuous_features = features[..., self._continuous_indices]  # (B,C)
     # Assign empty array as the default value.
-    categorical_index_features = jnp.zeros((features.shape[0], 0))
+    categorical_index_features = jnp.zeros(batch_shape + (0,))
     if self.n_categorical_params > 0:
-      categorical_features = features[:, self._categorical_indices]  # (B,F)
+      categorical_features = features[..., self._categorical_indices]  # (B,F)
       # Find the non-zero column indices associated with categorical parameters.
       # For example (cont. from above), with the input of [0,1,0, 0.23, 0,1]
       # 'categorical_features' is [[0,1,0,0,1]] and 'nonzero_indices' is [1,4]
-      nonzero_size = categorical_features.shape[0] * self.n_categorical_params
+      nonzero_size = np.prod(batch_shape) * self.n_categorical_params
       # nonzero_size: (P*B,)
       nonzero_indices = jnp.nonzero(categorical_features, size=nonzero_size)[1]
       # Reshape the non-zero indices to align with the no. of categorical params
       # and shift by the cardinality of each parameter to compute the integer
       # category value. For example (cont. from above), [[1,4]] - [0,3] = [1, 1]
       categorical_index_features = (
-          jnp.reshape(nonzero_indices, (-1, self.n_categorical_params))  # (B,P)
+          jnp.reshape(
+              nonzero_indices, batch_shape + (self.n_categorical_params,)
+          )  # (B,P)
           - self.shift  # (P,)
       )  # (B,P)
     return types.ContinuousAndCategoricalArray(
@@ -133,9 +137,10 @@ class ContinuousCategoricalFeatureMapper:
       raise ValueError(
           "'continuous' and 'categorical' first dimension doesn't match!"
       )
-    batch_size = features.continuous.shape[0]
+    batch_shape = features.continuous.shape[:-1]
     unmapped_features = jnp.zeros(
-        (batch_size, sum(self.categorical_dims) + len(self._continuous_indices))
+        batch_shape
+        + (sum(self.categorical_dims) + len(self._continuous_indices),)
     )
     con_ind = 0
     cat_ind = 0
@@ -143,16 +148,16 @@ class ContinuousCategoricalFeatureMapper:
     # Extract the continuous and categorical feature indices.
     for spec in self.converter.output_specs:
       if spec.type == core.NumpyArraySpecType.CONTINUOUS:
-        unmapped_features = unmapped_features.at[:, ind].set(
-            features.continuous[:, con_ind]
+        unmapped_features = unmapped_features.at[..., ind].set(
+            features.continuous[..., con_ind]
         )
         con_ind += 1
         ind += 1
 
       elif spec.type == core.NumpyArraySpecType.ONEHOT_EMBEDDING:
         unmapped_features = unmapped_features.at[
-            :, ind : ind + spec.num_dimensions
-        ].set(jnp.eye(spec.num_dimensions)[features.categorical[:, cat_ind]])
+            ..., ind : ind + spec.num_dimensions
+        ].set(jnp.eye(spec.num_dimensions)[features.categorical[..., cat_ind]])
         cat_ind += 1
         ind += spec.num_dimensions
       else:

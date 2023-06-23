@@ -58,60 +58,37 @@ class GoogleGpBanditTest(parameterized.TestCase):
   @parameterized.parameters(
       dict(iters=3, batch_size=2, num_seed_trials=1, ensemble_size=2),
       dict(iters=3, batch_size=1, num_seed_trials=1, ensemble_size=2),
-      # TODO: Revive these tests.
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     ard_optimizer='ensemble',
-      #     use_categorical_kernel=True,
-      # ),
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.MULTIPLES_OF_10,
-      #         num_features=padding.PaddingType.POWERS_OF_2,
-      #     ),
-      # ),
-      # dict(
-      #     iters=5,
-      #     batch_size=1,
-      #     num_seed_trials=3,
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.POWERS_OF_2,
-      #         num_features=padding.PaddingType.POWERS_OF_2,
-      #     ),
-      # ),
-      # dict(
-      #     ard_optimizer='ensemble',
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.POWERS_OF_2,
-      #         num_features=padding.PaddingType.POWERS_OF_2,
-      #     ),
-      # ),
-      # dict(
-      #     ard_optimizer='noensemble',
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.POWERS_OF_2,
-      #         num_features=padding.PaddingType.POWERS_OF_2,
-      #     ),
-      # ),
-      # dict(
-      #     ard_optimizer='ensemble',
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.NONE,
-      #         num_features=padding.PaddingType.NONE,
-      #     ),
-      # ),
-      # dict(
-      #     ard_optimizer='noensemble',
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.NONE,
-      #         num_features=padding.PaddingType.NONE,
-      #     ),
-      # ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          use_categorical_kernel=True,
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,
+              num_features=padding.PaddingType.POWERS_OF_2,
+          ),
+      ),
+      dict(
+          iters=5,
+          batch_size=1,
+          num_seed_trials=3,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.POWERS_OF_2,
+              num_features=padding.PaddingType.POWERS_OF_2,
+          ),
+      ),
+      dict(
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.POWERS_OF_2,
+              num_features=padding.PaddingType.POWERS_OF_2,
+          ),
+          ensemble_size=3,
+      ),
   )
   def test_on_flat_continuous_space(
       self,
@@ -182,40 +159,21 @@ class GoogleGpBanditTest(parameterized.TestCase):
       dict(iters=3, batch_size=5, num_seed_trials=5),
       dict(iters=5, batch_size=1, num_seed_trials=2),
       dict(iters=5, batch_size=1, num_seed_trials=1),
-      # TODO: Fix padding + mixed space failing test.
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.MULTIPLES_OF_10,
-      #         num_features=padding.PaddingType.POWERS_OF_2,
-      #     ),
-      # ),
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.NONE,
-      #         num_features=padding.PaddingType.NONE,
-      #     ),
-      # ),
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     padding_schedule=padding.PaddingSchedule(
-      #         num_trials=padding.PaddingType.NONE,
-      #         num_features=padding.PaddingType.NONE,
-      #     ),
-      # ),
-      # dict(
-      #     iters=3,
-      #     batch_size=5,
-      #     num_seed_trials=5,
-      #     use_categorical_kernel=True,
-      # ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,
+              num_features=padding.PaddingType.POWERS_OF_2,
+          ),
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          use_categorical_kernel=True,
+      ),
   )
   def test_on_flat_mixed_space(
       self,
