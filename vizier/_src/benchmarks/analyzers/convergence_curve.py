@@ -308,7 +308,7 @@ class HypervolumeCurveConverter:
       self,
       metric_informations: Sequence[pyvizier.MetricInformation],
       *,
-      reference_value: float = 0.0,
+      reference_value: np.ndarray = np.array([0.0]),
       num_vectors: int = 10000,
   ):
     """Init.
@@ -346,9 +346,19 @@ class HypervolumeCurveConverter:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
     # Returns a len(trials) x number of metrics np.ndarray.
     metrics = self._converter.to_labels_array(trials)
+    if len(self._origin_value) == 1:
+      origin = np.broadcast_to(self._origin_value, (metrics.shape[1],))
+    else:
+      if self._origin_value.shape != (metrics.shape[1],):
+        raise ValueError(
+            f'Metric shapes {self._origin_value.shape} do not '
+            f'match: {(metrics.shape[1],)}'
+        )
+      origin = self._origin_value
+
     front = multimetric.ParetoFrontier(
         points=metrics,
-        origin=np.array([self._origin_value] * metrics.shape[1]),
+        origin=origin,
         num_vectors=self._num_vectors,
         cum_hypervolume_base=xla_pareto.jax_cum_hypervolume_origin,
     )
