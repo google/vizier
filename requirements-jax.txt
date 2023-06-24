@@ -7,3 +7,4 @@ optax>=0.1.5
 chex>=0.1.7
 tfp-nightly[jax]
 equinox>=0.10.6
+jaxtyping>=0.2.20

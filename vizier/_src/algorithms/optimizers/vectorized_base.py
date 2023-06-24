@@ -434,6 +434,7 @@ def best_candidates_to_trials(
   return trials
 
 
+# TODO: This function should return jax types.
 def trials_to_sorted_array(
     prior_trials: list[vz.Trial],
     converter: ArrayConverter,
@@ -446,7 +447,7 @@ def trials_to_sorted_array(
     # PaddedArrays.
     if isinstance(converter, converters.PaddedTrialToArrayConverter):
       # We need to mask out the `NaN` padded trials with zeroes.
-      prior_features = prior_features.padded_array
+      prior_features = np.array(prior_features.padded_array)
       prior_features[len(prior_trials) :, ...] = 0.0
   else:
     prior_features = None

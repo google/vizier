@@ -19,13 +19,16 @@ from __future__ import annotations
 from typing import Sequence, Tuple
 
 import attr
+import attrs
+import jax
 import numpy as np
-from vizier import pyvizier
-from vizier._src.jax import types
+from vizier import pyvizier as vz
+from vizier._src.jax import types as vt
 from vizier.pyvizier.converters import core
 from vizier.pyvizier.converters import padding
 
 
+# TODO: Slated for deprecation.
 class PaddedTrialToArrayConverter:
   """Converts trials to arrays and pads / masks them."""
 
@@ -51,24 +54,24 @@ class PaddedTrialToArrayConverter:
     self._impl = impl
     self._padding_schedule = padding_schedule
 
-  def to_features(self, trials: Sequence[pyvizier.Trial]) -> types.PaddedArray:
+  def to_features(self, trials: Sequence[vz.Trial]) -> vt.PaddedArray:
     """Returns the features array with dimension: (n_trials, n_features)."""
     # Pad up the features.
     features = self._impl.to_features(trials)
-    return padding.pad_features(features, self._padding_schedule)
+    return self._padding_schedule.pad_features(features)
 
-  def to_labels(self, trials: Sequence[pyvizier.Trial]) -> types.PaddedArray:
+  def to_labels(self, trials: Sequence[vz.Trial]) -> vt.PaddedArray:
     """Returns the labels array with dimenion: (n_trials, n_metrics)."""
     # Pad up the labels.
     labels = self._impl.to_labels(trials)
-    return padding.pad_labels(labels, self._padding_schedule)
+    return self._padding_schedule.pad_labels(labels)
 
   def to_xy(
-      self, trials: Sequence[pyvizier.Trial]
-  ) -> Tuple[types.PaddedArray, types.PaddedArray]:
+      self, trials: Sequence[vz.Trial]
+  ) -> Tuple[vt.PaddedArray, vt.PaddedArray]:
     return self.to_features(trials), self.to_labels(trials)
 
-  def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
+  def to_parameters(self, arr: np.ndarray) -> Sequence[vz.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
     # Undo the padding of the parameters in this array.
     if self._padding_schedule is not None:
@@ -81,7 +84,7 @@ class PaddedTrialToArrayConverter:
   @classmethod
   def from_study_config(
       cls,
-      study_config: pyvizier.ProblemStatement,
+      study_config: vz.ProblemStatement,
       *,
       scale: bool = True,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(
@@ -131,12 +134,53 @@ class PaddedTrialToArrayConverter:
     return self._impl.output_specs
 
   @property
-  def metric_specs(self) -> Sequence[pyvizier.MetricInformation]:
+  def metric_specs(self) -> Sequence[vz.MetricInformation]:
     return self._impl.metric_specs
 
   @property
   def padding_schedule(self) -> padding.PaddingSchedule:
     return self._padding_schedule
+
+
+@attrs.define
+class TrialToModelInputConverter:
+  """Converts trials to arrays and pads / masks them."""
+
+  _impl: 'TrialToContinuousAndCategoricalConverter'
+  _padding_schedule: padding.PaddingSchedule
+
+  def to_features(self, trials: Sequence[vz.Trial]) -> vt.ModelInput:
+    """Returns the features array with dimension: (n_trials, n_features)."""
+    # Pad up the features.
+    features = self._impl.to_features(trials)
+    return jax.tree_util.tree_map(self._padding_schedule.pad_features, features)
+
+  def to_labels(self, trials: Sequence[vz.Trial]) -> vt.PaddedArray:
+    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    # Pad up the labels.
+    labels = self._impl.to_labels(trials)
+    return self._padding_schedule.pad_labels(labels)
+
+  def to_xy(self, trials: Sequence[vz.Trial]) -> vt.ModelData:
+    return vt.StochasticProcessModelData.from_padded(
+        self.to_features(trials), self.to_labels(trials)
+    )
+
+  def to_parameters(self, arr: vt.ModelInput) -> Sequence[vz.ParameterDict]:
+    """Convert to nearest feasible parameter value. NaNs are preserved."""
+    # Undo the padding of the parameters in this array.
+    unpadded = vt.ContinuousAndCategoricalArray(
+        arr.continuous.unpad(), arr.categorical.unpad()
+    )
+    return self._impl.to_parameters(unpadded)
+
+  @property
+  def output_specs(self):  # TODO: Add back pytype
+    return self._impl.output_specs
+
+  @property
+  def metric_specs(self) -> Sequence[vz.MetricInformation]:
+    return self._impl.metric_specs
 
 
 @attr.define
@@ -157,7 +201,9 @@ class TrialToContinuousAndCategoricalConverter:
 
   _impl: core.DefaultTrialConverter
 
-  def to_features(self, trials) -> types.ContinuousAndCategoricalArray:
+  def to_features(
+      self, trials: Sequence[vz.Trial]
+  ) -> vt.ContinuousAndCategoricalArray:
     """Returns a structure of arrays with first dimension `n_trials`."""
     features = self._impl.to_features(trials)
 
@@ -181,29 +227,27 @@ class TrialToContinuousAndCategoricalConverter:
       categorical_array = np.concatenate(categorical, axis=-1)
     else:
       categorical_array = np.zeros([len(trials), 0], dtype=np.int32)
-    return types.ContinuousAndCategoricalArray(
-        continuous_array, categorical_array
-    )
+    return vt.ContinuousAndCategoricalArray(continuous_array, categorical_array)
 
   @property
-  def dtype(self) -> types.ContinuousAndCategorical[np.dtype]:
+  def dtype(self) -> vt.ContinuousAndCategorical[np.dtype]:
     empty_features = self.to_features([])
-    return types.ContinuousAndCategorical(
+    return vt.ContinuousAndCategorical(
         empty_features.continuous.dtype, empty_features.categorical.dtype
     )
 
-  def to_labels(self, trials: Sequence[pyvizier.Trial]) -> np.ndarray:
+  def to_labels(self, trials: Sequence[vz.Trial]) -> np.ndarray:
     """Returns the labels array with dimenion: (n_trials, n_metrics)."""
     return core.dict_to_array(self._impl.to_labels(trials))
 
   def to_xy(
       self, trials
-  ) -> Tuple[types.ContinuousAndCategoricalArray, np.ndarray]:
+  ) -> Tuple[vt.ContinuousAndCategoricalArray, np.ndarray]:
     return self.to_features(trials), self.to_labels(trials)
 
   def to_parameters(
-      self, feat: types.ContinuousAndCategoricalArray
-  ) -> Sequence[pyvizier.ParameterDict]:
+      self, feat: vt.ContinuousAndCategoricalArray
+  ) -> Sequence[vz.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
     feat_dict = {}
     cont_ind = 0
@@ -223,10 +267,12 @@ class TrialToContinuousAndCategoricalConverter:
 
     return self._impl.to_parameters(core.DictOf2DArrays(feat_dict))
 
+  # TODO: Move this method to TrialToModelInputConverter, and
+  # make this class private to the module.
   @classmethod
   def from_study_config(
       cls,
-      study_config: pyvizier.ProblemStatement,
+      study_config: vz.ProblemStatement,
       *,
       scale: bool = True,
       max_discrete_indices: int = 0,
@@ -276,7 +322,7 @@ class TrialToContinuousAndCategoricalConverter:
   @property
   def output_specs(
       self,
-  ) -> types.ContinuousAndCategorical[Sequence[core.NumpyArraySpec]]:
+  ) -> vt.ContinuousAndCategorical[Sequence[core.NumpyArraySpec]]:
     """Output `NumpyArraySpec`s."""
     continuous = []
     categorical = []
@@ -290,8 +336,8 @@ class TrialToContinuousAndCategoricalConverter:
         raise ValueError(
             f'Expected spec to be CONTINUOUS or DISCRETE, saw {spec.type}'
         )
-    return types.ContinuousAndCategorical(continuous, categorical)
+    return vt.ContinuousAndCategorical(continuous, categorical)
 
   @property
-  def metric_specs(self) -> Sequence[pyvizier.MetricInformation]:
+  def metric_specs(self) -> Sequence[vz.MetricInformation]:
     return [mc.metric_information for mc in self._impl.metric_converters]

@@ -25,177 +25,40 @@ from absl.testing import parameterized
 
 class PaddingTest(parameterized.TestCase):
 
-  @parameterized.parameters(
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.NONE,
-              num_features=padding.PaddingType.NONE,
-          ),
-          num_trials=17,
-          num_features=5,
-          expected_num_trials=17,
-          expected_num_features=5,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.NONE,
-              num_features=padding.PaddingType.NONE,
-          ),
-          num_trials=23,
-          num_features=8,
-          expected_num_trials=23,
-          expected_num_features=8,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          num_trials=17,
-          num_features=5,
-          expected_num_trials=20,
-          expected_num_features=10,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          num_trials=23,
-          num_features=2,
-          expected_num_trials=32,
-          expected_num_features=10,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          num_trials=7,
-          num_features=8,
-          expected_num_trials=10,
-          expected_num_features=10,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          num_trials=7,
-          num_features=20,
-          expected_num_trials=10,
-          expected_num_features=20,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          num_trials=123,
-          num_features=22,
-          expected_num_trials=130,
-          expected_num_features=32,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          num_trials=17,
-          num_features=5,
-          expected_num_trials=32,
-          expected_num_features=8,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          num_trials=23,
-          num_features=2,
-          expected_num_trials=32,
-          expected_num_features=2,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          num_trials=7,
-          num_features=8,
-          expected_num_trials=8,
-          expected_num_features=10,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          num_trials=7,
-          num_features=17,
-          expected_num_trials=8,
-          expected_num_features=32,
-      ),
-      dict(
-          schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          num_trials=123,
-          num_features=22,
-          expected_num_trials=128,
-          expected_num_features=32,
-      ),
-  )
-  def test_padding(
-      self,
-      schedule,
-      num_trials,
-      num_features,
-      expected_num_trials,
-      expected_num_features,
-  ):
-    features = np.random.randn(num_trials, num_features)
-    labels = np.random.randn(num_trials)[..., np.newaxis]
+  def test_padding(self):
+    features = np.random.randn(13, 7)
+    labels = np.random.randn(13, 3)
 
-    padded_features, padded_labels = padding.pad_features_and_labels(
-        features, labels, schedule
+    schedule = padding.PaddingSchedule(
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,
+        num_features=padding.PaddingType.POWERS_OF_2,
+        num_metrics=padding.PaddingType.POWERS_OF_2,
     )
 
-    self.assertLen(padded_features.is_missing, 2)
-    self.assertLen(padded_labels.is_missing, 1)
+    padded = schedule.pad_features(features)
 
-    self.assertTrue(
-        np.all(
-            np.isclose(
-                padded_features.is_missing[0], padded_labels.is_missing[0]
-            )
-        )
+    self.assertSequenceEqual(padded.padded_array.shape, (20, 8))
+    self.assertSequenceEqual(padded.unpad().shape, features.shape)
+
+    padded = schedule.pad_labels(labels)
+    self.assertSequenceEqual(padded.padded_array.shape, (20, 4))
+    self.assertSequenceEqual(padded.unpad().shape, labels.shape)
+
+  def test_nopadding(self):
+    features = np.random.randn(13, 7)
+    labels = np.random.randn(13, 3)
+
+    schedule = padding.PaddingSchedule(
+        num_trials=padding.PaddingType.NONE,
+        num_features=padding.PaddingType.NONE,
+        num_metrics=padding.PaddingType.NONE,
     )
 
-    label_is_missing = padded_features.is_missing[0]
-    feature_is_missing = padded_features.is_missing[1]
-    padded_features = padded_features.padded_array
-    padded_labels = padded_labels.padded_array
+    padded = schedule.pad_features(features)
+    self.assertSequenceEqual(padded.padded_array.shape, features.shape)
 
-    self.assertEqual(
-        padded_features.shape, (expected_num_trials, expected_num_features)
-    )
-    self.assertEqual(feature_is_missing.shape, (expected_num_features,))
-    self.assertEqual(padded_labels.shape, (expected_num_trials, 1))
-    self.assertEqual(label_is_missing.shape, (expected_num_trials,))
-
-    self.assertTrue(
-        np.all(
-            np.isclose(features, padded_features[:num_trials, :num_features])
-        )
-    )
-    self.assertTrue(np.all(np.isclose(labels, padded_labels[:num_trials])))
-    self.assertTrue(np.all(~label_is_missing[:num_trials]))
-    self.assertTrue(np.all(label_is_missing[num_trials:]))
-
-    self.assertTrue(np.all(~feature_is_missing[:num_features]))
-    self.assertTrue(np.all(feature_is_missing[num_features:]))
+    padded = schedule.pad_features(labels)
+    self.assertSequenceEqual(padded.padded_array.shape, labels.shape)
 
 
 if __name__ == '__main__':

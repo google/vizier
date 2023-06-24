@@ -16,15 +16,15 @@ from __future__ import annotations
 
 """Types library for vizier/_src/jax."""
 
-from typing import Any, Generic, Iterable, List, Mapping, Optional, TypeVar, Union
+from typing import Any, Generic, Iterable, Mapping, Optional, Sequence, TypeVar, Union
 
-import attrs
 import equinox as eqx
 from flax import struct
 from flax.core import scope as flax_scope
 import jax
 from jax import numpy as jnp
 from jax.typing import ArrayLike
+import jaxtyping as jt
 import numpy as np
 
 
@@ -34,18 +34,91 @@ import numpy as np
 Array = Union[np.ndarray, jax.Array]
 
 
-@attrs.define(frozen=True, kw_only=True)
-class PaddedArray:
-  # Array of shape [N1, ... Nk].
-  padded_array: Array = attrs.field(init=True)
-  # Mask per dimension padded. List of Arrays of shape [N1], [N2], ..., [Nk].
-  is_missing: List[Array] = attrs.field(init=True)
+class PaddedArray(eqx.Module):
+  """Padded Array as a pytree.
+
+  There is no validation done in `__init__`. In order to get a validated
+  instance, Use a converter object or a factory method outside the jit scope.
+
+  Attributes:
+    padded_array:
+    _original_shape: 1D array of length equal to `padded_array.ndims`. The k-th
+      element must be less than or equal to `padded_array.shape[k]`.
+    _nopadding_done: Must be set to True iff `_original_shape` is the same as
+      padded_array.shape.
+    _mask: Same shape as padded_array. True where padded_array's value is the
+      original array value as opposed to the fill value.
+  """
+
+  # TODO: Rename "padded_array" to a shorter name like "padded".
+  padded_array: jt.Shaped[jax.Array, '...'] = eqx.field(converter=jnp.asarray)
+  fill_value: Any = eqx.field(converter=jnp.asarray)
+  _original_shape: jt.Int[jax.Array, '_'] = eqx.field(converter=jnp.asarray)
+
+  # TODO: Make _mask an inferred property. The current
+  # implementation is not memory efficient.
+  _mask: jt.Bool[jax.Array, '...'] = eqx.field(converter=jnp.asarray)
+  _nopadding_done: bool = eqx.field(static=True, default=False, kw_only=True)
 
   @property
-  def shape(self):
+  def shape(self) -> tuple[int, ...]:
     return self.padded_array.shape
 
+  def replace_fill_value(self, fill_value: Any) -> 'PaddedArray':
+    # TODO: Consider optimizing when fill_value == self.fill_value.
+    if self._nopadding_done:
+      return self
+    else:
+      return PaddedArray(
+          self.padded_array.at[~self._mask].set(fill_value),
+          fill_value=fill_value,
+          _original_shape=self._original_shape,
+          _mask=self._mask,
+          _nopadding_done=self._nopadding_done,
+      )
 
+  @classmethod
+  def from_array(
+      cls,
+      array: jt.Shaped[jax.Array, '...'],
+      target_shape: Sequence[int],
+      *,
+      fill_value: Any
+  ) -> 'PaddedArray':
+    """Factory function to guarantee a self-consistent creation."""
+    spec = [(0, dnew - d) for d, dnew in zip(array.shape, target_shape)]
+    mask_array = jnp.pad(
+        jnp.ones_like(array, dtype=bool), spec, constant_values=False
+    )
+    new_array = jnp.pad(array, spec, constant_values=fill_value)
+    return PaddedArray(
+        padded_array=new_array,
+        fill_value=fill_value,
+        _original_shape=array.shape,
+        _mask=mask_array,
+        _nopadding_done=array.shape == target_shape,
+    )
+
+  @property
+  def is_missing(self) -> tuple[jt.Bool[jax.Array, '...']]:
+    """Mask per dimension padded. Arrays have shape [N1], [N2], ..., [Nk]."""
+    return tuple(
+        jnp.arange(s1) >= s2
+        for s1, s2 in zip(self.padded_array.shape, self._original_shape)
+    )
+
+  def unpad(self) -> jt.Shaped[jax.Array, '...']:
+    """Can be used in jit scope only if there's no padding."""
+    if self._nopadding_done:
+      return self.padded_array
+    return jax.lax.slice(
+        self.padded_array,
+        [0] * self.padded_array.ndim,
+        self._original_shape.tolist(),
+    )
+
+
+# TODO: Remove this.
 MaybePaddedArray = Union[Array, PaddedArray]
 
 ArrayTree = Union[ArrayLike, Iterable['ArrayTree'], Mapping[Any, 'ArrayTree']]
@@ -69,27 +142,37 @@ class ContinuousAndCategorical(Generic[_T]):
   categorical: _T
 
 
+# TODO: Make it a private type inside jnp_converters.py.
 ContinuousAndCategoricalArray = ContinuousAndCategorical[Array]
+
+ModelInput = ContinuousAndCategorical[PaddedArray]
+
+
+class ModelData(eqx.Module):
+  features: ModelInput
+  labels: PaddedArray
 
 
 # Tuple representing a box constraint of the form (lower, upper) bounds.
 Bounds = tuple[Optional[ArrayTreeOptional], Optional[ArrayTreeOptional]]
 
-# TODO: Rename to FeatureType, and introduce
-# Feature = Union[jax.Array, PaddedArray, ContinuousAndCategoricalArray]
+# TODO: Deprecate it. We will always use ModelInput type.
 Features = TypeVar('Features', Array, ContinuousAndCategoricalArray)
 
 
-# TODO: Make this class an eqx.Module.
+# TODO: Deprecate it in favor of ModelData type.
 class StochasticProcessModelData(Generic[Features], eqx.Module):
   """Data that feed into GP."""
 
   features: Features
-  labels: Array = eqx.field(converter=lambda x: jnp.asarray(x, dtype=x.dtype))
+  labels: Array = eqx.field(converter=jnp.asarray)
   label_is_missing: Optional[Array] = None
   dimension_is_missing: Optional[Features] = None
 
 
+# TODO: Deprecate it in favor of
+# PrecomputedPredictive for full predictive state including cholesky, and
+# StochasticProcessWithCoroutine for computing log probs.
 @struct.dataclass
 class GPState(Generic[Features]):
   """State that changes at each iteration."""

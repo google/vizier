@@ -36,99 +36,87 @@ class PaddedTrialToArrayConverterTest(parameterized.TestCase):
 
   @parameterized.parameters([
       dict(
-          num_continuous=6,
-          num_integer=1,
-          categorical_size=5,
-          num_trials=7,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          expected_num_trials=10,
-          expected_dimension=16,
+          input_dims=(11, 7, 3, 1),
+          expected_dims=(20, 8, 4, 1),
       ),
       dict(
-          num_continuous=2,
-          num_integer=4,
-          categorical_size=3,
-          num_trials=7,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-          expected_num_trials=8,
-          expected_dimension=10,
+          input_dims=(21, 3, 0, 2),
+          expected_dims=(30, 4, 0, 2),
       ),
   ])
-  def test_padding(
-      self,
-      num_continuous,
-      num_integer,
-      categorical_size,
-      num_trials,
-      padding_schedule,
-      expected_num_trials,
-      expected_dimension,
-  ):
-    space = pyvizier.SearchSpace()
-    root = space.root
-    for i in range(num_continuous):
-      root.add_float_param(f'double_{i}', 0.0, 100.0)
+  def test_padding(self, input_dims, expected_dims):
+    """Tests all padding schedules.
 
-    for i in range(num_integer):
-      root.add_int_param(f'integer_{i}', 0, 100)
-    root.add_categorical_param(
-        'categorical', [str(k) for k in range(categorical_size)]
+    Uses multiples of 10, powers of 2, powers of 2, and none padding
+    respectively.
+
+
+    Args:
+      input_dims: num_trials, continuous dimensions, categorical dimensions, and
+        number of labels.
+      expected_dims: num_trials, continuous dimensions, categorical dimensions,
+        and number of labels after padding.
+    """
+
+    padding_schedule = padding.PaddingSchedule(
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,
+        num_features=padding.PaddingType.POWERS_OF_2,
+        num_metrics=padding.PaddingType.NONE,
     )
 
-    converter = jnpc.PaddedTrialToArrayConverter.from_study_config(
-        pyvizier.ProblemStatement(
-            search_space=space,
-            metric_information=[
-                pyvizier.MetricInformation(
-                    'x1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
-                )
-            ],
+    space = pyvizier.SearchSpace()
+    trials = [
+        pyvizier.Trial().complete(pyvizier.Measurement())
+        for _ in range(input_dims[0])
+    ]
+
+    root = space.root
+    for i in range(input_dims[1]):
+      root.add_float_param(f'double_{i}', 0.0, 100.0)
+      for t in trials:
+        t.parameters[f'double_{i}'] = i
+
+    for i in range(input_dims[2]):
+      root.add_categorical_param(f'categorical_{i}', [str(k) for k in range(7)])
+      for t in trials:
+        t.parameters[f'categorical_{i}'] = str(0)
+
+    problem = pyvizier.ProblemStatement(search_space=space)
+    for i in range(input_dims[3]):
+      problem.metric_information.append(
+          pyvizier.MetricInformation(
+              f'y_{i}', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+          )
+      )
+      for t in trials:
+        if t.final_measurement:
+          t.final_measurement.metrics[f'y_{i}'] = 3 * i
+
+    converter = jnpc.TrialToModelInputConverter(
+        jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(
+            problem,
         ),
         padding_schedule=padding_schedule,
     )
-    trials = []
-    for i in range(num_trials):
-      parameters = {}
-      for j in range(num_continuous):
-        parameters[f'double_{j}'] = 1.0 * j
 
-      for j in range(num_integer):
-        parameters[f'integer_{j}'] = j
-
-      parameters['categorical'] = str(i % categorical_size)
-      final_measurement = pyvizier.Measurement(steps=1, metrics={'y': 3 * i})
-      trials.append(
-          pyvizier.Trial(
-              parameters=parameters, final_measurement=final_measurement
-          )
-      )
-
-    features = converter.to_features(trials).padded_array
-
+    features = converter.to_features(trials)
     self.assertSequenceEqual(
-        features.shape, [expected_num_trials, expected_dimension]
+        features.continuous.padded_array.shape,
+        [expected_dims[0], expected_dims[1]],
+    )
+    self.assertSequenceEqual(
+        features.categorical.padded_array.shape,
+        [expected_dims[0], expected_dims[2]],
     )
 
-    labels = converter.to_labels(trials).padded_array
-    self.assertSequenceEqual(labels.shape, [expected_num_trials, 1])
-
-    features, labels = converter.to_xy(trials)
-    features = features.padded_array
-    labels = labels.padded_array
+    labels = converter.to_labels(trials)
     self.assertSequenceEqual(
-        features.shape, [expected_num_trials, expected_dimension]
+        labels.padded_array.shape, [expected_dims[0], expected_dims[3]]
     )
-    self.assertSequenceEqual(labels.shape, [expected_num_trials, 1])
 
     recovered_parameters = converter.to_parameters(features)
     self.assertSequenceEqual(
-        recovered_parameters[:num_trials], [t.parameters for t in trials]
+        recovered_parameters[: input_dims[0]], [t.parameters for t in trials]
     )
 
 

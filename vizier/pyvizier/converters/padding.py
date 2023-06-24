@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import enum
 import math
-from typing import List, Tuple
+from typing import Sequence
+
 import attrs
 import numpy as np
 from vizier._src.jax import types
@@ -30,15 +31,9 @@ class PaddingType(enum.Enum):
   POWERS_OF_2 = 3
 
 
-@attrs.define(frozen=True, kw_only=True)
-class PaddingSchedule:
-  num_trials: PaddingType = attrs.field(init=True)
-  num_features: PaddingType = attrs.field(init=True)
-
-
-def padded_dimensions(
-    dims: List[int], padding_types: List[PaddingType]
-) -> List[int]:
+def _padded_dimensions(
+    dims: Sequence[int], padding_types: Sequence[PaddingType]
+) -> tuple[int, ...]:
   """Returns the padded shape according to `padding_types`."""
   new_dims = []
   for dim, padding_type in zip(dims, padding_types):
@@ -53,74 +48,50 @@ def padded_dimensions(
         new_dims.append(int(2 ** (math.ceil(math.log(dim, 2)))))
     else:
       raise ValueError(f'{padding_type} unexpected.')
-  return new_dims
+  return tuple(new_dims)
 
 
-def pad_features(
-    features: np.ndarray, padding_schedule: PaddingSchedule
-) -> types.PaddedArray:
-  """Pads features in to a `PaddedArray`."""
-  num_trials, num_features = features.shape[-2], features.shape[-1]
-  padding_types = [
-      padding_schedule.num_trials,
-      padding_schedule.num_features,
-  ]
-  new_num_trials, new_num_features = padded_dimensions(  # pylint: disable=unbalanced-tuple-unpacking
-      [num_trials, num_features], padding_types
-  )
-  features_is_missing = np.array(
-      [False] * num_features + [True] * (new_num_features - num_features)
-  )
-  trials_is_missing = np.array(
-      [False] * num_trials + [True] * (new_num_trials - num_trials)
-  )
-  new_features = np.pad(
-      features,
-      ((0, new_num_trials - num_trials), (0, new_num_features - num_features)),
-      constant_values=np.nan,
-  )
-  return types.PaddedArray(
-      padded_array=new_features,
-      is_missing=[trials_is_missing, features_is_missing],
-  )
+@attrs.define(frozen=True, kw_only=True, hash=True, eq=True)
+class PaddingSchedule:
+  """Convenience class for creating `PaddedArray`."""
 
+  _num_trials: PaddingType = PaddingType.NONE
+  _num_features: PaddingType = PaddingType.NONE
+  _num_metrics: PaddingType = PaddingType.NONE
 
-def pad_labels(
-    labels: np.ndarray, padding_schedule: PaddingSchedule
-) -> types.PaddedArray:
-  """Pads labels in to a `PaddedArray`."""
-  num_trials = labels.shape[-2]
-  (new_num_trials,) = padded_dimensions(  # pylint:disable=unbalanced-tuple-unpacking
-      [num_trials], [padding_schedule.num_trials]
-  )
-  trials_is_missing = np.array(
-      [False] * num_trials + [True] * (new_num_trials - num_trials)
-  )
-  new_labels = np.pad(
-      labels, ((0, new_num_trials - num_trials), (0, 0)), constant_values=np.nan
-  )
-  return types.PaddedArray(
-      padded_array=new_labels, is_missing=[trials_is_missing]
-  )
+  _int_default: int = -1
+  _float_default: float = np.nan
 
+  def _pad_trailing_dims(
+      self, array: np.ndarray, padding_types: Sequence[PaddingType]
+  ) -> types.PaddedArray:
+    """Pads features in to a `PaddedArray`."""
+    assert len(padding_types) == len(array.shape)
 
-def pad_features_and_labels(
-    features: np.ndarray,
-    labels: np.ndarray,
-    padding_schedule: PaddingSchedule,
-) -> Tuple[types.PaddedArray, types.PaddedArray]:
-  """Pads `features` and `labels` according to a `padding_schedule`.
+    original_shape = array.shape[-len(padding_types) :]
+    padded_shape = array.shape[: -len(padding_types)] + _padded_dimensions(
+        original_shape, padding_types
+    )
 
-  Args:
-    features: `np.ndarray` of shape `[N, D]`.
-    labels: `np.ndarray` of shape `[N, T]`.
-    padding_schedule: `PaddingSchedule` namedtuple.
+    if np.issubdtype(array.dtype, np.integer):
+      fill_value = self._int_default
+    else:
+      fill_value = np.nan
+    return types.PaddedArray.from_array(
+        array, padded_shape, fill_value=fill_value
+    )
 
-  Returns:
-    A tuple of `PaddedArray`s representing:
-    * padded_features
-    * padded_labels
-  """
-  new_features = pad_features(features, padding_schedule)
-  new_labels = pad_labels(labels, padding_schedule)
-  return new_features, new_labels
+  def pad_features(self, features: np.ndarray) -> types.PaddedArray:
+    """Pads features in to a `PaddedArray`."""
+    return self._pad_trailing_dims(
+        features, [self._num_trials, self._num_features]
+    )
+
+  def pad_labels(
+      self,
+      labels: np.ndarray,
+  ) -> types.PaddedArray:
+    """Pads labels in to a `PaddedArray`."""
+    return self._pad_trailing_dims(
+        labels, [self._num_trials, self._num_metrics]
+    )

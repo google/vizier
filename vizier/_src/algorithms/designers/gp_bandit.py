@@ -294,16 +294,13 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       labels = padded_labels[: len(self._trials)]
 
     # Warp the output.
+    labels = np.asarray(labels)
     labels = self._warp_labels(labels)
 
     # Pad back
     if self._padding_schedule:
-      # Pad back to shape [P, 1].
-      padded_labels = np.concatenate(
-          [labels, padded_labels[len(self._trials) :, 0]], axis=0
-      )
-      labels = types.PaddedArray(
-          padded_array=padded_labels, is_missing=pre_labels.is_missing
+      labels = types.PaddedArray.from_array(
+          labels, padded_labels.shape, fill_value=pre_labels.fill_value
       )
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
     return features, labels
@@ -514,7 +511,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     xs = self._converter.to_features(trials)
     if self._padding_schedule:
       trials_is_missing, features_is_missing = xs.is_missing
-      xs = xs.padded_array[~trials_is_missing]
+      xs = np.array(xs.padded_array)[~trials_is_missing]
       xs[:, features_is_missing] = 0.0
     if self._use_categorical_kernel:
       xs = self._feature_mapper.map(xs)

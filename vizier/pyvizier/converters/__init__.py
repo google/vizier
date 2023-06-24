@@ -31,6 +31,7 @@ from vizier.pyvizier.converters.core import TrialToNumpyDict
 from vizier.pyvizier.converters.embedder import ProblemAndTrialsScaler
 from vizier.pyvizier.converters.jnp_converters import PaddedTrialToArrayConverter
 from vizier.pyvizier.converters.jnp_converters import TrialToContinuousAndCategoricalConverter
+from vizier.pyvizier.converters.jnp_converters import TrialToModelInputConverter
 from vizier.pyvizier.converters.spatio_temporal import DenseSpatioTemporalConverter
 from vizier.pyvizier.converters.spatio_temporal import SparseSpatioTemporalConverter
 from vizier.pyvizier.converters.spatio_temporal import TimedLabels
