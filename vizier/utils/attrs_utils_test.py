@@ -16,12 +16,12 @@ from __future__ import annotations
 
 """Tests for attrs_utils."""
 
-from typing import Any
+from typing import Any, Literal
 
 import attrs
 import numpy as np
-
 from vizier.utils import attrs_utils
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -101,6 +101,33 @@ class ShapeEqualsTest(absltest.TestCase):
   def test_bad_shape(self):
     with self.assertRaises(ValueError):
       _ShapeEqualsTestAttr(np.zeros([3, 2]), 4)
+
+
+@attrs.define
+class _LiteralValidatorTestAttr:
+  # pytype:disable=annotation-type-mismatch
+  x: Literal['foo', 'bar'] = attrs.field(
+      validator=attrs_utils.literal_validator
+  )
+
+
+class LiteralValidatorTest(absltest.TestCase):
+
+  def test_good_values(self):
+    _LiteralValidatorTestAttr('foo')
+    _LiteralValidatorTestAttr('bar')
+
+  def test_bad_value(self):
+    with self.assertRaises(ValueError):
+      _LiteralValidatorTestAttr('foo2')  # pytype: disable=wrong-arg-types
+
+  def test_bad_type(self):
+    @attrs.define
+    class BadTypeTest:
+      x: str = attrs.field(validator=attrs_utils.literal_validator)
+
+    with self.assertRaises(ValueError, msg='str'):
+      BadTypeTest('foo')
 
 
 if __name__ == '__main__':
