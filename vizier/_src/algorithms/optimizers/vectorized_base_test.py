@@ -186,7 +186,8 @@ class VectorizedBaseTest(parameterized.TestCase):
     res = vb.best_candidates_to_trials(res_array, converter=converter)
     self.assertLen(res, count * n_parallel)
 
-  def test_best_candidates_count_is_1(self):
+  @parameterized.parameters(True, False)
+  def test_best_candidates_count_is_1(self, use_fori):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
@@ -197,6 +198,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         strategy_factory=strategy_factory,
         suggestion_batch_size=5,
         max_evaluations=10,
+        use_fori=use_fori,
     )(converter=converter)
     best_candidates_array = optimizer(score_fn=score_fn, count=1)
     best_candidates = vb.best_candidates_to_trials(
@@ -210,7 +212,8 @@ class VectorizedBaseTest(parameterized.TestCase):
         -((0.5 - 0.52) ** 2),
     )
 
-  def test_best_candidates_count_is_3(self):
+  @parameterized.parameters(True, False)
+  def test_best_candidates_count_is_3(self, use_fori):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
@@ -220,6 +223,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         strategy_factory=fake_increment_strategy_factory,
         suggestion_batch_size=5,
         max_evaluations=10,
+        use_fori=use_fori,
     )(converter=converter)
     best_candidates_array = optimizer(score_fn=score_fn, count=3)
     best_candidates = vb.best_candidates_to_trials(
@@ -260,12 +264,14 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(optimizer.max_evaluations, 1000)
     self.assertEqual(optimizer.suggestion_batch_size, 5)
 
-  def test_prior_trials(self):
+  @parameterized.parameters(True, False)
+  def test_prior_trials(self, use_fori):
     """Test that the optimizer can correctly parsae and pass seed trials."""
     optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_prior_trials_strategy_factory,
         suggestion_batch_size=5,
         max_evaluations=100,
+        use_fori=use_fori,
     )
 
     study_config = vz.ProblemStatement(
@@ -314,7 +320,8 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(best_trial[0].parameters['x1'].value, 1)
     self.assertEqual(best_trial[0].parameters['x2'].value, 1)
 
-  def test_prior_trials_parallel(self):
+  @parameterized.parameters(True, False)
+  def test_prior_trials_parallel(self, use_fori):
     optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_prior_trials_strategy_factory,
         suggestion_batch_size=5,

@@ -208,6 +208,7 @@ class VectorizedOptimizer:
       `n_feature_dimensions_with_padding`).
     suggestion_batch_size: Number of suggested points returned at each call.
     max_evaluations: The maximum number of objective function evaluations.
+    use_fori: Whether to use JAX's fori_loop in the suggest-evalute-update loop.
   """
 
   strategy: VectorizedStrategy
@@ -215,6 +216,7 @@ class VectorizedOptimizer:
   n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
   suggestion_batch_size: int = struct.field(pytree_node=False, default=25)
   max_evaluations: int = struct.field(pytree_node=False, default=75_000)
+  use_fori: bool = struct.field(pytree_node=False, default=True)
 
   # TODO: Remove score_fn argument.
   # pylint: disable=g-bare-generic
@@ -335,12 +337,20 @@ class VectorizedOptimizer:
         init_best_results,
         loop_seed,
     )
-    _, best_results, _ = jax.lax.fori_loop(
-        0,
-        (self.max_evaluations - 1) // self.suggestion_batch_size + 1,
-        _optimization_one_step,
-        init_args,
-    )
+    if self.use_fori:
+      _, best_results, _ = jax.lax.fori_loop(
+          0,
+          (self.max_evaluations - 1) // self.suggestion_batch_size + 1,
+          _optimization_one_step,
+          init_args,
+      )
+    else:
+      args = init_args
+      for i in range(
+          (self.max_evaluations - 1) // self.suggestion_batch_size + 1
+      ):
+        args = _optimization_one_step(i, args)
+      _, best_results, _ = args
 
     if score_with_aux_fn:
       if n_parallel is None:
@@ -461,6 +471,7 @@ class VectorizedOptimizerFactory:
   strategy_factory: VectorizedStrategyFactory
   max_evaluations: int = 75_000
   suggestion_batch_size: int = 25
+  use_fori: bool = True
 
   def __call__(
       self,
@@ -480,4 +491,5 @@ class VectorizedOptimizerFactory:
         n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
         suggestion_batch_size=self.suggestion_batch_size,
         max_evaluations=self.max_evaluations,
+        use_fori=self.use_fori,
     )
