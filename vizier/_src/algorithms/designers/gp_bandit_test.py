@@ -17,12 +17,9 @@ from __future__ import annotations
 """Tests for gp_bandit."""
 
 from typing import Optional
-import unittest
 from unittest import mock
 
-import chex
 import jax
-from jax.config import config
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
@@ -31,8 +28,6 @@ from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import test_runners
-from vizier._src.jax import gp_bandit_utils
-from vizier._src.jax import predictive_fns
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -253,48 +248,13 @@ class GoogleGpBanditTest(parameterized.TestCase):
     pred = gp_designer.predict([pred_trial])
     self.assertLess(np.abs(pred.mean[0] - f(0.0)), 2e-2)
 
-  # TODO: Bring this test back. Ideally refactor it such that
-  # we create two designers with the same trial count (without padding)
+  # TODO: Add assertions to this test. Ideally
+  # create two designers with the same trial count (without padding)
   # padding is just an internal detail that should be tested separately.
-  @unittest.skip('Padding is WIP')
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.gp_bandit_utils.'
-      'stochastic_process_model_loss_fn',
-      wraps=chex.assert_max_traces(
-          gp_bandit_utils.stochastic_process_model_loss_fn, n=1
-      ),
-  )
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.gp_bandit_utils.'
-      'stochastic_process_model_setup',
-      wraps=chex.assert_max_traces(
-          gp_bandit_utils.stochastic_process_model_setup, n=1
-      ),
-  )
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.predictive_fns.'
-      'predict_on_array',
-      wraps=chex.assert_max_traces(predictive_fns.predict_on_array, n=1),
-  )
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.predictive_fns.'
-      'acquisition_on_array',
-      # `acquisition_on_array` is traced twice because it's called on
-      # prior_features as well as predictive features.
-      wraps=chex.assert_max_traces(predictive_fns.acquisition_on_array, n=2),
-  )
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.gp_bandit_utils.'
-      'precompute_cholesky',
-      wraps=chex.assert_max_traces(gp_bandit_utils.precompute_cholesky, n=1),
-  )
-  @mock.patch(
-      'vizier._src.algorithms.designers.gp_bandit.gp_bandit_utils.'
-      'optimize_acquisition',
-      wraps=chex.assert_max_traces(gp_bandit_utils.optimize_acquisition, n=1),
-  )
   def test_jit_once(self, *args):
     del args
+    jax.clear_caches()
+
     space = test_studies.flat_continuous_space_with_scaling()
     problem = vz.ProblemStatement(space)
     problem.metric_information.append(
@@ -302,87 +262,47 @@ class GoogleGpBanditTest(parameterized.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
-    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=es.VectorizedEagleStrategyFactory(),
-        max_evaluations=10,
-    )
-    padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.MULTIPLES_OF_10,
-        num_features=padding.PaddingType.MULTIPLES_OF_10,
-    )
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=3,
-        ensemble_size=2,
-        padding_schedule=padding_schedule,
-    )
+    def create_designer(problem):
+      return gp_bandit.VizierGPBandit(
+          problem=problem,
+          acquisition_optimizer_factory=vb.VectorizedOptimizerFactory(
+              strategy_factory=es.VectorizedEagleStrategyFactory(),
+              max_evaluations=10,
+          ),
+          num_seed_trials=3,
+          ensemble_size=2,
+          padding_schedule=padding.PaddingSchedule(
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,
+              num_features=padding.PaddingType.MULTIPLES_OF_10,
+          ),
+      )
 
-    # Padding schedule should avoid retracing every iteration.
-    test_runners.RandomMetricsRunner(
-        problem,
-        iters=5,
-        batch_size=1,
-        verbose=1,
-        validate_parameters=True,
-    ).run_designer(designer)
-
-    # Padding schedule should avoid retracing with one more feature.
-    space.root.add_float_param('x0', -5.0, 5.0)
-    designer1 = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=3,
-        padding_schedule=padding_schedule,
-    )
-    test_runners.RandomMetricsRunner(
-        problem,
-        iters=5,
-        batch_size=1,
-        verbose=1,
-        validate_parameters=True,
-    ).run_designer(designer1)
-
-    # Retracing should not occur when a new VizierGPBandit instance is created.
-    designer2 = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=3,
-        ensemble_size=2,
-        padding_schedule=padding_schedule,
-    )
-    test_runners.RandomMetricsRunner(
-        problem,
-        iters=5,
-        batch_size=1,
-        verbose=1,
-        validate_parameters=True,
-    ).run_designer(designer2)
-
-    # Without padding, functions will be retraced.
-    no_padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.NONE,
-        num_features=padding.PaddingType.NONE,
-    )
-    designer_no_pad = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=3,
-        ensemble_size=2,
-        padding_schedule=no_padding_schedule,
-    )
-    with self.assertRaisesRegex(AssertionError, 'traced > (1|2) times'):
-      test_runners.RandomMetricsRunner(
+    def create_runner(problem):
+      return test_runners.RandomMetricsRunner(
           problem,
           iters=5,
           batch_size=1,
           verbose=1,
           validate_parameters=True,
-      ).run_designer(designer_no_pad)
+      )
+
+    designer = create_designer(problem)
+    # Padding schedule should avoid retracing every iteration.
+    create_runner(problem).run_designer(designer)
+
+    # Padding schedule should avoid retracing with one more feature.
+    space.root.add_float_param('x0', -5.0, 5.0)
+    designer1 = create_designer(problem)
+    create_runner(problem).run_designer(designer1)
+
+    # Retracing should not occur when a new VizierGPBandit instance is created.
+    designer2 = create_designer(problem)
+    create_runner(problem).run_designer(designer2)
 
 
 if __name__ == '__main__':
   # Jax disables float64 computations by default and will silently convert
   # float64s to float32s. We must explicitly enable float64.
-  config.update('jax_enable_x64', True)
+  jax.config.update('jax_enable_x64', True)
+  jax.config.update('jax_log_compiles', True)
   absltest.main()

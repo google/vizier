@@ -106,35 +106,3 @@ def acquisition_on_array(
     )
   else:
     return acquisition
-
-
-def multi_acquisition_on_array(
-    xs: types.Features,
-    model: sp.StochasticProcessModel,
-    acquisition_fns: dict[str, acquisitions_lib.AcquisitionFunction],
-    state: types.GPState,
-    trust_region: Optional[acquisitions_lib.TrustRegion] = None,
-    use_vmap: bool = True,
-):
-  """Evaluates multiple acquisition functions on a features array."""
-  dist = _build_predictive_distribution(xs, model, state, use_vmap)
-  acquisitions = []
-  for acquisition_fn in acquisition_fns.values():
-    acquisitions.append(
-        acquisition_fn(dist, state.data.features, state.data.labels))
-  acquisition = jnp.stack(acquisitions, axis=0)
-
-  if trust_region and trust_region.trust_radius < 0.5:
-    distance = trust_region.min_linf_distance(xs)
-    # Due to output normalization, acquisition can't be nearly as
-    # low as -1e12.
-    # We use a bad value that decreases in the distance to trust region
-    # so that acquisition optimizer can follow the gradient and escape
-    # untrusted regions.
-    return jnp.where(
-        distance <= trust_region.trust_radius,
-        acquisition,
-        -1e12 - distance,
-    )
-  else:
-    return acquisition
