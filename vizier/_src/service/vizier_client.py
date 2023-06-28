@@ -24,7 +24,6 @@ import functools
 import time
 from typing import Any, Dict, List, Mapping, Optional, Union
 
-from absl import flags
 from absl import logging
 import attr
 import grpc
@@ -43,33 +42,27 @@ from google.longrunning import operations_pb2
 from google.protobuf import duration_pb2
 from google.protobuf import json_format
 
-_VIZIER_NEW_SUGGESTION_POLLING_SECONDS = flags.DEFINE_integer(
-    'vizier_new_suggestion_polling_secs',
-    1,
-    (
-        'The period to wait between polling for the status of long-running '
-        'SuggestOperations. Vizier may increase this period if multiple polls '
-        'are needed. (You may use zero for interactive demos, but it is only '
-        'appropriate for very small Studies.)'
-    ),
-)
-FLAGS = flags.FLAGS
-
-
-# TODO: Add an e2e test for this.
-def _get_new_suggestion_polling_secs() -> int:
-  if FLAGS.is_parsed():
-    return _VIZIER_NEW_SUGGESTION_POLLING_SECONDS.value
-  else:
-    return int(_VIZIER_NEW_SUGGESTION_POLLING_SECONDS.default)
-
 
 @attr.define
 class _EnvironmentVariables:
+  """Global environment variables.
+
+  Attributes:
+    server_endpoint: Endpoint to the Vizier server.
+    servicer_kwargs:
+    new_suggestion_polling_secs: The period to wait between polling for the
+      status of long-running SuggestOperations. Vizier may increase this period
+      if multiple polls are needed. (You may use zero for interactive demos, but
+      it is only appropriate for very small Studies.)
+  """
+
   server_endpoint: str = attr.field(
       default=constants.NO_ENDPOINT, validator=attr.validators.instance_of(str)
   )
   servicer_kwargs: Dict[str, Any] = attr.field(factory=dict)
+
+  # TODO: Add an e2e test for this.
+  new_suggestion_polling_secs: float = attr.field(default=1.0)
 
   def servicer_use_sql_ram(self) -> None:
     """Should be used in tests to avoid filepath issues."""
@@ -173,7 +166,7 @@ class VizierClient:
     num_attempts = 0
     while not operation.done:
       sleep_time = PollingDelay(
-          num_attempts, _get_new_suggestion_polling_secs()
+          num_attempts, environment_variables.new_suggestion_polling_secs
       )
       num_attempts += 1
       logging.info(
