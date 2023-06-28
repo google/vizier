@@ -23,11 +23,25 @@ from vizier._src.jax import types as vt
 from absl.testing import absltest
 
 
+# pylint: disable=g-long-lambda
 class PaddedArrayTest(parameterized.TestCase):
 
-  def test_padding_to_the_same_shape(self):
+  @parameterized.parameters(
+      dict(
+          factory=lambda arr: vt.PaddedArray.from_array(
+              arr, arr.shape, fill_value=-1
+          )
+      ),
+      dict(factory=vt.PaddedArray.as_padded),
+  )
+  def test_padding_to_the_same_shape(self, factory) -> None:
+    """Tests the case where no padding dimensions are added.
+
+    Args:
+      factory: Takes an array and returns a padded array.
+    """
     arr = jnp.ones([3, 2], dtype=jnp.int32)
-    parr = vt.PaddedArray.from_array(arr, arr.shape, fill_value=-1)
+    parr = factory(arr)
     # The padded shape matches the original shape, which means we can unpad
     # within a jit scope.
     self.assertSequenceEqual(

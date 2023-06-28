@@ -78,6 +78,24 @@ class PaddedArray(eqx.Module):
       )
 
   @classmethod
+  def as_padded(cls, array: jt.Shaped[jax.Array, '...']) -> 'PaddedArray':
+    """Converts a regular array as PaddedArray type, with no actual padding.
+
+    NOTE This is implemented as a separate method instead of setting default
+    for `fill_value=np.nan` in `from_array` method. `jnp.pad`` automatically
+    casts `nan` to `0` for integer arrays, which can cause unexpected
+    behavior, and we want people to always explicitly set the fill value
+    unless they know for sure that padding would not occur.
+
+    Args:
+      array:
+
+    Returns:
+      PaddedArray.
+    """
+    return PaddedArray.from_array(array, array.shape, fill_value=np.nan)
+
+  @classmethod
   def from_array(
       cls,
       array: jt.Shaped[jax.Array, '...'],
@@ -108,7 +126,7 @@ class PaddedArray(eqx.Module):
     )
 
   def unpad(self) -> jt.Shaped[jax.Array, '...']:
-    """Can be used in jit scope only if there's no padding."""
+    """Can be used in jit scope only if original shape == padded shape."""
     if self._nopadding_done:
       return self.padded_array
     return jax.lax.slice(
