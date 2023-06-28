@@ -124,21 +124,20 @@ class GoogleGpBanditTest(parameterized.TestCase):
         use_trust_region=use_trust_region,
         rng=jax.random.PRNGKey(0),
     )
-    self.assertLen(
-        test_runners.RandomMetricsRunner(
-            problem,
-            iters=iters,
-            batch_size=batch_size,
-            verbose=1,
-            validate_parameters=True,
-            seed=1,
-        ).run_designer(designer),
-        iters * batch_size,
-    )
-    # Test that latency tracking works.
-    self.assertIn('VizierGPBandit.suggest', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('VizierGPBandit.suggest')
-    self.assertGreater(runtimes[0].total_seconds(), 0)
+    with profiler.collect_events() as events:
+      self.assertLen(
+          test_runners.RandomMetricsRunner(
+              problem,
+              iters=iters,
+              batch_size=batch_size,
+              verbose=1,
+              validate_parameters=True,
+              seed=1,
+          ).run_designer(designer),
+          iters * batch_size,
+      )
+
+    self.assertIn('VizierGPBandit.suggest', profiler.get_latencies_dict(events))
 
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space,

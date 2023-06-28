@@ -18,107 +18,217 @@ from __future__ import annotations
 
 A typical use case is:
 
-class MyDesigner:
+```
+@jax.jit
+@profiler.record_tracing
+def _compute(self, x: jax.Array):
+  return x + 1
 
-  def _compute(self, x: int):
-    pass
+class MyDesigner:
 
   @profiler.record_runtime
   def suggest(self) -> None:
     # An example of how to annotate an inline function call, so the function
     # name `_compute` is used. Note that the name must be specified.
-    with profiler.record_runtime_context(name='compute'):
-      self._compute(x=1)
+    with profiler.timeit('compute'):
+      _compute(jnp.array(1.))
 
-    # An example of how to annotate an inline code block:
-    with profiler.record_runtime_context(name='compute_twice'):
-      self._compute(x=2)
-      self._compute(x=2)
+with profiler.collect_events() as events:
+  MyDesigner().suggest()
+```
 
-  @profiler.record_runtime(name_prefix='designer')
-  def suggest2(self) -> None:
-    pass
+`events` is a list of `ProfileEvent`s. In this example, there are 3 events:
+* Tracing of `_compute`, in scope `suggest::compute`
+* Timing of `compute`, in scope `suggest`
+* Timing of `suggest`, in empty scope.
 
-  @profiler.record_runtime(name_prefix='designer', name='suggest')
-  @jax.jit
-  def suggest3(self) -> None:
-    pass
+`profiler.get_latencies_dict(events)` returns a dictionary whose values are
+list of timedelta objects.
 
-
-designer = MyDesigner()
-designer.suggest()
-
-profiler.Storage().runtimes() returns a dict with these keys:
-* 'suggest' (the name of the suggest method)
-* 'compute' (from the call with x=1)
-* 'compute_twice' (from the calls with x=2)
-* 'designer.suggest2' (the name of the suggest2 method with the prefix)
-* 'designer.suggest' (the specified decorator name for suggest3 with the prefix)
-values will be lists of datetime.timedelta objects.
-
-profiler.Storage().runtimes('suggest') will return a list with
-datetime.timedelta objects for only `suggest` function calls.
-
-NOTE that @profiler.record_runtime should appear FIRST, before the
-@jax.jit decorator, or only the first runtime will be recorded.
+NOTE: @profiler.record_runtime and @profiler.record_tracing should appear
+BEFORE the @jax.jit decorator, or only the first runtime will be recorded.
 """
 import collections
 import contextlib
 import datetime
+import enum
 import functools
-from typing import Any, Generator
+from typing import Any, Callable, Dict, Generator, List, Optional, Sequence
 
 from absl import logging
+import attrs
 import jax
 
 
-class Storage:
-  """Storage for function call runtimes."""
+class EventType(enum.Enum):
+  JIT_TRACING = 'tracing'
+  TIMER = 'timer'
 
-  def __new__(cls):
-    if not hasattr(cls, '_instance'):
-      cls._instance = super(Storage, cls).__new__(cls)
-      # Add attributes below this line.
-      # -------------------------------
-      # A dict to track runtime performance.
-      # Keys are computation names, values are computation duration.
-      cls._instance.storage = collections.defaultdict(list)
-    return cls._instance
 
-  def record(self, name: str, duration: datetime.timedelta) -> None:
-    """Records the runtime for the function."""
-    self._instance.storage[name].append(duration)
+@attrs.define
+class ProfileEvent:
+  """An event logged by the profiler and stored in _Storage.
 
-  def reset(self) -> None:
-    """Removes all performance information collected."""
-    self._instance.storage.clear()
+  Attributes:
+    etype: type of the event.
+    scope: context of the event.
+    data: For JIT_TRACING event, it is either a singleton "function_name: str"
+      OR a tuple of "function_name: str, args: tuple, kwargs: dict". For TIMER
+      event, it's a tuple of "name: str" and "duration: timedelta".
+  """
 
-  def runtimes(self) -> dict[str, list[datetime.timedelta]]:
-    """Returns the stored runtimes.
+  etype: EventType = attrs.field()
+  scope: str = attrs.field(converter='::'.join)
+  data: Any = attrs.field()
+
+
+@attrs.define
+class _Storage:
+  """Storage for function call runtimes.
+
+  There is a single `_Storage` instance used globally. The global instance
+  stays in "inactive" state until code enters a `collect_events()`
+  contextmanager.
+
+  Attributes:
+    active: If not True, `add` method is a no-op.
+    events:
+    scope: Currently active "scope". Each time code enters
+      `_enter_profile_scope` contextmanager, the scope name is appended to the
+      list. Makes it easier to track where things happened.
+  """
+
+  active: bool = attrs.field(default=False)
+  events: List[ProfileEvent] = attrs.field(factory=list)
+  scope: list[str] = attrs.field(factory=list)
+
+  def add(self, etype: EventType, data: Any) -> ProfileEvent:
+    """Create and add a new event and return the added event.
+
+    Args:
+      etype: See ProfileEvent.
+      data: See ProfileEvent.
 
     Returns:
-      A dict with all function names and their timedelta runtimes.
+      Newly added event.
     """
-    return dict(self._instance.storage)
+    event = ProfileEvent(etype, self.scope, data)
+    if self.active:
+      self.events.append(event)
+    return event
+
+
+_GLOBAL_SOTRAGE: _Storage = _Storage()
+
+
+@contextlib.contextmanager
+def _enter_profile_scope(scope: str):
+  try:
+    _GLOBAL_SOTRAGE.scope.append(scope)
+    yield '::'.join(_GLOBAL_SOTRAGE.scope)
+  finally:
+    _GLOBAL_SOTRAGE.scope.pop()
+
+
+@contextlib.contextmanager
+def collect_events() -> Generator[List[ProfileEvent], None, None]:
+  """Context manager for turning on the profiler."""
+  try:
+    if _GLOBAL_SOTRAGE.active:
+      raise RuntimeError(
+          'There can be only one `collect_events()` context manager active at'
+          ' the same time.'
+      )
+    _GLOBAL_SOTRAGE.active = True
+    yield _GLOBAL_SOTRAGE.events
+  finally:
+    _GLOBAL_SOTRAGE.active = False
+    # It's important to create a new instance here as opposed to resetting
+    # the same object, so the yieled `events` persist outside the context.
+    _GLOBAL_SOTRAGE.events = list()
+
+
+@contextlib.contextmanager
+def timeit(
+    name: str, also_log: bool = False
+) -> Generator[Callable[[], datetime.timedelta], None, None]:
+  """Context manager for measuring the timing.
+
+  Example:
+  ```
+  with timeit('scope_name') as duration:
+    ...
+
+  duration() # returns the duration.
+  ```
+
+  Also see: record_runtime, which is the decorator equivalent of this.
+
+  Args:
+    name:
+    also_log: If True, also create a log.
+
+  Yields:
+    A callable with zero input arguments. Returns the elapsed time until call,
+    or the end of the context, whichever comes earlier.
+  """
+  start = datetime.datetime.now()
+  duration = None
+  try:
+    with _enter_profile_scope(name):
+
+      def func() -> datetime.timedelta:
+        if duration is None:
+          return datetime.datetime.now() - start
+        return duration
+
+      yield func
+
+  finally:
+    duration = datetime.datetime.now() - start
+    event = _GLOBAL_SOTRAGE.add(EventType.TIMER, (name, duration))
+    if also_log:
+      logging.info(
+          'Timed %s: took %s seconds. Full event string: %s',
+          name,
+          duration.total_seconds(),
+          event,
+      )
+
+
+def get_latencies_dict(
+    events: Sequence[ProfileEvent],
+) -> Dict[str, list[datetime.timedelta]]:
+  d = collections.defaultdict(list)
+  for e in events:
+    if e.etype == EventType.TIMER:
+      d[e.data[0]].append(e.data[1])
+  return dict(d)
 
 
 def record_runtime(
-    func=None,
+    func: Optional[Callable[..., Any]] = None,
     *,
     name_prefix: str = '',
     name: str = '',
     also_log: bool = False,
+    block_until_ready: bool = False,
 ) -> Any:
-  """A decorator for recording the runtime of functions.
+  """Decorates the function to record the runtime.
+
+  Also see: timeit(), which is the context manager equivalent of this.
 
   Args:
     func: Function being decorated.
     name_prefix: A prefix to add to the function name.
     name: The name to record. Defaults to func.__qualname__.
     also_log: Whether to also logging.info the runtime duration.
+    block_until_ready: If True and running on an acceleartor, wait for the async
+      dispatch results from this function, if any. See
+      https://jax.readthedocs.io/en/latest/async_dispatch.html
 
   Returns:
-    The function return value.
+    Decorated function, or decorator.
   """
   # This is required for the decorator to work both with and without
   # optional arguments.
@@ -128,49 +238,90 @@ def record_runtime(
         name_prefix=name_prefix,
         name=name,
         also_log=also_log,
+        block_until_ready=block_until_ready,
     )
   name = name or func.__qualname__
+  full_name = name
   if name_prefix:
     full_name = f'{name_prefix}.{name}'
-  else:
-    full_name = name
 
   @functools.wraps(func)
   def wrapper(*args, **kwargs):
     """Calculates runtime of the given function."""
-    start = datetime.datetime.now()
-    # This works fine for jitted functions as well.
-    result = func(*args, **kwargs)
-    # If running on an acceleartor, wait for the async dispatch result.
-    # See https://jax.readthedocs.io/en/latest/async_dispatch.html
-    result = jax.block_until_ready(result)
-    duration = datetime.datetime.now() - start
-    Storage().record(full_name, duration)
-    if also_log:
-      logging.info(
-          '%s: Duration %s seconds', full_name, duration.total_seconds()
-      )
+    with timeit(name=full_name, also_log=also_log):
+      result = func(*args, **kwargs)
+      if block_until_ready:
+        result = jax.block_until_ready(result)
     return result
-
   return wrapper
 
 
-@contextlib.contextmanager
-def record_runtime_context(
-    name: str, also_log: bool = False
-) -> Generator[None, None, None]:
-  """A context manager to record the runtime of a function call/code block.
+@attrs.define
+class _Config:
+  """Configuration for this module."""
+
+  _include_args_in_trace_records: bool = attrs.field(default=False)
+
+  def include_args_in_trace_records(self, v: Optional[bool] = None) -> bool:
+    """(Setter+getter): Whether to include input arguments in tracing events.
+
+    NOTE: Use this feature for debugging only. If the function decorated with
+    `@record_tracing` is not jitted, then arguments and kwargs will be actual
+    Array(Tree)s instead of Tracers. The logs may include full values of the
+    array which can greatly slow down your binary.
+
+    Args:
+      v: If None, leaves the behavior unchanged.
+
+    Returns:
+      New include_args_in_trace_records value.
+    """
+    if v is not None:
+      self._include_args_in_trace_records = v
+    return self._include_args_in_trace_records
+
+
+config = _Config()
+
+
+def record_tracing(
+    func: Optional[Callable[..., Any]] = None,
+    *,
+    name: str = '',
+    also_log: bool = True,
+) -> Any:
+  """Decorates the function to record the runtime of functions.
 
   Args:
-    name: The name of the function call or code block to record timing for
+    func: Function being decorated.
+    name: The name to record. Defaults to func.__qualname__.
     also_log: Whether to also logging.info the runtime duration.
 
-  Yields:
-    Nothing.
+  Returns:
+    Decorated function, or decorator.
   """
-  start = datetime.datetime.now()
-  yield
-  duration = datetime.datetime.now() - start
-  Storage().record(name, duration)
-  if also_log:
-    logging.info('%s: Duration %s seconds', name, duration.total_seconds())
+  # This is required for the decorator to work both with and without
+  # optional arguments.
+  if func is None:
+    return functools.partial(
+        record_tracing,
+        name=name,
+        also_log=also_log,
+    )
+  name = name or func.__qualname__
+
+  @functools.wraps(func)
+  def wrapper(*args, **kwargs):
+    if config.include_args_in_trace_records():
+      data = f'{name} with args={args} kwargs={kwargs}'
+    else:
+      data = name
+
+    event = _GLOBAL_SOTRAGE.add(EventType.JIT_TRACING, data)
+    if also_log:
+      logging.info('Tracing %s. Full event string: %s', name, event)
+    with _enter_profile_scope(name):
+      result = func(*args, **kwargs)
+    return result
+
+  return wrapper

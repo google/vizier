@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for profiler."""
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from vizier.utils import profiler
@@ -23,125 +24,70 @@ from vizier.utils import profiler
 from absl.testing import absltest
 
 
+class MyModule(eqx.Module):
+
+  @profiler.record_tracing
+  def add_one(self, x: int) -> int:
+    return x + 1
+
+
+@profiler.record_tracing
+def add_one(x):
+  return x + 1
+
+
 class PerformanceUtilsTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    profiler.Storage().reset()
+    jax.clear_caches()
 
-  def test_no_args(self):
-    class TestClass:
+  def test_eqx_jit(self):
+    """`record_tracing` is tested on a bound method that is `filter_jit`-ed."""
 
-      @profiler.record_runtime(name='add_one', also_log=True)
-      def add_one(self, x: int) -> int:
-        return x + 1
+    @profiler.record_runtime(name='return_two', also_log=True)
+    def return_two():
+      one = eqx.filter_jit(MyModule().add_one)(jnp.array(0.0))
+      two = eqx.filter_jit(MyModule().add_one)(one)
+      return two
 
-    t = TestClass()
-    t.add_one(1)
-    self.assertIn('add_one', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('add_one')
-    self.assertLen(runtimes, 1)
-    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
+    with profiler.collect_events() as events:
+      return_two()
+      return_two()
 
-  def test_with_name(self):
-    class TestClass3:
+    # tracing is logged once, timer is logged twice.
+    self.assertLen(events, 3)
 
-      @profiler.record_runtime(name='add')
-      def add_one(self, x: int) -> int:
-        return x + 1
+    self.assertEqual(events[0].etype, profiler.EventType.JIT_TRACING)
+    self.assertEqual(events[1].etype, profiler.EventType.TIMER)
+    self.assertEqual(events[2].etype, profiler.EventType.TIMER)
 
-    t = TestClass3()
-    t.add_one(1)
-    self.assertNotIn('add_one', profiler.Storage().runtimes())
-    self.assertIn('add', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('add')
-    self.assertLen(runtimes, 1)
-    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
+    # Tracing happens within the timed functions' scope.
+    self.assertIn(events[1].scope, events[0].scope)
 
-  def test_with_prefix(self):
-    class TestClass4:
+    latencies = profiler.get_latencies_dict(events)
+    self.assertIn('return_two', latencies)
+    self.assertLen(latencies['return_two'], 2)
 
-      @profiler.record_runtime(name_prefix='foo', name='add_one')
-      def add_one(self, x: int) -> int:
-        return x + 1
+  def test_regular_jit(self):
+    """`record_tracing` is tested on an unbound method."""
 
-    t = TestClass4()
-    t.add_one(1)
-    self.assertIn('foo.add_one', profiler.Storage().runtimes())
-    self.assertNotIn('add_one', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('foo.add_one')
-    self.assertLen(runtimes, 1)
-    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
+    @profiler.record_runtime(name='return_two', also_log=True)
+    def return_two():
+      one = jax.jit(add_one)(jnp.array(0.0))
+      two = jax.jit(add_one)(one)
+      return two
 
-  def test_with_prefix_and_name(self):
-    class TestClass5:
+    with profiler.collect_events() as events:
+      return_two()
 
-      @profiler.record_runtime(name_prefix='foo', name='add')
-      def add_one(self, x: int) -> int:
-        return x + 1
+    # tracing is logged once, timer is logged once.
+    self.assertLen(events, 2)
+    self.assertEqual(events[0].etype, profiler.EventType.JIT_TRACING)
+    self.assertEqual(events[1].etype, profiler.EventType.TIMER)
 
-    t = TestClass5()
-    t.add_one(1)
-    self.assertIn('foo.add', profiler.Storage().runtimes())
-    self.assertNotIn('add_one', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('foo.add')
-    self.assertLen(runtimes, 1)
-    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
-
-  def test_with_jax(self):
-
-    @profiler.record_runtime(also_log=True, name='selu')
-    @jax.jit
-    def selu(x, alpha=1.67, lambda_=1.05):
-      return lambda_ * jnp.where(x > 0, x, alpha * jnp.exp(x) - alpha)
-
-    x = jnp.arange(1000000)
-    # The first call should jit compile, so should be slow.
-    selu(x)
-    self.assertIn('selu', profiler.Storage().runtimes())
-    microseconds = profiler.Storage().runtimes().get('selu')[0].microseconds
-    self.assertGreaterEqual(microseconds, 1000)
-    # The second call should use the jitted function.
-    selu(x)
-    self.assertLen(profiler.Storage().runtimes().get('selu'), 2)
-    jt_microseconds = profiler.Storage().runtimes().get('selu')[1].microseconds
-    # Jitted function should be faster.
-    self.assertLess(jt_microseconds, microseconds)
-
-  def test_with_jax_reverse_decorator_order(self):
-    # If jax.jit decorator is first, only the first runtime is recorded.
-    @jax.jit
-    @profiler.record_runtime(also_log=True, name='selu')
-    def selu(x, alpha=1.67, lambda_=1.05):
-      return lambda_ * jnp.where(x > 0, x, alpha * jnp.exp(x) - alpha)
-
-    x = jnp.arange(1000000)
-    # The first call should jit compile, so should be slow.
-    selu(x)
-    self.assertIn('selu', profiler.Storage().runtimes())
-    microseconds = profiler.Storage().runtimes().get('selu')[0].microseconds
-    self.assertGreaterEqual(microseconds, 1000)
-    # The second call should use the jitted function.
-    selu(x)
-    self.assertLen(profiler.Storage().runtimes().get('selu'), 1)
-    jt_microseconds = profiler.Storage().runtimes().get('selu')[0].microseconds
-    # Should be at least 10 times faster.
-    self.assertEqual(jt_microseconds, microseconds)
-
-  def test_context_manager(self):
-    x = 0
-    with profiler.record_runtime_context(name='add'):
-      x += 1
-    self.assertIn('add', profiler.Storage().runtimes())
-    runtimes = profiler.Storage().runtimes().get('add')
-    self.assertLen(runtimes, 1)
-    self.assertGreaterEqual(runtimes[0].total_seconds(), 0)
-
-    with profiler.record_runtime_context(name='add'):
-      x += 1
-    runtimes = profiler.Storage().runtimes().get('add')
-    self.assertLen(runtimes, 2)
-    self.assertGreaterEqual(runtimes[1].total_seconds(), 0)
+    # Tracing happens within the timed functions' scope.
+    self.assertIn(events[1].scope, events[0].scope)
 
 
 if __name__ == '__main__':
