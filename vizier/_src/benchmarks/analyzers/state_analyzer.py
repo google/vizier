@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import List
 
-from vizier._src.benchmarks.analyzers import convergence_curve
 from vizier._src.benchmarks.runners import benchmark_state
+from vizier.algorithms import metalearn
 
 
 class BenchmarkStateAnalyzer:
@@ -30,7 +30,7 @@ class BenchmarkStateAnalyzer:
       cls,
       states: List[benchmark_state.BenchmarkState],
       flip_signs_for_min: bool = False,
-  ) -> convergence_curve.ConvergenceCurve:
+  ) -> metalearn.ConvergenceCurve:
     """Generates a ConvergenceCurve from a batch of BenchmarkStates.
 
     Each state in batch should represent the same study (different repeat).
@@ -53,7 +53,7 @@ class BenchmarkStateAnalyzer:
     if not problem_statement.is_single_objective:
       raise ValueError('Multiobjective Conversion not supported yet.')
 
-    converter = convergence_curve.ConvergenceCurveConverter(
+    converter = metalearn.ConvergenceCurveConverter(
         problem_statement.metric_information.item(),
         flip_signs_for_min=flip_signs_for_min,
     )
@@ -68,4 +68,4 @@ class BenchmarkStateAnalyzer:
       state_trials = state.algorithm.supporter.GetTrials()
       curve = converter.convert(state_trials)
       curves.append(curve)
-    return convergence_curve.ConvergenceCurve.align_xs(curves)[0]
+    return metalearn.ConvergenceCurve.align_xs(curves)[0]

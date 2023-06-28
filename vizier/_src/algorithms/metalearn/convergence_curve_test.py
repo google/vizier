@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 from vizier import pyvizier
-from vizier._src.benchmarks.analyzers import convergence_curve as convergence
+from vizier._src.algorithms.metalearn import convergence_curve as convergence
 
 from absl.testing import absltest
 from absl.testing import parameterized

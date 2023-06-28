@@ -660,7 +660,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparatorBase):
       - Compute the percentage of `compared` steps that are better.
     2. Average the percentages across all 'baseline' indices.
 
-    The more dominante 'compared' over 'baseline' the closer the score is to
+    The more dominant 'compared' over 'baseline' the closer the score is to
     1.0.
 
     Args:
