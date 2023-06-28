@@ -251,14 +251,11 @@ class Metadata(abc.MutableMapping):
   1. Keys are namespaced. Each Metadata object only interacts with one
     Namespace.
 
-    Namespaces form a tree, and you can walk down the tree.  There are two
-    namespace operators: ns(s: str) which takes one step down the namespace
-    tree, abs_ns() which jumps to root namespace, or
-    abs_ns(ns) which jumps to the specified Namespace.
-    (NOTE: ns() and abs_ns() take different argument types!)
-    (NOTE: Neither ns() nor abs_ns() modify the Metadata object they are called
-     on: they return a shallow copy that shares all metadata items, but
-     which displays a different namespace.)
+    Namespaces form a tree, and you can walk down the tree.
+
+    NOTE ns(s: str) takes one step down the namespace tree. For nearly all
+    practical purposes, ignore abs_ns() which is only used for conversions
+    to and from protobufs.
 
     mm = Metadata({'foo': 'foofoo'})
     # $mm is created with its current namespace equal to the root/empty
@@ -266,23 +263,6 @@ class Metadata(abc.MutableMapping):
     mm.ns('NewName')['bar'] = 'Bar'
     # We've added an item in the ":NewName" namespace, but $mm's current
     # namespace is unchanged.
-
-    # Use of abs_ns().
-    mm.abs_ns(['NewName'])  # returns 'Bar'
-    mmx = mm.ns('x')
-    mmx.abs_ns(['NewName'])  # returns 'Bar2'
-    mmx.abs_ns().get('foo')  # returns 'foofoo'
-
-    # Multi-component namespaces.
-    mm = Metadata()
-    mm.ns('a').ns('b')['foo'] = 'AB-foo'
-    mm.ns('a')['foo'] = 'A-foo'
-    mm['foo']          # Throws a KeyError
-    mm.ns('a')['foo']  # returns 'A-foo'
-    mm.ns('a').ns('b')['foo']  # returns 'AB-foo'
-    # abs_ns() can be also used:
-    mm.abs_ns(['a', 'b']).get('foo')  # Returns 'ab-foo'
-    mm.abs_ns(Namespace.decode('a:b')).get('foo')  # Returns 'ab-foo'
 
   2. Values can be protobufs. If `metadata['foo']` is an instance of `MyProto`
     proto message or an `Any` proto that packs a `MyProto` message, then the
@@ -342,27 +322,6 @@ class Metadata(abc.MutableMapping):
     self._namespace = Namespace()
     self._store = self._stores[self._namespace]
     self._store.update(*args, **kwargs)
-
-  def abs_ns(self, namespace: Iterable[str] = ()) -> 'Metadata':
-    """Returns a metadata object set to the specified absolute namespace.
-
-    All the Metadata object's data is shared between $self and the returned
-    object, but the new Metadata object will have a different current
-    namespace.  (Note that $self is not modified, and the current namespace of
-    $self doesn't matter.)
-
-    NOTE: $namespace can be a Namespace object, because you can iterate over
-      a Namespace to get strings.
-
-    Args:
-      namespace: a list of Namespace components.  (Defaults to the root, empty
-        Namespace.)
-
-    Returns:
-      A new Metadata object that shares data with $self, but the current
-      namespace is one level deeper.
-    """
-    return self._copy_core(Namespace(namespace))
 
   def ns(self, component: str) -> 'Metadata':
     r"""Switches to a deeper namespace by appending one component.
@@ -626,6 +585,61 @@ class Metadata(abc.MutableMapping):
     return self._copy_core(self._namespace)
 
   # END OF Abstract methods inherited from `MutableMapping` base class.
+
+  def abs_ns(self, namespace: Iterable[str] = ()) -> 'Metadata':
+    """Returns a metadata object set to the specified absolute namespace.
+
+    NOTE Prefer using ns() instead in most cases.
+
+    abs_ns() jumps to the root namespace and
+    abs_ns(ns) jumps to the specified Namespace.
+
+    (NOTE: ns() and abs_ns() take different argument types!)
+    (NOTE: Neither ns() nor abs_ns() modify the Metadata object they are called
+     on: they return a shallow copy that shares all metadata items, but
+     which displays a different namespace.)
+
+    # Use of abs_ns().
+    mm.abs_ns(['NewName'])  # returns 'Bar'
+    mmx = mm.ns('x')
+    mmx.abs_ns(['NewName'])  # returns 'Bar2'
+    mmx.abs_ns().get('foo')  # returns 'foofoo'
+
+    # Multi-component namespaces.
+    mm = Metadata()
+    mm.ns('a').ns('b')['foo'] = 'AB-foo'
+    mm.ns('a')['foo'] = 'A-foo'
+    mm['foo']          # Throws a KeyError
+    mm.ns('a')['foo']  # returns 'A-foo'
+    mm.ns('a').ns('b')['foo']  # returns 'AB-foo'
+    # abs_ns() can be also used:
+    mm.abs_ns(['a', 'b']).get('foo')  # Returns 'ab-foo'
+    mm.abs_ns(Namespace.decode('a:b')).get('foo')  # Returns 'ab-foo'
+
+    All the Metadata object's data is shared between $self and the returned
+    object, but the new Metadata object will have a different current
+    namespace.  (Note that $self is not modified, and the current namespace of
+    $self doesn't matter.)
+
+    NOTE: $namespace can be a Namespace object, because you can iterate over
+      a Namespace to get strings.
+
+    Args:
+      namespace: a list of Namespace components.  (Defaults to the root, empty
+        Namespace.)
+
+    Returns:
+      A new Metadata object that shares data with $self, but the current
+      namespace is one level deeper.
+    """
+    if isinstance(namespace, str):
+      raise ValueError(
+          'Passing str to abs_ns() is rarely intended and therefore '
+          'considered an error. Carefully read the class doc and prefer '
+          'using ns(). If you do decide abs_ns() is the right method, '
+          'expclitily pass abs_ns([namespace]).'
+      )
+    return self._copy_core(Namespace(namespace))
 
   def _copy_core(self, ns: Namespace) -> 'Metadata':
     """Shallow copy: metadata is shared, default namespace changes.
