@@ -21,6 +21,7 @@ from __future__ import annotations
 import functools
 from typing import Any, Generator, Optional, Union
 
+from flax import linen as nn
 from flax import struct
 import jax
 from jax import numpy as jnp
@@ -60,6 +61,22 @@ def _log_uniform_init(
   return sample
 
 
+class AddShift(nn.Module):
+  """Shift module for learning mean_fn for GaussianProcess."""
+
+  def setup(self):
+    self.shift = self.param(name='shift', init_fn=jax.random.normal)
+
+  def __call__(self, x):
+    self.sow(
+        'losses',
+        'shift_regularization',
+        self.shift**2,
+        reduce_fn=lambda _, b: b,
+    )
+    return self.shift
+
+
 @struct.dataclass
 class VizierGaussianProcess(
     sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
@@ -80,6 +97,9 @@ class VizierGaussianProcess(
       pytree_node=False, default=True, kw_only=True
   )
   _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
+  _add_linear: bool = struct.field(
+      pytree_node=False, default=False, kw_only=True
+  )
 
   # TODO: Consider defining this in a `ModelCoroutine` base class.
   @classmethod
@@ -88,11 +108,13 @@ class VizierGaussianProcess(
       features: types.Array,
       *,
       use_retrying_cholesky: bool = True,
+      add_linear: bool = False,
   ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
     gp_coroutine = VizierGaussianProcess(
         features.shape[-1],
         _use_retrying_cholesky=use_retrying_cholesky,
+        _add_linear=add_linear,
     )
     return sp.StochasticProcessModel(gp_coroutine)
 
@@ -117,6 +139,7 @@ class VizierGaussianProcess(
     eps = self._boundary_epsilon
     observation_noise_bounds = (np.float64(1e-10 - eps), 1.0 + eps)
     amplitude_bounds = (np.float64(1e-3 - eps), 10.0 + eps)
+    slope_bounds = (np.float64(1e-5 - eps), 10.0 + eps)
     ones = np.ones((self._feature_dim,), dtype=np.float64)
     length_scale_bounds = (ones * (1e-2 - eps), ones * 1e2 + eps)
 
@@ -130,6 +153,17 @@ class VizierGaussianProcess(
         name='signal_variance',
     )
     kernel = tfpk.MaternFiveHalves(amplitude=jnp.sqrt(signal_variance))
+    if self._add_linear:
+      slopes = yield sp.ModelParameter(
+          init_fn=_log_uniform_init(*slope_bounds),
+          constraint=sp.Constraint(
+              slope_bounds,
+              tfb.SoftClip(*slope_bounds, hinge_softness=1e-2),
+          ),
+          regularizer=lambda x: 0.01 * jnp.log(x / 0.039) ** 2,
+          name='slopes',
+      )
+      kernel = kernel + tfpk.Linear(slope_amplitude=slopes)
 
     length_scale = yield sp.ModelParameter(
         init_fn=_log_uniform_init(
@@ -170,6 +204,19 @@ class VizierGaussianProcess(
           max_iters=5,
       )
       cholesky_fn = lambda matrix: retrying_cholesky(matrix)[0]
+    if self._add_linear:
+      shift = yield sp.ModelParameter(
+          init_fn=jax.random.normal,
+          regularizer=lambda x: 0.5 * x**2,
+          name='shift',
+      )
+      return tfd.GaussianProcess(
+          kernel,
+          index_points=inputs,
+          observation_noise_variance=observation_noise_variance,
+          cholesky_fn=cholesky_fn,
+          mean_fn=lambda _: shift,
+      )
 
     return tfd.GaussianProcess(
         kernel,

@@ -236,6 +236,34 @@ class VizierGpTest(absltest.TestCase):
     logging.info('Loss: %s', loss_fn(optimal_params)[0])
     self.assertLess(np.min(metrics['loss']), target_loss)
 
+  def test_good_log_likelihood_linear_kernel(self):
+    x_obs, y_obs = self._generate_xys()
+    target_loss = -0.2
+    data = types.StochasticProcessModelData(features=x_obs, labels=y_obs)
+    model = tuned_gp_models.VizierGaussianProcess.build_model(
+        features=x_obs, add_linear=True
+    )
+    loss_fn = functools.partial(
+        jax.jit(
+            gp_bandit_utils.stochastic_process_model_loss_fn,
+            static_argnames=('model', 'normalize'),
+        ),
+        model=model,
+        data=data,
+    )
+    setup = lambda rng: model.init(rng, x_obs)['params']
+
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=50)
+    )
+    constraints = sp.get_constraints(model)
+    optimal_params, metrics = optimize(
+        setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
+    )
+    logging.info('Optimal: %s', optimal_params)
+    logging.info('Loss: %s', loss_fn(optimal_params)[0])
+    self.assertLess(np.min(metrics['loss']), target_loss)
+
   def test_good_log_likelihood_with_masks(self):
     x_obs, y_obs = self._generate_xys()
     # Pad x_s and y_s and generate masks.
