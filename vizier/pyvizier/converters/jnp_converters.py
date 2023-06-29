@@ -147,7 +147,7 @@ class TrialToModelInputConverter:
   """Converts trials to arrays and pads / masks them."""
 
   _impl: 'TrialToContinuousAndCategoricalConverter'
-  _padding_schedule: padding.PaddingSchedule
+  _padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule()
 
   @classmethod
   def from_problem(
@@ -285,9 +285,11 @@ class TrialToContinuousAndCategoricalConverter:
     else:
       continuous_array = np.zeros([len(trials), 0], dtype=np.float64)
     if categorical:
-      categorical_array = np.concatenate(categorical, axis=-1)
+      categorical_array = np.concatenate(categorical, axis=-1).astype(
+          vt.INT_DTYPE
+      )
     else:
-      categorical_array = np.zeros([len(trials), 0], dtype=np.int32)
+      categorical_array = np.zeros([len(trials), 0], dtype=vt.INT_DTYPE)
     return vt.ContinuousAndCategoricalArray(continuous_array, categorical_array)
 
   @property

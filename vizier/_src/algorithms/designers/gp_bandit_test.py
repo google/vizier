@@ -16,7 +16,6 @@ from __future__ import annotations
 
 """Tests for gp_bandit."""
 
-from typing import Optional
 from unittest import mock
 
 import jax
@@ -57,12 +56,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
           iters=3,
           batch_size=5,
           num_seed_trials=5,
-          use_categorical_kernel=True,
-      ),
-      dict(
-          iters=3,
-          batch_size=5,
-          num_seed_trials=5,
           padding_schedule=padding.PaddingSchedule(
               num_trials=padding.PaddingType.MULTIPLES_OF_10,
               num_features=padding.PaddingType.POWERS_OF_2,
@@ -92,8 +85,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
       batch_size: int = 1,
       num_seed_trials: int = 1,
       ensemble_size: int = 1,
-      padding_schedule: Optional[padding.PaddingSchedule] = None,
-      use_categorical_kernel: bool = False,
+      padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(),
       use_trust_region: bool = False,
   ):
     # We use string names so that test case names are readable. Convert them
@@ -120,7 +112,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
         num_seed_trials=num_seed_trials,
         ensemble_size=ensemble_size,
         padding_schedule=padding_schedule,
-        use_categorical_kernel=use_categorical_kernel,
         use_trust_region=use_trust_region,
         rng=jax.random.PRNGKey(0),
     )
@@ -162,20 +153,13 @@ class GoogleGpBanditTest(parameterized.TestCase):
               num_features=padding.PaddingType.POWERS_OF_2,
           ),
       ),
-      dict(
-          iters=3,
-          batch_size=5,
-          num_seed_trials=5,
-          use_categorical_kernel=True,
-      ),
   )
   def test_on_flat_mixed_space(
       self,
       iters: int,
       batch_size: int,
       num_seed_trials: int,
-      padding_schedule: Optional[padding.PaddingSchedule] = None,
-      use_categorical_kernel: bool = False,
+      padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(),
       use_trust_region: bool = True,
   ):
     problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
@@ -192,7 +176,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
         acquisition_optimizer_factory=vectorized_optimizer_factory,
         num_seed_trials=num_seed_trials,
         padding_schedule=padding_schedule,
-        use_categorical_kernel=use_categorical_kernel,
         use_trust_region=use_trust_region,
     )
     self.assertLen(

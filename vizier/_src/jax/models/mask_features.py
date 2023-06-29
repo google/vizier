@@ -16,12 +16,15 @@ from __future__ import annotations
 
 """PSD Kernel for masking out dimensions."""
 
+import jax
 import jax.numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
-from vizier._src.jax import types
+
+tfpk = tfp.math.psd_kernels
+tfpke = tfp.experimental.psd_kernels
 
 
-class MaskFeatures(tfp.math.psd_kernels.FeatureTransformed):
+class MaskFeatures(tfpk.PositiveSemidefiniteKernel):
   """Kernel for masking out features by setting them to zero.
 
   By masking out feature dimensions to zero (or to any other finite value), we
@@ -33,17 +36,28 @@ class MaskFeatures(tfp.math.psd_kernels.FeatureTransformed):
 
   def __init__(
       self,
-      kernel: tfp.math.psd_kernels.PositiveSemidefiniteKernel,
-      dimension_is_missing: types.Array,
+      kernel: tfpk.PositiveSemidefiniteKernel,
+      dimension_is_missing: tfpke.ContinuousAndCategoricalValues,
   ):
+    parameters = dict(locals())
     self._kernel = kernel
     self._dimension_is_missing = dimension_is_missing
 
+    def _transformation_fn(x, *_):
+      return jax.tree_util.tree_map(
+          lambda x_, d: jnp.where(d, jnp.zeros_like(x_), x_),
+          x,
+          dimension_is_missing,
+      )
+
+    self._mask_kernel = tfpk.FeatureTransformed(kernel, _transformation_fn)
+
     super(MaskFeatures, self).__init__(
-        kernel,
-        transformation_fn=lambda x, *_: jnp.where(  # pylint:disable=g-long-lambda
-            dimension_is_missing, jnp.zeros_like(x), x
-        ),
+        feature_ndims=kernel.feature_ndims,
+        dtype=kernel.dtype,
+        name='MaskFeatures',
+        validate_args=False,
+        parameters=parameters,
     )
 
   @property
@@ -54,8 +68,33 @@ class MaskFeatures(tfp.math.psd_kernels.FeatureTransformed):
   def dimension_is_missing(self):
     return self._dimension_is_missing
 
-  def _batch_shape(self):
-    return self.kernel.batch_shape
+  def _apply(self, x1, x2, example_ndims=0):
+    return self._mask_kernel._apply(x1, x2, example_ndims)  # pylint: disable=protected-access
 
-  def _batch_shape_tensor(self):
-    return self.kernel.batch_shape_tensor()
+  def _matrix(self, x1, x2):
+    return self._mask_kernel._matrix(x1, x2)  # pylint: disable=protected-access
+
+  @classmethod
+  def _parameter_properties(cls, dtype):
+    return dict(
+        kernel=tfp.internal.parameter_properties.BatchedComponentProperties(),
+        dimension_is_missing=(
+            tfp.internal.parameter_properties.ParameterProperties(
+                event_ndims=lambda self: self.kernel.feature_ndims
+            )
+        ),
+    )
+
+
+def _mask_features_flatten(v):
+  children = (v.kernel, v.dimension_is_missing)
+  return (children, None)
+
+
+def _mask_features_unflatten(_, children):
+  return MaskFeatures(*children)
+
+
+jax.tree_util.register_pytree_node(
+    MaskFeatures, _mask_features_flatten, _mask_features_unflatten
+)

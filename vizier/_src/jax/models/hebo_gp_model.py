@@ -29,29 +29,30 @@ from jax import numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import continuous_only_kernel
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
 tfpk = tfp.math.psd_kernels
+tfpke = tfp.experimental.psd_kernels
 
 
 @struct.dataclass
-class VizierHeboGaussianProcess(
-    sp.ModelCoroutine[types.Array, tfd.GaussianProcess]
-):
+class VizierHeboGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
   """Hebo Gaussian process model."""
 
   @classmethod
   def build_model(
       cls,
-      features: types.Array,
+      features: types.ModelInput,
   ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
+    del features
     gp_coroutine = VizierHeboGaussianProcess()
     return sp.StochasticProcessModel(gp_coroutine)
 
   def __call__(
-      self, inputs: Optional[types.Array] = None
+      self, inputs: Optional[types.ModelInput] = None
   ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:
     """Creates a generator.
 
@@ -124,6 +125,11 @@ class VizierHeboGaussianProcess(
 
     kernel = tfpk.KumaraswamyTransformed(kernel, concentration1, concentration0)
 
+    kernel = continuous_only_kernel.ContinuousOnly(kernel)
+    if inputs is not None:
+      inputs = tfpke.ContinuousAndCategoricalValues(
+          inputs.continuous.padded_array, inputs.categorical.padded_array
+      )
     return tfd.GaussianProcess(
         kernel,
         index_points=inputs,

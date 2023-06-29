@@ -26,6 +26,12 @@ from jax import numpy as jnp
 from jax.typing import ArrayLike
 import jaxtyping as jt
 import numpy as np
+from tensorflow_probability.substrates import jax as tfp
+
+tfpke = tfp.experimental.psd_kernels
+
+# Integer dtype for categorical data.
+INT_DTYPE = np.int32
 
 
 # We define our own Array type since `jax.typing.Array` and `chex.Array` both
@@ -53,6 +59,7 @@ class PaddedArray(eqx.Module):
   # TODO: Rename "padded_array" to a shorter name like "padded".
   padded_array: jt.Shaped[jax.Array, '...'] = eqx.field(converter=jnp.asarray)
   fill_value: Any = eqx.field(converter=jnp.asarray)
+  # TODO: Make `_original_shape` public.
   _original_shape: jt.Int[jax.Array, '_'] = eqx.field(converter=jnp.asarray)
 
   # TODO: Make _mask an inferred property. The current
@@ -70,7 +77,7 @@ class PaddedArray(eqx.Module):
       return self
     else:
       return PaddedArray(
-          self.padded_array.at[~self._mask].set(fill_value),
+          jnp.where(self._mask, self.padded_array, fill_value),
           fill_value=fill_value,
           _original_shape=self._original_shape,
           _mask=self._mask,
@@ -192,8 +199,8 @@ class StochasticProcessModelData(Generic[Features], eqx.Module):
 # PrecomputedPredictive for full predictive state including cholesky, and
 # StochasticProcessWithCoroutine for computing log probs.
 @struct.dataclass
-class GPState(Generic[Features]):
+class GPState:
   """State that changes at each iteration."""
 
-  data: StochasticProcessModelData[Features]
+  data: ModelData
   model_state: ModelState

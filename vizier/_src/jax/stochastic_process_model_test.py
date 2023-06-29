@@ -17,6 +17,7 @@ from __future__ import annotations
 """Tests for stochastic_process_model."""
 
 import functools
+from typing import Optional
 from unittest import mock
 
 from absl import logging
@@ -32,6 +33,7 @@ from tensorflow_probability.substrates import jax as tfp
 import tree
 from vizier._src.jax import stochastic_process_model as sp_model
 from vizier._src.jax import types
+from vizier._src.jax.models import mask_features
 
 from absl.testing import absltest
 
@@ -43,37 +45,14 @@ tfde = tfp.experimental.distributions
 tfpke = tfp.experimental.psd_kernels
 
 
-def _continuous_kernel_coroutine(dtype=np.float64):
-  constraint = sp_model.Constraint(
-      bounds=(np.zeros([], dtype=dtype), None), bijector=tfb.Exp()
-  )
-  amplitude = yield sp_model.ModelParameter(
-      init_fn=lambda k: random.exponential(k, dtype=dtype),
-      regularizer=lambda x: dtype(1e-3) * x**2,
-      constraint=constraint,
-      name='amplitude',
-  )
-  inverse_length_scale = yield sp_model.ModelParameter.from_prior(
-      tfd.Exponential(
-          rate=np.array(1.0).astype(dtype), name='inverse_length_scale'
-      ),
-      constraint=constraint,
-  )
-  return tfpk.ExponentiatedQuadratic(
-      amplitude=amplitude,
-      inverse_length_scale=inverse_length_scale,
-      validate_args=True,
-  )
-
-
-def _categorical_kernel_coroutine(dtype=np.float64):
+def _kernel_coroutine(dtype=np.float64):
   amplitude = yield sp_model.ModelParameter(
       init_fn=lambda k: random.exponential(k, dtype=dtype),
       constraint=sp_model.Constraint(bounds=(np.zeros([], dtype=dtype), None)),
       regularizer=lambda x: 1e-3 * x**2,
       name='amplitude',
   )
-  one = np.array(1.0).astype(dtype)
+  one = np.array([1.0]).astype(dtype)
   inverse_length_scale_continuous = yield sp_model.ModelParameter.from_prior(
       tfd.Exponential(rate=one, name='inverse_length_scale_continuous')
   )
@@ -90,21 +69,26 @@ def _categorical_kernel_coroutine(dtype=np.float64):
 
 
 def _test_coroutine(
-    inputs=None,
-    kernel_coroutine=_continuous_kernel_coroutine,
+    inputs: Optional[types.ModelInput] = None,
     num_tasks=1,
     dtype=np.float64,
 ):
   """A coroutine that follows the `ModelCoroutine` protocol."""
-  if isinstance(inputs, types.ContinuousAndCategorical):
-    inputs = tfpke.ContinuousAndCategoricalValues(
-        inputs.continuous, inputs.categorical
+  kernel = yield from _kernel_coroutine(dtype=dtype)
+  if inputs is not None:
+    kernel = mask_features.MaskFeatures(
+        kernel,
+        dimension_is_missing=tfpke.ContinuousAndCategoricalValues(
+            continuous=inputs.continuous.is_missing[1],
+            categorical=inputs.categorical.is_missing[1],
+        ),
     )
-
-  kernel = yield from kernel_coroutine(dtype=dtype)
+    inputs = tfpke.ContinuousAndCategoricalValues(
+        inputs.continuous.padded_array, inputs.categorical.padded_array
+    )
   if num_tasks == 1:
     return tfd.StudentTProcess(
-        df=dtype(5.0),
+        df=np.array(5.0).astype(dtype),
         kernel=kernel,
         index_points=inputs,
         observation_noise_variance=np.ones([], dtype=dtype),
@@ -121,46 +105,78 @@ def _test_coroutine(
   )
 
 
-def _make_inputs(key, dtype, num_tasks=1, num_observed=20, num_predictive=5):
-  x_key, y_key, pred_key = random.split(key, num=3)
-  dim = 3
-  y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
-  x_observed = random.uniform(x_key, shape=(num_observed, dim), dtype=dtype)
-  y_observed = random.uniform(y_key, shape=y_shape, dtype=dtype)
-  x_predictive = random.uniform(
-      pred_key, shape=(100, num_predictive, dim), dtype=dtype
-  )
-  return x_observed, y_observed, x_predictive
-
-
-def _make_inputs_with_categorical(
-    key, dtype, num_tasks=1, num_observed=15, num_predictive=8
+def _make_inputs(
+    key,
+    dtype=jnp.float64,
+    num_continuous=5,
+    num_categorical=3,
+    num_tasks=1,
+    num_observed=15,
+    num_predictive=8,
+    predictive_batch=(),
+    pad_obs=0,
+    pad_continuous_dim=0,
+    pad_categorical_dim=0,
+    pad_tasks=0,
 ):
   cont_obs_key, cat_obs_key, cont_pred_key, cat_pred_key, y_key = random.split(
       key, num=5
   )
-  cont_dim = 5
-  cat_dim = 3
   x_observed_cont = random.uniform(
-      cont_obs_key, shape=(num_observed, cont_dim), dtype=dtype
+      cont_obs_key, shape=(num_observed, num_continuous), dtype=dtype
   )
   x_observed_cat = random.randint(
-      cat_obs_key, shape=(num_observed, cat_dim), minval=0, maxval=6
+      cat_obs_key, shape=(num_observed, num_categorical), minval=0, maxval=6
   )
-  x_observed = types.ContinuousAndCategoricalArray(
-      x_observed_cont, x_observed_cat
+  x_observed = types.ModelInput(
+      continuous=types.PaddedArray.from_array(
+          x_observed_cont,
+          (num_observed + pad_obs, num_continuous + pad_continuous_dim),
+          fill_value=np.nan,
+      ),
+      categorical=types.PaddedArray.from_array(
+          x_observed_cat,
+          (num_observed + pad_obs, num_categorical + pad_categorical_dim),
+          fill_value=-1,
+      ),
   )
+
   y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
+  y_pad_shape = (
+      (num_observed + pad_obs,)
+      if num_tasks == 1
+      else (num_observed + pad_obs, num_tasks + pad_tasks)
+  )
   y_observed = random.uniform(y_key, shape=y_shape, dtype=dtype)
+  y_observed = types.PaddedArray.from_array(
+      y_observed, y_pad_shape, fill_value=np.nan
+  )
 
   x_predictive_cont = random.uniform(
-      cont_pred_key, shape=(100, num_predictive, cont_dim), dtype=dtype
+      cont_pred_key,
+      shape=predictive_batch + (num_predictive, num_continuous),
+      dtype=dtype,
   )
   x_predictive_cat = random.randint(
-      cat_pred_key, shape=(num_predictive, cat_dim), minval=0, maxval=6
+      cat_pred_key,
+      shape=predictive_batch + (num_predictive, num_categorical),
+      minval=0,
+      maxval=6,
   )
-  x_predictive = types.ContinuousAndCategoricalArray(
-      x_predictive_cont, x_predictive_cat
+
+  x_predictive = types.ModelInput(
+      continuous=types.PaddedArray.from_array(
+          x_predictive_cont,
+          predictive_batch
+          + (num_predictive + pad_obs, num_continuous + pad_continuous_dim),
+          fill_value=np.nan,
+      ),
+      categorical=types.PaddedArray.from_array(
+          x_predictive_cat,
+          predictive_batch
+          + (num_predictive + pad_obs, num_categorical + pad_categorical_dim),
+          fill_value=-1,
+      ),
   )
   return x_observed, y_observed, x_predictive
 
@@ -169,7 +185,7 @@ class MeanFn(nn.Module):
 
   @nn.compact
   def __call__(self, x):
-    x = nn.relu(nn.Dense(3)(x))
+    x = nn.relu(nn.Dense(3)(x.continuous.padded_array))
     x = nn.Dense(1)(x)
     return jnp.squeeze(x, axis=-1)
 
@@ -180,51 +196,55 @@ class StochasticProcessModelTest(parameterized.TestCase):
       # TODO: Fix support for f32.
       {
           'testcase_name': 'continuous_only',
-          'kernel_coroutine': _continuous_kernel_coroutine,
-          'test_data_fn': _make_inputs,
-          'num_tasks': 1,
-          'dtype': np.float64,
+          'input_kwargs': dict(
+              num_categorical=0, pad_obs=3, pad_continuous_dim=2
+          ),
       },
       {
           'testcase_name': 'multitask_continuous',
-          'kernel_coroutine': _continuous_kernel_coroutine,
-          'test_data_fn': _make_inputs,
-          'num_tasks': 3,
-          'dtype': np.float64,
+          'input_kwargs': dict(
+              num_categorical=2,
+              num_tasks=3,
+          ),
       },
       {
           'testcase_name': 'continuous_categorical',
-          'kernel_coroutine': _categorical_kernel_coroutine,
-          'test_data_fn': _make_inputs_with_categorical,
-          'num_tasks': 1,
-          'dtype': np.float64,
+          'input_kwargs': dict(
+              pad_continuous_dim=5, pad_categorical_dim=4, pad_obs=7
+          ),
       },
-      {
-          'testcase_name': 'continuous_categorical_multitask',
-          'kernel_coroutine': _categorical_kernel_coroutine,
-          'test_data_fn': _make_inputs_with_categorical,
-          'num_tasks': 1,
-          'dtype': np.float64,
-      },
+      {'testcase_name': 'continuous_categorical_nopad', 'input_kwargs': dict()},
+      # TODO: Enable `is_missing` in TFP Multitask GP.
+      # {
+      #     'testcase_name': 'continuous_categorical_multitask',
+      #     'input_kwargs': dict(
+      #         num_tasks=3,
+      #         pad_tasks=2,
+      #         pad_obs=5,
+      #     )
+      # },
   )
-  def test_stochastic_process_model(
-      self, kernel_coroutine, test_data_fn, num_tasks, dtype
-  ):
+  def test_stochastic_process_model(self, input_kwargs):
     init_key, data_key, sample_key = jax.random.split(random.PRNGKey(0), num=3)
-    x_observed, y_observed, x_predictive = test_data_fn(
-        data_key, dtype=dtype, num_tasks=num_tasks
+    x_observed, y_observed, x_predictive = _make_inputs(
+        data_key, **input_kwargs
     )
+    dtype = y_observed.padded_array.dtype
     model_coroutine = functools.partial(
         _test_coroutine,
-        kernel_coroutine=kernel_coroutine,
-        num_tasks=num_tasks,
+        num_tasks=input_kwargs.get('num_tasks', 1),
         dtype=dtype,
     )
     model = sp_model.StochasticProcessModel(coroutine=model_coroutine)
 
     init_state = model.init(init_key, x_observed)
     dist, losses = model.apply(init_state, x_observed, mutable=('losses',))
-    lp = dist.log_prob(y_observed)
+    if isinstance(dist, tfde.MultiTaskGaussianProcess):
+      lp = dist.log_prob(y_observed.padded_array)
+    else:
+      lp = dist.log_prob(
+          y_observed.padded_array, is_missing=y_observed.is_missing[0]
+      )
     self.assertTrue(np.isfinite(lp))
     self.assertEqual(lp.dtype, dtype)
 
@@ -252,9 +272,13 @@ class StochasticProcessModelTest(parameterized.TestCase):
                               mutable=('predictive',))
 
     state = {'params': params, **pp_state}
+    x_pred = types.ModelInput(
+        continuous=x_predictive.continuous.replace_fill_value(0.0),
+        categorical=x_predictive.categorical.replace_fill_value(0),
+    )
     pp_dist = model.apply(
         state,
-        x_predictive,
+        x_pred,
         x_observed,
         y_observed,
         method=model.posterior_predictive,
@@ -267,40 +291,32 @@ class StochasticProcessModelTest(parameterized.TestCase):
       {
           'testcase_name': 'continuous_with_mean_fn',
           'num_tasks': 1,
-          'kernel_coroutine': _continuous_kernel_coroutine,
-          'test_data_fn': _make_inputs,
           'use_mean_fn': True,
       },
       {
           'testcase_name': 'multitask_continuous',
           'num_tasks': 3,
-          'kernel_coroutine': _continuous_kernel_coroutine,
-          'test_data_fn': _make_inputs,
       },
       {
           'testcase_name': 'multitask_continuous_categorical',
           'num_tasks': 3,
-          'kernel_coroutine': _categorical_kernel_coroutine,
-          'test_data_fn': _make_inputs_with_categorical,
       },
   )
-  def test_jax_transformations(
-      self, num_tasks, kernel_coroutine, test_data_fn, use_mean_fn=False
-  ):
+  def test_jax_transformations(self, num_tasks, use_mean_fn=False):
     init_key, data_key, prior_key, post_key = jax.random.split(
         random.PRNGKey(0), num=4
     )
     num_observed = 20
-    x_observed, y_observed, x_predictive = test_data_fn(
+    x_observed, y_observed, x_predictive = _make_inputs(
         data_key,
         num_tasks=num_tasks,
         num_observed=num_observed,
+        predictive_batch=(12,),
         dtype=np.float32,
     )
     model = sp_model.StochasticProcessModel(
         coroutine=functools.partial(
             _test_coroutine,
-            kernel_coroutine=kernel_coroutine,
             num_tasks=num_tasks,
             dtype=np.float32,
         ),
@@ -438,23 +454,24 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
   def test_stochastic_process_model_with_mean_fn(self):
 
-    obs_key, pred_key, init_key, vmap_key = random.split(
-        random.PRNGKey(0), num=4)
-    dim = 3
-    num_observed = 20
-    x_observed = random.uniform(obs_key, shape=(num_observed, dim))
-    y_observed = x_observed.sum(axis=-1)
-    x_predictive = random.uniform(pred_key, shape=(100, 5, dim))
+    data_key, init_key, vmap_key = random.split(random.PRNGKey(0), num=3)
+    x_observed, y_observed, x_predictive = _make_inputs(
+        data_key,
+        num_continuous=3,
+        num_categorical=0,
+        num_observed=20,
+        num_predictive=50,
+    )
 
     # Use `jnp.squeeze` to remove the singleton dimension of the output of
     # `mean_fn`, so that it has shape `(num_observed,)`.
-    mean_fn = nn.Sequential([nn.Dense(5), nn.Dense(1), jnp.squeeze])
+    mean_fn = MeanFn()
     model = sp_model.StochasticProcessModel(
         coroutine=_test_coroutine, mean_fn=mean_fn)
 
     init_state = model.init(init_key, x_observed)
     stp = model.apply(init_state, x_observed, mutable=False)
-    lp = stp.log_prob(y_observed)
+    lp = stp.log_prob(y_observed.padded_array)
     self.assertTrue(np.isfinite(lp))
 
     # The mean of the GP should equal `mean_fn` evaluated at the index points.
@@ -479,14 +496,18 @@ class StochasticProcessModelTest(parameterized.TestCase):
     pp_mean = pp_dist.mean()
 
     self.assertTrue(
-        np.isfinite(pp_dist.log_prob(x_predictive.sum(axis=-1))).all())
-    self.assertSequenceEqual(pp_mean.shape, (100, 5))
+        np.isfinite(
+            pp_dist.log_prob(x_predictive.continuous.padded_array.sum(axis=-1))
+        ).all()
+    )
+    self.assertSequenceEqual(pp_mean.shape, (50,))
     self.assertTrue(np.isfinite(pp_mean).all())
 
     # Test that vmap works.
     def log_prob(p):
-      return model.apply(
-          p, x_observed, mutable=('losses',))[0].log_prob(y_observed)
+      return model.apply(p, x_observed, mutable=('losses',))[0].log_prob(
+          y_observed.padded_array
+      )
 
     batch_size = 20
     keys = random.split(vmap_key, num=batch_size)
@@ -561,7 +582,7 @@ class ConstraintTest(parameterized.TestCase):
     if mean_fn:
       mean_fn = mean_fn()
 
-    x = jnp.ones([5, 3])
+    x, *_ = _make_inputs(jax.random.PRNGKey(0))
     model = sp_model.StochasticProcessModel(
         coroutine=_test_coroutine, mean_fn=mean_fn
     )
@@ -581,19 +602,31 @@ class ConstraintTest(parameterized.TestCase):
 
 
 @functools.lru_cache(maxsize=None)
-def _test_data() -> types.StochasticProcessModelData:
-  return types.StochasticProcessModelData(
-      features=np.random.random([13, 5]),
-      labels=np.random.random([
-          13,
-      ]),
+def _test_data() -> tuple[types.ModelData, types.ModelInput]:
+  x_observed, y_observed, x_predictive = _make_inputs(
+      jax.random.PRNGKey(0),
+      num_continuous=5,
+      num_categorical=2,
+      num_observed=13,
+      num_predictive=7,
+      pad_continuous_dim=2,
+      pad_categorical_dim=3,
   )
+  return types.ModelData(features=x_observed, labels=y_observed), x_predictive
 
 
 class EquinoxModulesTest(absltest.TestCase):
 
   def testCoroutineWithData(self):
-    wrapper = sp_model.CoroutineWithData(_test_coroutine, _test_data())
+    data = _test_data()[0]
+    data = types.ModelData(
+        features=types.ModelInput(
+            data.features.continuous.replace_fill_value(0.0),
+            data.features.categorical.replace_fill_value(0),
+        ),
+        labels=data.labels,
+    )
+    wrapper = sp_model.CoroutineWithData(_test_coroutine, data)
 
     # Test setup and loss
     params = wrapper.setup(jax.random.PRNGKey(0))
@@ -616,11 +649,19 @@ class EquinoxModulesTest(absltest.TestCase):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
         _test_coroutine, rng=jax.random.PRNGKey(0)
     )
-    dist, _ = model.call_with_aux(_test_data())
+    dist, _ = model.call_with_aux(_test_data()[0].features)
     self.assertSequenceEqual(dist.event_shape, (13,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 
-    loss, aux = model.loss_with_aux(_test_data())
+    data = _test_data()[0]
+    data = types.ModelData(
+        features=types.ModelInput(
+            data.features.continuous.replace_fill_value(0.0),
+            data.features.categorical.replace_fill_value(0),
+        ),
+        labels=data.labels,
+    )
+    loss, aux = model.loss_with_aux(data)
     logging.info('%s, %s', loss, aux)
     logging.info('model:%s', model.params)
     self.assertTrue(np.isfinite(loss))
@@ -629,8 +670,8 @@ class EquinoxModulesTest(absltest.TestCase):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
         _test_coroutine, rng=jax.random.PRNGKey(0)
     )
-    predictive = model.precompute_predictive(_test_data())
-    dist = predictive.predict(_test_data().features[:7])
+    predictive = model.precompute_predictive(_test_data()[0])
+    dist = predictive.predict(_test_data()[1])
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 
@@ -641,8 +682,8 @@ class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
         _test_coroutine, rng=jax.random.PRNGKey(0)
     )
-    predictive = model.precompute_predictive(_test_data())
-    dist = predictive.predict(_test_data().features[:7])
+    predictive = model.precompute_predictive(_test_data()[0])
+    dist = predictive.predict(_test_data()[1])
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 
@@ -655,14 +696,14 @@ class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
         )
     )(rng=jax.random.split(jax.random.PRNGKey(0), n))
 
-    predictive = model.precompute_predictive(_test_data())
-    dist = predictive.predict(_test_data().features[:7])
+    predictive = model.precompute_predictive(_test_data()[0])
+    dist = predictive.predict(_test_data()[1])
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, (n,))
 
     # Put it in the UniformEnsemblePredictive and the batch dimension is gone.
     ensemble = sp_model.UniformEnsemblePredictive(predictive)
-    dist = ensemble.predict(_test_data().features[:7])
+    dist = ensemble.predict(_test_data()[1])
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 

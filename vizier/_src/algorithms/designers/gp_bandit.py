@@ -24,7 +24,7 @@ import copy
 import dataclasses
 import datetime
 import random
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence
 
 from absl import logging
 import attr
@@ -38,6 +38,7 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
@@ -53,9 +54,7 @@ def _experimental_override_allowed(fun):
   return fun
 
 
-_GPBanditState = tuple[
-    sp.UniformEnsemblePredictive, types.StochasticProcessModelData
-]
+_GPBanditState = tuple[sp.UniformEnsemblePredictive, types.ModelData]
 
 
 @attr.define(auto_attribs=False)
@@ -98,11 +97,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _acquisition_function: acquisitions.AcquisitionFunction = attr.field(
       factory=acquisitions.UCB, kw_only=True
   )
-  _use_categorical_kernel: bool = attr.field(default=False, kw_only=True)
   # Whether to pad all inputs, and what type of schedule to use. This is to
-  # ensure fewer JIT compilation passes.
-  _padding_schedule: Optional[padding.PaddingSchedule] = attr.field(
-      default=None, kw_only=True
+  # ensure fewer JIT compilation passes. (Default implies no padding.)
+  _padding_schedule: padding.PaddingSchedule = attr.field(
+      factory=padding.PaddingSchedule, kw_only=True
   )
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _rng: jax.random.KeyArray = attr.field(
@@ -126,6 +124,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _output_warper_pipeline: output_warpers.OutputWarperPipeline = attr.field(
       init=False
   )
+  # TODO: Remove this.
   _feature_mapper: Optional[
       feature_mapper.ContinuousCategoricalFeatureMapper
   ] = attr.field(init=False, default=None)
@@ -141,44 +140,46 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       raise ValueError(f'{type(self)} does not support conditional search.')
     elif len(self._problem.metric_information) != 1:
       raise ValueError(f'{type(self)} works with exactly one metric.')
-    if self._use_categorical_kernel and self._padding_schedule:
-      raise ValueError(
-          f'{type(self)} does not support padding with categorical kernel.'
-          f' use_categorical_kernel = {self._use_categorical_kernel},'
-          f' padding_schedule = {self._padding_schedule}.'
-      )
     # Extra initializations.
     # Discrete parameters are continuified to account for their actual values.
-    if self._padding_schedule:
-      self._converter = (
-          converters.PaddedTrialToArrayConverter.from_study_config(
-              self._problem,
-              scale=True,
-              pad_oovs=True,
-              padding_schedule=self._padding_schedule,
-              max_discrete_indices=0,
-              flip_sign_for_minimization_metrics=True,
-          )
-      )
-    else:
-      self._converter = converters.TrialToArrayConverter.from_study_config(
-          self._problem,
-          scale=True,
-          pad_oovs=True,
-          max_discrete_indices=0,
-          flip_sign_for_minimization_metrics=True,
-      )
+    self._converter = converters.TrialToModelInputConverter.from_problem(
+        self._problem,
+        scale=True,
+        max_discrete_indices=0,
+        flip_sign_for_minimization_metrics=True,
+        padding_schedule=self._padding_schedule,
+    )
     self._quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         self._problem.search_space,
         seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
     )
     self._output_warper_pipeline = output_warpers.create_default_warper()
-    if self._use_categorical_kernel:
-      self._feature_mapper = feature_mapper.ContinuousCategoricalFeatureMapper(
-          self._converter
-      )
+
+    # TODO: Get rid of this when Vectorized optimizers operate on CACV.
+    self._one_hot_converter = (
+        converters.TrialToArrayConverter.from_study_config(
+            self._problem,
+            scale=True,
+            pad_oovs=True,
+            max_discrete_indices=0,
+            flip_sign_for_minimization_metrics=True,
+        )
+    )
+    self._padded_one_hot_converter = (
+        converters.PaddedTrialToArrayConverter.from_study_config(
+            self._problem,
+            scale=True,
+            pad_oovs=True,
+            padding_schedule=self._padding_schedule,
+            max_discrete_indices=0,
+            flip_sign_for_minimization_metrics=True,
+        )
+    )
+    self._feature_mapper = feature_mapper.ContinuousCategoricalFeatureMapper(
+        self._one_hot_converter
+    )
     self._acquisition_optimizer = self._acquisition_optimizer_factory(
-        self._converter
+        self._padded_one_hot_converter
     )
     acquisition_problem = copy.deepcopy(self._problem)
     if isinstance(
@@ -205,10 +206,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     self._acquisition_problem = acquisition_problem
 
   def _get_coroutine(self, features) -> sp.ModelCoroutine:
-    if self._use_categorical_kernel:
-      return tuned_gp_models.VizierGaussianProcessWithCategorical.build_model(
-          features
-      ).coroutine
     return tuned_gp_models.VizierGaussianProcess.build_model(features).coroutine
 
   def update(
@@ -246,7 +243,16 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       #   to the center of the feasible range.  This is true, but only by
       #   accident; ideally, we should get the center from the converters.
       parameters = self._converter.to_parameters(
-          0.5 * np.ones([1, features.shape[1]])
+          types.ModelInput(
+              continuous=self._padding_schedule.pad_features(
+                  0.5 * np.ones([1, features.continuous.shape[1]])
+              ),
+              categorical=self._padding_schedule.pad_features(
+                  np.zeros(
+                      [1, features.categorical.shape[1]], dtype=types.INT_DTYPE
+                  )
+              ),
+          )
       )[0]
       seed_suggestions.append(
           vz.TrialSuggestion(
@@ -266,71 +272,32 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     return labels.reshape([-1])
 
   @profiler.record_runtime
-  def _convert_trials_to_arrays(
-      self, trials: Sequence[vz.Trial]
-  ) -> tuple[
-      Union[types.MaybePaddedArray, types.ContinuousAndCategoricalArray],
-      types.MaybePaddedArray,
-  ]:
+  def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
     """Convert trials to scaled features and warped labels."""
-    features, pre_labels = self._converter.to_xy(self._trials)
+    model_data = self._converter.to_xy(trials)
     logging.info(
         'Transforming the labels of shape %s. Features has shape: %s',
-        pre_labels.shape,
-        features.shape,
+        model_data.labels.padded_array.shape,
+        types.ContinuousAndCategorical(
+            model_data.features.continuous.padded_array.shape,
+            model_data.features.categorical.padded_array.shape,
+        ),
     )
-    # Map to continuous and categorical.
-    if self._use_categorical_kernel:
-      features = self._feature_mapper.map(features)
-
-    labels = pre_labels
-    if self._padding_schedule:
-      # Labels coming from the converter will have shape [P, 1], where P >= T
-      # the number of trials.
-      padded_labels = pre_labels.padded_array
-      # Unpad labels to have shape [T, 1].
-      # This is because the warper may take into account all labels, which may
-      # be NaN.
-      labels = padded_labels[: len(self._trials)]
 
     # Warp the output.
-    labels = np.asarray(labels)
-    labels = self._warp_labels(labels)
+    unpad_labels = np.asarray(model_data.labels.unpad())
+    warped_labels = self._warp_labels(unpad_labels)
 
-    # Pad back
-    if self._padding_schedule:
-      labels = types.PaddedArray.from_array(
-          labels, padded_labels.shape, fill_value=pre_labels.fill_value
-      )
-    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
-    return features, labels
-
-  def _trials_to_data(
-      self,
-      trials: Sequence[vz.Trial],
-  ) -> types.StochasticProcessModelData:
-    features, labels = self._convert_trials_to_arrays(self._trials)
-    dimension_is_missing = None
-    label_is_missing = None
-    if self._padding_schedule:
-      dimension_is_missing = features.is_missing[1]
-      label_is_missing = labels.is_missing[0]
-      features = features.padded_array
-      labels = labels.padded_array
-    # Update the model.
-    # TODO: Add support for PaddedArrays instead of passing in
-    # masks.
-    return types.StochasticProcessModelData(
-        features=features,
-        labels=labels,
-        label_is_missing=label_is_missing,
-        dimension_is_missing=dimension_is_missing,
+    labels = types.PaddedArray.from_array(
+        warped_labels,
+        model_data.labels.padded_array.shape,
+        fill_value=model_data.labels.fill_value,
     )
+    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
+    return types.ModelData(model_data.features, labels)
 
   @_experimental_override_allowed
-  def _optimize_params(
-      self, data: types.StochasticProcessModelData
-  ) -> types.ParameterDict:
+  def _optimize_params(self, data: types.ModelData) -> types.ParameterDict:
     # Convert trials to Numpy arrays. Labels are warped.
     coroutine = self._get_coroutine(data.features)
     self._rng, ard_rng = jax.random.split(self._rng, 2)
@@ -348,9 +315,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     return best_params
 
   @profiler.record_runtime
-  def _update_state(
-      self, data: types.StochasticProcessModelData
-  ) -> _GPBanditState:
+  def _update_state(self, data: types.ModelData) -> _GPBanditState:
     """Compute the designer's state.
 
     Args:
@@ -391,17 +356,24 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   ) -> list[vz.Trial]:
     start_time = datetime.datetime.now()
     # Set up optimizer and run
-    seed_features = vb.trials_to_sorted_array(self._trials, self._converter)
+    seed_features = vb.trials_to_sorted_array(
+        self._trials, self._padded_one_hot_converter
+    )
+    seed_features_unpad = vb.trials_to_sorted_array(
+        self._trials, self._one_hot_converter
+    )
     acq_rng, self._rng = jax.random.split(self._rng)
 
-    # TODO: remove this if-else.
-    if self._use_categorical_kernel:
-      score = lambda xs: scoring_fn.score(self._feature_mapper.map(xs))
-      score_with_aux = lambda xs: scoring_fn.score_with_aux(
-          self._feature_mapper.map(xs)
-      )
-    else:
-      score, score_with_aux = scoring_fn.score, scoring_fn.score_with_aux
+    # TODO: Remove this when Vectorized Optimizer works on CACV.
+    cacpa = self._converter.to_features(self._trials)
+    one_hot_to_modelinput = gp_bandit_utils.make_one_hot_to_modelinput_fn(
+        seed_features_unpad, self._feature_mapper, cacpa
+    )
+
+    score = lambda xs: scoring_fn.score(one_hot_to_modelinput(xs))
+    score_with_aux = lambda xs: scoring_fn.score_with_aux(
+        one_hot_to_modelinput(xs)
+    )
 
     best_candidates: vb.VectorizedStrategyResults = eqx.filter_jit(
         self._acquisition_optimizer
@@ -430,8 +402,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         best_candidates,
     )
     optimal_features = best_candidates.features
-    if self._use_categorical_kernel:
-      optimal_features = self._feature_mapper.map(optimal_features)
     best_candidates = dataclasses.replace(
         best_candidates, features=optimal_features
     )
@@ -440,7 +410,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # space); also append debug information like model predictions.
     logging.info('Converting the optimization result into suggestions...')
     return vb.best_candidates_to_trials(
-        best_candidates, self._converter
+        best_candidates, self._one_hot_converter
     )  # [N, D]
 
   @profiler.record_runtime
@@ -460,12 +430,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     predictive, data = self._update_state(self._trials_to_data(self._trials))
 
     # Define acquisition function.
-    acquisition = self._acquisition_function
     scoring_fn = acquisitions.BayesianScoringFunction(
         predictive,
         data,
-        acquisition,
-        acquisitions.TrustRegion.build(self._converter.output_specs, data)
+        self._acquisition_function,
+        acquisitions.TrustRegion(data.features)
         if self._use_trust_region
         else None,
     )
@@ -506,19 +475,20 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if num_samples is None:
       num_samples = 1000
 
-    predictive, _ = self._update_state(self._trials_to_data(trials))
+    predictive, _ = self._update_state(self._trials_to_data(self._trials))
 
     xs = self._converter.to_features(trials)
-    if self._padding_schedule:
-      trials_is_missing, features_is_missing = xs.is_missing
-      xs = np.array(xs.padded_array)[~trials_is_missing]
-      xs[:, features_is_missing] = 0.0
-    if self._use_categorical_kernel:
-      xs = self._feature_mapper.map(xs)
+    xs = types.ModelInput(
+        continuous=xs.continuous.replace_fill_value(0.0),
+        categorical=xs.categorical.replace_fill_value(0),
+    )
 
     samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
         predictive, xs, num_samples, key=rng
     )  # (num_samples, batch_size)
+    samples = samples[
+        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
+    ]
     unwarped_samples = None
     # TODO: vectorize output warping.
     for i in range(samples.shape[0]):

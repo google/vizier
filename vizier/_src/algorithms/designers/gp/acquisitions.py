@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Acquisition functions and builders implementations."""
 
-from typing import Mapping, Optional, Protocol, Sequence
+from typing import Mapping, Optional, Protocol
 
 import chex
 import equinox as eqx
@@ -26,7 +26,6 @@ from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import types
-from vizier.pyvizier import converters
 
 tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
@@ -42,8 +41,8 @@ class AcquisitionFunction(Protocol):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     pass
@@ -53,7 +52,7 @@ class Predictive(Protocol):
   """Protocol for predicting distributions given candidate points."""
 
   def predict_with_aux(
-      self, features: types.Features
+      self, features: types.ModelInput
   ) -> tuple[tfd.Distribution, chex.ArrayTree]:
     pass
 
@@ -62,23 +61,23 @@ class ScoreFunction(Protocol):
   """Protocol for scoring candidate points."""
 
   def score(
-      self, xs: types.Features, seed: Optional[jax.random.KeyArray] = None
+      self, xs: types.ModelInput, seed: Optional[jax.random.KeyArray] = None
   ) -> jax.Array:
     pass
 
   def score_with_aux(
-      self, xs: types.Features, seed: Optional[jax.random.KeyArray] = None
+      self, xs: types.ModelInput, seed: Optional[jax.random.KeyArray] = None
   ) -> tuple[jax.Array, chex.ArrayTree]:
     pass
 
 
 def sample_from_predictive(
     predictive: Predictive,
-    xs: chex.ArrayTree,
+    xs: types.ModelInput,
     num_samples: int,
     *,
     key: jax.random.KeyArray
-) -> chex.ArrayTree:
+) -> jax.Array:
   return predictive.predict_with_aux(xs)[0].sample([num_samples], seed=key)
 
 
@@ -86,7 +85,7 @@ class BayesianScoringFunction(eqx.Module):
   """Combines `Predictive` with acquisition function."""
 
   predictor: Predictive
-  data: types.StochasticProcessModelData
+  data: types.ModelData
   acquisition_fn: AcquisitionFunction
 
   # TODO: This should be moved out of here.
@@ -135,8 +134,8 @@ class UCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features, labels, seed
@@ -152,8 +151,8 @@ class HyperVolumeScalarization(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features, labels, seed
@@ -164,29 +163,35 @@ class HyperVolumeScalarization(AcquisitionFunction):
 
 @struct.dataclass
 class EI(AcquisitionFunction):
+  """Expected Improvement acquisition function."""
 
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features, seed
+    if labels is not None:
+      labels = labels.replace_fill_value(-np.inf).padded_array
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
 
 
 @struct.dataclass
 class PI(AcquisitionFunction):
+  """Probability of Improvement acquisition function."""
 
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features, seed
+    if labels is not None:
+      labels = labels.replace_fill_value(-np.inf).padded_array
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
         dist, labels
     )()
@@ -221,7 +226,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
+      features: Optional[types.ModelInput] = None,
       labels: Optional[types.Array] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
@@ -244,8 +249,8 @@ class QEI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features
@@ -276,8 +281,8 @@ class QUCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features
@@ -301,8 +306,8 @@ class MultiAcquisitionFunction(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.Features] = None,
-      labels: Optional[types.Array] = None,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     acquisitions = []
@@ -334,74 +339,31 @@ class TrustRegion(eqx.Module):
     if distance <= tr.trust_radius:
       print('xs in trust region')
   """
-  max_distances: jax.Array = eqx.field(
-      converter=lambda x: jnp.asarray(x, dtype=jnp.float64)
-  )
-  data: types.StochasticProcessModelData
-  trust_radius: jax.Array = eqx.field(
-      converter=lambda x: jnp.asarray(x, dtype=jnp.float64)
-  )
+  trusted: types.ModelInput
 
-  @classmethod
-  def build(
-      cls,
-      specs: Optional[Sequence[converters.NumpyArraySpec]],
-      data: types.StochasticProcessModelData,
-  ) -> 'TrustRegion':
-    """Init.
-
-    Args:
-      specs: List of output specs of the `TrialToArrayConverter`.
-      data: Structure of observed features and labels, with optional boolean
-        masks.
-
-    Returns:
-      trust_region
-    """
-
+  @property
+  def trust_radius(self) -> jax.Array:
     # TODO: Make hyperparameters configurable.
     min_radius = 0.2  # Hyperparameter
     dimension_factor = 5.0  # Hyperparameter
 
-    if isinstance(data.features, types.ContinuousAndCategorical):
-      dof = sum(x.shape[-1] for x in jax.tree_util.tree_leaves(data.features))
-    else:
-      dof = len(specs)
-    if data.label_is_missing is None:
-      num_obs = data.labels.shape[0]
-    else:
-      num_obs = jnp.sum(~data.label_is_missing)
+    # pylint: disable=protected-access
+    dof = (
+        self.trusted.continuous._original_shape[-1]
+        + self.trusted.categorical._original_shape[-1]
+    )
+    # pylint: enable=protected-access
+    num_obs = jnp.sum(~self.trusted.continuous.is_missing[0])
     # TODO: Discount the infeasible points. The 0.1 and 0.9 split
     # is associated with weights to feasible and infeasbile trials.
     trust_level = (0.1 * num_obs + 0.9 * num_obs) / (
         dimension_factor * (dof + 1)
     )
-    trust_radius = min_radius + (0.5 - min_radius) * trust_level
+    return jnp.where(
+        num_obs == 0, 1.0, min_radius + (0.5 - min_radius) * trust_level
+    )
 
-    if num_obs == 0:
-      trust_radius = 1.0
-
-    if isinstance(data.features, types.ContinuousAndCategorical):
-      max_distance = [np.inf] * data.features.continuous.shape[-1]
-    else:
-      max_distance = []
-      for spec in specs:
-        # Cap distances between one-hot encoded features so that they fall
-        # within the trust region radius.
-        if spec.type is converters.NumpyArraySpecType.ONEHOT_EMBEDDING:
-          max_distance.extend([trust_radius] * spec.num_dimensions)
-        else:
-          max_distance.append(np.inf)
-      if data.dimension_is_missing is not None:
-        # These extra dimensions should be ignored.
-        max_distance.extend(
-            [0.0] * (data.dimension_is_missing.shape[-1] - len(max_distance))  # pytype: disable=attribute-error
-        )
-
-    max_distances = np.array(max_distance)
-    return TrustRegion(max_distances, data, trust_radius)
-
-  def min_linf_distance(self, xs: types.Features) -> jax.Array:
+  def min_linf_distance(self, xs: types.ModelInput) -> jax.Array:
     """l-inf norm distance to the closest trusted point.
 
     Caps distances between one-hot encoded features to the trust-region radius,
@@ -415,24 +377,17 @@ class TrustRegion(eqx.Module):
       (M,) array of floating numbers, L-infinity distances to the nearest
       trusted point.
     """
-    trusted = self.data.features
-    if isinstance(trusted, types.ContinuousAndCategorical):
-      trusted = trusted.continuous
-    if isinstance(xs, types.ContinuousAndCategorical):
-      xs = xs.continuous
-    if self.data.dimension_is_missing is not None:
-      # Mask out padded dimensions
-      trusted = jnp.where(
-          self.data.dimension_is_missing, 0.0, self.data.features
-      )
-      xs = jnp.where(self.data.dimension_is_missing, jnp.zeros_like(xs), xs)
+    trusted = self.trusted.continuous.replace_fill_value(0.0).padded_array
+    xs = xs.continuous.replace_fill_value(0.0).padded_array
     distances = jnp.abs(trusted - xs[..., jnp.newaxis, :])  # (M, N, D)
-    if self.data.label_is_missing is not None:
-      # Mask out padded features. We set these distances to infinite since
-      # they should never be considered.
-      distances = jnp.where(
-          self.data.label_is_missing[..., jnp.newaxis], np.inf, distances
-      )
-    distances_bounded = jnp.minimum(distances, self.max_distances)
-    linf_distance = jnp.max(distances_bounded, axis=-1)  # (M, N)
+    # Mask out padded features. We set these distances to infinite since
+    # they should never be considered.
+    distances = jnp.where(
+        self.trusted.continuous.is_missing[0][..., jnp.newaxis],
+        np.inf,
+        distances,
+    )
+    if distances.size == 0:
+      return -np.inf
+    linf_distance = jnp.max(distances, axis=-1)  # (M, N)
     return jnp.min(linf_distance, axis=-1)  # (M,)

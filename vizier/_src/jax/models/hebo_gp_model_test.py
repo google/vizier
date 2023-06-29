@@ -16,14 +16,11 @@ from __future__ import annotations
 
 """Tests for hebo_gp_model."""
 
-import functools
-
 from absl import logging
 import jax
 from jax import numpy as jnp
 from jax.config import config
 import optax
-from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import hebo_gp_model
@@ -67,36 +64,39 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
                            dtype=jnp.float64)
 
   def test_log_prob_and_loss(self):
-    model = VizierHeboGaussianProcess.build_model(features=self.x_obs)
-    setup = lambda rng: model.init(rng, self.x_obs)['params']
+    inputs = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(self.x_obs),
+        categorical=types.PaddedArray.as_padded(
+            jnp.zeros((self.x_obs.shape[0], 0)).astype(jnp.int32),
+        ),
+    )
+    data = types.ModelData(
+        features=inputs,
+        labels=types.PaddedArray.as_padded(self.y_obs),
+    )
+    model = sp.CoroutineWithData(
+        hebo_gp_model.VizierHeboGaussianProcess(), data=data
+    )
     key = jax.random.PRNGKey(2)
-    init_params = setup(key)
+    init_params = model.setup(key)
     optimize = optimizers.OptaxTrainWithRandomRestarts(
         optax.adam(5e-3), epochs=500, verbose=True, random_restarts=20
     )
     constraints = sp.get_constraints(model)
-    data = types.StochasticProcessModelData(
-        features=self.x_obs, labels=self.y_obs
+    params, metrics = optimize(
+        model.setup, model.loss_with_aux, key, constraints=constraints
     )
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
-        ),
-        model=model,
-        data=data,
-    )
-    params, metrics = optimize(setup, loss_fn, key, constraints=constraints)
 
-    init_gp = model.apply({'params': init_params}, self.x_obs)
-    gp = model.apply({'params': params}, self.x_obs)
-    self.assertGreater(gp.log_prob(self.y_obs), init_gp.log_prob(self.y_obs))
+    self.assertGreater(
+        model.loss_with_aux(init_params), model.loss_with_aux(params)
+    )
     losses_every_50 = metrics['loss'][::50]
     self.assertTrue((losses_every_50[1:] < losses_every_50[:-1]).all())
 
     logging.info('Optimal parameters: %s', params)
-    logging.info('Optimal loss fn: %s', loss_fn(params)[0])
-    self.assertLess(loss_fn(params)[0], 0.3)
+    final_loss = model.loss_with_aux(params)[0]
+    logging.info('Optimal loss fn: %s', final_loss)
+    self.assertLess(final_loss, 0.3)
 
 
 if __name__ == '__main__':

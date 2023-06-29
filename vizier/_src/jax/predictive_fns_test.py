@@ -46,23 +46,30 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
     n_samples = 10
     n_continuous = 3
     n_categorical = 5
-    features = types.ContinuousAndCategoricalArray(
-        jax.random.normal(key, shape=(n_samples, n_continuous)),
-        jax.random.normal(key, shape=(n_samples, n_categorical)),
+    features = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(
+            jax.random.normal(key, shape=(n_samples, n_continuous)),
+        ),
+        categorical=types.PaddedArray.as_padded(
+            jax.random.normal(key, shape=(n_samples, n_categorical)),
+        ),
     )
-    labels = jax.random.normal(key, shape=(n_samples,))
+    labels = types.PaddedArray.as_padded(
+        jax.random.normal(key, shape=(n_samples,)),
+    )
     xs = features
     # Model
-    model = tuned_gp_models.VizierGaussianProcessWithCategorical.build_model(
-        features
+    coroutine = tuned_gp_models.VizierGaussianProcess(
+        _dim=types.ContinuousAndCategorical[int](n_continuous, n_categorical)
     )
+    model = sp.StochasticProcessModel(coroutine)
     loss_fn = functools.partial(
         jax.jit(
             gp_bandit_utils.stochastic_process_model_loss_fn,
             static_argnames=('model', 'normalize'),
         ),
         model=model,
-        data=types.StochasticProcessModelData(features=features, labels=labels),
+        data=types.ModelData(features=features, labels=labels),
     )
     setup = lambda rng: model.init(rng, features)['params']
     constraints = sp.get_constraints(model)
@@ -102,7 +109,7 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
-    data = types.StochasticProcessModelData(features=features, labels=labels)
+    data = types.ModelData(features=features, labels=labels)
     state = types.GPState(model_state=model_state, data=data)
     pred_dict = predictive_fns.predict_on_array(xs, model=model, state=state)
 

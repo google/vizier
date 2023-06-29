@@ -32,7 +32,7 @@ tfpke = tfp.experimental.psd_kernels
 
 
 def _build_predictive_distribution(
-    xs: types.Features,
+    xs: types.ModelInput,
     model: sp.StochasticProcessModel,
     state: types.GPState,
     use_vmap: bool = True,
@@ -40,7 +40,7 @@ def _build_predictive_distribution(
   """Generates the predictive distribution on array function."""
 
   def _predict_on_array_one_model(
-      model_state: types.ModelState, *, xs: types.Features
+      model_state: types.ModelState, *, xs: types.ModelInput
   ) -> tfd.Distribution:
     return model.apply(
         model_state,
@@ -48,7 +48,6 @@ def _build_predictive_distribution(
         state.data.features,
         state.data.labels,
         method=model.posterior_predictive,
-        observations_is_missing=state.data.label_is_missing,
     )
 
   if not use_vmap:
@@ -70,7 +69,7 @@ def _build_predictive_distribution(
 
 
 def predict_on_array(
-    xs: types.Features,
+    xs: types.ModelInput,
     model: sp.StochasticProcessModel,
     state: types.GPState,
     use_vmap: bool = True,
@@ -81,7 +80,7 @@ def predict_on_array(
 
 
 def acquisition_on_array(
-    xs: types.Features,
+    xs: types.ModelInput,
     model: sp.StochasticProcessModel,
     acquisition_fn: acquisitions_lib.AcquisitionFunction,
     state: types.GPState,
@@ -99,10 +98,13 @@ def acquisition_on_array(
     # so that acquisition optimizer can follow the gradient and escape
     # untrusted regions.
     return jnp.where(
-        ((distance <= trust_region.trust_radius) &
-         (trust_region.trust_radius < 0.5)),
+        (trust_region.trust_radius >= 0.5)
+        | (
+            (distance <= trust_region.trust_radius)
+            & (trust_region.trust_radius < 0.5)
+        ),
         acquisition,
-        -1e12 - distance
+        -1e12 - distance,
     )
   else:
     return acquisition

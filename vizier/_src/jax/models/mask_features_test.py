@@ -25,23 +25,49 @@ from vizier._src.jax.models import mask_features
 
 from absl.testing import absltest
 
+tfpke = tfp.experimental.psd_kernels
+
 
 class MaskFeaturesTest(parameterized.TestCase):
 
-  @parameterized.parameters(2, 4, 6, 8)
-  def testMaskingAndGradient(self, dims):
-    half_dims = dims // 2
-    xs = np.random.randn(10, half_dims)
-    xs = np.concatenate([xs, np.full([10, half_dims], np.nan)], axis=-1)
-    kernel = tfp.math.psd_kernels.MaternThreeHalves()
-    kernel = mask_features.MaskFeatures(
-        kernel,
-        dimension_is_missing=np.array([False] * half_dims + [True] * half_dims),
+  @parameterized.parameters(1, 2, 3, 4)
+  def testMaskingAndGradient(self, half_dims: int):
+    xs_cont = np.random.randn(10, half_dims)
+    xs_cont = np.concatenate(
+        [xs_cont, np.full([10, half_dims], np.nan)], axis=-1
     )
-    f = lambda x: jnp.sum(kernel.matrix(x, x))
-    value, grad = jax.value_and_grad(f)(xs)
+    xs_cat = np.random.randint(5, size=(10, half_dims))
+    xs_cat = np.concatenate([xs_cat, np.full([10, half_dims], -1)], axis=-1)
+    missing_dim = np.array([False] * half_dims + [True] * half_dims)
+    x = tfpke.ContinuousAndCategoricalValues(xs_cont, xs_cat)
+
+    def f(s):
+      kernel = tfp.math.psd_kernels.MaternThreeHalves()
+      kernel = tfpke.FeatureScaledWithCategorical(
+          kernel,
+          scale_diag=s,
+      )
+
+      kernel = mask_features.MaskFeatures(
+          kernel,
+          dimension_is_missing=tfpke.ContinuousAndCategoricalValues(
+              continuous=missing_dim, categorical=missing_dim
+          ),
+      )
+      return jnp.sum(kernel.matrix(x, x))
+
+    scale_diag = tfpke.ContinuousAndCategoricalValues(
+        np.random.uniform(size=(half_dims * 2,)),
+        np.random.uniform(size=(half_dims * 2,)),
+    )
+    value, grad = jax.value_and_grad(f)(scale_diag)
     self.assertTrue(np.all(~np.isnan(value)))
-    self.assertTrue(np.all(~np.isnan(grad)))
+    self.assertTrue(np.all(~np.isnan(grad.continuous)))
+    self.assertTrue(np.all(grad.continuous[~missing_dim] != 0))
+    self.assertTrue(np.all(grad.continuous[missing_dim] == 0))
+    self.assertTrue(np.all(~np.isnan(grad.categorical)))
+    self.assertTrue(np.all(grad.categorical[~missing_dim] != 0))
+    self.assertTrue(np.all(grad.categorical[missing_dim] == 0))
 
 
 if __name__ == '__main__':

@@ -25,35 +25,60 @@ from vizier._src.jax import types
 def stochastic_process_model_loss_fn(
     params: types.ParameterDict,
     model: sp.StochasticProcessModel,
-    data: types.StochasticProcessModelData,
+    data: types.ModelData,
     normalize: bool = False,
 ):
   """Loss function for a stochastic process model."""
-  kwargs = {}
-  if data.dimension_is_missing is not None:
-    kwargs['dimension_is_missing'] = data.dimension_is_missing
   gp, mutables = model.apply(
       {'params': params},
       data.features,
-      **kwargs,
       mutable=['losses', 'predictive'],
   )
   loss = -gp.log_prob(
-      data.labels,
-      is_missing=data.label_is_missing,
+      data.labels.padded_array,
+      is_missing=data.labels.is_missing[0],
   ) + jax.tree_util.tree_reduce(jnp.add, mutables['losses'])
   if normalize:
-    loss /= data.labels.shape[0]
+    loss /= data.labels.original_shape[0]
   return loss, dict()
 
 
 def stochastic_process_model_setup(
     key: jax.random.KeyArray,
     model: sp.StochasticProcessModel,
-    data: types.StochasticProcessModelData,
+    data: types.ModelData,
 ):
   """Setup function for a stochastic process model."""
-  kwargs = {}
-  if data.dimension_is_missing is not None:
-    kwargs['dimension_is_missing'] = data.dimension_is_missing
-  return model.init(key, data.features, **kwargs)['params']
+  return model.init(key, data.features)['params']
+
+
+# TODO: Remove this when Vectorized Optimizer works on CACV.
+def make_one_hot_to_modelinput_fn(seed_features_unpad, mapper, cacpa):
+  """Temporary utility fn for converting one hot to ModelInput."""
+
+  def _one_hot_to_cacpa(x_):
+    if seed_features_unpad is not None:
+      x_unpad = x_[..., : seed_features_unpad.shape[1]]
+    else:
+      x_unpad = x_
+    cacv = mapper.map(x_unpad)
+    return types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            cacv.continuous,
+            (
+                cacv.continuous.shape[:-1]
+                + (cacpa.continuous.padded_array.shape[1],)
+            ),
+            fill_value=cacpa.continuous.fill_value,
+        ),
+        categorical=types.PaddedArray.from_array(
+            cacv.categorical,
+            (
+                cacv.categorical.shape[:-1]
+                + (cacpa.categorical.padded_array.shape[1],)
+            ),
+            fill_value=cacpa.categorical.fill_value,
+        ),
+    )
+
+  return _one_hot_to_cacpa

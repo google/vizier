@@ -16,8 +16,6 @@ from __future__ import annotations
 
 """Tests for acquisitions."""
 
-from unittest import mock
-
 import jax
 from jax import numpy as jnp
 from jax.config import config
@@ -25,18 +23,10 @@ import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
-from vizier.pyvizier import converters
 from absl.testing import absltest
 
 
 tfd = tfp.distributions
-
-
-def _build_mock_continuous_array_specs(n):
-  continuous_spec = mock.create_autospec(converters.NumpyArraySpec)
-  continuous_spec.type = converters.NumpyArraySpecType.CONTINUOUS
-  continuous_spec.num_dimensions = 1
-  return [continuous_spec] * n
 
 
 class AcquisitionsTest(absltest.TestCase):
@@ -52,28 +42,40 @@ class AcquisitionsTest(absltest.TestCase):
   def test_ei(self):
     acq = acquisitions.EI()
     self.assertAlmostEqual(
-        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([0.2])),
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([0.2])),
+        ),
         0.34635347,
     )
 
   def test_pi(self):
     acq = acquisitions.PI()
     self.assertAlmostEqual(
-        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([0.2])),
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([0.2])),
+        ),
         0.46017216,
     )
 
   def test_acq_tr_good_point(self):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
     self.assertAlmostEqual(
-        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([100.0])),
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([100.0])),
+        ),
         -1.0e12,
     )
 
   def test_acq_tr_bad_point(self):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
     self.assertAlmostEqual(
-        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([-100.0])),
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([-100.0])),
+        ),
         1.9,
     )
 
@@ -124,7 +126,7 @@ class AcquisitionsTest(absltest.TestCase):
     ei = acquisitions.EI()
     acq = acquisitions.MultiAcquisitionFunction({'ucb': ucb, 'ei': ei})
     dist = tfd.Normal(jnp.float64(0.1), 1)
-    labels = jnp.array([0.2])
+    labels = types.PaddedArray.as_padded(jnp.array([0.2]))
     acq_val = acq(dist, labels=labels)
     ucb_val = ucb(dist, labels=labels)
     ei_val = ei(dist, labels=labels)
@@ -134,54 +136,57 @@ class AcquisitionsTest(absltest.TestCase):
 class TrustRegionTest(absltest.TestCase):
 
   def test_trust_region_small(self):
-    data = types.StochasticProcessModelData(
-        features=np.array([
-            [0.0, 0.0, 0.0, 0.0],
-            [1.0, 1.0, 1.0, 1.0],
-        ]),
-        labels=np.array([0.0, 0.0]),
+    trusted = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(
+            np.array([[0.0, 0.0], [1.0, 1.0]]),
+        ),
+        categorical=types.PaddedArray.as_padded(np.array([[0, 0], [1, 1]])),
     )
-    tr = acquisitions.TrustRegion.build(
-        _build_mock_continuous_array_specs(4), data=data
-    )
+    tr = acquisitions.TrustRegion(trusted=trusted)
 
-    np.testing.assert_allclose(
-        tr.min_linf_distance(
+    xs = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(
             np.array([
-                [0.0, 0.2, 0.3, 0.0],
-                [0.9, 0.8, 0.9, 0.9],
-                [1.0, 1.0, 1.0, 1.0],
+                [0.0, 0.3],
+                [0.9, 0.8],
+                [1.0, 1.0],
             ]),
         ),
+        categorical=types.PaddedArray.as_padded(
+            np.array([[0, 0], [1, 1], [0, 1]]),
+        ),
+    )
+    np.testing.assert_allclose(
+        tr.min_linf_distance(xs),
         np.array([0.3, 0.2, 0.0]),
     )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
 
   def test_trust_region_bigger(self):
-    features = np.vstack(
+    xs_cont = np.vstack(
         [
-            [0.0, 0.0, 0.0, 0.0],
-            [1.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0],
+            [1.0, 1.0],
         ]
         * 10
     )
-    labels = np.sum(features, axis=-1)
-    data = types.StochasticProcessModelData(
-        features=features,
-        labels=labels,
+    xs = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(xs_cont),
+        categorical=types.PaddedArray.as_padded(
+            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),
+        ),
     )
-    tr = acquisitions.TrustRegion.build(
-        _build_mock_continuous_array_specs(4),
-        data=data,
+    tr = acquisitions.TrustRegion(trusted=xs)
+
+    xs_cont_test = np.array([[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]])
+    xs_test = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(xs_cont_test),
+        categorical=types.PaddedArray.as_padded(
+            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),
+        ),
     )
     np.testing.assert_allclose(
-        tr.min_linf_distance(
-            np.array([
-                [0.0, 0.2, 0.3, 0.0],
-                [0.9, 0.8, 0.9, 0.9],
-                [1.0, 1.0, 1.0, 1.0],
-            ]),
-        ),
+        tr.min_linf_distance(xs_test),
         np.array([0.3, 0.2, 0.0]),
     )
     self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)
@@ -189,89 +194,40 @@ class TrustRegionTest(absltest.TestCase):
   def test_trust_region_padded_small(self):
     # Test that padding still retrieves the same distance computations as
     # `test_trust_region_small`.
-    data = types.StochasticProcessModelData(
-        features=np.array([
-            [0.0, 0.0, 0.0, 0.0, np.nan, np.nan],
-            [1.0, 1.0, 1.0, 1.0, np.nan, np.nan],
-        ]),
-        labels=np.array([0.0, 0.0]),
+    xs_cont = np.array([
+        [0.0, 0.0],
+        [1.0, 1.0],
+    ])
+    xs = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            xs_cont, target_shape=(4, 6), fill_value=0.0
+        ),
+        categorical=types.PaddedArray.from_array(
+            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),
+            target_shape=(4, 5),
+            fill_value=0,
+        ),
     )
-    tr = acquisitions.TrustRegion.build(
-        _build_mock_continuous_array_specs(4),
-        data=data,
-    )
-    data_masked = types.StochasticProcessModelData(
-        features=np.array([
-            [0.0, 0.0, 0.0, 0.0, np.nan, np.nan],
-            [1.0, 1.0, 1.0, 1.0, np.nan, np.nan],
-        ]),
-        labels=np.array([0.0, 0.0]),
-        dimension_is_missing=np.array([False, False, False, False, True, True]),
-    )
-    tr = acquisitions.TrustRegion.build(
-        _build_mock_continuous_array_specs(4),
-        data=data_masked,
+    tr = acquisitions.TrustRegion(
+        trusted=xs,
     )
 
-    np.testing.assert_allclose(
-        tr.min_linf_distance(
-            np.array([
-                [0.0, 0.2, 0.3, 0.0, -100.0, 20.0],
-                [0.9, 0.8, 0.9, 0.9, 23.0, 27.0],
-                [1.0, 1.0, 1.0, 1.0, 2.0, -3.0],
-            ]),
+    xs_cont_test = np.array([[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]])
+    xs_test = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            xs_cont_test, target_shape=(3, 6), fill_value=-100.0
         ),
+        categorical=types.PaddedArray.from_array(
+            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),
+            target_shape=(3, 5),
+            fill_value=-100,
+        ),
+    )
+    np.testing.assert_allclose(
+        tr.min_linf_distance(xs_test),
         np.array([0.3, 0.2, 0.0]),
     )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
-
-
-class TrustRegionWithCategoricalTest(absltest.TestCase):
-
-  def test_trust_region_with_categorical(self):
-    n_trusted = 20
-    n_samples = 5
-    d_cont = 6
-    d_cat = 3
-
-    trusted = types.ContinuousAndCategoricalArray(
-        np.random.randn(n_trusted, d_cont), np.random.randn(n_trusted, d_cat)
-    )
-    data = types.StochasticProcessModelData(
-        features=trusted, labels=np.random.randn(n_trusted)
-    )
-    xs = types.ContinuousAndCategoricalArray(
-        continuous=np.random.randn(n_samples, d_cont),
-        categorical=np.random.randn(n_samples, d_cat),
-    )
-    tr = acquisitions.TrustRegion.build(specs=None, data=data)
-    self.assertEqual(tr.min_linf_distance(xs).shape, (n_samples,))
-
-  def test_trust_region_small(self):
-    trusted = types.ContinuousAndCategoricalArray(
-        continuous=np.array([
-            [0.0, 0.0],
-            [1.0, 1.0],
-        ]),
-        categorical=np.random.randint(0, 10, size=(2, 4)),
-    )
-    data = types.StochasticProcessModelData(
-        features=trusted, labels=np.random.randn(2)
-    )
-    tr = acquisitions.TrustRegion.build(specs=None, data=data)
-    np.testing.assert_allclose(
-        tr.min_linf_distance(
-            types.ContinuousAndCategoricalArray(
-                continuous=np.array([
-                    [0.0, 0.3],
-                    [0.9, 0.8],
-                    [1.0, 1.0],
-                ]),
-                categorical=np.random.randint(0, 10, size=(3, 4)),
-            )
-        ),
-        np.array([0.3, 0.2, 0.0]),
-    )
 
 
 if __name__ == '__main__':

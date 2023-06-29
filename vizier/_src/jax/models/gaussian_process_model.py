@@ -21,6 +21,7 @@ from typing import Any, Generator, Optional, Type, Union
 from jax import numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp_model
+from vizier._src.jax import types
 
 Array = Any
 tfd = tfp.distributions
@@ -29,105 +30,6 @@ tfpke = tfp.experimental.psd_kernels
 
 
 class GaussianProcessARD(sp_model.ModelCoroutine):
-  """Specifies a Gaussian process model with an ARD kernel.
-
-  `GaussianProcessARD` satisfies the `ModelCoroutine` Protocol. By default,
-  `GaussianProcessARD` uses a Matern Five Halves kernel. Hyperparameter priors
-  are LogNormal(0., 1.).
-
-  #### Examples
-
-  Build a Gaussian Process model with an ARD Exponentiated Quadratic kernel and
-  LogNormal(0., 1.) hyperparameter priors for 5-dimensional data.
-
-  ```python
-  from tensorflow_probability.substrates import jax as tfp
-
-  tfpk = tfp.math.psd_kernels
-
-  dim = 5
-  gen = GaussianProcessARD(
-      dimension=dim,
-      kernel_class=tfpk.ExponentiatedQuadratic)
-  ```
-  """
-
-  def __init__(self,
-               dimension: int,
-               kernel_class: Union[
-                   Type[tfpk.MaternFiveHalves], Type[tfpk.MaternThreeHalves],
-                   Type[tfpk.MaternOneHalf], Type[tfpk.Parabolic],
-                   Type[tfpk.ExponentiatedQuadratic]] = tfpk.MaternFiveHalves,
-               *,
-               use_tfp_runtime_validation: bool = False,
-               dtype: jnp.dtype = jnp.float64):
-    """Initializes a `GaussianProcessARD`.
-
-    Args:
-      dimension: The data dimensionality.
-      kernel_class: The Gaussian process' kernel type.
-      use_tfp_runtime_validation: If True, run additional runtime checks on the
-        validity of the parameters and input for TFP objects (e.g. verify that
-        amplitude and length scale parameters are positive). Runtime checks may
-        be expensive and should be used only during development/debugging.
-      dtype: Float dtype.
-    """
-    self.dimension = dimension
-    self._kernel_class = kernel_class
-    self._use_tfp_runtime_validation = use_tfp_runtime_validation
-    self.dtype = dtype
-
-  def __call__(
-      self, inputs: Optional[Array] = None
-  ) -> Generator[sp_model.ModelParameter, Array, tfd.GaussianProcess]:
-    # TODO: Determine why pylint doesn't allow both Returns and
-    # Yields sections.
-    # pylint: disable=g-doc-return-or-yield
-    """The coroutine that specifies the GP model.
-
-    Args:
-      inputs: index_points to be provided to the GP.
-
-    Yields:
-      `ModelParameter`s describing the parameters to be declared in the Flax
-        model.
-
-    Returns:
-      A tfd.GaussianProcess with the given index points.
-    """
-    amplitude = yield sp_model.ModelParameter.from_prior(
-        tfd.LogNormal(self.dtype(0.0), 1.0, name='amplitude'),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
-    )
-    kernel = self._kernel_class(
-        amplitude=amplitude,
-        length_scale=self.dtype(1.0),
-        validate_args=self._use_tfp_runtime_validation)
-    inverse_length_scale = yield sp_model.ModelParameter.from_prior(
-        tfd.Sample(
-            tfd.LogNormal(self.dtype(0.0), 1.0),
-            sample_shape=(self.dimension,),
-            name='inverse_length_scale',
-        ),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
-    )
-    kernel = tfpk.FeatureScaled(
-        kernel,
-        inverse_scale_diag=inverse_length_scale,
-        validate_args=self._use_tfp_runtime_validation)
-    observation_noise_variance = yield sp_model.ModelParameter.from_prior(
-        tfd.LogNormal(self.dtype(0.0), 1.0, name='observation_noise_variance'),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
-    )
-    return tfd.GaussianProcess(
-        kernel,
-        index_points=inputs,
-        observation_noise_variance=observation_noise_variance,
-        validate_args=self._use_tfp_runtime_validation,
-    )
-
-
-class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
   """Specifies an ARD Gaussian process model over continuous/categorical data.
 
   While `GaussianProcessARD` operates on a continuous domain,
@@ -153,7 +55,7 @@ class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
   tfpke = tfp.experimental.psd_kernels
 
   gen = GaussianProcessARDWithCategorical(
-      dimension=tfpke.ContinuousAndCategoricalValues(
+      dimension=types.ContinuousAndCategorical[int](
           continuous=5, categorical=3),
       kernel_class=tfpk.ExponentiatedQuadratic)
   ```
@@ -161,7 +63,7 @@ class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
 
   def __init__(
       self,
-      dimension: tfpke.ContinuousAndCategoricalValues,
+      dimension: types.ContinuousAndCategorical[int],
       kernel_class: Union[
           Type[tfpk.MaternFiveHalves],
           Type[tfpk.MaternThreeHalves],
@@ -190,7 +92,7 @@ class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
     self.dtype = dtype
 
   def __call__(
-      self, inputs: Optional[tfpke.ContinuousAndCategoricalValues] = None
+      self, inputs: Optional[types.ModelInput] = None
   ) -> Generator[sp_model.ModelParameter, Array, tfd.GaussianProcess]:
     # TODO: Remove the following line when the linter bug is fixed.
     # pylint: disable=g-doc-return-or-yield
@@ -252,6 +154,10 @@ class GaussianProcessARDWithCategorical(sp_model.ModelCoroutine):
                       name='observation_noise_variance'),
         constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
     )
+    if inputs is not None:
+      inputs = tfpke.ContinuousAndCategoricalValues(
+          inputs.continuous.padded_array, inputs.categorical.padded_array
+      )
     return tfd.GaussianProcess(
         kernel,
         index_points=inputs,

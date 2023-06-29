@@ -16,14 +16,11 @@ from __future__ import annotations
 
 """Tests for tuned_gp_models."""
 
-import functools
-
 from absl import logging
 import jax
 from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
-from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
@@ -139,49 +136,42 @@ class VizierGpTest(absltest.TestCase):
     )
     return x_obs, y_obs
 
+  # TODO: Define generic assertions for loss values/masking in
+  # coroutines.
   def test_masking_works(self):
     # Mask three dimensions and four observations.
-    observation_is_missing = np.array(
-        [False, False, True, False, True, False, True, True, False, False]
-    )
-    dimension_is_missing = np.array([False, True, True, False, True, False])
     x_obs, y_obs = self._generate_xys()
-
-    # Change these to nans to ensure that they are ignored.
-    modified_x_obs = np.where(dimension_is_missing, np.nan, x_obs)
-    modified_y_obs = np.where(observation_is_missing, np.nan, y_obs)
-
-    data = types.StochasticProcessModelData(
-        features=x_obs,
-        labels=y_obs,
-        dimension_is_missing=dimension_is_missing,
-        label_is_missing=observation_is_missing,
-    )
-    model1 = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
-    loss_fn1 = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
+    data = types.ModelData(
+        features=types.ModelInput(
+            continuous=types.PaddedArray.from_array(
+                x_obs, target_shape=(12, 9), fill_value=1.0
+            ),
+            categorical=types.PaddedArray.from_array(
+                np.zeros((9, 0)), target_shape=(12, 2), fill_value=1
+            ),
         ),
-        model=model1,
+        labels=types.PaddedArray.from_array(
+            y_obs, target_shape=(12,), fill_value=np.nan
+        ),
+    )
+    model1 = sp.CoroutineWithData(
+        tuned_gp_models.VizierGaussianProcess(
+            types.ContinuousAndCategorical[int](9, 2)
+        ),
         data=data,
     )
 
-    modified_data = types.StochasticProcessModelData(
-        features=modified_x_obs,
-        labels=modified_y_obs,
-        dimension_is_missing=dimension_is_missing,
-        label_is_missing=observation_is_missing,
-    )
-    model2 = tuned_gp_models.VizierGaussianProcess.build_model(
-        features=modified_x_obs
-    )
-    loss_fn2 = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
+    modified_data = types.ModelData(
+        features=types.ModelInput(
+            continuous=data.features.continuous.replace_fill_value(np.nan),
+            categorical=data.features.categorical.replace_fill_value(-1),
         ),
-        model=model2,
+        labels=data.labels,
+    )
+    model2 = sp.CoroutineWithData(
+        tuned_gp_models.VizierGaussianProcess(
+            types.ContinuousAndCategorical[int](9, 2)
+        ),
         data=modified_data,
     )
 
@@ -191,14 +181,14 @@ class VizierGpTest(absltest.TestCase):
         optimizers.LbfgsBOptions(random_restarts=1)
     )
     optimal_params1, _ = optimize(
-        lambda rng: model1.init(rng, x_obs)['params'],
-        loss_fn1,
+        model1.setup,
+        model1.loss_with_aux,
         jax.random.PRNGKey(2),
         constraints=sp.get_constraints(model1),
     )
     optimal_params2, _ = optimize(
-        lambda rng: model2.init(rng, modified_x_obs)['params'],
-        loss_fn2,
+        model2.setup,
+        model2.loss_with_aux,
         jax.random.PRNGKey(2),
         constraints=sp.get_constraints(model2),
     )
@@ -208,94 +198,33 @@ class VizierGpTest(absltest.TestCase):
           np.all(np.equal(optimal_params1[key], optimal_params2[key])),
           msg=f'{key} parameters were not equal.',
       )
-    self.assertEqual(loss_fn1(optimal_params1)[0], loss_fn2(optimal_params2)[0])
+    self.assertEqual(
+        model1.loss_with_aux(optimal_params1)[0],
+        model2.loss_with_aux(optimal_params2)[0],
+    )
 
   def test_good_log_likelihood(self):
-    x_obs, y_obs = self._generate_xys()
-    target_loss = -0.2
-    data = types.StochasticProcessModelData(features=x_obs, labels=y_obs)
-    model = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
-        ),
-        model=model,
-        data=data,
-    )
-    setup = lambda rng: model.init(rng, x_obs)['params']
-
-    optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=50)
-    )
-    constraints = sp.get_constraints(model)
-    optimal_params, metrics = optimize(
-        setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
-    )
-    logging.info('Optimal: %s', optimal_params)
-    logging.info('Loss: %s', loss_fn(optimal_params)[0])
-    self.assertLess(np.min(metrics['loss']), target_loss)
-
-  def test_good_log_likelihood_with_masks(self):
-    x_obs, y_obs = self._generate_xys()
-    # Pad x_s and y_s and generate masks.
-    x_obs = np.pad(x_obs, ((0, 2), (0, 3)), constant_values=np.nan)
-    y_obs = np.pad(y_obs, (0, 2), constant_values=-np.inf)
-
-    observation_is_missing = np.array(
-        [False] * (y_obs.shape[0] - 2) + [True] * 2
-    )
-    dimension_is_missing = np.array(
-        [False] * (x_obs.shape[-1] - 3) + [True] * 3
-    )
-
-    data = types.StochasticProcessModelData(
-        features=x_obs,
-        labels=y_obs,
-        dimension_is_missing=dimension_is_missing,
-        label_is_missing=observation_is_missing,
-    )
-    target_loss = -0.2
-    model = tuned_gp_models.VizierGaussianProcess.build_model(features=x_obs)
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
-        ),
-        model=model,
-        data=data,
-    )
-    setup = lambda rng: model.init(rng, x_obs)['params']
-
-    optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=50)
-    )
-    constraints = sp.get_constraints(model)
-    optimal_params, metrics = optimize(
-        setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
-    )
-    logging.info('Optimal: %s', optimal_params)
-    logging.info('Loss: %s', loss_fn(optimal_params)[0])
-    self.assertLess(np.min(metrics['loss']), target_loss)
-
-  def test_good_log_likelihood_with_masks_continuous_and_categorical(self):
     x_cont_obs, y_obs = self._generate_xys()
-    x_cat_obs = np.int_(self._generate_xys()[0] * 10)
-    x_obs = types.ContinuousAndCategoricalArray(
-        continuous=x_cont_obs, categorical=x_cat_obs
+    data = types.ModelData(
+        features=types.ModelInput(
+            continuous=types.PaddedArray.from_array(
+                x_cont_obs, target_shape=(12, 9), fill_value=np.nan
+            ),
+            categorical=types.PaddedArray.from_array(
+                np.random.randint(3, size=(12, 3)),
+                target_shape=(12, 5),
+                fill_value=-1,
+            ),
+        ),
+        labels=types.PaddedArray.from_array(
+            y_obs, target_shape=(12,), fill_value=np.nan
+        ),
     )
     target_loss = -0.2
-    model = tuned_gp_models.VizierGaussianProcessWithCategorical.build_model(
-        x_obs,
-    )
-    setup = lambda rng: model.init(rng, x_obs)['params']
-    data = types.StochasticProcessModelData(features=x_obs, labels=y_obs)
-    loss_fn = functools.partial(
-        jax.jit(
-            gp_bandit_utils.stochastic_process_model_loss_fn,
-            static_argnames=('model', 'normalize'),
+    model = sp.CoroutineWithData(
+        tuned_gp_models.VizierGaussianProcess(
+            types.ContinuousAndCategorical[int](9, 5)
         ),
-        model=model,
         data=data,
     )
     optimize = optimizers.JaxoptScipyLbfgsB(
@@ -303,10 +232,13 @@ class VizierGpTest(absltest.TestCase):
     )
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
-        setup, loss_fn, jax.random.PRNGKey(2), constraints=constraints
+        model.setup,
+        model.loss_with_aux,
+        jax.random.PRNGKey(2),
+        constraints=constraints,
     )
     logging.info('Optimal: %s', optimal_params)
-    logging.info('Loss: %s', loss_fn(optimal_params)[0])
+    logging.info('Loss: %s', metrics['loss'])
     self.assertLess(np.min(metrics['loss']), target_loss)
 
 

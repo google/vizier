@@ -109,7 +109,9 @@ class ContinuousCategoricalFeatureMapper:
     batch_shape = features.shape[:-1]
     continuous_features = features[..., self._continuous_indices]  # (B,C)
     # Assign empty array as the default value.
-    categorical_index_features = jnp.zeros(batch_shape + (0,))
+    categorical_index_features = jnp.zeros(
+        batch_shape + (0,), dtype=types.INT_DTYPE
+    )
     if self.n_categorical_params > 0:
       categorical_features = features[..., self._categorical_indices]  # (B,F)
       # Find the non-zero column indices associated with categorical parameters.
@@ -126,6 +128,8 @@ class ContinuousCategoricalFeatureMapper:
               nonzero_indices, batch_shape + (self.n_categorical_params,)
           )  # (B,P)
           - self.shift  # (P,)
+      ).astype(
+          types.INT_DTYPE
       )  # (B,P)
     return types.ContinuousAndCategoricalArray(
         continuous=continuous_features, categorical=categorical_index_features

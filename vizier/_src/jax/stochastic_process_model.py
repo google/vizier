@@ -38,9 +38,9 @@ flax_config.update('flax_return_frozendict', False)
 
 tfd = tfp.distributions
 tfb = tfp.bijectors
+tfde = tfp.experimental.distributions
 tfpke = tfp.experimental.psd_kernels
 
-_In = TypeVar('_In', bound=types.ArrayTree)
 _D = TypeVar('_D', bound=tfd.Distribution)
 
 
@@ -202,7 +202,7 @@ class ModelParameter:
 ModelParameterGenerator = Generator[ModelParameter, jax.Array, _D]
 
 
-class ModelCoroutine(Protocol, Generic[_In, _D]):
+class ModelCoroutine(Protocol, Generic[_D]):
   """`Protocol` to avoid inheritance.
 
   The coroutine pattern allows the `ModelParameter` objects, and the assembly of
@@ -217,7 +217,7 @@ class ModelCoroutine(Protocol, Generic[_In, _D]):
 
   def __call__(
       self,
-      inputs: Optional[_In] = None,
+      inputs: Optional[types.ModelInput] = None,
       **kwargs,
   ) -> ModelParameterGenerator[_D]:
     """Coroutine function to be called from `StochasticProcessModel`.
@@ -281,7 +281,7 @@ class ModelCoroutine(Protocol, Generic[_In, _D]):
     pass
 
 
-class StochasticProcessModel(nn.Module, Generic[_In]):
+class StochasticProcessModel(nn.Module):
   """Builds a Stochastic Process Flax module.
 
   The module is instantiated with a coroutine in the pattern of
@@ -340,7 +340,9 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
   """
 
   coroutine: ModelCoroutine
-  mean_fn: Optional[Callable[[_In], jax.Array]] = None  # `None` is zero-mean.
+
+  # `None` is zero-mean.
+  mean_fn: Optional[Callable[[types.ModelInput], jax.Array]] = None
 
   def setup(self):
     """Builds module parameters."""
@@ -357,7 +359,7 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       # the Flax parameters.
       pass
 
-  def __call__(self, x: _In, **kwargs) -> _D:
+  def __call__(self, x: types.ModelInput, **kwargs) -> _D:
     """Returns a stochastic process distribution.
 
     If the Flax module's `apply` method is called with `mutable=True` or
@@ -392,15 +394,45 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       # After the generator is exhausted, it raises a `StopIteration` error. The
       # `StopIteration` object has a property `value` of type `_D`.
       gp = e.value
-      return gp.copy(mean_fn=self.mean_fn)
+      if self.mean_fn is None:
+        tfp_mean_fn = None
+      else:
+        # TODO: Decide on a better pattern for incorporating
+        # mean_fn.
+        # pylint: disable=protected-access
+        def tfp_mean_fn(x_: tfpke.ContinuousAndCategoricalValues):
+          return self.mean_fn(
+              types.ModelInput(
+                  types.PaddedArray(
+                      x_.continuous,
+                      fill_value=x.continuous.fill_value,
+                      _original_shape=(
+                          x_.continuous.shape[0],
+                          x.continuous._original_shape[1],
+                      ),
+                      _mask=x.continuous._mask,
+                      _nopadding_done=x.continuous._nopadding_done,
+                  ),
+                  types.PaddedArray(
+                      x_.categorical,
+                      fill_value=x.categorical.fill_value,
+                      _original_shape=(
+                          x_.categorical.shape[0],
+                          x.categorical._original_shape[1],
+                      ),
+                      _mask=x.categorical._mask,
+                      _nopadding_done=x.categorical._nopadding_done,
+                  ),
+              )
+          )
+          # pylint: enable=protected-access
 
-  # TODO: Add support for PaddedArrays instead of passing in
-  # masks.
+      return gp.copy(mean_fn=tfp_mean_fn)
+
   def precompute_predictive(
       self,
-      x_observed: _In,
-      y_observed: ArrayLike,
-      observations_is_missing: Optional[ArrayLike] = None,
+      x_observed: types.ModelInput,  # Could just take ModelData
+      y_observed: types.PaddedArray,
   ) -> None:
     """Builds a stochastic process regression model conditioned on observations.
 
@@ -412,8 +444,6 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     Args:
       x_observed: Index points on which to condition the posterior predictive.
       y_observed: Observations on which to condition the posterior predictive.
-      observations_is_missing: Boolean array describing which observations are
-        missing.
     """
     # Call the `tfd.Distribution` object's `posterior_predictive` method. This
     # triggers an expensive computation, typically a Cholesky decomposition, and
@@ -421,16 +451,11 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
     # Expensive intermediates are stored in the `precomputed_cholesky` Flax
     # variable and returned as auxiliary output.
     kwargs = {}
-    if observations_is_missing is not None:
-      kwargs['observations_is_missing'] = observations_is_missing
-
-    if isinstance(x_observed, types.ContinuousAndCategorical):
-      x_observed = tfpke.ContinuousAndCategoricalValues(
-          continuous=x_observed.continuous, categorical=x_observed.categorical
-      )
+    if not y_observed._nopadding_done:  # pylint: disable=protected-access
+      kwargs['observations_is_missing'] = y_observed.is_missing[0]
 
     predictive_dist = self(x_observed).posterior_predictive(
-        index_points=None, observations=y_observed, **kwargs
+        index_points=None, observations=y_observed.padded_array, **kwargs
     )
     # pylint: disable=protected-access
     cached_predictive_intermediates = {
@@ -449,15 +474,11 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
         reduce_fn=lambda _, b: b,
     )
 
-  # TODO: Add support for PaddedArrays instead of passing in
-  # masks.
   def posterior_predictive(
       self,
-      x_predictive: _In,
-      x_observed: _In,
-      y_observed: ArrayLike,
-      *,
-      observations_is_missing: Optional[ArrayLike] = None,
+      x_predictive: types.ModelInput,
+      x_observed: types.ModelInput,
+      y_observed: types.PaddedArray,
   ) -> _D:
     """Returns a posterior predictive stochastic process.
 
@@ -473,8 +494,6 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
       x_predictive: Predictive index points.
       x_observed: Index points on which to condition the posterior predictive.
       y_observed: Observations on which to condition the posterior predictive.
-      observations_is_missing: Boolean array describing which observations are
-        missing.
 
     Returns:
       pp_dist: The posterior predictive distribution over `x_predictive`.
@@ -492,18 +511,18 @@ class StochasticProcessModel(nn.Module, Generic[_In]):
         'predictive', 'precomputed_cholesky'
     )
     kwargs = cached_intermediates
-    if observations_is_missing is not None:
-      kwargs = kwargs.copy({'observations_is_missing': observations_is_missing})
-
-    if isinstance(x_predictive, types.ContinuousAndCategorical):
-      x_predictive = tfpke.ContinuousAndCategoricalValues(
-          continuous=x_predictive.continuous,
-          categorical=x_predictive.categorical,
+    if not y_observed._nopadding_done:  # pylint: disable=protected-access
+      kwargs = kwargs.copy(
+          {'observations_is_missing': y_observed.is_missing[0]}
       )
 
+    predictive_index_points = tfpke.ContinuousAndCategoricalValues(
+        continuous=x_predictive.continuous.padded_array,
+        categorical=x_predictive.categorical.padded_array,
+    )
     return self(x_observed).posterior_predictive(
-        observations=y_observed,
-        predictive_index_points=x_predictive,
+        observations=y_observed.padded_array,
+        predictive_index_points=predictive_index_points,
         **kwargs,
     )
 
@@ -732,7 +751,7 @@ class PrecomputedPredictive(eqx.Module):
   """
 
   prior: 'StochasticProcessWithCoroutine'
-  observed_data: types.StochasticProcessModelData
+  observed_data: types.ModelData
   precomputed_divisor_matrix_cholesky: jax.Array
   precomputed_solve_on_observation: jax.Array
 
@@ -741,11 +760,11 @@ class PrecomputedPredictive(eqx.Module):
     return dict(
         _precomputed_divisor_matrix_cholesky=self.precomputed_divisor_matrix_cholesky,
         _precomputed_solve_on_observation=self.precomputed_solve_on_observation,
-        observations=self.observed_data.labels,
-        observations_is_missing=self.observed_data.label_is_missing,
+        observations=self.observed_data.labels.padded_array,
+        observations_is_missing=self.observed_data.labels.is_missing[0],
     )
 
-  def predict(self, x_predictive: Any) -> tfd.Distribution:
+  def predict(self, x_predictive: types.ModelInput) -> tfd.Distribution:
     """Returns the posterior distribution on index points `xs`.
 
     Args:
@@ -754,13 +773,12 @@ class PrecomputedPredictive(eqx.Module):
     Returns:
       Distribution with sample shape [B].
     """
-    if isinstance(x_predictive, types.ContinuousAndCategorical):
-      x_predictive = tfpke.ContinuousAndCategoricalValues(
-          continuous=x_predictive.continuous,
-          categorical=x_predictive.categorical,
-      )
-    return self.prior(self.observed_data).posterior_predictive(
-        predictive_index_points=x_predictive, **self._posterior_kwargs
+    x_pred_tfp = tfpke.ContinuousAndCategoricalValues(
+        continuous=x_predictive.continuous.padded_array,
+        categorical=x_predictive.categorical.padded_array,
+    )
+    return self.prior(self.observed_data.features).posterior_predictive(
+        predictive_index_points=x_pred_tfp, **self._posterior_kwargs
     )
 
 
@@ -772,11 +790,11 @@ class UniformEnsemblePredictive(eqx.Module):
 
   predictives: PrecomputedPredictive
 
-  def predict(self, xs: chex.ArrayTree) -> tfd.Distribution:
+  def predict(self, xs: types.ModelInput) -> tfd.Distribution:
     return self.predict_with_aux(xs)[0]
 
   def predict_with_aux(
-      self, xs: chex.ArrayTree
+      self, xs: types.ModelInput
   ) -> tuple[tfd.Distribution, chex.ArrayTree]:
     dist = self.predictives.predict(xs)
     if dist.batch_shape.rank == 0:
@@ -832,12 +850,12 @@ class StochasticProcessWithCoroutine(eqx.Module):
     )
 
   def call_with_aux(
-      self, data: types.StochasticProcessModelData
+      self, x: types.ModelInput, /
   ) -> tuple[tfd.Distribution, chex.ArrayTree]:
     """Returns the joint distribution and auxiliary information.
 
     Args:
-      data:
+      x:
 
     Returns:
       (dist, aux)
@@ -845,19 +863,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
       aux: A dict where all the leaf nodes in the subtree aux[`losses`] contain
         regularization losses.
     """
-    features = data.features
-    if isinstance(features, types.ContinuousAndCategorical):
-      features = tfpke.ContinuousAndCategoricalValues(
-          continuous=data.features.continuous,
-          categorical=data.features.categorical,
-      )
-    if data.dimension_is_missing is not None:
-      features = jax.tree_util.tree_map(
-          lambda x, d: jnp.where(d, jnp.zeros_like(x), x),
-          features,
-          data.dimension_is_missing,
-      )
-    gen = self.coroutine(features)
+    gen = self.coroutine(x)
     params = self.params
     params_loss = dict()
     try:
@@ -873,22 +879,34 @@ class StochasticProcessWithCoroutine(eqx.Module):
       # `StopIteration` object has a property `value` of type `_D`.
       return e.value, {'losses': params_loss}
 
-  def __call__(
-      self, data: types.StochasticProcessModelData
-  ) -> tfd.Distribution:
-    return self.call_with_aux(data)[0]
+  def __call__(self, x: types.ModelInput) -> tfd.Distribution:
+    return self.call_with_aux(x)[0]
 
-  def loss_with_aux(self, data) -> tuple[jax.Array, chex.ArrayTree]:
-    dist, aux = self.call_with_aux(data)
-    nll_data = -dist.log_prob(data.labels, is_missing=data.label_is_missing)
+  def loss_with_aux(
+      self, data: types.ModelData
+  ) -> tuple[jax.Array, chex.ArrayTree]:
+    dist, aux = self.call_with_aux(data.features)
+    # TODO: Enable `is_missing` for MTGP.
+    if isinstance(dist, tfde.MultiTaskGaussianProcess):
+      logging.warning(
+          'Using a multitask GP; note that padding/masking is not yet supported'
+          'in `log_prob`.'
+      )
+      nll_data = -dist.log_prob(data.labels.padded_array)
+    else:
+      nll_data = -dist.log_prob(
+          data.labels.padded_array, is_missing=data.labels.is_missing[0]
+      )
     loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])
     return loss, aux
 
-  def precompute_predictive(self, data) -> PrecomputedPredictive:
-    predictive = self(data).posterior_predictive(
+  def precompute_predictive(
+      self, data: types.ModelData
+  ) -> PrecomputedPredictive:
+    predictive = self(data.features).posterior_predictive(
         index_points=None,
-        observations=data.labels,
-        observations_is_missing=data.label_is_missing,
+        observations=data.labels.padded_array,
+        observations_is_missing=data.labels.is_missing[0],
     )
     # pylint: disable=protected-access
     return PrecomputedPredictive(
@@ -906,7 +924,7 @@ class CoroutineWithData(eqx.Module):
   """
 
   coroutine: ModelCoroutine = eqx.field(static=True)
-  data: types.StochasticProcessModelData
+  data: types.ModelData
 
   def constraints(self):
     return get_constraints(StochasticProcessModel(self.coroutine))

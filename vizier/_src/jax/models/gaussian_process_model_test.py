@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from jax import random
 import numpy as np
-
 from tensorflow_probability.substrates import jax as tfp
+from vizier._src.jax import types
 from vizier._src.jax.models import gaussian_process_model as gp_model
 from absl.testing import absltest
 
@@ -29,34 +29,12 @@ tfpke = tfp.experimental.psd_kernels
 
 class GaussianProcessARDTest(absltest.TestCase):
 
-  def test_gaussian_process_ard(self):
-    dim = 5
-    num_obs = 10
-    coro = gp_model.GaussianProcessARD(
-        dimension=dim,
-        kernel_class=tfpk.ExponentiatedQuadratic,
-        use_tfp_runtime_validation=True)
-
-    obs_key, coro_key, sample_key = random.split(random.PRNGKey(0), num=3)
-    x = random.uniform(obs_key, shape=(num_obs, dim), dtype=np.float64)
-    gp, param_vals = _run_coroutine(coro(x), seed=coro_key)
-    samples = gp.sample(100, seed=sample_key)
-    self.assertSequenceEqual(gp.event_shape, [num_obs])
-    self.assertEmpty(gp.batch_shape)
-    self.assertTrue(np.isfinite(gp.log_prob(samples)).all())
-    self.assertSameElements(
-        param_vals.keys(),
-        ('amplitude', 'inverse_length_scale', 'observation_noise_variance'))
-    self.assertEmpty(param_vals['amplitude'].shape)
-    self.assertEmpty(param_vals['observation_noise_variance'].shape)
-    self.assertSequenceEqual(param_vals['inverse_length_scale'].shape, [dim])
-
   def test_gp_model_with_categorical(self):
     cont_dim = 5
     cat_dim = 3
     num_obs = 10
-    coro = gp_model.GaussianProcessARDWithCategorical(
-        dimension=tfpke.ContinuousAndCategoricalValues(cont_dim, cat_dim),
+    coro = gp_model.GaussianProcessARD(
+        dimension=types.ContinuousAndCategorical[int](cont_dim, cat_dim),
         kernel_class=tfpk.ExponentiatedQuadratic,
         use_tfp_runtime_validation=True,
     )
@@ -69,7 +47,14 @@ class GaussianProcessARDTest(absltest.TestCase):
     x_cat = random.randint(
         x_cat_key, shape=(num_obs, cat_dim), minval=0, maxval=5
     )
-    x = tfpke.ContinuousAndCategoricalValues(x_cont, x_cat)
+    x = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            x_cont, x_cont.shape, fill_value=np.nan
+        ),
+        categorical=types.PaddedArray.from_array(
+            x_cat, x_cat.shape, fill_value=-1
+        ),
+    )
     gp, param_vals = _run_coroutine(coro(x), seed=coro_key)
     samples = gp.sample(100, seed=sample_key)
     self.assertSequenceEqual(gp.event_shape, [num_obs])
