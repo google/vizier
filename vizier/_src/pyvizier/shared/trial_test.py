@@ -310,6 +310,16 @@ class TrialTest(absltest.TestCase):
     trial2 = trial.Trial()
     self.assertGreater(trial2.creation_time, trial1.creation_time)
 
+  def testCompletionTime(self):
+    trial1 = trial.Trial(
+        final_measurement=trial.Measurement(
+            metrics={'pr-auc': Metric(value=0.8)}
+        )
+    )
+    self.assertEqual(trial1.creation_time, trial1.completion_time)
+    trial2 = trial.Trial(infeasibility_reason='reasons')
+    self.assertEqual(trial2.creation_time, trial2.completion_time)
+
 
 class ParameterDictTest(parameterized.TestCase):
 

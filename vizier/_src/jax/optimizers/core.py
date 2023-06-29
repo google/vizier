@@ -73,7 +73,7 @@ class Optimizer(Protocol[Params]):
   def __call__(
       self,
       setup: Setup[Params],
-      loss_fn: LossFunction,
+      loss_fn: LossFunction[Params],
       rng: jax.random.KeyArray,
       *,
       constraints: Optional[sp.Constraint] = None,

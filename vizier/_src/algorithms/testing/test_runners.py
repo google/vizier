@@ -95,7 +95,7 @@ class RandomMetricsRunner:
             it,
         )
         break
-      trials = []
+
       for suggestion in suggestions:
         if self.validate_parameters:
           self.problem.search_space.assert_contains(suggestion.parameters)
@@ -104,12 +104,16 @@ class RandomMetricsRunner:
           measurement.metrics[mi.name] = rng.uniform(
               mi.min_value_or(lambda: -10.0), mi.max_value_or(lambda: 10.0)
           )
-        trials.append(suggestion.complete(measurement))
+        # PolicySupporter owns PolicySuggester, which owns reference to the
+        # suggestions. Mutating these trials here will affect future
+        # suggestions from the algorithm.
+        suggestion.complete(measurement)
       if self.verbose:
         logging.info(
-            'At iteration %s, trials suggested and evaluated:\n%s', it, trials
+            'At iteration %s, trials suggested and evaluated:\n%s',
+            it,
+            suggestions,
         )
-      algorithm.supporter.AddTrials(trials)
     return algorithm.supporter.GetTrials()
 
   def run_policy(

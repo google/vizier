@@ -516,11 +516,19 @@ class Trial(TrialSuggestion):
       init=True,
       kw_only=True,
       default=None,
+      eq=False,
       repr=lambda v: v.strftime('%x %X') if v is not None else 'None',
       converter=_to_local_time,
       validator=attr.validators.optional(
-          attr.validators.instance_of(datetime.datetime)),
+          attr.validators.instance_of(datetime.datetime)
+      ),
   )
+
+  def __attrs_post_init__(self):
+    if self.completion_time is None and (
+        self.final_measurement is not None or self.infeasibility_reason
+    ):
+      self.completion_time = self.creation_time
 
   @property
   def duration(self) -> Optional[datetime.timedelta]:
