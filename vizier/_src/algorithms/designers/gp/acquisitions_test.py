@@ -26,7 +26,6 @@ from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
 from vizier.pyvizier import converters
-
 from absl.testing import absltest
 
 
@@ -62,6 +61,20 @@ class AcquisitionsTest(absltest.TestCase):
     self.assertAlmostEqual(
         acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([0.2])),
         0.46017216,
+    )
+
+  def test_acq_tr_good_point(self):
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
+    self.assertAlmostEqual(
+        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([100.0])),
+        -1.0e12,
+    )
+
+  def test_acq_tr_bad_point(self):
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
+    self.assertAlmostEqual(
+        acq(tfd.Normal(jnp.float64(0.1), 1), labels=jnp.array([-100.0])),
+        1.9,
     )
 
   def test_qei(self):

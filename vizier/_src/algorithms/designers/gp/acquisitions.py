@@ -28,7 +28,6 @@ from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import types
 from vizier.pyvizier import converters
 
-
 tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
 tfpke = tfp.experimental.psd_kernels
@@ -191,6 +190,49 @@ class PI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
         dist, labels
     )()
+
+
+@struct.dataclass
+class AcquisitionTrustRegion(AcquisitionFunction):
+  """Acquisition masked by a thresholding acquisition values.
+
+  When optimizing the main acquisition, the goal is to consider idea is to
+  disregard the region in the search space with
+  thresholding_acquisition values lower than a threshold.
+  Attributes:
+    main_acquisition: The main acquisition function.
+    thresholding_acquisition: The acquisition function used to detect promising
+      (trust) regions.
+    threshold: The threshold for the thresholding_acquisition values to
+      distinguish between the promising and unpromising regions.
+    bad_acq_value: The lower bound for the main acquisition value.
+    bad_acq_value: The lower bound for the main acquisition value.
+  """
+
+  main_acquisition: AcquisitionFunction
+  thresholding_acquisition: AcquisitionFunction
+  bad_acq_value: float = struct.field(kw_only=True)
+  threshold: float = struct.field(kw_only=True)
+
+  @classmethod
+  def default_ucb_pi(cls) -> 'AcquisitionTrustRegion':
+    return cls(UCB(1.8), PI(), bad_acq_value=-1e12, threshold=0.3)
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[types.Features] = None,
+      labels: Optional[types.Array] = None,
+      seed: Optional[jax.random.KeyArray] = None,
+  ) -> jax.Array:
+    del features, seed
+    threshold_values = self.thresholding_acquisition(dist, labels=labels)
+    acq_values = self.main_acquisition(dist)
+    return jnp.where(
+        ((threshold_values >= self.threshold)),
+        acq_values,
+        self.bad_acq_value - threshold_values,
+    )
 
 
 @struct.dataclass
