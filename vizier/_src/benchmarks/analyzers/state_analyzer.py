@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import List
 
+from vizier import benchmarks
 from vizier._src.benchmarks.analyzers import convergence_curve
-from vizier._src.benchmarks.runners import benchmark_state
 
 
 class BenchmarkStateAnalyzer:
@@ -28,7 +28,7 @@ class BenchmarkStateAnalyzer:
   @classmethod
   def to_curve(
       cls,
-      states: List[benchmark_state.BenchmarkState],
+      states: List[benchmarks.BenchmarkState],
       flip_signs_for_min: bool = False,
   ) -> convergence_curve.ConvergenceCurve:
     """Generates a ConvergenceCurve from a batch of BenchmarkStates.

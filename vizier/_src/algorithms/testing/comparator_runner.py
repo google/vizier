@@ -39,6 +39,7 @@ from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.benchmarks.analyzers import simple_regret_score
+from vizier.benchmarks import analyzers
 from vizier.pyvizier import converters
 
 
@@ -88,21 +89,23 @@ class EfficiencyComparisonTester:
       runner.run(baseline_state)
       runner.run(candidate_state)
       baseline_curves.append(
-          benchmarks.ConvergenceCurveConverter(
-              baseline_statement.metric_information.item()).convert(
-                  baseline_state.algorithm.supporter.GetTrials()))
+          analyzers.ConvergenceCurveConverter(
+              baseline_statement.metric_information.item()
+          ).convert(baseline_state.algorithm.supporter.GetTrials())
+      )
       candidate_curves.append(
-          benchmarks.ConvergenceCurveConverter(
-              baseline_statement.metric_information.item()).convert(
-                  candidate_state.algorithm.supporter.GetTrials()))
+          analyzers.ConvergenceCurveConverter(
+              baseline_statement.metric_information.item()
+          ).convert(candidate_state.algorithm.supporter.GetTrials())
+      )
 
-    baseline_curve = benchmarks.ConvergenceCurve.align_xs(
+    baseline_curve = analyzers.ConvergenceCurve.align_xs(
         baseline_curves, interpolate_repeats=True
     )[0]
-    candidate_curve = benchmarks.ConvergenceCurve.align_xs(
+    candidate_curve = analyzers.ConvergenceCurve.align_xs(
         candidate_curves, interpolate_repeats=True
     )[0]
-    comparator = benchmarks.LogEfficiencyConvergenceCurveComparator(
+    comparator = analyzers.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=baseline_curve, compared_curve=candidate_curve
     )
 
