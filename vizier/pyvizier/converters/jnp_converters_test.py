@@ -17,8 +17,8 @@ from __future__ import annotations
 """Tests for jnp_converters."""
 
 import numpy as np
-from vizier import pyvizier
-from vizier._src.algorithms.designers import random
+from vizier import pyvizier as vz
+from vizier._src.algorithms.designers import random as random_designer_lib
 from vizier._src.algorithms.testing import test_runners
 from vizier._src.jax import types
 from vizier.pyvizier.converters import jnp_converters as jnpc
@@ -29,95 +29,64 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-Trial = pyvizier.Trial
+Trial = vz.Trial
 
 
 class PaddedTrialToArrayConverterTest(parameterized.TestCase):
 
-  @parameterized.parameters([
-      dict(
-          input_dims=(11, 7, 3, 1),
-          expected_dims=(20, 8, 4, 1),
-      ),
-      dict(
-          input_dims=(21, 3, 0, 2),
-          expected_dims=(30, 4, 0, 2),
-      ),
-  ])
-  def test_padding(self, input_dims, expected_dims):
-    """Tests all padding schedules.
-
-    Uses multiples of 10, powers of 2, powers of 2, and none padding
-    respectively.
-
-
-    Args:
-      input_dims: num_trials, continuous dimensions, categorical dimensions, and
-        number of labels.
-      expected_dims: num_trials, continuous dimensions, categorical dimensions,
-        and number of labels after padding.
-    """
+  def test_padding(self):
+    """Tests various padding schedules."""
 
     padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.MULTIPLES_OF_10,
-        num_features=padding.PaddingType.POWERS_OF_2,
+        num_trials=padding.PaddingType.POWERS_OF_2,
+        num_features=padding.PaddingType.MULTIPLES_OF_10,
         num_metrics=padding.PaddingType.NONE,
     )
+    problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric',
+            goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+            min_value=-1.0,
+            max_value=1.0,
+        )
+    )
+    trials = test_runners.RandomMetricsRunner(
+        problem,
+        iters=1,
+        batch_size=13,
+        verbose=False,
+        validate_parameters=False,
+    ).run_designer(random_designer_lib.RandomDesigner(problem.search_space))
 
-    space = pyvizier.SearchSpace()
-    trials = [
-        pyvizier.Trial().complete(pyvizier.Measurement())
-        for _ in range(input_dims[0])
-    ]
-
-    root = space.root
-    for i in range(input_dims[1]):
-      root.add_float_param(f'double_{i}', 0.0, 100.0)
-      for t in trials:
-        t.parameters[f'double_{i}'] = i
-
-    for i in range(input_dims[2]):
-      root.add_categorical_param(f'categorical_{i}', [str(k) for k in range(7)])
-      for t in trials:
-        t.parameters[f'categorical_{i}'] = str(0)
-
-    problem = pyvizier.ProblemStatement(search_space=space)
-    for i in range(input_dims[3]):
-      problem.metric_information.append(
-          pyvizier.MetricInformation(
-              f'y_{i}', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
-          )
-      )
-      for t in trials:
-        if t.final_measurement:
-          t.final_measurement.metrics[f'y_{i}'] = 3 * i
-
-    converter = jnpc.TrialToModelInputConverter(
-        jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(
-            problem,
-        ),
+    converter = jnpc.TrialToModelInputConverter.from_problem(
+        problem,
         padding_schedule=padding_schedule,
     )
 
-    features = converter.to_features(trials)
+    data = converter.to_xy(trials)
     self.assertSequenceEqual(
-        features.continuous.padded_array.shape,
-        [expected_dims[0], expected_dims[1]],
+        data.features.continuous.padded_array.shape,
+        (16, 10),
     )
     self.assertSequenceEqual(
-        features.categorical.padded_array.shape,
-        [expected_dims[0], expected_dims[2]],
+        data.features.categorical.padded_array.shape,
+        (16, 10),
     )
 
     labels = converter.to_labels(trials)
-    self.assertSequenceEqual(
-        labels.padded_array.shape, [expected_dims[0], expected_dims[3]]
-    )
+    self.assertSequenceEqual(labels.padded_array.shape, (16, 1))
 
-    recovered_parameters = converter.to_parameters(features)
-    self.assertSequenceEqual(
-        recovered_parameters[: input_dims[0]], [t.parameters for t in trials]
-    )
+    recovererd_trials = converter.to_trials(data)
+
+    for i in range(13):
+      self.assertSequenceAlmostEqual(
+          recovererd_trials[i].parameters.as_dict().values(),
+          trials[i].parameters.as_dict().values(),
+          places=3,
+          msg=f'Failed at {i}th trial',
+      )
+      problem.search_space.assert_contains(recovererd_trials[i].parameters)
 
 
 class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
@@ -125,16 +94,14 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
-    self._study_config = pyvizier.ProblemStatement(
+    self._study_config = vz.ProblemStatement(
         search_space=test_studies.flat_space_with_all_types(),
         metric_information=[
-            pyvizier.MetricInformation(
-                'x1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
-            )
+            vz.MetricInformation('x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
         ],
     )
 
-    self._designer = random.RandomDesigner(
+    self._designer = random_designer_lib.RandomDesigner(
         self._study_config.search_space, seed=0
     )
     self._trials = test_runners.run_with_random_metrics(
@@ -152,19 +119,19 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
     )
 
   def test_dtype(self):
-    space = pyvizier.SearchSpace()
+    space = vz.SearchSpace()
     root = space.root
     root.add_float_param('double', -2.0, 2.0)
     root.add_int_param('integer', -2, 2)
     root.add_categorical_param('categorical', ['b', 'c'])
     converter = jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(
-        pyvizier.ProblemStatement(search_space=space)
+        vz.ProblemStatement(search_space=space)
     )
     self.assertEqual(converter.dtype.continuous, np.float64)
     self.assertEqual(converter.dtype.categorical, np.int32)
 
   def test_parameter_continuify(self):
-    space = pyvizier.SearchSpace()
+    space = vz.SearchSpace()
     root = space.root
     root.add_float_param('double', -2.0, 2.0)
     root.add_int_param('integer', -2, 2)
@@ -172,14 +139,14 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
     root.add_discrete_param('discrete', [-1.0, 2.0, 3.0])
 
     converter = jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(
-        pyvizier.ProblemStatement(search_space=space)
+        vz.ProblemStatement(search_space=space)
     )
-    trial = pyvizier.Trial(
+    trial = vz.Trial(
         parameters={
-            'double': pyvizier.ParameterValue(3.0),
-            'integer': pyvizier.ParameterValue(-1),
-            'discrete': pyvizier.ParameterValue(2.0),
-            'categorical': pyvizier.ParameterValue('d'),
+            'double': vz.ParameterValue(3.0),
+            'integer': vz.ParameterValue(-1),
+            'discrete': vz.ParameterValue(2.0),
+            'categorical': vz.ParameterValue('d'),
         }
     )
     expected = types.ContinuousAndCategoricalArray(
@@ -190,30 +157,30 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
     np.testing.assert_equal(actual.categorical, expected.categorical)
 
   def test_multi_metrics(self):
-    search_space = pyvizier.SearchSpace()
+    search_space = vz.SearchSpace()
     search_space.root.add_float_param('x', 0.0, 1.0)
-    problem = pyvizier.ProblemStatement(
+    problem = vz.ProblemStatement(
         search_space=search_space,
-        metric_information=pyvizier.MetricsConfig(
+        metric_information=vz.MetricsConfig(
             metrics=[
-                pyvizier.MetricInformation(
-                    'obj1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+                vz.MetricInformation(
+                    'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),
-                pyvizier.MetricInformation(
-                    'obj2', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+                vz.MetricInformation(
+                    'obj2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),
-                pyvizier.MetricInformation(
-                    'obj3', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+                vz.MetricInformation(
+                    'obj3', goal=vz.ObjectiveMetricGoal.MINIMIZE
                 ),
             ]
         ),
     )
-    trial1 = pyvizier.Trial()
-    trial2 = pyvizier.Trial()
-    trial1.final_measurement = pyvizier.Measurement(
+    trial1 = vz.Trial()
+    trial2 = vz.Trial()
+    trial1.final_measurement = vz.Measurement(
         metrics={'obj1': 1.0, 'obj2': 2.0, 'obj3': 3.0}
     )
-    trial2.final_measurement = pyvizier.Measurement(
+    trial2.final_measurement = vz.Measurement(
         metrics={'obj1': -1.0, 'obj2': 5.0, 'obj3': 0.0}
     )
     converter = jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(

@@ -527,6 +527,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       onehot_embed: bool = False,
       converts_to_parameter: bool = True,
       pad_oovs: bool = True,
+      rounding_error_limit: float = 1e-16,
   ):
     """Init.
 
@@ -548,6 +549,10 @@ class DefaultModelInputConverter(ModelInputConverter):
         returns None
       pad_oovs: If True, pad the out-of-vocabulary dimensions to onehot
         embedding.
+      rounding_error_limit: For discrete parameters, due to limited floating
+        precision, we cannot guarantee that we can precisely restore a feasible
+        value as it appears in the discrete set. to_parameters() method logs an
+        error if the gap is bigger than this limit.
     """
     self._converts_to_parameter = converts_to_parameter
     self._parameter_config = copy.deepcopy(parameter_config)
@@ -585,6 +590,7 @@ class DefaultModelInputConverter(ModelInputConverter):
 
     spec = self.onehot_encoder.output_spec
 
+    self._rounding_error_limit = rounding_error_limit
     self._output_spec = spec
 
   def convert(self, trials: Sequence[pyvizier.TrialSuggestion]) -> np.ndarray:
@@ -631,11 +637,11 @@ class DefaultModelInputConverter(ModelInputConverter):
     Returns:
       ParameterValue.
     """
-    # TODO: NaNs and out-of-vocab values should return None instead
-    # of raising an error.
     if not self._converts_to_parameter:
       return None
-    if self.parameter_config.type == pyvizier.ParameterType.DOUBLE:
+    elif not np.isfinite(value):
+      return None
+    elif self.parameter_config.type == pyvizier.ParameterType.DOUBLE:
       # Input parameter was DOUBLE. Output is also DOUBLE.
       return pyvizier.ParameterValue(
           float(
@@ -649,12 +655,29 @@ class DefaultModelInputConverter(ModelInputConverter):
     elif self.output_spec.type == NumpyArraySpecType.CONTINUOUS:
       # The parameter config is originally discrete, but continuified.
       # Round to the closest number.
-      return pyvizier.ParameterValue(
-          min(
-              self.parameter_config.feasible_values,
-              key=lambda feasible_value: abs(feasible_value - value),
-          )
+      diffs = np.abs(
+          np.asarray(self.parameter_config.feasible_values, dtype=self.dtype)
+          - value
       )
+
+      idx = np.argmin(diffs)
+      closest_number = pyvizier.ParameterValue(
+          self.parameter_config.feasible_values[idx]
+      )
+
+      if diffs[idx] > self._rounding_error_limit:
+        # TODO: Do not round.
+        logging.error(
+            'Detected a potential out-of-range value %s while converting'
+            ' parameter %s. Please note that to_trial method always clips to'
+            ' the nearest value.',
+            value,
+            self.parameter_config,
+        )
+      return pyvizier.ParameterValue(
+          closest_number.cast_as_internal(self.parameter_config.type)
+      )
+
     elif value >= len(self.parameter_config.feasible_values):
       return None
     else:

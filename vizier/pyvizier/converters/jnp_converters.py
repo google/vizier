@@ -149,6 +149,61 @@ class TrialToModelInputConverter:
   _impl: 'TrialToContinuousAndCategoricalConverter'
   _padding_schedule: padding.PaddingSchedule
 
+  @classmethod
+  def from_problem(
+      cls,
+      problem: vz.ProblemStatement,
+      *,
+      scale: bool = True,
+      max_discrete_indices: int = 0,
+      flip_sign_for_minimization_metrics: bool = True,
+      dtype=np.float64,
+      padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(),
+  ) -> 'TrialToModelInputConverter':
+    """Create a new instance from ProblemStatement.
+
+    Args:
+      problem:
+      scale: If True, scales the parameters to [0, 1] range.
+      max_discrete_indices: For DISCRETE and INTEGER parameters that have more
+        than this many feasible values will be continuified. When generating
+        suggestions, values are rounded to the nearest feasible value. Note this
+        default is different from the default in DefaultModelInputConverter.
+      flip_sign_for_minimization_metrics: If True, flips the metric signs so
+        that every metric maximizes.
+      dtype: dtype
+      padding_schedule:
+
+    Returns:
+      TrialToContinuousAndCategoricalConverter
+    """
+
+    def create_input_converter(parameter):
+      return core.DefaultModelInputConverter(
+          parameter,
+          scale=scale,
+          max_discrete_indices=max_discrete_indices,
+          onehot_embed=False,
+          float_dtype=dtype,
+      )
+
+    def create_output_converter(metric):
+      return core.DefaultModelOutputConverter(
+          metric,
+          flip_sign_for_minimization_metrics=flip_sign_for_minimization_metrics,
+          dtype=dtype,
+      )
+
+    sc = problem  # alias, to keep pylint quiet in the next line.
+    converter = core.DefaultTrialConverter(
+        [create_input_converter(p) for p in sc.search_space.parameters],
+        [create_output_converter(m) for m in sc.metric_information],
+    )
+    return cls(
+        TrialToContinuousAndCategoricalConverter(converter),
+        padding_schedule=padding_schedule,
+    )
+
   def to_features(self, trials: Sequence[vz.Trial]) -> vt.ModelInput:
     """Returns the features array with dimension: (n_trials, n_features)."""
     # Pad up the features.
@@ -162,9 +217,7 @@ class TrialToModelInputConverter:
     return self._padding_schedule.pad_labels(labels)
 
   def to_xy(self, trials: Sequence[vz.Trial]) -> vt.ModelData:
-    return vt.StochasticProcessModelData.from_padded(
-        self.to_features(trials), self.to_labels(trials)
-    )
+    return vt.ModelData(self.to_features(trials), self.to_labels(trials))
 
   def to_parameters(self, arr: vt.ModelInput) -> Sequence[vz.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
@@ -173,6 +226,14 @@ class TrialToModelInputConverter:
         arr.continuous.unpad(), arr.categorical.unpad()
     )
     return self._impl.to_parameters(unpadded)
+
+  def to_trials(self, data: vt.ModelData) -> Sequence[vz.Trial]:
+    unpadded_features = vt.ContinuousAndCategoricalArray(
+        data.features.continuous.unpad(), data.features.categorical.unpad()
+    )
+    unpadded_labels = data.labels.unpad()
+
+    return self._impl.to_trials(unpadded_features, unpadded_labels)
 
   @property
   def output_specs(self):  # TODO: Add back pytype
@@ -216,7 +277,7 @@ class TrialToContinuousAndCategoricalConverter:
       elif spec.type == core.NumpyArraySpecType.DISCRETE:
         categorical.append(v)
       else:
-        raise ValueError(
+        raise NotImplementedError(
             f'Expected spec to be CONTINUOUS or DISCRETE, saw {spec.type}'
         )
     if continuous:
@@ -245,10 +306,10 @@ class TrialToContinuousAndCategoricalConverter:
   ) -> Tuple[vt.ContinuousAndCategoricalArray, np.ndarray]:
     return self.to_features(trials), self.to_labels(trials)
 
-  def to_parameters(
+  def _to_dict_2d_arrays(
       self, feat: vt.ContinuousAndCategoricalArray
-  ) -> Sequence[vz.ParameterDict]:
-    """Convert to nearest feasible parameter value. NaNs are preserved."""
+  ) -> core.DictOf2DArrays:
+    """Converts to a single dict of 2d arrays."""
     feat_dict = {}
     cont_ind = 0
     cat_ind = 0
@@ -264,8 +325,22 @@ class TrialToContinuousAndCategoricalConverter:
         raise ValueError(
             f'Expected spec to be CONTINUOUS or DISCRETE, saw {spec.type}'
         )
+    return core.DictOf2DArrays(feat_dict)
 
-    return self._impl.to_parameters(core.DictOf2DArrays(feat_dict))
+  def to_trials(
+      self, feat: vt.ContinuousAndCategoricalArray, labels: np.ndarray
+  ) -> Sequence[vz.Trial]:
+    # Pass in an empty array to get the structure
+    labels_dict = core.DictOf2DArrays(self._impl.to_labels([])).dict_like(
+        labels
+    )
+    return self._impl.to_trials(self._to_dict_2d_arrays(feat), labels_dict)
+
+  def to_parameters(
+      self, feat: vt.ContinuousAndCategoricalArray
+  ) -> Sequence[vz.ParameterDict]:
+    """Convert to nearest feasible parameter value. NaNs are preserved."""
+    return self._impl.to_parameters(self._to_dict_2d_arrays(feat))
 
   # TODO: Move this method to TrialToModelInputConverter, and
   # make this class private to the module.

@@ -1088,6 +1088,20 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         [[1.0], [2.0], [-3.0], [np.NaN], [np.NaN]], dtype=dtype
     )
     np.testing.assert_allclose(expected, actual)
+
+    pvs = converter.to_parameter_values(actual)
+    self.assertSequenceEqual(
+        pvs,
+        [
+            pyvizier.ParameterValue(1.0),
+            pyvizier.ParameterValue(2.0),
+            # TODO: This rounding behavior can be harmful.
+            pyvizier.ParameterValue(1.0),
+            None,
+            None,
+        ],
+    )
+
     self.assertEqual(expected.dtype, actual.dtype)
 
   def test_integer_discretes_into_onehot(self):

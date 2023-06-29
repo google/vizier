@@ -57,7 +57,7 @@ class ParameterType(enum.Enum):
     if self.is_numeric() and float(value) != value:
       self._raise_type_error(value)
 
-  # TODO: Accepting boolean into categorical is unintuitive.
+    # TODO: Accepting boolean into categorical is unintuitive.
     elif (self
           == ParameterType.CATEGORICAL) and (not isinstance(value,
                                                             (str, bool))):
