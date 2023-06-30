@@ -160,6 +160,43 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_equal(curve.ys, expected)
 
+  @parameterized.parameters(
+      (
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          2,
+          [2, 1, 4, 5],
+          [[2, 2, 5, 5]],
+      ),
+      (
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          2,
+          [2, 1, 4],
+          [[2, 2, 4]],
+      ),
+      (
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          3,
+          [2, 1, 4, 7, 9, 8, 10],
+          [[4, 4, 4, 9, 9, 9, 10]],
+      ),
+      (
+          pyvizier.ObjectiveMetricGoal.MINIMIZE,
+          3,
+          [3, 7, 2, 3, 0],
+          [[2, 2, 2, 0, 0]],
+      ),
+  )
+  def test_convert_with_batch_size(self, goal, batch_size, values, expected):
+    trials = _gen_trials(values)
+    generator = convergence.ConvergenceCurveConverter(
+        pyvizier.MetricInformation(name='', goal=goal),
+        flip_signs_for_min=False,
+        batch_size=batch_size,
+    )
+    curve = generator.convert(trials)
+    np.testing.assert_array_equal(curve.xs, list(range(1, len(trials) + 1)))
+    np.testing.assert_array_equal(curve.ys, np.float_(expected))
+
 
 class HyperConvergenceCurveConverterTest(parameterized.TestCase):
 

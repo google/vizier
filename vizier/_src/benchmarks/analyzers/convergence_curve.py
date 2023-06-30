@@ -20,7 +20,7 @@ import abc
 import bisect
 import enum
 import logging
-from typing import Callable, List, Optional, Sequence, Union
+from typing import Callable, List, Optional, Sequence
 
 import attr
 import numpy as np
@@ -32,9 +32,9 @@ from vizier.pyvizier.multimetric import xla_pareto
 
 @attr.s(auto_attribs=True)
 class ConvergenceCurve:
-  """Represents a batch of convergence curves on the same task."""
+  """Represents multiple convergence curves on the same task."""
   xs: np.ndarray  # [T] array. All curves share the x axis.
-  ys: np.ndarray  # [N x T] array where N is the batch size.
+  ys: np.ndarray  # [N x T] array where N is the number of curves.
   ylabel: str = ''  # Optional for plotting.
   xlabel: str = ''  # Optional for plotting.
   # Indicates ys should be increasing in t or decreasing.
@@ -51,7 +51,7 @@ class ConvergenceCurve:
   def __attrs_post_init__(self):
     if len(self.ys.shape) != 2:
       raise ValueError(
-          'The shape of ys should be (batch_size, n_steps); but ys shape is'
+          'The shape of ys should be (num_curves, n_steps); but ys shape is'
           f' {self.ys.shape}'
       )
     if len(self.xs) != self.ys.shape[1]:
@@ -68,7 +68,7 @@ class ConvergenceCurve:
         raise ValueError(f'Decreasing trend not found: {self.ys}')
 
   @property
-  def batch_size(self) -> int:
+  def num_curves(self) -> int:
     return self.ys.shape[0]
 
   @classmethod
@@ -229,52 +229,57 @@ class ConvergenceCurve:
         trend=curve.trend)
 
 
+@attr.define
 class ConvergenceCurveConverter:
-  """Converter for Trial sequence to ConvergenceCurve."""
+  """Converter for Trial sequence to ConvergenceCurve.
 
-  def __init__(
-      self,
-      metric_information: pyvizier.MetricInformation,
-      *,
-      flip_signs_for_min: bool = False,
-      cost_fn: Callable[[pyvizier.Trial], Union[float, int]] = lambda _: 1,
-      measurements_type: str = 'final',
-  ):
-    """Init.
-
-    Args:
+  Attributes:
       metric_information: Information of relevant metric.
       flip_signs_for_min: If True, flips the signs of metric values to always
         maximize. Useful when desiring all increasing curves.
       cost_fn: Cost of each Trial (to determine xs in ConvergenceCurve).
       measurements_type: ['final', 'intermediate', 'all']
-    """
-    self.metric_information = metric_information
-    self.flip_signs_for_min = flip_signs_for_min
-    self.cost_fn = cost_fn
-    self.measurements_type = measurements_type
+      batch_size: Number of trials in each batch. In each batch, the order of
+        trials is ignored and the best trial is used.
+  """
+
+  metric_information: pyvizier.MetricInformation
+  flip_signs_for_min: bool = attr.field(default=False, kw_only=True)
+  cost_fn: Callable[[pyvizier.Trial], float] = attr.field(
+      default=lambda _: 1, kw_only=True
+  )
+  measurements_type: str = attr.field(default='final', kw_only=True)
+  batch_size: int = attr.field(default=1, kw_only=True)
 
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
-    """Returns ConvergenceCurve of batch size 1."""
+    """Returns ConvergenceCurve with a single curve."""
     yvals = [np.nan]
     xvals = [0]
+    candidates = []
 
-    for trial in trials:
-      candidates = [np.nan]
-      if self.measurements_type in ('final', 'all'):
-        if trial.final_measurement and (self.metric_information.name
-                                        in trial.final_measurement.metrics):
-          candidates.append(trial.final_measurement.metrics[
-              self.metric_information.name].value)
-      if self.measurements_type in ('intermediate', 'all'):
-        for measurement in trial.measurements:
-          if self.metric_information.name in measurement.metrics:
+    for i in range(0, len(trials), self.batch_size):
+      batch = trials[i : i + self.batch_size]
+      for trial in batch:
+        if self.measurements_type in ('final', 'all'):
+          if trial.final_measurement and (
+              self.metric_information.name in trial.final_measurement.metrics
+          ):
             candidates.append(
-                measurement.metrics[self.metric_information.name].value)
+                trial.final_measurement.metrics[
+                    self.metric_information.name
+                ].value
+            )
+        if self.measurements_type in ('intermediate', 'all'):
+          for measurement in trial.measurements:
+            if self.metric_information.name in measurement.metrics:
+              candidates.append(
+                  measurement.metrics[self.metric_information.name].value
+              )
+        xvals.append(xvals[-1] + self.cost_fn(trial))
 
-      yvalue = self.comparator(candidates)
-      xvals.append(xvals[-1] + self.cost_fn(trial))
-      yvals.append(self.comparator([yvalue, yvals[-1]]))
+      new_yval = self.comparator([self.comparator(candidates), yvals[-1]])
+      yvals.extend([new_yval] * len(batch))
+      candidates = []
 
     yvals = np.asarray(yvals[1:])
     if self.metric_information.goal == pyvizier.ObjectiveMetricGoal.MAXIMIZE:
