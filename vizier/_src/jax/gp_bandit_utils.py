@@ -50,35 +50,3 @@ def stochastic_process_model_setup(
 ):
   """Setup function for a stochastic process model."""
   return model.init(key, data.features)['params']
-
-
-# TODO: Remove this when Vectorized Optimizer works on CACV.
-def make_one_hot_to_modelinput_fn(seed_features_unpad, mapper, cacpa):
-  """Temporary utility fn for converting one hot to ModelInput."""
-
-  def _one_hot_to_cacpa(x_):
-    if seed_features_unpad is not None:
-      x_unpad = x_[..., : seed_features_unpad.shape[1]]
-    else:
-      x_unpad = x_
-    cacv = mapper.map(x_unpad)
-    return types.ModelInput(
-        continuous=types.PaddedArray.from_array(
-            cacv.continuous,
-            (
-                cacv.continuous.shape[:-1]
-                + (cacpa.continuous.padded_array.shape[1],)
-            ),
-            fill_value=cacpa.continuous.fill_value,
-        ),
-        categorical=types.PaddedArray.from_array(
-            cacv.categorical,
-            (
-                cacv.categorical.shape[:-1]
-                + (cacpa.categorical.padded_array.shape[1],)
-            ),
-            fill_value=cacpa.categorical.fill_value,
-        ),
-    )
-
-  return _one_hot_to_cacpa

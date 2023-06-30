@@ -73,16 +73,18 @@ trials = optimizer.optimize(problem_statement, objective_function)
 import enum
 import logging
 import math
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import attr
 from flax import struct
 import jax
 from jax import numpy as jnp
-from vizier._src.algorithms.optimizers import eagle_param_handler
+from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import types
 from vizier.pyvizier import converters
+
+tfd = tfp.distributions
 
 
 @enum.unique
@@ -105,6 +107,8 @@ class EagleStrategyConfig:
     perturbation: The default amount of noise for perturbation.
     categorical_perturbation_factor: A factor to apply on categorical params.
     pure_categorical_perturbation_factor: A factor on purely categorical space.
+    prob_same_category_without_perturbation: Baseline probability of selecting
+      the same category.
     perturbation_lower_bound: The threshold below flies are removed from pool.
     penalize_factor: The perturbation decrease for unsuccessful flies.
     pool_size_exponent: An exponent for computing pool size based on search
@@ -125,8 +129,9 @@ class EagleStrategyConfig:
   negative_gravity: float = 0.008
   # Perturbation
   perturbation: float = 0.16
-  categorical_perturbation_factor: float = 25
+  categorical_perturbation_factor: float = 1.0
   pure_categorical_perturbation_factor: float = 30
+  prob_same_category_without_perturbation: float = 0.98
   # Penalty
   perturbation_lower_bound: float = 7e-5
   penalize_factor: float = 7e-1
@@ -153,10 +158,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
 
   def __call__(
       self,
-      converter: Union[
-          converters.TrialToArrayConverter,
-          converters.PaddedTrialToArrayConverter,
-      ],
+      converter: converters.TrialToModelInputConverter,
       suggestion_batch_size: Optional[int] = None,
   ) -> "VectorizedEagleStrategy":
     """Create a new vectorized eagle strategy.
@@ -175,18 +177,47 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     Returns:
       A new instance of VectorizedEagleStrategy.
     """
-    param_handler = eagle_param_handler.EagleParamHandler.build(
-        converter,
-        self.eagle_config.categorical_perturbation_factor,
-        self.eagle_config.pure_categorical_perturbation_factor,
-    )
-    n_feature_dimensions_with_padding = converter.to_features([]).shape[-1]
-    n_features = len(converter.output_specs)
+    valid_types = [
+        converters.NumpyArraySpecType.DISCRETE,
+        converters.NumpyArraySpecType.CONTINUOUS,
+    ]
+    if any(
+        spec.type not in valid_types
+        for spec in (
+            list(converter.output_specs.continuous)
+            + list(converter.output_specs.categorical)
+        )
+    ):
+      raise ValueError("Only DISCRETE/CONTINUOUS parameters are supported!")
 
-    if self.eagle_config.pool_size > 0:
-      # This allow to override the pool size computation.
-      pool_size = self.eagle_config.pool_size
+    empty_features = converter.to_features([])
+    n_feature_dimensions_with_padding = types.ContinuousAndCategorical[int](
+        continuous=empty_features.continuous.shape[-1],
+        categorical=empty_features.categorical.shape[-1],
+    )
+    n_feature_dimensions = types.ContinuousAndCategorical(
+        continuous=len(converter.output_specs.continuous),
+        categorical=len(converter.output_specs.categorical),
+    )
+
+    categorical_sizes = []
+    for spec in converter.output_specs.categorical:
+      categorical_sizes.append(spec.bounds[1])
+    if categorical_sizes:
+      max_categorical_size = max(categorical_sizes)
     else:
+      max_categorical_size = 0
+    extra_categories = (
+        n_feature_dimensions_with_padding.categorical
+        - n_feature_dimensions.categorical
+    )
+    categorical_sizes = categorical_sizes + [0] * extra_categories
+
+    n_features = (
+        n_feature_dimensions.continuous + n_feature_dimensions.categorical
+    )
+    pool_size = self.eagle_config.pool_size
+    if pool_size == 0:
       pool_size = 10 + int(
           0.5 * n_features + n_features**self.eagle_config.pool_size_exponent
       )
@@ -202,15 +233,14 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       suggestion_batch_size = pool_size
     # Use priors to populate Eagle state
     return VectorizedEagleStrategy(
-        param_handler=param_handler,
-        n_features=n_features,
-        n_feature_dimensions=sum(
-            spec.num_dimensions for spec in converter.output_specs
-        ),
+        n_feature_dimensions=n_feature_dimensions,
         n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
         batch_size=suggestion_batch_size,
         config=self.eagle_config,
         pool_size=pool_size,
+        categorical_sizes=tuple(categorical_sizes),
+        max_categorical_size=max_categorical_size,
+        dtype=converter._impl.dtype,
     )
 
 
@@ -219,58 +249,98 @@ class VectorizedEagleStrategyState:
   """Container for Eagle strategy state."""
 
   iterations: jax.Array  # Scalar integer.
-  features: jax.Array  # Shape (pool_size, n_parallel, n_features).
+  features: vb.VectorizedOptimizerInput  # (pool_size, n_parallel, n_features).
   rewards: jax.Array  # Shape (pool_size,).
   best_reward: jax.Array  # Scalar float.
   perturbations: jax.Array  # Shape (pool_size,).
 
 
+def _compute_features_dist(
+    x_batch: vb.VectorizedOptimizerInput, x_pool: vb.VectorizedOptimizerInput
+) -> jax.Array:
+  """Computes distance between features (or parallel feature batches)."""
+  dist = jnp.zeros([], dtype=x_batch.continuous.dtype)
+  if x_batch.continuous.size > 0:
+    x_batch_cont = jnp.reshape(
+        x_batch.continuous, (x_batch.continuous.shape[0], -1)
+    )
+    x_pool_cont = jnp.reshape(
+        x_pool.continuous, (x_pool.continuous.shape[0], -1)
+    )
+    continuous_dists = (
+        jnp.sum(x_batch_cont**2, axis=-1, keepdims=True)
+        + jnp.sum(x_pool_cont**2, axis=-1)
+        - 2.0 * jnp.matmul(x_batch_cont, x_pool_cont.T)
+    )  # shape (batch_size, pool_size)
+    dist = dist + continuous_dists
+
+  if x_batch.categorical.size > 0:
+    x_batch_cat = jnp.reshape(
+        x_batch.categorical, (x_batch.categorical.shape[0], -1)
+    )
+    x_pool_cat = jnp.reshape(
+        x_pool.categorical, (x_pool.categorical.shape[0], -1)
+    )
+    categorical_diffs = (x_batch_cat[..., jnp.newaxis, :] != x_pool_cat).astype(
+        x_batch.continuous.dtype
+    )
+    dist = dist + jnp.sum(categorical_diffs, axis=-1)
+  return dist
+
+
 @struct.dataclass
-class VectorizedEagleStrategy(vb.VectorizedStrategy):
+class VectorizedEagleStrategy(
+    vb.VectorizedStrategy[VectorizedEagleStrategyState]
+):
   """Eagle strategy implementation for maximization problem based on Numpy.
 
   Attributes:
-    converter: The converter used for the optimization problem.
     config: The Eagle strategy configuration.
     n_features: The number of features.
     batch_size: The number of suggestions generated at each suggestion call.
     pool_size: The total number of flies in the pool.
   """
 
-  param_handler: eagle_param_handler.EagleParamHandler
-  n_features: int
-  n_feature_dimensions: int
-  n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
+  n_feature_dimensions: types.ContinuousAndCategorical[int]
+  n_feature_dimensions_with_padding: types.ContinuousAndCategorical[int] = (
+      struct.field(pytree_node=False)
+  )
+  categorical_sizes: Tuple[int] = struct.field(pytree_node=False)
+  max_categorical_size: int = struct.field(pytree_node=False)
   pool_size: int = struct.field(pytree_node=False)
+  dtype: jnp.dtype = struct.field(pytree_node=False)
   batch_size: Optional[int] = struct.field(pytree_node=False, default=None)
   config: EagleStrategyConfig = struct.field(
       default_factory=EagleStrategyConfig
   )
-
-  def __post_init__(self):
-    logging.info("Eagle class attributes:\n%s", self)
-    logging.info("Eagle configuration:\n%s", self.config)
 
   def init_state(
       self,
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[vb.VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> VectorizedEagleStrategyState:
     """Initializes the state."""
     if prior_features is not None and prior_rewards is not None:
-      if prior_features.shape[1] != n_parallel:
+      if prior_features.continuous.shape[1] != n_parallel:
         raise ValueError(
-            f"`prior_features` dimension 1 ({prior_features.shape[1]}) "
+            "`prior_features.continuous` dimension 1 "
+            f"({prior_features.continuous.shape[1]}) "
+            f"doesn't match n_parallel ({n_parallel})!"
+        )
+      if prior_features.categorical.shape[1] != n_parallel:
+        raise ValueError(
+            "`prior_features.categorical` dimension 1 "
+            f"({prior_features.categorical.shape[1]}) "
             f"doesn't match n_parallel ({n_parallel})!"
         )
       init_features = self._populate_pool_with_prior_trials(
           seed, prior_features, prior_rewards
       )
     else:
-      init_features = self.param_handler.random_features(
+      init_features = self._sample_random_features(
           self.pool_size, n_parallel=n_parallel, seed=seed
       )
     return VectorizedEagleStrategyState(
@@ -281,12 +351,43 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         perturbations=jnp.ones(self.pool_size) * self.config.perturbation,
     )
 
+  def _sample_random_features(
+      self, num_samples: int, n_parallel: int, seed: jax.random.KeyArray
+  ) -> vb.VectorizedOptimizerInput:
+    cont_seed, cat_seed = jax.random.split(seed)
+
+    if self.max_categorical_size > 0:
+      sizes = jnp.array(self.categorical_sizes)[:, jnp.newaxis]
+      logits = jnp.where(
+          jnp.arange(self.max_categorical_size) < sizes, 0.0, -jnp.inf
+      )
+      random_categorical_features = (
+          tfd.Categorical(logits=logits)
+          .sample((num_samples, n_parallel), seed=cat_seed)
+          .astype(types.INT_DTYPE)
+      )
+    else:
+      random_categorical_features = jnp.zeros(
+          [num_samples, n_parallel, 0], types.INT_DTYPE
+      )
+    return types.ContinuousAndCategoricalArray(
+        continuous=jax.random.uniform(
+            cont_seed,
+            shape=(
+                num_samples,
+                n_parallel,
+                self.n_feature_dimensions_with_padding.continuous,
+            ),
+        ),
+        categorical=random_categorical_features,
+    )
+
   def _populate_pool_with_prior_trials(
       self,
       seed: jax.random.KeyArray,
-      prior_features: types.Array,
+      prior_features: types.ContinuousAndCategoricalArray,
       prior_rewards: types.Array,
-  ) -> jax.Array:
+  ) -> types.ContinuousAndCategoricalArray:
     """Populate the pool with prior trials.
 
     Args:
@@ -304,60 +405,108 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     if prior_features is None or prior_rewards is None:
       raise ValueError("One of prior features / prior rewards wasn't provided!")
-    if prior_features.shape[0] != prior_rewards.shape[0]:
-      raise ValueError(
-          f"prior features shape ({prior_features.shape[0]}) doesn't match"
-          f" prior  rewards shape ({prior_rewards.shape[0]})!"
-      )
-    if prior_features.shape[-1] != self.n_feature_dimensions_with_padding:
-      raise ValueError(
-          f"prior features shape ({prior_features.shape[-1]}) doesn't match"
-          f" n_features {self.n_feature_dimensions_with_padding}!"
-      )
 
+    if prior_features.continuous is not None:
+      continuous_obs, _, continuous_dim = prior_features.continuous.shape
+      if continuous_obs != prior_rewards.shape[0]:
+        raise ValueError(
+            f"prior continuous features shape ({continuous_obs}) doesn't match"
+            f" prior rewards shape ({prior_rewards.shape[0]})!"
+        )
+      expected_dim = self.n_feature_dimensions_with_padding.continuous
+      if continuous_dim != expected_dim:
+        raise ValueError(
+            f"prior continuous features shape ({continuous_dim}) doesn't match "
+            f"n_features {expected_dim}!"
+        )
+    if prior_features.categorical is not None:
+      categorical_obs, _, categorical_dim = prior_features.categorical.shape
+      if categorical_obs != prior_rewards.shape[0]:
+        raise ValueError(
+            f"prior categorical features shape ({categorical_obs}) doesn't "
+            f"match prior rewards shape ({prior_rewards.shape[0]})!"
+        )
+      expected_dim = self.n_feature_dimensions_with_padding.categorical
+      if categorical_dim != expected_dim:
+        raise ValueError(
+            f"prior categorical features shape ({categorical_dim}) doesn't"
+            f" match n_features {expected_dim}!"
+        )
     if len(prior_rewards.shape) > 1:
       raise ValueError("prior rewards is expected to be 1D array!")
 
     # Reverse the order of prior trials to assign more weight to recent trials.
-    flipped_prior_features = jnp.flip(prior_features, axis=0)
+    flipped_prior_features = jax.tree_util.tree_map(
+        lambda x: jnp.flip(x, axis=0), prior_features
+    )
     flipped_prior_rewards = jnp.flip(prior_rewards, axis=0)
+
+    # Replace padding features with randomly-sampled ones.
+    seed1, seed2 = jax.random.split(seed)
+    n_parallel = flipped_prior_features.continuous.shape[1]
+    random_features = self._sample_random_features(
+        flipped_prior_rewards.shape[0], n_parallel, seed2
+    )
+    flipped_prior_features = jax.tree_util.tree_map(
+        lambda x, y: jnp.where(
+            jnp.isneginf(flipped_prior_rewards)[:, jnp.newaxis, jnp.newaxis],
+            x,
+            y,
+        ),
+        random_features,
+        flipped_prior_features,
+    )
 
     # Fill pool with random features.
     n_random_flies = int(
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
     )
 
-    seed1, seed2 = jax.random.split(seed)
-    _, n_parallel, _ = prior_features.shape
-    init_features = self.param_handler.random_features(
+    init_features = self._sample_random_features(
         n_random_flies, n_parallel, seed1
     )
     pool_left_space = self.pool_size - n_random_flies
 
-    if prior_features.shape[0] < pool_left_space:
+    if prior_rewards.shape[0] < pool_left_space:
       # Less prior trials than left space. Take all prior trials for the pool.
-      init_features = jnp.concatenate([init_features, flipped_prior_features])
-      # Randomize the rest of the pool fireflies.
-      random_features = self.param_handler.random_features(
-          self.pool_size - len(init_features), n_parallel, seed2
+      init_features = jax.tree_util.tree_map(
+          lambda x, y: jnp.concatenate([x, y]),
+          init_features,
+          flipped_prior_features,
       )
-      return jnp.concatenate([init_features, random_features])
+      # Randomize the rest of the pool fireflies.
+      random_features = self._sample_random_features(
+          self.pool_size - init_features.continuous.shape[0], n_parallel, seed2
+      )
+      return jax.tree_util.tree_map(
+          lambda x, y: jnp.concatenate([x, y]), init_features, random_features
+      )
     else:
       # More prior trials than left space. Iteratively populate the pool.
-      tmp_features = flipped_prior_features[:pool_left_space]
+      tmp_features = jax.tree_util.tree_map(
+          lambda x: x[:pool_left_space], flipped_prior_features
+      )
       tmp_rewards = flipped_prior_rewards[:pool_left_space]
 
       def _loop_body(i, args):
         features, rewards = args
         ind = jnp.argmin(
-            jnp.sum(
-                jnp.square(flipped_prior_features[i] - features), axis=(-1, -2)
-            )
-        )
+            _compute_features_dist(
+                jax.tree_util.tree_map(
+                    lambda x: x[i][jnp.newaxis], flipped_prior_features
+                ),
+                features,
+            ),
+            axis=-1,
+        )[0]
         return jax.lax.cond(
             rewards[ind] < flipped_prior_rewards[i],
             lambda: (
-                features.at[ind].set(flipped_prior_features[i]),
+                jax.tree_util.tree_map(
+                    lambda f, pf: f.at[ind].set(pf[i]),
+                    features,
+                    flipped_prior_features,
+                ),
                 rewards.at[ind].set(flipped_prior_rewards[i]),
             ),
             lambda: (features, rewards),
@@ -367,11 +516,13 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       # the for-loop.
       tmp_features, _ = jax.lax.fori_loop(
           lower=pool_left_space,
-          upper=prior_features.shape[0],
+          upper=prior_rewards.shape[0],
           body_fun=_loop_body,
           init_val=(tmp_features, tmp_rewards),
       )
-      return jnp.concatenate([init_features, tmp_features])
+      return jax.tree_util.tree_map(
+          lambda x, y: jnp.concatenate([x, y]), init_features, tmp_features
+      )
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -383,7 +534,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       state: VectorizedEagleStrategyState,
       n_parallel: int = 1,
-  ) -> jax.Array:
+  ) -> vb.VectorizedOptimizerInput:
     """Suggest new mutated and perturbed features.
 
     After initializing, at each call `batch_size` fireflies are mutated to
@@ -402,8 +553,9 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     """
     batch_id = state.iterations % (self.pool_size // self.batch_size)
     start = batch_id * self.batch_size
-    features_batch = jax.lax.dynamic_slice_in_dim(
-        state.features, start, self.batch_size
+    features_batch = jax.tree_util.tree_map(
+        lambda f: jax.lax.dynamic_slice_in_dim(f, start, self.batch_size),
+        state.features,
     )
     rewards_batch = jax.lax.dynamic_slice_in_dim(
         state.rewards, start, self.batch_size
@@ -411,20 +563,20 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     perturbations_batch = jax.lax.dynamic_slice_in_dim(
         state.perturbations, start, self.batch_size
     )
-    features_seed, perturbations_seed, cat_seed = jax.random.split(seed, num=3)
+    features_seed, perturbations_seed = jax.random.split(seed)
 
     def _mutate_features(features_batch_):
-      mutated_features = self._create_features(
+      perturbations = self._create_random_perturbations(
+          perturbations_batch, n_parallel, perturbations_seed
+      )
+      return self._create_features(
           state.features,
           state.rewards,
           features_batch_,
           rewards_batch,
+          perturbations,
           features_seed,
       )
-      perturbations = self._create_random_perturbations(
-          perturbations_batch, n_parallel, perturbations_seed
-      )
-      return mutated_features + perturbations
 
     # If the strategy is still initializing, return the random/prior features.
     new_features = jax.lax.cond(
@@ -434,22 +586,25 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
         features_batch,
     )
 
-    new_features = self.param_handler.sample_categorical(new_features, cat_seed)
     # TODO: The range of features is not always [0, 1].
     #   Specifically, for features that are single-point, it can be [0, 0]; we
     #   also want this code to be aware of the feature's bounds to enable
     #   contextual bandit operation.  Note that if a parameter's bound changes,
     #   we might also want to change the firefly noise or normalizations.
-    return jnp.clip(new_features, 0.0, 1.0)
+    return vb.VectorizedOptimizerInput(
+        continuous=jnp.clip(new_features.continuous, 0.0, 1.0),
+        categorical=new_features.categorical,
+    )
 
   def _create_features(
       self,
-      features: jax.Array,
+      features: vb.VectorizedOptimizerInput,
       rewards: jax.Array,
-      features_batch: jax.Array,
+      features_batch: vb.VectorizedOptimizerInput,
       rewards_batch: jax.Array,
+      perturbations_batch: types.ContinuousAndCategoricalArray,
       seed: jax.random.KeyArray,
-  ) -> jax.Array:
+  ) -> vb.VectorizedOptimizerInput:
     """Create new batch of mutated and perturbed features.
 
     The pool fireflies forces (pull/push) are being normalized to ensure the
@@ -462,6 +617,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       rewards: (pool_size,)
       features_batch: (batch_size, n_parallel, n_features)
       rewards_batch: (batch_size,)
+      perturbations_batch: (batch_size,)
       seed: Random seed.
 
     Returns:
@@ -471,13 +627,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     # pool. We use a less numerically precise squared distance formulation to
     # avoid materializing a possibly large intermediate of shape
     # (batch_size, pool_size, n_features).
-    flat_features = jnp.reshape(features, (self.pool_size, -1))
-    flat_features_batch = jnp.reshape(features_batch, (self.batch_size, -1))
-    dists = (
-        jnp.sum(flat_features_batch**2, axis=-1, keepdims=True)
-        + jnp.sum(flat_features**2, axis=-1)
-        - 2.0 * jnp.matmul(flat_features_batch, flat_features.T)
-    )  # shape (batch_size, pool_size)
+    dists = _compute_features_dist(features_batch, features)
 
     # Compute the scaled direction for applying pull between two flies.
     # scaled_directions[i,j] := direction of force applied by fly 'j' on fly
@@ -493,8 +643,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     # Normalize the distance by the number of features.
     # Get the number of non-padded features.
+    n_feature_dimensions = sum(
+        jax.tree_util.tree_leaves(self.n_feature_dimensions)
+    )
     force = jnp.exp(
-        -self.config.visibility * dists / self.n_feature_dimensions * 10.0
+        -self.config.visibility * dists / n_feature_dimensions * 10.0
     )
     scaled_force = scaled_directions * force
     # Handle removed fireflies without updated rewards.
@@ -507,6 +660,7 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     scaled_pulls = jnp.maximum(scaled_force, 0.0)
     scaled_push = jnp.minimum(scaled_force, 0.0)
 
+    seed, categorical_seed = jax.random.split(seed)
     if self.config.mutate_normalization_type == MutateNormalizationType.MEAN:
       # Divide the push and pull forces by the number of flies participating.
       # Also multiply by normalization_scale.
@@ -555,18 +709,108 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     # features_dist[i, j] := distance between fly 'j' and fly 'i'
     # but avoids materializing the large pairwise distance matrix.
     scale = norm_scaled_pulls + norm_scaled_push
-    flat_features_changes = jnp.matmul(
+    flat_features = jnp.reshape(
+        features.continuous, (features.continuous.shape[0], -1)
+    )
+    flat_features_batch = jnp.reshape(
+        features_batch.continuous, (features_batch.continuous.shape[0], -1)
+    )
+
+    # TODO: Consider computing per batch member.
+    features_changes_continuous = jnp.matmul(
         scale, flat_features
     ) - flat_features_batch * jnp.sum(scale, axis=-1, keepdims=True)
-    features_changes = jnp.reshape(flat_features_changes, features_batch.shape)
-    return features_batch + features_changes
+
+    features_continuous = (
+        features_batch.continuous
+        + jnp.reshape(
+            features_changes_continuous, features_batch.continuous.shape
+        )
+        + perturbations_batch.continuous
+    )
+    if self.max_categorical_size > 0:
+      features_categorical_logits = (
+          self._create_categorical_feature_logits(
+              features.categorical, features_batch.categorical, scale
+          )
+          + perturbations_batch.categorical
+      )
+      features_categorical = tfd.Categorical(
+          logits=features_categorical_logits
+      ).sample(seed=categorical_seed)
+    else:
+      features_categorical = jnp.zeros(
+          features_batch.continuous.shape[:2] + (0,), dtype=types.INT_DTYPE
+      )
+    return vb.VectorizedOptimizerInput(
+        continuous=features_continuous, categorical=features_categorical
+    )
+
+  def _create_logits_vector(
+      self,
+      features_one_category: jax.Array,  # [pool_size]
+      feature_batch_member_one_category: jax.Array,  # scalar integer
+      scale_batch_member: jax.Array,  # [pool_size]
+      feature_size: jax.Array,
+  ):  # scalar
+    categories = jnp.arange(self.max_categorical_size)
+    logit_same_category = jnp.log(
+        self.config.prob_same_category_without_perturbation
+    )
+    logit_different_category = jnp.log(
+        (1.0 - self.config.prob_same_category_without_perturbation)
+        / (feature_size - 1.0)
+    )
+    logits = (
+        jnp.sum(
+            jnp.where(
+                categories[:, jnp.newaxis] == features_one_category,
+                scale_batch_member,
+                0.0,
+            ),
+            axis=-1,
+        )
+        + logit_different_category
+    )
+    logits = jnp.where(categories < feature_size, logits, -jnp.inf)
+    return logits.at[feature_batch_member_one_category].add(
+        -jnp.sum(scale_batch_member)
+        + logit_same_category
+        - logit_different_category
+    )  # [num_categories]
+
+  def _create_logits_one_feature(
+      self,
+      features_one_category: jax.Array,  # [pool_size, num_parallel]
+      features_batch_one_category: jax.Array,  # [batch_size, num_parallel]
+      scale: jax.Array,  # [batch_size, pool_size]
+      feature_size: jax.Array,  # scalar
+  ):
+    return jax.vmap(  # map over batch
+        jax.vmap(self._create_logits_vector, in_axes=(-1, -1, None, None)),
+        in_axes=(None, 0, 0, None),
+    )(
+        features_one_category, features_batch_one_category, scale, feature_size
+    )  # [batch_size, num_parallel, max_num_categories]
+
+  def _create_categorical_feature_logits(
+      self,
+      features: jax.Array,  # [pool_size, num_parallel, num_features]
+      features_batch: jax.Array,  # [batch_size, num_parallel, num_features]
+      scale: jax.Array,  # [batch_size, pool_size]
+  ):
+    return jax.vmap(
+        self._create_logits_one_feature, in_axes=(-1, -1, None, 0), out_axes=2
+    )(
+        features, features_batch, scale, jnp.array(self.categorical_sizes)
+    )  # [batch_size, num_parallel, num_features, num_categories]
 
   def _create_random_perturbations(
       self,
       perturbations_batch: jax.Array,
       n_parallel: int,
       seed: jax.random.KeyArray,
-  ) -> jax.Array:
+  ) -> types.ContinuousAndCategoricalArray:
     """Create random perturbations for the newly created batch.
 
     Args:
@@ -577,29 +821,57 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
       seed: Random seed.
 
     Returns:
-      perturbations: (batch_size, n_features)
+      perturbations: (batch_size, n_parallel, n_features)
     """
+    cont_seed, cat_seed = jax.random.split(seed)
     # Generate normalized noise for each batch.
-    batch_noise = jax.random.laplace(
-        seed,
+    batch_noise_continuous = jax.random.laplace(
+        cont_seed,
         shape=(
             self.batch_size,
             n_parallel,
-            self.n_feature_dimensions_with_padding,
+            self.n_feature_dimensions_with_padding.continuous,
         ),
     )
-    batch_noise /= jnp.max(jnp.abs(batch_noise), axis=-1, keepdims=True)
-    return (
-        batch_noise
-        * perturbations_batch[:, jnp.newaxis, jnp.newaxis]
-        * self.param_handler.perturbation_factors
+    if self.n_feature_dimensions_with_padding.continuous > 0:
+      batch_noise_continuous /= jnp.max(
+          jnp.abs(batch_noise_continuous), axis=1, keepdims=True
+      )
+
+    if self.n_feature_dimensions_with_padding.continuous == 0:
+      categorical_perturbation = (
+          self.config.pure_categorical_perturbation_factor
+      )
+    else:
+      categorical_perturbation = self.config.categorical_perturbation_factor
+    batch_noise_categorical = (
+        jax.random.laplace(
+            cat_seed,
+            shape=(
+                self.batch_size,
+                n_parallel,
+                self.n_feature_dimensions_with_padding.categorical,
+                self.max_categorical_size,
+            ),
+        )
+        * categorical_perturbation
+    )
+    return types.ContinuousAndCategoricalArray(
+        continuous=(
+            batch_noise_continuous
+            * perturbations_batch[:, jnp.newaxis, jnp.newaxis]
+        ),
+        categorical=(
+            batch_noise_categorical
+            * perturbations_batch[:, jnp.newaxis, jnp.newaxis, jnp.newaxis]
+        ),
     )
 
   def update(
       self,
       seed: jax.random.KeyArray,
       state: VectorizedEagleStrategyState,
-      batch_features: types.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> VectorizedEagleStrategyState:
     """Update the firefly pool based on the new batch of results.
@@ -626,8 +898,11 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
           self._update_pool_features_and_rewards(
               batch_features,
               batch_rewards,
-              jax.lax.dynamic_slice_in_dim(
-                  state.features, batch_start_ind, self.batch_size
+              jax.tree_util.tree_map(
+                  lambda f: jax.lax.dynamic_slice_in_dim(
+                      f, batch_start_ind, self.batch_size
+                  ),
+                  state.features,
               ),
               jax.lax.dynamic_slice_in_dim(
                   state.rewards, batch_start_ind, self.batch_size
@@ -657,8 +932,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
     return VectorizedEagleStrategyState(
         iterations=state.iterations + 1,
-        features=jax.lax.dynamic_update_slice_in_dim(
-            state.features, new_batch_features, batch_start_ind, axis=0
+        features=jax.tree_util.tree_map(
+            lambda sf, nbf: jax.lax.dynamic_update_slice_in_dim(
+                sf, nbf, batch_start_ind, axis=0
+            ),
+            state.features,
+            new_batch_features,
         ),
         rewards=jax.lax.dynamic_update_slice_in_dim(
             state.rewards, new_batch_rewards, batch_start_ind, axis=0
@@ -674,12 +953,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def _update_pool_features_and_rewards(
       self,
-      batch_features: jax.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: jax.Array,
-      prev_batch_features: jax.Array,
+      prev_batch_features: vb.VectorizedOptimizerInput,
       prev_batch_rewards: jax.Array,
       perturbations: jax.Array,
-  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+  ) -> Tuple[vb.VectorizedOptimizerInput, jax.Array, jax.Array]:
     """Update the features and rewards for flies with improved rewards.
 
     Arguments:
@@ -697,8 +976,10 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     # Find indices of flies that their generated features made an improvement.
     improve_indx = batch_rewards > prev_batch_rewards
     # Update successful flies' with the associated last features and rewards.
-    new_batch_features = jnp.where(
-        improve_indx[..., jnp.newaxis, jnp.newaxis],
+    new_batch_features = jax.tree_util.tree_map(
+        lambda bf, pbf: jnp.where(
+            improve_indx[..., jnp.newaxis, jnp.newaxis], bf, pbf
+        ),
         batch_features,
         prev_batch_features,
     )
@@ -713,12 +994,12 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
 
   def _trim_pool(
       self,
-      batch_features: jax.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: jax.Array,
       batch_perturbations: jax.Array,
       best_reward: jax.Array,
       seed: jax.random.KeyArray,
-  ) -> Tuple[jax.Array, jax.Array, jax.Array]:
+  ) -> Tuple[vb.VectorizedOptimizerInput, jax.Array, jax.Array]:
     """Trim the pool by replacing unsuccessful fireflies with new random ones.
 
     A firefly is considered unsuccessful if its current perturbation is below
@@ -743,11 +1024,15 @@ class VectorizedEagleStrategy(vb.VectorizedStrategy):
     indx = indx & (batch_rewards != best_reward)
 
     # Replace fireflies with random features and evaluate rewards.
-    random_features = self.param_handler.random_features(
-        self.batch_size, n_parallel=batch_features.shape[1], seed=seed
+    random_features = self._sample_random_features(
+        self.batch_size,
+        n_parallel=batch_features.continuous.shape[1],
+        seed=seed,
     )
-    new_batch_features = jnp.where(
-        indx[..., jnp.newaxis, jnp.newaxis], random_features, batch_features
+    new_batch_features = jax.tree_util.tree_map(
+        lambda rf, bf: jnp.where(indx[..., jnp.newaxis, jnp.newaxis], rf, bf),
+        random_features,
+        batch_features,
     )
     new_batch_perturbations = jnp.where(
         indx, self.config.perturbation, batch_perturbations

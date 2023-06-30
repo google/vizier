@@ -29,27 +29,80 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.jax import types
 from vizier.pyvizier import converters
-from vizier.pyvizier.converters import feature_mapper
 from vizier.utils import json_utils
-
 
 _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 
-ArrayConverter = Union[
-    converters.TrialToArrayConverter, converters.PaddedTrialToArrayConverter
-]
+# `VectorizedOptimizerInput` holds features for acquisition function
+# optimization and is intended to be private to the `optimizers` submodule.
+# Each component has shape (batch_size, n_parallel, n_padded_features)
+VectorizedOptimizerInput = types.ContinuousAndCategorical[types.Array]
+
+
+def _optimizer_to_model_input_single_array(
+    x: types.Array, n_features: jax.Array
+) -> types.PaddedArray:
+  mask = jnp.ones_like(x, dtype=bool)
+  mask = jnp.logical_and(mask, jnp.arange(x.shape[-1]) < n_features)
+  return types.PaddedArray(
+      x,
+      fill_value=jnp.zeros([], dtype=x.dtype),
+      _original_shape=jnp.concatenate(
+          [jnp.array(x.shape[:-1]), jnp.array([n_features])], axis=0
+      ),
+      _mask=mask,
+      _nopadding_done=False,  # Fix
+  )
+
+
+def _optimizer_to_model_input(
+    x: VectorizedOptimizerInput,
+    n_features: types.ContinuousAndCategorical,
+    squeeze_middle_dim: bool = False,
+) -> types.ModelInput:
+  if squeeze_middle_dim:
+    x_cont = jnp.squeeze(x.continuous, axis=1)
+    x_cat = jnp.squeeze(x.categorical, axis=1)
+  else:
+    x_cont = x.continuous
+    x_cat = x.categorical
+  return types.ModelInput(
+      continuous=_optimizer_to_model_input_single_array(
+          x_cont, n_features.continuous
+      ),
+      categorical=_optimizer_to_model_input_single_array(
+          x_cat, n_features.categorical
+      ),
+  )
+
+
+def _reshape_to_parallel_batches(
+    x: types.PaddedArray, parallel_dim: int
+) -> tuple[jax.Array, jax.Array]:
+  """Docstring."""
+
+  new_batch_dim = x.shape[0] // parallel_dim
+  new_padded_array = jnp.reshape(
+      x.padded_array[: new_batch_dim * parallel_dim],
+      (new_batch_dim, parallel_dim, x.shape[-1]),
+  )
+
+  valid_batch_mask = (
+      jnp.arange(new_batch_dim) < x._original_shape[0] // parallel_dim  # pylint: disable=protected-access
+  )
+  return new_padded_array, valid_batch_mask
 
 
 class VectorizedStrategyResults(eqx.Module):
   """Container for a vectorized strategy result."""
 
-  features: types.Array  # (batch_size, n_parallel, n_features)
+  features: VectorizedOptimizerInput  # (batch_size, n_parallel, n_features)
   rewards: types.Array  # (batch_size,)
   aux: dict[str, jax.Array] = eqx.field(default_factory=dict)
 
 
 class VectorizedStrategy(abc.ABC, Generic[_S]):
-  """Interface class to implement a pure vectorized strategy.
+  """JIT-friendly optimizer that maintains an internal state of type `_S`.
 
   The strategy is responsible for generating suggestions that will maximize the
   reward. The order of calls is important. It's expected to be used in
@@ -62,7 +115,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> _S:
     """Initialize the state.
@@ -85,7 +138,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
       seed: jax.random.KeyArray,
       state: _S,
       n_parallel: int = 1,
-  ) -> jax.Array:
+  ) -> VectorizedOptimizerInput:
     """Generate new suggestions.
 
     Arguments:
@@ -109,7 +162,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
       self,
       seed: jax.random.KeyArray,
       state: _S,
-      batch_features: types.Array,
+      batch_features: VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> _S:
     """Update the strategy state with the results of the last suggestions.
@@ -131,7 +184,7 @@ class VectorizedStrategyFactory(Protocol):
 
   def __call__(
       self,
-      converter: ArrayConverter,
+      converter: converters.TrialToModelInputConverter,
       *,
       suggestion_batch_size: int,
   ) -> VectorizedStrategy:
@@ -151,7 +204,7 @@ class ArrayScoreFunction(Protocol):
   its own separate score).
   """
 
-  def __call__(self, batched_array_trials: types.Array) -> types.Array:
+  def __call__(self, batched_array_trials: types.ModelInput) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
@@ -171,7 +224,7 @@ class ParallelArrayScoreFunction(Protocol):
   (e.g. qUCB).
   """
 
-  def __call__(self, parallel_array_trials: types.Array) -> types.Array:
+  def __call__(self, parallel_array_trials: types.ModelInput) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
@@ -184,7 +237,7 @@ class ParallelArrayScoreFunction(Protocol):
 
 
 @struct.dataclass
-class VectorizedOptimizer:
+class VectorizedOptimizer(Generic[_S]):
   """Vectorized strategy optimizer.
 
   The optimizer is stateless and will create a new vectorized strategy at the
@@ -208,14 +261,23 @@ class VectorizedOptimizer:
       `n_feature_dimensions_with_padding`).
     suggestion_batch_size: Number of suggested points returned at each call.
     max_evaluations: The maximum number of objective function evaluations.
+    dtype: Dtype of input data.
     use_fori: Whether to use JAX's fori_loop in the suggest-evalute-update loop.
   """
 
-  strategy: VectorizedStrategy
-  n_feature_dimensions: int
-  n_feature_dimensions_with_padding: int = struct.field(pytree_node=False)
+  strategy: VectorizedStrategy[_S]
+  n_feature_dimensions: types.ContinuousAndCategorical[jax.Array]
+  n_feature_dimensions_with_padding: types.ContinuousAndCategorical[int] = (
+      struct.field(pytree_node=False)
+  )
   suggestion_batch_size: int = struct.field(pytree_node=False, default=25)
   max_evaluations: int = struct.field(pytree_node=False, default=75_000)
+  dtype: types.ContinuousAndCategorical[jnp.dtype] = struct.field(
+      pytree_node=False,
+      default=types.ContinuousAndCategorical[jnp.dtype](
+          jnp.float64, types.INT_DTYPE
+      ),
+  )
   use_fori: bool = struct.field(pytree_node=False, default=True)
 
   # TODO: Remove score_fn argument.
@@ -226,7 +288,7 @@ class VectorizedOptimizer:
       *,
       score_with_aux_fn: Optional[Callable] = None,
       count: int = 1,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[types.ModelInput] = None,
       n_parallel: Optional[int] = None,
       seed: Optional[int] = None,
   ) -> VectorizedStrategyResults:
@@ -276,29 +338,38 @@ class VectorizedOptimizer:
     """
     seed = jax.random.PRNGKey(0) if seed is None else seed
 
-    dimension_is_missing = (
-        jnp.arange(self.n_feature_dimensions_with_padding)
-        > self.n_feature_dimensions
-    )
-
     if n_parallel is None:
       # Squeeze out the singleton dimension of `features` before passing to a
       # non-parallel acquisition function to avoid batch shape collisions.
-      eval_score_fn = lambda x: score_fn(x[:, 0, :])
+      eval_score_fn = lambda x: score_fn(  # pylint: disable=g-long-lambda
+          _optimizer_to_model_input(
+              x, self.n_feature_dimensions, squeeze_middle_dim=True
+          )
+      )
     else:
-      eval_score_fn = score_fn
+      eval_score_fn = lambda x: score_fn(  # pylint: disable=g-long-lambda
+          _optimizer_to_model_input(x, self.n_feature_dimensions)
+      )
 
     # TODO: We should pass RNGKey to score_fn.
     prior_rewards = None
     parallel_dim = n_parallel or 1
     if prior_features is not None:
-      num_prior_obs = prior_features.shape[0]
-      num_prior_batches = num_prior_obs // parallel_dim
-      prior_features = jnp.reshape(
-          prior_features[: num_prior_batches * parallel_dim],
-          [num_prior_batches, parallel_dim, -1],
+      continuous_prior, continuous_mask = _reshape_to_parallel_batches(
+          prior_features.continuous, parallel_dim
+      )
+      categorical_prior, categorical_mask = _reshape_to_parallel_batches(
+          prior_features.categorical, parallel_dim
+      )
+      prior_features = VectorizedOptimizerInput(
+          continuous=continuous_prior, categorical=categorical_prior
       )
       prior_rewards = eval_score_fn(prior_features)
+      prior_rewards = jnp.where(
+          jnp.logical_and(continuous_mask, categorical_mask),
+          prior_rewards,
+          -jnp.inf * jnp.ones_like(prior_rewards),
+      )
 
     def _optimization_one_step(_, args):
       state, best_results, seed = args
@@ -306,11 +377,6 @@ class VectorizedOptimizer:
       new_features = self.strategy.suggest(
           suggest_seed, state=state, n_parallel=parallel_dim
       )
-      # Ensure masking out padded dimensions in new features.
-      new_features = jnp.where(
-          dimension_is_missing, jnp.zeros_like(new_features), new_features
-      )
-      # We assume `score_fn` is aware of padded dimensions.
       new_rewards = eval_score_fn(new_features)
       new_state = self.strategy.update(
           update_seed, state, new_features, new_rewards
@@ -321,10 +387,26 @@ class VectorizedOptimizer:
       return new_state, new_best_results, new_seed
 
     init_seed, loop_seed = jax.random.split(seed)
+    # TODO: Consider initializing with prior features/rewards.
     init_best_results = VectorizedStrategyResults(
         rewards=-jnp.inf * jnp.ones([count]),
-        features=jnp.zeros(
-            [count, parallel_dim, self.n_feature_dimensions_with_padding]
+        features=VectorizedOptimizerInput(
+            continuous=jnp.zeros(
+                [
+                    count,
+                    parallel_dim,
+                    self.n_feature_dimensions_with_padding.continuous,
+                ],
+                dtype=self.dtype.continuous,
+            ),
+            categorical=jnp.zeros(
+                [
+                    count,
+                    parallel_dim,
+                    self.n_feature_dimensions_with_padding.categorical,
+                ],
+                dtype=self.dtype.categorical,
+            ),
         ),
     )
     init_args = (
@@ -354,9 +436,19 @@ class VectorizedOptimizer:
 
     if score_with_aux_fn:
       if n_parallel is None:
-        aux = score_with_aux_fn(best_results.features[:, 0, :])[1]
+        aux = score_with_aux_fn(
+            _optimizer_to_model_input(
+                best_results.features,
+                self.n_feature_dimensions,
+                squeeze_middle_dim=True,
+            )
+        )[1]
       else:
-        aux = score_with_aux_fn(best_results.features)[1]
+        aux = score_with_aux_fn(
+            _optimizer_to_model_input(
+                best_results.features, self.n_feature_dimensions
+            )
+        )[1]
 
       return VectorizedStrategyResults(
           best_results.features,
@@ -370,7 +462,7 @@ class VectorizedOptimizer:
       self,
       best_results: VectorizedStrategyResults,
       count: int,
-      batch_features: jax.Array,
+      batch_features: VectorizedOptimizerInput,
       batch_rewards: jax.Array,
   ) -> VectorizedStrategyResults:
     """Update the best results the optimizer seen thus far.
@@ -392,44 +484,63 @@ class VectorizedOptimizer:
       trials:
     """
     all_rewards = jnp.concatenate([batch_rewards, best_results.rewards], axis=0)
-    all_features = jnp.concatenate(
-        [batch_features, best_results.features], axis=0
+    all_features = VectorizedOptimizerInput(
+        continuous=jnp.concatenate(
+            [batch_features.continuous, best_results.features.continuous],
+            axis=0,
+        ),
+        categorical=jnp.concatenate(
+            [batch_features.categorical, best_results.features.categorical],
+            axis=0,
+        ),
     )
     top_indices = jnp.argpartition(-all_rewards, count - 1)[:count]
     return VectorizedStrategyResults(
         rewards=all_rewards[top_indices],
-        features=all_features[top_indices],
+        features=VectorizedOptimizerInput(
+            continuous=all_features.continuous[top_indices],
+            categorical=all_features.categorical[top_indices],
+        ),
     )
 
 
 # TODO: Should return suggestions not trials.
 def best_candidates_to_trials(
     best_results: VectorizedStrategyResults,
-    converter: ArrayConverter,
+    converter: converters.TrialToModelInputConverter,
 ) -> list[vz.Trial]:
   """Returns the best candidate trials in the original search space."""
+  best_features = best_results.features
   trials = []
   sorted_ind = jnp.argsort(-best_results.rewards)
-  features = best_results.features
-  if isinstance(features, types.ContinuousAndCategorical):
-    features = feature_mapper.ContinuousCategoricalFeatureMapper(
-        converter
-    ).unmap(features)
   for i in range(len(best_results.rewards)):
     # Create trials and convert the strategy features back to parameters.
     ind = sorted_ind[i]
-    suggested_features = features[ind]
+    suggested_features = VectorizedOptimizerInput(
+        best_features.continuous[ind], best_features.categorical[ind]
+    )
     reward = best_results.rewards[ind]
 
     # Loop over the number of candidates per batch (which will be one, unless a
     # parallel acquisition function is used).
-    for j in range(suggested_features.shape[0]):
+    for j in range(suggested_features.continuous.shape[0]):
+      features = VectorizedOptimizerInput(
+          continuous=jnp.expand_dims(suggested_features.continuous[j], axis=0),
+          categorical=jnp.expand_dims(
+              suggested_features.categorical[j], axis=0
+          ),
+      )
       trial = vz.Trial(
           parameters=converter.to_parameters(
-              jnp.expand_dims(suggested_features[j], axis=0)
+              _optimizer_to_model_input(
+                  features,
+                  n_features=types.ContinuousAndCategorical(
+                      len(converter.output_specs.continuous),
+                      len(converter.output_specs.categorical),
+                  ),
+              )
           )[0]
       )
-
       metadata = trial.metadata.ns('devinfo')
       metadata['acquisition_optimization'] = json.dumps(
           {'acquisition': best_results.rewards[ind]}
@@ -447,18 +558,12 @@ def best_candidates_to_trials(
 # TODO: This function should return jax types.
 def trials_to_sorted_array(
     prior_trials: list[vz.Trial],
-    converter: ArrayConverter,
-) -> Optional[types.Array]:
+    converter: converters.TrialToModelInputConverter,
+) -> Optional[types.ModelInput]:
   """Sorts trials by the order they were created and converts to array."""
   if prior_trials:
     prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
     prior_features = converter.to_features(prior_trials)
-    # TODO: Update this code to work more cleanly with
-    # PaddedArrays.
-    if isinstance(converter, converters.PaddedTrialToArrayConverter):
-      # We need to mask out the `NaN` padded trials with zeroes.
-      prior_features = np.array(prior_features.padded_array)
-      prior_features[len(prior_trials) :, ...] = 0.0
   else:
     prior_features = None
   return prior_features
@@ -475,16 +580,29 @@ class VectorizedOptimizerFactory:
 
   def __call__(
       self,
-      converter: ArrayConverter,
+      converter: converters.TrialToModelInputConverter,
   ) -> VectorizedOptimizer:
     """Generates a new VectorizedOptimizer object."""
     strategy = self.strategy_factory(
         converter, suggestion_batch_size=self.suggestion_batch_size
     )
-    n_feature_dimensions = sum(
-        spec.num_dimensions for spec in converter.output_specs
+    n_feature_dimensions = getattr(
+        strategy,
+        'n_feature_dimensions',
+        types.ContinuousAndCategorical(
+            len(converter.output_specs.continuous),
+            len(converter.output_specs.categorical),
+        ),
     )
-    n_feature_dimensions_with_padding = converter.to_features([]).shape[-1]
+    empty_features = converter.to_features([])
+    n_feature_dimensions_with_padding = getattr(
+        strategy,
+        'n_feature_dimensions_with_padding',
+        types.ContinuousAndCategorical[int](
+            empty_features.continuous.shape[-1],
+            empty_features.categorical.shape[-1],
+        ),
+    )
     return VectorizedOptimizer(
         strategy=strategy,
         n_feature_dimensions=n_feature_dimensions,
@@ -492,4 +610,5 @@ class VectorizedOptimizerFactory:
         suggestion_batch_size=self.suggestion_batch_size,
         max_evaluations=self.max_evaluations,
         use_fori=self.use_fori,
+        dtype=converter._impl.dtype,
     )

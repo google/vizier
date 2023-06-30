@@ -39,7 +39,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
 
   def __init__(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: converters.TrialToModelInputConverter,
       good_value: float = 1.0,
       bad_value: float = 0.0,
       num_trial_to_converge: int = 0,
@@ -55,7 +55,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[vb.VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> None:
     return
@@ -65,15 +65,22 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       state: None,
       n_parallel: int = 1,
-  ) -> jax.Array:
-    output_len = sum(
-        [spec.num_dimensions for spec in self.converter.output_specs]
+  ) -> vb.VectorizedOptimizerInput:
+    continuous_output_len = sum(
+        [spec.num_dimensions for spec in self.converter.output_specs.continuous]
     )
-    shape = (1, n_parallel, output_len)
+    categorical_output_len = len(self.converter.output_specs.categorical)
+    shape = (1, n_parallel, continuous_output_len)
     if self.num_trials_so_far < self.num_trial_to_converge:
-      return jnp.ones(shape) * self.bad_value
+      continuous = jnp.ones(shape) * self.bad_value
     else:
-      return jnp.ones(shape) * self.good_value
+      continuous = jnp.ones(shape) * self.good_value
+    return vb.VectorizedOptimizerInput(
+        continuous=continuous,
+        categorical=jnp.zeros(
+            (1, n_parallel, categorical_output_len), dtype=types.INT_DTYPE
+        ),
+    )
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -83,7 +90,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
       self,
       seed: jax.random.KeyArray,
       state: None,
-      batch_features: types.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> None:
     pass
@@ -192,7 +199,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
   def setUp(self):
     super(SimpleRegretConvergenceRunnerTest, self).setUp()
     self.experimenter = experimenters.BBOBExperimenterFactory('Sphere', 3)()
-    self.converter = converters.TrialToArrayConverter.from_study_config(
+    self.converter = converters.TrialToModelInputConverter.from_problem(
         self.experimenter.problem_statement()
     )
 
@@ -327,7 +334,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
       },
   )
   def test_optimizer_convergence(self, candidate_x_value, goal, should_pass):
-    score_fn = lambda x: np.sum(x, axis=-1)
+    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=-1)
     simple_regret_test = comparator_runner.SimpleRegretComparisonTester(
         baseline_num_trials=100,
         candidate_num_trials=100,

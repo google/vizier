@@ -20,8 +20,8 @@ from absl.testing import parameterized
 import jax
 from jax import numpy as jnp
 import numpy as np
+from tensorflow_probability.substrates import jax as tfp
 from vizier import pyvizier as vz
-from vizier._src.algorithms.optimizers import eagle_param_handler
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier.pyvizier import converters
@@ -29,34 +29,105 @@ from vizier.pyvizier.converters import padding
 
 from absl.testing import absltest
 
+tfd = tfp.distributions
+
+
+def _create_logits_vector_simple(
+    categorical_features,
+    categorical_features_batch,
+    scale,
+    categorical_sizes,
+    max_categorical_size,
+    config,
+):
+  n_batch = categorical_features_batch.shape[0]
+  n_feat = categorical_features.shape[0]
+  logits = np.zeros((n_batch, len(categorical_sizes), max_categorical_size))
+  for i, s in enumerate(categorical_sizes):
+    one_hot_features = np.zeros([n_feat, s])
+    one_hot_features[np.arange(n_feat), categorical_features[:, i]] = 1
+
+    one_hot_batch = np.zeros([n_batch, s])
+    one_hot_batch[np.arange(n_batch), categorical_features_batch[:, i]] = 1
+
+    features_change = np.matmul(
+        scale, one_hot_features
+    ) - one_hot_batch * np.sum(scale, axis=-1, keepdims=True)
+
+    diff_category_logit = np.log(
+        (1.0 - config.prob_same_category_without_perturbation) / (s - 1)
+    )
+    logits_i = np.zeros((n_batch, max_categorical_size)) + diff_category_logit
+    logits_i[:, s:] = -np.inf
+    logits_i[np.arange(n_batch), categorical_features_batch[:, i]] = np.log(
+        config.prob_same_category_without_perturbation
+    )
+    logits_i[:, :s] = logits_i[:, :s] + features_change
+    logits[:, i, :] = logits_i
+  return logits
+
 
 def _create_features_simple(
-    features, rewards, features_batch, rewards_batch, config, n_features
+    features,
+    rewards,
+    features_batch,
+    rewards_batch,
+    config,
+    n_features,
+    categorical_sizes,
+    max_categorical_size,
+    seed,
 ):
   """A version of `_create_features` that materializes large intermediates."""
-  features_diffs = features - features_batch[:, jnp.newaxis, :]
-  dists = jnp.sum(jnp.square(features_diffs), axis=-1)
+  # Only works with no parallel batch dimension.
+  continuous_features_diffs = (
+      features.continuous - features_batch.continuous[:, jnp.newaxis, :]
+  )
+  categorical_features_diffs = (
+      features.categorical != features_batch.categorical[:, jnp.newaxis, :]
+  )
+  features_diffs = vb.VectorizedOptimizerInput(
+      continuous=continuous_features_diffs,
+      categorical=categorical_features_diffs,
+  )
+  dists = jax.tree_util.tree_map(
+      lambda x: jnp.sum(jnp.square(x), axis=-1), features_diffs
+  )
   directions = rewards - rewards_batch[:, jnp.newaxis]
   scaled_directions = jnp.where(
       directions >= 0.0, config.gravity, -config.negative_gravity
   )
 
-  # Normalize the distance by the number of features.
-  force = jnp.exp(-config.visibility * dists / n_features * 10.0)
-  scaled_force = scaled_directions * force
   # Handle removed fireflies without updated rewards.
-  finite_ind = jnp.isfinite(rewards).astype(scaled_force.dtype)
+  finite_ind = jnp.isfinite(rewards).astype(directions.dtype)
 
   # Ignore fireflies that were removed from the pool.
-  scaled_force = scaled_force * finite_ind
+  scale = jax.tree_util.tree_map(
+      lambda x: finite_ind  # pylint: disable=g-long-lambda
+      * scaled_directions
+      * jnp.exp(-config.visibility * x / n_features * 10.0),
+      dists,
+  )
 
   # Separate forces to pull and push so to normalize them separately.
-  scaled_pulls = jnp.maximum(scaled_force, 0.0)
-  scaled_push = jnp.minimum(scaled_force, 0.0)
-  features_changes = jnp.sum(
-      features_diffs * (scaled_pulls + scaled_push)[..., jnp.newaxis], axis=1
+  new_continuous_features = features_batch.continuous + jnp.sum(
+      features_diffs.continuous * scale.continuous[..., jnp.newaxis], axis=1
   )
-  return features_batch + features_changes
+  categorical_features_logits = _create_logits_vector_simple(
+      features.categorical,
+      features_batch.categorical,
+      scale.categorical,
+      categorical_sizes,
+      max_categorical_size,
+      config,
+  )
+  new_categorical_features = tfd.Categorical(
+      logits=categorical_features_logits
+  ).sample(seed=seed)
+
+  return vb.VectorizedOptimizerInput(
+      new_continuous_features, new_categorical_features
+  )
 
 
 class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
@@ -70,48 +141,103 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root = problem.search_space.select_root()
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    root.add_categorical_param('c1', ['a', 'b'])
+    root.add_categorical_param('c2', ['a', 'b', 'c'])
+    self.converter = converters.TrialToModelInputConverter.from_problem(problem)
     self.eagle = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=self.config
-    )(converter=converter, suggestion_batch_size=2)
+    )(converter=self.converter, suggestion_batch_size=2)
 
-  def test_create_features(self):
-    features = jnp.array([[1, 2], [3, 4], [7, 7], [8, 8]])
+  def test_create_features_and_logits(self):
+    features_continuous = jnp.array(
+        [[[1.0, 2.0]], [[3.0, 4.0]], [[7.0, 7.0]], [[8.0, 8.0]]]
+    )
+    features_categorical = jnp.array([[1, 2], [0, 0], [0, 1], [1, 1]])[
+        :, jnp.newaxis, :
+    ]
     rewards = jnp.array([2, 3, 4, 1])
     seed = jax.random.PRNGKey(0)
-    features_batch = features[: self.eagle.batch_size]
-    rewards_batch = rewards[: self.eagle.batch_size]
-    self.assertEqual(
-        self.eagle._create_features(
-            features,
-            rewards,
-            features_batch,
-            rewards_batch,
-            seed=seed,
-        ).shape,
-        (2, 2),
+    features_continuous_batch = features_continuous[: self.eagle.batch_size]
+    features_categorical_batch = features_categorical[: self.eagle.batch_size]
+    features = vb.VectorizedOptimizerInput(
+        continuous=features_continuous, categorical=features_categorical
     )
-
-    expected = _create_features_simple(
+    features_batch = vb.VectorizedOptimizerInput(
+        continuous=features_continuous_batch,
+        categorical=features_categorical_batch,
+    )
+    rewards_batch = rewards[: self.eagle.batch_size]
+    created_features = self.eagle._create_features(
         features,
         rewards,
         features_batch,
+        rewards_batch,
+        vb.VectorizedOptimizerInput(
+            jnp.zeros_like(features_continuous_batch),
+            jnp.zeros(features_categorical_batch.shape + (3,)),
+        ),
+        seed=seed,
+    )
+    self.assertEqual(created_features.continuous.shape, (2, 1, 2))
+    self.assertEqual(created_features.categorical.shape, (2, 1, 2))
+
+    features_2d = vb.VectorizedOptimizerInput(
+        features.continuous[:, 0, :], features.categorical[:, 0, :]
+    )
+    features_batch_2d = vb.VectorizedOptimizerInput(
+        features_batch.continuous[:, 0, :], features_batch.categorical[:, 0, :]
+    )
+    expected = _create_features_simple(
+        features_2d,
+        rewards,
+        features_batch_2d,
         rewards_batch,
         self.config.replace(
             mutate_normalization_type=(
                 eagle_strategy.MutateNormalizationType.UNNORMALIZED
             )
         ),
-        self.eagle.n_feature_dimensions,
+        (
+            self.eagle.n_feature_dimensions.continuous
+            + self.eagle.n_feature_dimensions.categorical
+        ),
+        self.eagle.categorical_sizes,
+        self.eagle.max_categorical_size,
+        seed,
     )
     actual = self.eagle._create_features(
         features,
         rewards,
         features_batch,
         rewards_batch,
+        vb.VectorizedOptimizerInput(
+            jnp.zeros_like(features_continuous_batch),
+            jnp.zeros(features_categorical_batch.shape + (3,)),
+        ),
         seed=seed,
     )
-    np.testing.assert_array_equal(expected, actual)
+    np.testing.assert_array_equal(
+        expected.continuous, actual.continuous[:, 0, :]
+    )
+    np.testing.assert_array_equal(
+        expected.categorical, actual.categorical[:, 0, :]
+    )
+
+    scale = np.random.normal(size=[self.eagle.batch_size, 4])
+    expected_logits = _create_logits_vector_simple(
+        features_2d.categorical,
+        features_batch_2d.categorical,
+        scale,
+        self.eagle.categorical_sizes,
+        self.eagle.max_categorical_size,
+        self.config,
+    )
+    actual_logits = self.eagle._create_categorical_feature_logits(
+        features.categorical, features_batch.categorical, scale
+    )
+    np.testing.assert_allclose(
+        expected_logits, actual_logits[:, 0, :, :], rtol=1e-5
+    )
 
   @parameterized.parameters(1, 5)
   def test_create_random_perturbations(self, n_parallel):
@@ -122,30 +248,46 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         n_parallel=n_parallel,
         seed=seed,
     )
-    self.assertEqual(perturbations.shape, (2, n_parallel, 2))
+    self.assertEqual(perturbations.continuous.shape, (2, n_parallel, 2))
+    self.assertEqual(perturbations.categorical.shape, (2, n_parallel, 2, 3))
 
   def test_update_pool_features_and_rewards(self):
-    features = jnp.array(
-        [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+    features = vb.VectorizedOptimizerInput(
+        continuous=jnp.array(
+            [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+        ),
+        categorical=jnp.array(
+            [[[1, 2]], [[3, 0]], [[0, 1]], [[2, 1]]], dtype=jnp.int32
+        ),
     )
     rewards = jnp.array([2, 3, 4, 1], dtype=jnp.float64)
     perturbations = jnp.array([1, 1, 1, 1], dtype=jnp.float64)
 
-    batch_features = jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64)
+    batch_features = vb.VectorizedOptimizerInput(
+        continuous=jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64),
+        categorical=jnp.array([[[0, 0]], [[1, 1]]], dtype=jnp.int32),
+    )
     batch_rewards = jnp.array([5, 0.5], dtype=jnp.float64)
 
     new_features, new_rewards, new_perturbations = (
         self.eagle._update_pool_features_and_rewards(
             batch_features,
             batch_rewards,
-            features[: self.eagle.batch_size],
+            jax.tree_util.tree_map(
+                lambda f: f[: self.eagle.batch_size], features
+            ),
             rewards[: self.eagle.batch_size],
             perturbations[: self.eagle.batch_size],
         )
     )
     np.testing.assert_array_equal(
-        new_features,
+        new_features.continuous,
         np.array([[[9, 9]], [[3, 4]]], dtype=np.float64),
+        err_msg='Features are not equal.',
+    )
+    np.testing.assert_array_equal(
+        new_features.categorical,
+        np.array([[[0, 0]], [[3, 0]]], dtype=np.int32),
         err_msg='Features are not equal.',
     )
 
@@ -164,8 +306,13 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
   def test_update_best_reward(self):
     # Test replacing the best reward.
-    features = jnp.array(
-        [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+    features = vb.VectorizedOptimizerInput(
+        continuous=jnp.array(
+            [[[1, 2]], [[3, 4]], [[7, 7]], [[8, 8]]], dtype=jnp.float64
+        ),
+        categorical=jnp.array(
+            [[[1, 2]], [[3, 0]], [[0, 1]], [[2, 1]]], dtype=jnp.int32
+        ),
     )
     rewards = jnp.array([2, 3, 4, 1], dtype=jnp.float64)
     state = eagle_strategy.VectorizedEagleStrategyState(
@@ -175,7 +322,10 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         best_reward=jnp.max(rewards),
         perturbations=jnp.ones_like(rewards),
     )
-    batch_features = jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64)
+    batch_features = vb.VectorizedOptimizerInput(
+        continuous=jnp.array([[[9, 9]], [[10, 10]]], dtype=jnp.float64),
+        categorical=jnp.array([[[0, 0]], [[1, 1]]], dtype=jnp.int32),
+    )
     batch_rewards = jnp.array([5, 0.5], dtype=jnp.float64)
     seed = jax.random.PRNGKey(0)
     new_state = self.eagle.update(seed, state, batch_features, batch_rewards)
@@ -200,7 +350,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root = problem.search_space.root
     for i in range(100):
       root.add_float_param(f'x{i}', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
     config = eagle_strategy.EagleStrategyConfig(max_pool_size=max_pool_size)
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(eagle_config=config)(
         converter=converter, suggestion_batch_size=batch_size
@@ -210,7 +360,10 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
   def test_trim_pool(self):
     pc = self.config.perturbation
-    features_batch = jnp.array([[[1, 2]], [[3, 4]]], dtype=jnp.float64)
+    features_batch = vb.VectorizedOptimizerInput(
+        continuous=jnp.array([[[1, 2]], [[3, 4]]], dtype=jnp.float64),
+        categorical=jnp.array([[[1, 2]], [[3, 0]]], dtype=jnp.int32),
+    )
     rewards_batch = jnp.array([2, 3], dtype=jnp.float64)
     perturbations = jnp.array([pc, 0], dtype=jnp.float64)
     seed = jax.random.PRNGKey(0)
@@ -223,13 +376,30 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
 
     np.testing.assert_array_almost_equal(
-        new_features[0],
-        features_batch[0],
-        err_msg='Features are not equal.',
+        new_features.continuous[0],
+        features_batch.continuous[0],
+        err_msg='Continuous features are not equal.',
+    )
+    np.testing.assert_array_almost_equal(
+        new_features.categorical[0],
+        features_batch.categorical[0],
+        err_msg='Categorical features are not equal.',
     )
     self.assertTrue(
-        np.all(np.not_equal(new_features[1], features_batch[1])),
-        msg='Features are not equal.',
+        np.all(
+            np.not_equal(
+                new_features.continuous[1], features_batch.continuous[1]
+            )
+        ),
+        msg='Continuous features are not equal.',
+    )
+    self.assertTrue(
+        np.all(
+            np.not_equal(
+                new_features.categorical[1], features_batch.categorical[1]
+            )
+        ),
+        msg='Categorical features are not equal.',
     )
 
     np.testing.assert_array_equal(
@@ -251,28 +421,41 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root.add_float_param('x2', 0.0, 1.0)
     root.add_float_param('x3', 0.0, 1.0)
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
     eagle = eagle_factory(converter)
-    self.assertEqual(eagle.n_feature_dimensions, 3)
+    self.assertEqual(eagle.n_feature_dimensions.continuous, 3)
+    self.assertEqual(eagle.n_feature_dimensions.categorical, 0)
 
   def test_optimize_with_eagle(self):
+
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        self.converter
+    )
+    optimizer(
+        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, 1), count=1
+    )
+
+  def test_optimize_with_eagle_continuous_only(self):
     problem = vz.ProblemStatement()
     root = problem.search_space.select_root()
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
     root.add_float_param('x3', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
     optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
         converter
     )
     n_parallel = 5
     results = optimizer(
-        score_fn=lambda x: -jnp.sum(x, axis=(1, 2)),
+        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
         count=1,
         n_parallel=n_parallel,
     )
-    self.assertSequenceEqual(results.features.shape, (1, n_parallel, 3))
+    self.assertSequenceEqual(
+        results.features.continuous.shape, (1, n_parallel, 3)
+    )
 
   def test_optimize_with_eagle_padding(self):
     problem = vz.ProblemStatement()
@@ -280,7 +463,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
     root.add_float_param('x3', 0.0, 1.0)
-    converter = converters.PaddedTrialToArrayConverter.from_study_config(
+    converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
             num_trials=padding.PaddingType.POWERS_OF_2,
@@ -293,95 +476,38 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     n_parallel = 2
     results = optimizer(
-        score_fn=lambda x: -jnp.sum(x, axis=(1, 2)),
+        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
         count=1,
         n_parallel=n_parallel,
     )
-    self.assertSequenceEqual(results.features.shape, (1, n_parallel, 4))
-
-
-class EagleParamHandlerTest(parameterized.TestCase):
-
-  def setUp(self):
-    super(EagleParamHandlerTest, self).setUp()
-    problem = vz.ProblemStatement()
-    root = problem.search_space.select_root()
-    root.add_categorical_param('c1', ['a', 'b'])
-    root.add_float_param('f1', 0.0, 5.0)
-    root.add_categorical_param('c2', ['a', 'b', 'c'])
-    root.add_discrete_param('d1', [2.0, 3.0, 5.0, 11.0])
-    converter = converters.TrialToArrayConverter.from_study_config(
-        problem, max_discrete_indices=0, pad_oovs=True
-    )
-    self.config = eagle_strategy.EagleStrategyConfig()
-    self.param_handler = eagle_param_handler.EagleParamHandler.build(
-        converter=converter,
-        categorical_perturbation_factor=self.config.categorical_perturbation_factor,
-        pure_categorical_perturbation_factor=self.config.pure_categorical_perturbation_factor,
+    self.assertSequenceEqual(
+        results.features.continuous.shape, (1, n_parallel, 4)
     )
 
-  def test_init(self):
-    self.assertEqual(self.param_handler.n_feature_dimensions, 9)
-    self.assertLen(
-        self.param_handler.perturbation_factors,
-        self.param_handler.n_feature_dimensions,
-    )
-    self.assertEqual(self.param_handler.n_categorical, 2)
-
-  def test_categorical_params_mask(self):
-    expected_categorical_params_mask = np.array(
-        [[1, 1, 1, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 1, 1, 1, 0]]
-    )
-    np.testing.assert_array_equal(
-        self.param_handler._categorical_params_mask,
-        expected_categorical_params_mask,
-    )
-
-  def test_categorical_mask(self):
-    expected_categorical_mask = np.array([1, 1, 1, 0, 1, 1, 1, 1, 0])
-    np.testing.assert_array_equal(
-        self.param_handler._categorical_mask, expected_categorical_mask
-    )
-
-  def test_tiebreak_mask(self):
-    eps = self.param_handler._epsilon
-    expected_tiebreak_mask = np.array(
-        [-eps * (i + 1) for i in range(9)], dtype=float
-    )
-    np.testing.assert_array_almost_equal(
-        self.param_handler._tiebreak_array, expected_tiebreak_mask
-    )
-
-  def test_categorical_oov_mask(self):
-    expected_oov_mask = np.array([1, 1, 0, 1, 1, 1, 1, 0, 1], dtype=float)
-    np.testing.assert_array_equal(
-        self.param_handler._oov_mask, expected_oov_mask
-    )
-
-  def test_perturbation_factors(self):
-    cp = self.config.categorical_perturbation_factor
-    expected_perturbation_factors = np.array(
-        [cp, cp, cp, 1, cp, cp, cp, cp, 1], dtype=float
-    )
-    np.testing.assert_array_equal(
-        self.param_handler.perturbation_factors, expected_perturbation_factors
-    )
+  def test_factory(self):
+    self.assertEqual(self.eagle.n_feature_dimensions.continuous, 2)
+    self.assertEqual(self.eagle.n_feature_dimensions.categorical, 2)
+    self.assertLen(self.eagle.categorical_sizes, 2)
 
   def test_sample_categorical_features(self):
     # features shouldn't have values in oov_mask, and have the structure of:
     # [c1,c1,c1,f1,c2,c2,c2,c2,d1]
-    features = jnp.array([
-        [2.0, 0.0, 0.0, 1.5, 0.0, 0.0, 0.1, 0.0, 9.0],
-        [3.0, 0.0, 0.0, 3.5, 5.0, 0.0, 0.0, 0.0, 8.0],
-    ])
-    expected_sampled_features = np.array([
-        [1.0, 0.0, 0.0, 1.5, 0.0, 0.0, 1.0, 0.0, 9.0],
-        [1.0, 0.0, 0.0, 3.5, 1.0, 0.0, 0.0, 0.0, 8.0],
-    ])
-    sampled_features = self.param_handler.sample_categorical(
-        features, seed=jax.random.PRNGKey(0)
+    num_parallel = 3
+    sampled_features = self.eagle._sample_random_features(
+        20, n_parallel=num_parallel, seed=jax.random.PRNGKey(0)
     )
-    np.testing.assert_array_equal(sampled_features, expected_sampled_features)
+    self.assertTrue(
+        np.all(
+            (sampled_features.continuous >= 0.0)
+            & (sampled_features.continuous <= 1.0)
+        )
+    )
+    self.assertTrue(
+        np.all(
+            sampled_features.categorical
+            < np.array(self.eagle.categorical_sizes)
+        )
+    )
 
   def test_prior_trials(self):
     config = eagle_strategy.EagleStrategyConfig(
@@ -391,9 +517,16 @@ class EagleParamHandlerTest(parameterized.TestCase):
     root = problem.search_space.select_root()
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    root.add_categorical_param('c1', ['a', 'b', 'c'])
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
 
-    prior_features = jnp.array([[[1, -1]], [[2, 1]], [[3, 2]], [[4, 5]]])
+    prior_features_continuous = jnp.array(
+        [[[1, -1]], [[2, 1]], [[3, 2]], [[4, 5]]]
+    )
+    prior_features = vb.VectorizedOptimizerInput(
+        continuous=prior_features_continuous,
+        categorical=jnp.array([[0], [2], [1], [1]])[:, jnp.newaxis],
+    )
     prior_rewards = jnp.array([1, 2, 3, 4])
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=config,
@@ -403,8 +536,10 @@ class EagleParamHandlerTest(parameterized.TestCase):
         prior_features=prior_features,
         prior_rewards=prior_rewards,
     )
-    np.testing.assert_array_equal(
-        init_state.features, jnp.flip(prior_features, axis=0)
+    jax.tree_util.tree_map(
+        lambda x, y: np.testing.assert_array_equal(y, jnp.flip(x, axis=0)),
+        init_state.features,
+        prior_features,
     )
 
   @parameterized.parameters(2, 10)
@@ -418,10 +553,14 @@ class EagleParamHandlerTest(parameterized.TestCase):
     root = problem.search_space.select_root()
     root.add_float_param('x1', 0.0, 1.0)
     root.add_float_param('x2', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    root.add_categorical_param('c1', ['a', 'b', 'c'])
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
 
     n_parallel = 3
-    prior_features = np.random.randn(n_prior_trials, n_parallel, 2)
+    prior_features = vb.VectorizedOptimizerInput(
+        continuous=np.random.randn(n_prior_trials, n_parallel, 2),
+        categorical=np.random.randint(3, size=(n_prior_trials, n_parallel, 1)),
+    )
     prior_rewards = np.random.randn(n_prior_trials)
 
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(
@@ -434,7 +573,10 @@ class EagleParamHandlerTest(parameterized.TestCase):
         prior_rewards=prior_rewards,
     )
     self.assertEqual(
-        init_state.features.shape, (config.pool_size, n_parallel, 2)
+        init_state.features.continuous.shape, (config.pool_size, n_parallel, 2)
+    )
+    self.assertEqual(
+        init_state.features.categorical.shape, (config.pool_size, n_parallel, 1)
     )
 
 
