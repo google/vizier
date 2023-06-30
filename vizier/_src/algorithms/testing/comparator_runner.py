@@ -144,7 +144,7 @@ class SimpleRegretComparisonTester:
 
   def assert_optimizer_better_simple_regret(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: converters.TrialToModelInputConverter,
       score_fn: vb.ArrayScoreFunction,
       baseline_strategy_factory: vb.VectorizedStrategyFactory,
       candidate_strategy_factory: vb.VectorizedStrategyFactory,

@@ -29,6 +29,8 @@ from vizier.pyvizier import converters
 from absl.testing import absltest
 from absl.testing import parameterized
 
+# pylint: disable=g-long-lambda
+
 
 @chex.dataclass(frozen=True)
 class FakeIncrementVectorizedStrategyState:
@@ -37,7 +39,9 @@ class FakeIncrementVectorizedStrategyState:
   iterations: int
 
 
-class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
+class FakeIncrementVectorizedStrategy(
+    vb.VectorizedStrategy[FakeIncrementVectorizedStrategyState]
+):
   """Fake vectorized strategy with incrementing suggestions."""
 
   def __init__(self, *args, **kwargs):
@@ -48,7 +52,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       state: FakeIncrementVectorizedStrategyState,
       n_parallel: int = 1,
-  ) -> jax.Array:
+  ) -> vb.VectorizedOptimizerInput:
     # The following structure allows to test the top K results.
     i = state.iterations
     suggestions = (
@@ -61,7 +65,10 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
         ])
         / 10
     )
-    return jnp.repeat(suggestions[:, jnp.newaxis, :], n_parallel, axis=1)
+    return vb.VectorizedOptimizerInput(
+        jnp.repeat(suggestions[:, jnp.newaxis, :], n_parallel, axis=1),
+        jnp.zeros([5, n_parallel, 0], dtype=types.INT_DTYPE),
+    )
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -71,7 +78,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
       self,
       seed: jax.random.KeyArray,
       state: FakeIncrementVectorizedStrategyState,
-      batch_features: types.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> FakeIncrementVectorizedStrategyState:
     return FakeIncrementVectorizedStrategyState(iterations=state.iterations + 5)
@@ -81,7 +88,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[vb.VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> FakeIncrementVectorizedStrategyState:
     del seed
@@ -90,7 +97,7 @@ class FakeIncrementVectorizedStrategy(vb.VectorizedStrategy):
 
 # pylint: disable=unused-argument
 def fake_increment_strategy_factory(
-    converter: converters.TrialToArrayConverter,
+    converter: converters.TrialToModelInputConverter,
     suggestion_batch_size: int,
 ) -> vb.VectorizedStrategy:
   return FakeIncrementVectorizedStrategy()
@@ -100,11 +107,13 @@ def fake_increment_strategy_factory(
 class FakePriorTrialsStrategyState:
   """State for FakeIncrementVectorizedStrategy."""
 
-  features: types.Array
+  features: vb.VectorizedOptimizerInput
   rewards: types.Array
 
 
-class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
+class FakePriorTrialsVectorizedStrategy(
+    vb.VectorizedStrategy[FakePriorTrialsStrategyState]
+):
   """Fake vectorized strategy to test prior trials."""
 
   def init_state(
@@ -112,7 +121,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[vb.VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ):
     if prior_rewards is not None and len(prior_rewards.shape) != 1:
@@ -126,8 +135,13 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       state: FakePriorTrialsStrategyState,
       n_parallel: int = 1,
-  ) -> jax.Array:
-    return state.features[jnp.argmax(state.rewards, axis=-1)][jnp.newaxis, :]
+  ) -> vb.VectorizedOptimizerInput:
+    return vb.VectorizedOptimizerInput(
+        continuous=state.features.continuous[
+            jnp.argmax(state.rewards, axis=-1)
+        ][jnp.newaxis, :],
+        categorical=jnp.zeros([1, n_parallel, 0], dtype=types.INT_DTYPE),
+    )
 
   @property
   def suggestion_batch_size(self) -> int:
@@ -137,7 +151,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
       self,
       seed: jax.random.KeyArray,
       state: FakePriorTrialsStrategyState,
-      batch_features: types.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> FakePriorTrialsStrategyState:
     return state
@@ -145,7 +159,7 @@ class FakePriorTrialsVectorizedStrategy(vb.VectorizedStrategy):
 
 # pylint: disable=unused-argument
 def fake_prior_trials_strategy_factory(
-    converter: converters.TrialToArrayConverter,
+    converter: converters.TrialToModelInputConverter,
     suggestion_batch_size: int,
 ) -> vb.VectorizedStrategy:
   return FakePriorTrialsVectorizedStrategy()
@@ -158,8 +172,8 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: jnp.sum(x, axis=-1)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=-1)
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
@@ -176,8 +190,8 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: jnp.sum(x, axis=(-1, -2))
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=(-1, -2))
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
@@ -191,8 +205,10 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_fn = lambda x: -jnp.max(
+        jnp.square(x.continuous.padded_array - 0.52), axis=-1
+    )
     strategy_factory = FakeIncrementVectorizedStrategy
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=strategy_factory,
@@ -217,8 +233,10 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    score_fn = lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_fn = lambda x: -jnp.max(
+        jnp.square(x.continuous.padded_array - 0.52), axis=-1
+    )
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         suggestion_batch_size=5,
@@ -254,7 +272,7 @@ class VectorizedBaseTest(parameterized.TestCase):
   def test_vectorized_optimizer_factory(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
     optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         suggestion_batch_size=5,
@@ -284,7 +302,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     root = study_config.search_space.root
     root.add_float_param('x1', 0.0, 10.0)
     root.add_float_param('x2', 0.0, 10.0)
-    converter = converters.TrialToArrayConverter.from_study_config(study_config)
+    converter = converters.TrialToModelInputConverter.from_problem(study_config)
     optimizer = optimizer_factory(converter)
 
     trial1 = vz.Trial(parameters={'x1': 1, 'x2': 1})
@@ -299,7 +317,9 @@ class VectorizedBaseTest(parameterized.TestCase):
         [trial1, trial2, trial1], converter=converter
     )
     best_trial_array = optimizer(
-        lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1),
+        lambda x: -jnp.max(
+            jnp.square(x.continuous.padded_array - 0.52), axis=-1
+        ),
         count=1,
         prior_features=prior_features,
     )
@@ -310,7 +330,9 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(best_trial[0].parameters['x2'].value, 2)
 
     best_trial_array = optimizer(
-        lambda x: -jnp.max(jnp.square(x - 0.52), axis=-1),
+        lambda x: -jnp.max(
+            jnp.square(x.continuous.padded_array - 0.52), axis=-1
+        ),
         count=1,
         prior_features=vb.trials_to_sorted_array([trial1], converter=converter),
     )
@@ -339,15 +361,24 @@ class VectorizedBaseTest(parameterized.TestCase):
     root.add_float_param('x1', 0.0, 10.0)
     root.add_float_param('x2', 0.0, 10.0)
     root.add_float_param('x3', 0.0, 10.0)
-    converter = converters.TrialToArrayConverter.from_study_config(study_config)
+    converter = converters.TrialToModelInputConverter.from_problem(study_config)
     optimizer = optimizer_factory(converter)
-    prior_features = jax.random.uniform(jax.random.PRNGKey(0), (14, 3))
+    prior_features = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(
+            jax.random.uniform(jax.random.PRNGKey(0), (14, 3))
+        ),
+        categorical=types.PaddedArray.as_padded(
+            jnp.zeros([14, 0], dtype=types.INT_DTYPE)
+        ),
+    )
     suggestions = optimizer(
-        lambda x: -jnp.max(jnp.square(x - 0.52), axis=(-1, -2)),
+        lambda x: -jnp.max(
+            jnp.square(x.continuous.padded_array - 0.52), axis=(-1, -2)
+        ),
         prior_features=prior_features,
         n_parallel=2,
     )
-    self.assertSequenceEqual(suggestions.features.shape, (1, 2, 3))
+    self.assertSequenceEqual(suggestions.features.continuous.shape, (1, 2, 3))
     self.assertSequenceEqual(suggestions.rewards.shape, (1,))
 
 

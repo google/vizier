@@ -38,13 +38,11 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
-from vizier._src.jax import gp_bandit_utils
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
-from vizier.pyvizier.converters import feature_mapper
 from vizier.pyvizier.converters import padding
 from vizier.utils import profiler
 
@@ -124,10 +122,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _output_warper_pipeline: output_warpers.OutputWarperPipeline = attr.field(
       init=False
   )
-  # TODO: Remove this.
-  _feature_mapper: Optional[
-      feature_mapper.ContinuousCategoricalFeatureMapper
-  ] = attr.field(init=False, default=None)
   _last_computed_state: _GPBanditState = attr.field(init=False)
 
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
@@ -155,31 +149,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     )
     self._output_warper_pipeline = output_warpers.create_default_warper()
 
-    # TODO: Get rid of this when Vectorized optimizers operate on CACV.
-    self._one_hot_converter = (
-        converters.TrialToArrayConverter.from_study_config(
-            self._problem,
-            scale=True,
-            pad_oovs=True,
-            max_discrete_indices=0,
-            flip_sign_for_minimization_metrics=True,
-        )
-    )
-    self._padded_one_hot_converter = (
-        converters.PaddedTrialToArrayConverter.from_study_config(
-            self._problem,
-            scale=True,
-            pad_oovs=True,
-            padding_schedule=self._padding_schedule,
-            max_discrete_indices=0,
-            flip_sign_for_minimization_metrics=True,
-        )
-    )
-    self._feature_mapper = feature_mapper.ContinuousCategoricalFeatureMapper(
-        self._one_hot_converter
-    )
     self._acquisition_optimizer = self._acquisition_optimizer_factory(
-        self._padded_one_hot_converter
+        self._converter
     )
     acquisition_problem = copy.deepcopy(self._problem)
     if isinstance(
@@ -356,30 +327,33 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   ) -> list[vz.Trial]:
     start_time = datetime.datetime.now()
     # Set up optimizer and run
-    seed_features = vb.trials_to_sorted_array(
-        self._trials, self._padded_one_hot_converter
-    )
-    seed_features_unpad = vb.trials_to_sorted_array(
-        self._trials, self._one_hot_converter
-    )
+    seed_features = vb.trials_to_sorted_array(self._trials, self._converter)
     acq_rng, self._rng = jax.random.split(self._rng)
 
-    # TODO: Remove this when Vectorized Optimizer works on CACV.
-    cacpa = self._converter.to_features(self._trials)
-    one_hot_to_modelinput = gp_bandit_utils.make_one_hot_to_modelinput_fn(
-        seed_features_unpad, self._feature_mapper, cacpa
-    )
+    score = scoring_fn.score
+    score_with_aux = scoring_fn.score_with_aux
 
-    score = lambda xs: scoring_fn.score(one_hot_to_modelinput(xs))
-    score_with_aux = lambda xs: scoring_fn.score_with_aux(
-        one_hot_to_modelinput(xs)
-    )
+    prior_features = None
+    if seed_features is not None:
+      continuous = seed_features.continuous.unpad()
+      continuous = types.PaddedArray.from_array(
+          continuous,
+          (continuous.shape[0], seed_features.continuous.shape[1]),
+          fill_value=np.nan,
+      )
+      categorical = seed_features.categorical.unpad()
+      categorical = types.PaddedArray.from_array(
+          categorical,
+          (categorical.shape[0], seed_features.categorical.shape[1]),
+          fill_value=-1,
+      )
+      prior_features = types.ModelInput(continuous, categorical)
 
     best_candidates: vb.VectorizedStrategyResults = eqx.filter_jit(
         self._acquisition_optimizer
     )(
         score,
-        prior_features=seed_features,
+        prior_features=prior_features,
         count=count,
         seed=acq_rng,
         score_with_aux_fn=score_with_aux,
@@ -410,7 +384,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # space); also append debug information like model predictions.
     logging.info('Converting the optimization result into suggestions...')
     return vb.best_candidates_to_trials(
-        best_candidates, self._one_hot_converter
+        best_candidates, self._converter
     )  # [N, D]
 
   @profiler.record_runtime

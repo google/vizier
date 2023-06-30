@@ -19,31 +19,54 @@ from __future__ import annotations
 from typing import Optional
 
 import jax
+from jax import numpy as jnp
+import numpy as np
+from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import types
 from vizier.pyvizier import converters
 
+tfd = tfp.distributions
 
-class RandomVectorizedStrategy(vb.VectorizedStrategy):
+
+class RandomVectorizedStrategy(vb.VectorizedStrategy[None]):
   """Random vectorized strategy."""
 
   def __init__(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: converters.TrialToModelInputConverter,
       suggestion_batch_size: int,
   ):
-    self._converter = converter
-    self._suggestion_batch_size = suggestion_batch_size
-    self._n_features = sum(
-        [spec.num_dimensions for spec in self._converter.output_specs]
+    empty_features = converter.to_features([])
+    n_feature_dimensions_with_padding = types.ContinuousAndCategorical(
+        empty_features.continuous.shape[-1],
+        empty_features.categorical.shape[-1],
     )
+
+    categorical_sizes = []
+    for spec in converter.output_specs.categorical:
+      categorical_sizes.append(spec.bounds[1])
+
+    self._suggestion_batch_size = suggestion_batch_size
+    self.n_feature_dimensions_with_padding = n_feature_dimensions_with_padding
+    self.n_feature_dimensions = n_feature_dimensions_with_padding
+    self.dtype = types.ContinuousAndCategorical(jnp.float64, types.INT_DTYPE)
+
+    self._categorical_logits = None
+    if categorical_sizes:
+      categorical_logits = np.zeros(
+          [len(categorical_sizes), max(categorical_sizes)]
+      )
+      for i, s in enumerate(categorical_sizes):
+        categorical_logits[i, s:] = -np.inf
+      self._categorical_logits = categorical_logits
 
   def init_state(
       self,
       seed: jax.random.KeyArray,
       n_parallel: int = 1,
       *,
-      prior_features: Optional[types.Array] = None,
+      prior_features: Optional[vb.VectorizedOptimizerInput] = None,
       prior_rewards: Optional[types.Array] = None,
   ) -> None:
     del seed
@@ -54,12 +77,26 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
       seed: jax.random.KeyArray,
       state: None,
       n_parallel: int = 1,
-  ) -> jax.Array:
+  ) -> vb.VectorizedOptimizerInput:
     del state
-    return jax.random.uniform(
-        seed,
-        shape=(self._suggestion_batch_size, n_parallel, self._n_features),
+    cont_seed, cat_seed = jax.random.split(seed)
+    cont_data = jax.random.uniform(
+        cont_seed,
+        shape=(
+            self._suggestion_batch_size,
+            n_parallel,
+            self.n_feature_dimensions_with_padding.continuous,
+        ),
     )
+    if self._categorical_logits is None:
+      cat_data = jnp.zeros(
+          [self._suggestion_batch_size, n_parallel, 0], dtype=jnp.int32
+      )
+    else:
+      cat_data = tfd.Categorical(logits=self._categorical_logits).sample(
+          (self._suggestion_batch_size, n_parallel), seed=cat_seed
+      )
+    return vb.VectorizedOptimizerInput(cont_data, cat_data)
 
   def suggestion_batch_size(self) -> int:
     return self._suggestion_batch_size
@@ -68,14 +105,14 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy):
       self,
       seed: jax.random.KeyArray,
       state: None,
-      batch_features: types.Array,
+      batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
   ) -> None:
     return
 
 
 def random_strategy_factory(
-    converter: converters.TrialToArrayConverter,
+    converter: converters.TrialToModelInputConverter,
     suggestion_batch_size: int,
 ) -> vb.VectorizedStrategy:
   """Creates a new vectorized strategy based on the Protocol."""
@@ -86,7 +123,7 @@ def random_strategy_factory(
 
 
 def create_random_optimizer(
-    converter: converters.TrialToArrayConverter,
+    converter: converters.TrialToModelInputConverter,
     max_evaluations: int,
     suggestion_batch_size: int,
 ) -> vb.VectorizedOptimizer:
