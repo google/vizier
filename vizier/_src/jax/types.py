@@ -26,9 +26,6 @@ from jax import numpy as jnp
 from jax.typing import ArrayLike
 import jaxtyping as jt
 import numpy as np
-from tensorflow_probability.substrates import jax as tfp
-
-tfpke = tfp.experimental.psd_kernels
 
 # Integer dtype for categorical data.
 INT_DTYPE = np.int32
