@@ -25,6 +25,7 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import vectorized_base
 from vizier._src.jax import stochastic_process_model as sp
+from vizier._src.jax import types
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 
@@ -42,7 +43,7 @@ class LBFGSBOptimizer:
 
   def optimize(
       self,
-      converter: converters.TrialToArrayConverter,
+      converter: converters.TrialToModelInputConverter,
       score_fn: Union[
           vectorized_base.ParallelArrayScoreFunction,
           vectorized_base.ArrayScoreFunction,
@@ -76,7 +77,9 @@ class LBFGSBOptimizer:
     optimize = optimizers.JaxoptScipyLbfgsB(
         optimizers.LbfgsBOptions(random_restarts=self.random_restarts)
     )
-    num_features = sum(spec.num_dimensions for spec in converter.output_specs)
+    num_features = sum(
+        spec.num_dimensions for spec in converter.output_specs.continuous
+    )
 
     feature_shape = [num_features]
     if self.num_parallel_candidates is not None:
@@ -105,9 +108,15 @@ class LBFGSBOptimizer:
     )
     new_rewards = np.asarray(score_fn(new_features[jnp.newaxis, ...]))[0]
     if self.num_parallel_candidates is None:
-      parameters = converter.to_parameters(new_features[jnp.newaxis, ...])
-    else:
-      parameters = converter.to_parameters(new_features)
+      new_features = new_features[jnp.newaxis, ...]
+    parameters = converter.to_parameters(
+        types.ModelInput(
+            continuous=types.PaddedArray.as_padded(new_features),
+            categorical=types.PaddedArray.as_padded(
+                jnp.zeros(new_features.shape[:-1] + (0,), dtype=types.INT_DTYPE)
+            ),
+        )
+    )
     trials = []
     for i in range(len(parameters)):
       trial = vz.Trial(parameters=parameters[i])

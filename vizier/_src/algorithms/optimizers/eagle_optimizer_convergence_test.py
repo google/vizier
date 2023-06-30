@@ -33,22 +33,6 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-def randomize_array(converter: converters.TrialToArrayConverter) -> jax.Array:
-  """Generate a random array of features to be used as score_fn shift."""
-  features_arrays = []
-  for spec in converter.output_specs:
-    if spec.type == converters.NumpyArraySpecType.ONEHOT_EMBEDDING:
-      dim = spec.num_dimensions - spec.num_oovs
-      features_arrays.append(
-          jnp.eye(spec.num_dimensions)[np.random.randint(0, dim)]
-      )
-    elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
-      features_arrays.append(np.random.uniform(0.4, 0.6, size=(1,)))
-    else:
-      raise ValueError(f'The type {spec.type} is not supported!')
-  return jnp.hstack(features_arrays)
-
-
 def create_continuous_problem(
     n_features: int,
     problem: Optional[vz.ProblemStatement] = None) -> vz.ProblemStatement:
@@ -80,13 +64,22 @@ def create_mix_problem(n_features: int,
 
 
 # TODO: Change to bbob functions when they can support batching.
-def sphere(x: types.Array) -> jax.Array:
-  return -jnp.sum(jnp.square(x), axis=-1)
+def sphere(x: types.ModelInput) -> jax.Array:
+  return -(
+      jnp.sum(jnp.square(x.continuous.padded_array), axis=-1)
+      + 0.1 * jnp.sum(jnp.square(x.categorical.padded_array), axis=-1)
+  )
 
 
-def rastrigin_d10(x: types.Array) -> jax.Array:
+def _rastrigin_d10_part(x: types.Array) -> jax.Array:
   return 10 * jnp.sum(jnp.cos(2 * np.pi * x), axis=-1) - jnp.sum(
       jnp.square(x), axis=-1
+  )
+
+
+def rastrigin_d10(x: types.ModelInput) -> jax.Array:
+  return _rastrigin_d10_part(x.continuous.padded_array) + _rastrigin_d10_part(
+      0.01 * x.categorical.padded_array
   )
 
 
@@ -108,11 +101,9 @@ class EagleOptimizerConvegenceTest(parameterized.TestCase):
     logging.info('Starting a new convergence test (n_features: %s)', n_features)
     evaluations = 20_000
     problem = create_problem_fn(n_features)
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
     eagle_strategy_factory = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=eagle_strategy.EagleStrategyConfig())
-    optimum_features = randomize_array(converter)
-    shifted_score_fn = lambda x, shift=optimum_features: score_fn(x - shift)
     shifted_score_fn = score_fn
     random_strategy_factory = rvo.random_strategy_factory
     # Run simple regret convergence test.

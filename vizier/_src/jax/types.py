@@ -143,9 +143,6 @@ class PaddedArray(eqx.Module):
     )
 
 
-# TODO: Remove this.
-MaybePaddedArray = Union[Array, PaddedArray]
-
 ArrayTree = Union[ArrayLike, Iterable['ArrayTree'], Mapping[Any, 'ArrayTree']]
 
 # An ArrayTree that allows None values.
@@ -180,19 +177,6 @@ class ModelData(eqx.Module):
 
 # Tuple representing a box constraint of the form (lower, upper) bounds.
 Bounds = tuple[Optional[ArrayTreeOptional], Optional[ArrayTreeOptional]]
-
-# TODO: Deprecate it. We will always use ModelInput type.
-Features = TypeVar('Features', Array, ContinuousAndCategoricalArray)
-
-
-# TODO: Deprecate it in favor of ModelData type.
-class StochasticProcessModelData(Generic[Features], eqx.Module):
-  """Data that feed into GP."""
-
-  features: Features
-  labels: Array = eqx.field(converter=jnp.asarray)
-  label_is_missing: Optional[Array] = None
-  dimension_is_missing: Optional[Features] = None
 
 
 # TODO: Deprecate it in favor of
