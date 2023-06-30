@@ -147,7 +147,9 @@ class VizierGpTest(absltest.TestCase):
                 x_obs, target_shape=(12, 9), fill_value=1.0
             ),
             categorical=types.PaddedArray.from_array(
-                np.zeros((9, 0)), target_shape=(12, 2), fill_value=1
+                np.zeros((9, 0), dtype=types.INT_DTYPE),
+                target_shape=(12, 2),
+                fill_value=1,
             ),
         ),
         labels=types.PaddedArray.from_array(
@@ -211,7 +213,7 @@ class VizierGpTest(absltest.TestCase):
                 x_cont_obs, target_shape=(12, 9), fill_value=np.nan
             ),
             categorical=types.PaddedArray.from_array(
-                np.random.randint(3, size=(12, 3)),
+                np.random.randint(3, size=(12, 3), dtype=types.INT_DTYPE),
                 target_shape=(12, 5),
                 fill_value=-1,
             ),
@@ -229,6 +231,44 @@ class VizierGpTest(absltest.TestCase):
     )
     optimize = optimizers.JaxoptScipyLbfgsB(
         optimizers.LbfgsBOptions(random_restarts=50)
+    )
+    constraints = sp.get_constraints(model)
+    optimal_params, metrics = optimize(
+        model.setup,
+        model.loss_with_aux,
+        jax.random.PRNGKey(2),
+        constraints=constraints,
+    )
+    logging.info('Optimal: %s', optimal_params)
+    logging.info('Loss: %s', metrics['loss'])
+    self.assertLess(np.min(metrics['loss']), target_loss)
+
+  def test_good_log_likelihood_linear(self):
+    x_cont_obs, y_obs = self._generate_xys()
+    data = types.ModelData(
+        features=types.ModelInput(
+            continuous=types.PaddedArray.from_array(
+                x_cont_obs, target_shape=(12, 9), fill_value=np.nan
+            ),
+            categorical=types.PaddedArray.from_array(
+                np.random.randint(3, size=(12, 3), dtype=types.INT_DTYPE),
+                target_shape=(12, 5),
+                fill_value=-1,
+            ),
+        ),
+        labels=types.PaddedArray.from_array(
+            y_obs, target_shape=(12,), fill_value=np.nan
+        ),
+    )
+    target_loss = -0.2
+    model = sp.CoroutineWithData(
+        tuned_gp_models.VizierLinearGaussianProcess(
+            types.ContinuousAndCategorical[int](9, 5), _linear_coef=1.0
+        ),
+        data=data,
+    )
+    optimize = optimizers.JaxoptScipyLbfgsB(
+        optimizers.LbfgsBOptions(random_restarts=50, maxiter=100)
     )
     constraints = sp.get_constraints(model)
     optimal_params, metrics = optimize(
