@@ -238,7 +238,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         batch_size=suggestion_batch_size,
         config=self.eagle_config,
         pool_size=pool_size,
-        categorical_sizes=tuple(categorical_sizes),
+        categorical_sizes=jnp.array(categorical_sizes),
         max_categorical_size=max_categorical_size,
         dtype=converter._impl.dtype,
     )
@@ -302,10 +302,10 @@ class VectorizedEagleStrategy(
   """
 
   n_feature_dimensions: types.ContinuousAndCategorical[int]
+  categorical_sizes: jax.Array
   n_feature_dimensions_with_padding: types.ContinuousAndCategorical[int] = (
       struct.field(pytree_node=False)
   )
-  categorical_sizes: Tuple[int] = struct.field(pytree_node=False)
   max_categorical_size: int = struct.field(pytree_node=False)
   pool_size: int = struct.field(pytree_node=False)
   dtype: jnp.dtype = struct.field(pytree_node=False)

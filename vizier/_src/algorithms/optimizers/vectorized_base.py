@@ -338,6 +338,12 @@ class VectorizedOptimizer(Generic[_S]):
     """
     seed = jax.random.PRNGKey(0) if seed is None else seed
 
+    dimension_is_missing = jax.tree_util.tree_map(
+        lambda pad_dim, dim: jnp.arange(pad_dim) >= dim,
+        self.n_feature_dimensions_with_padding,
+        self.n_feature_dimensions,
+    )
+
     if n_parallel is None:
       # Squeeze out the singleton dimension of `features` before passing to a
       # non-parallel acquisition function to avoid batch shape collisions.
@@ -364,6 +370,11 @@ class VectorizedOptimizer(Generic[_S]):
       prior_features = VectorizedOptimizerInput(
           continuous=continuous_prior, categorical=categorical_prior
       )
+      prior_features = jax.tree_util.tree_map(
+          lambda dim, feat: jnp.where(dim, jnp.zeros_like(feat), feat),
+          dimension_is_missing,
+          prior_features,
+      )
       prior_rewards = eval_score_fn(prior_features)
       prior_rewards = jnp.where(
           jnp.logical_and(continuous_mask, categorical_mask),
@@ -377,6 +388,13 @@ class VectorizedOptimizer(Generic[_S]):
       new_features = self.strategy.suggest(
           suggest_seed, state=state, n_parallel=parallel_dim
       )
+      # Ensure masking out padded dimensions in new features.
+      new_features = jax.tree_util.tree_map(
+          lambda dim, feat: jnp.where(dim, jnp.zeros_like(feat), feat),
+          dimension_is_missing,
+          new_features,
+      )
+
       new_rewards = eval_score_fn(new_features)
       new_state = self.strategy.update(
           update_seed, state, new_features, new_rewards
