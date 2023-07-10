@@ -36,7 +36,12 @@ class MaskFeaturesTest(parameterized.TestCase):
     xs_cont = np.concatenate(
         [xs_cont, np.full([10, half_dims], np.nan)], axis=-1
     )
-    xs_cat = np.random.randint(5, size=(10, half_dims))
+    # Generate some integer-encoded categorical data with values between 0 and
+    # 5.
+    xs_cat = np.broadcast_to(
+        np.arange(10)[:, jnp.newaxis] // 2,
+        shape=(10, half_dims),
+    )
     xs_cat = np.concatenate([xs_cat, np.full([10, half_dims], -1)], axis=-1)
     missing_dim = np.array([False] * half_dims + [True] * half_dims)
     x = tfpke.ContinuousAndCategoricalValues(xs_cont, xs_cat)
@@ -57,8 +62,8 @@ class MaskFeaturesTest(parameterized.TestCase):
       return jnp.sum(kernel.matrix(x, x))
 
     scale_diag = tfpke.ContinuousAndCategoricalValues(
-        np.random.uniform(size=(half_dims * 2,)),
-        np.random.uniform(size=(half_dims * 2,)),
+        np.random.uniform(low=1.0, high=10.0, size=(half_dims * 2,)),
+        np.random.uniform(low=1.0, high=10.0, size=(half_dims * 2,)),
     )
     value, grad = jax.value_and_grad(f)(scale_diag)
     self.assertTrue(np.all(~np.isnan(value)))
