@@ -388,6 +388,6 @@ class TrustRegion(eqx.Module):
         distances,
     )
     if distances.size == 0:
-      return -np.inf
+      return -np.inf * jnp.ones_like(xs, shape=xs.shape[:1])
     linf_distance = jnp.max(distances, axis=-1)  # (M, N)
     return jnp.min(linf_distance, axis=-1)  # (M,)
