@@ -35,6 +35,10 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.UCB(coefficient=2.0)
     self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 2.1)
 
+  def test_lcb(self):
+    acq = acquisitions.LCB(coefficient=2.0)
+    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), -1.9)
+
   def test_hvs(self):
     acq = acquisitions.HyperVolumeScalarization(coefficient=2.0)
     self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 0.1)

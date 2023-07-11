@@ -143,6 +143,23 @@ class UCB(AcquisitionFunction):
 
 
 @struct.dataclass
+class LCB(AcquisitionFunction):
+  """LCB AcquisitionFunction."""
+
+  coefficient: float = 1.8
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
+      seed: Optional[jax.random.KeyArray] = None,
+  ) -> jax.Array:
+    del features, labels, seed
+    return dist.mean() - self.coefficient * dist.stddev()
+
+
+@struct.dataclass
 class HyperVolumeScalarization(AcquisitionFunction):
   """HyperVolume Scalarization acquisition function."""
 
