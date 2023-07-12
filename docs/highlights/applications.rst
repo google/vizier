@@ -13,6 +13,7 @@ Codebases
 -  `Tensorflow Federated <https://github.com/tensorflow/federated>`__
 -  `Tensorflow GNN <https://github.com/tensorflow/gnn>`__
 -  `CFU-Playground <https://github.com/google/CFU-Playground>`__
+-  `Architecture Gym (ArchGym) <https://github.com/srivatsankrishnan/oss-arch-gym>`__
 -  `OpenML (Converter) <https://github.com/josvandervelde/OpenML-Vizier-Converter>`__
 
 Guides
