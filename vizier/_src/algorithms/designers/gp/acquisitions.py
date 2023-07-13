@@ -234,24 +234,37 @@ class AcquisitionTrustRegion(AcquisitionFunction):
   main_acquisition: AcquisitionFunction
   thresholding_acquisition: AcquisitionFunction
   bad_acq_value: float = struct.field(kw_only=True)
-  threshold: float = struct.field(kw_only=True)
+  threshold: Optional[float] = struct.field(kw_only=True, default=None)
 
   @classmethod
   def default_ucb_pi(cls) -> 'AcquisitionTrustRegion':
     return cls(UCB(1.8), PI(), bad_acq_value=-1e12, threshold=0.3)
 
+  @classmethod
+  def default_ucb_lcb(cls) -> 'AcquisitionTrustRegion':
+    return cls(UCB(1.8), LCB(1.8), bad_acq_value=-1e12, threshold=None)
+
   def __call__(
       self,
       dist: tfd.Distribution,
       features: Optional[types.ModelInput] = None,
-      labels: Optional[types.Array] = None,
+      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     del features, seed
     threshold_values = self.thresholding_acquisition(dist, labels=labels)
     acq_values = self.main_acquisition(dist)
+    if self.threshold is not None:
+      threshold = self.threshold
+    else:
+      threshold = -jnp.inf
+      if labels is not None:
+        labels = labels.replace_fill_value(np.nan).padded_array
+        threshold = jnp.nanmean(labels)
+      threshold = jnp.where(jnp.isnan(threshold), -jnp.inf, threshold)
+
     return jnp.where(
-        ((threshold_values >= self.threshold)),
+        threshold_values >= threshold,
         acq_values,
         self.bad_acq_value - threshold_values,
     )

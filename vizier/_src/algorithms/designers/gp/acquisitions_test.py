@@ -25,7 +25,6 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
 from absl.testing import absltest
 
-
 tfd = tfp.distributions
 
 
@@ -63,7 +62,7 @@ class AcquisitionsTest(absltest.TestCase):
         0.46017216,
     )
 
-  def test_acq_tr_good_point(self):
+  def test_acq_pi_tr_good_point(self):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
     self.assertAlmostEqual(
         acq(
@@ -73,8 +72,29 @@ class AcquisitionsTest(absltest.TestCase):
         -1.0e12,
     )
 
-  def test_acq_tr_bad_point(self):
+  def test_acq_pi_tr_bad_point(self):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
+    self.assertAlmostEqual(
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([-100.0])),
+        ),
+        1.9,
+    )
+
+  def test_acq_lcb_tr_bad_point(self):
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb()
+    self.assertAlmostEqual(
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([100.0])),
+        ),
+        jnp.array([-1e12]),
+        delta=2.0,
+    )
+
+  def test_acq_lcb_tr_good_point(self):
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb()
     self.assertAlmostEqual(
         acq(
             tfd.Normal(jnp.float64(0.1), 1),
