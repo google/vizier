@@ -156,8 +156,10 @@ class ParetoFrontier:
         dimension / 2) / math.gamma(dimension / 2 + 1) / 2**dimension
     for begin, end in zip(idx[1:], idx[:-1]):
       vectors = self._vectors[begin:end, :]
-      approx_hypervolume += self._cum_hypervolume_base(
-          points, vectors) * unit_hypersphere_volume
+      # Apply maximization because Jax -> NP conversion can be imprecise.
+      approx_hypervolume += np.maximum.accumulate(
+          self._cum_hypervolume_base(points, vectors) * unit_hypersphere_volume
+      )
 
     if is_cumulative:
       return np.array(approx_hypervolume / num_shards)
