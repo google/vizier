@@ -133,10 +133,17 @@ class GoogleGpBanditTest(parameterized.TestCase):
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space,
     )
-    predict_trials = quasi_random_sampler.suggest(count=7)
+    predict_trials = quasi_random_sampler.suggest(count=3)
+    # test the sample method.
+    samples = designer.sample(predict_trials, num_samples=5)
+    self.assertSequenceEqual(samples.shape, (5, 3))
+    self.assertFalse(np.isnan(samples).any())
+    empty_samples = designer.sample([], num_samples=5)
+    self.assertSequenceEqual(empty_samples.shape, (5, 0))
+    # test the predict method.
     prediction = designer.predict(predict_trials)
-    self.assertLen(prediction.mean, 7)
-    self.assertLen(prediction.stddev, 7)
+    self.assertLen(prediction.mean, 3)
+    self.assertLen(prediction.stddev, 3)
     self.assertFalse(np.isnan(prediction.mean).any())
     self.assertFalse(np.isnan(prediction.stddev).any())
 
@@ -191,10 +198,19 @@ class GoogleGpBanditTest(parameterized.TestCase):
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         problem.search_space
     )
-    predict_trials = quasi_random_sampler.suggest(count=7)
+    predict_trials = quasi_random_sampler.suggest(count=3)
+    # Test the sample method.
+    samples = designer.sample(predict_trials, num_samples=5)
+    self.assertSequenceEqual(samples.shape, (5, 3))
+    samples = designer.sample(predict_trials, num_samples=5)
+    self.assertSequenceEqual(samples.shape, (5, 3))
+    self.assertFalse(np.isnan(samples).any())
+    empty_samples = designer.sample([], num_samples=5)
+    self.assertSequenceEqual(empty_samples.shape, (5, 0))
+    # Test the predict method.
     prediction = designer.predict(predict_trials)
-    self.assertLen(prediction.mean, 7)
-    self.assertLen(prediction.stddev, 7)
+    self.assertLen(prediction.mean, 3)
+    self.assertLen(prediction.stddev, 3)
     self.assertFalse(np.isnan(prediction.mean).any())
     self.assertFalse(np.isnan(prediction.stddev).any())
 

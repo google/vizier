@@ -409,6 +409,57 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     return suggestions
 
   @profiler.record_runtime
+  def sample(
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.random.KeyArray] = None,
+      num_samples: Optional[int] = None,
+  ) -> types.Array:
+    """Returns unwarped samples from the model for any given trials.
+
+    Arguments:
+      trials: The trials where the predictions will be made.
+      rng: The sampling random key.
+      num_samples: The number of samples per trial.
+
+    Returns:
+      The samples in the specified trials. shape: (num_samples, num_trials)
+    """
+    if rng is None:
+      rng = jax.random.PRNGKey(0)
+    if num_samples is None:
+      num_samples = 1000
+
+    if not trials:
+      return np.zeros((num_samples, 0))
+
+    predictive, _ = self._update_state(self._trials_to_data(self._trials))
+    xs = self._converter.to_features(trials)
+    xs = types.ModelInput(
+        continuous=xs.continuous.replace_fill_value(0.0),
+        categorical=xs.categorical.replace_fill_value(0),
+    )
+    samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
+        predictive, xs, num_samples, key=rng
+    )  # (num_samples, num_trials)
+    # Scope the samples to non-padded only (there's a single padded dimension).
+    samples = samples[
+        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
+    ]
+    unwarped_samples = None
+    # TODO: vectorize output warping.
+    for i in range(samples.shape[0]):
+      unwarp_samples_ = self._output_warper_pipeline.unwarp(
+          samples[i][..., np.newaxis]
+      ).reshape(-1)
+      if unwarped_samples is not None:
+        unwarped_samples = np.vstack([unwarp_samples_, unwarped_samples])
+      else:
+        unwarped_samples = unwarp_samples_
+
+    return unwarped_samples  # pytype: disable=bad-return-type
+
+  @profiler.record_runtime
   def predict(
       self,
       trials: Sequence[vz.TrialSuggestion],
@@ -428,36 +479,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     Returns:
       The predictions in the specified trials.
     """
-    if rng is None:
-      rng = jax.random.PRNGKey(0)
-    if num_samples is None:
-      num_samples = 1000
-
-    predictive, _ = self._update_state(self._trials_to_data(self._trials))
-
-    xs = self._converter.to_features(trials)
-    xs = types.ModelInput(
-        continuous=xs.continuous.replace_fill_value(0.0),
-        categorical=xs.categorical.replace_fill_value(0),
-    )
-
-    samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
-        predictive, xs, num_samples, key=rng
-    )  # (num_samples, batch_size)
-    samples = samples[
-        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
-    ]
-    unwarped_samples = None
-    # TODO: vectorize output warping.
-    for i in range(samples.shape[0]):
-      unwarp_samples_ = self._output_warper_pipeline.unwarp(
-          samples[i][..., np.newaxis]
-      ).reshape(-1)
-      if unwarped_samples is not None:
-        unwarped_samples = np.vstack([unwarp_samples_, unwarped_samples])
-      else:
-        unwarped_samples = unwarp_samples_
-
+    unwarped_samples = self.sample(trials, rng, num_samples)
     mean = np.mean(unwarped_samples, axis=0)
     stddev = np.std(unwarped_samples, axis=0)
     return vza.Prediction(mean=mean, stddev=stddev)
