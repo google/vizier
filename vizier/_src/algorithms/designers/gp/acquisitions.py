@@ -27,6 +27,7 @@ import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import types
 
+
 tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
 tfpke = tfp.experimental.psd_kernels
@@ -228,21 +229,51 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     threshold: The threshold for the thresholding_acquisition values to
       distinguish between the promising and unpromising regions.
     bad_acq_value: The lower bound for the main acquisition value.
-    bad_acq_value: The lower bound for the main acquisition value.
+    apply_tr_after: The minimum number of labels required to apply the trust
+      region.
   """
 
   main_acquisition: AcquisitionFunction
   thresholding_acquisition: AcquisitionFunction
   bad_acq_value: float = struct.field(kw_only=True)
   threshold: Optional[float] = struct.field(kw_only=True, default=None)
+  apply_tr_after: Optional[int] = struct.field(kw_only=True, default=0)
 
   @classmethod
   def default_ucb_pi(cls) -> 'AcquisitionTrustRegion':
-    return cls(UCB(1.8), PI(), bad_acq_value=-1e12, threshold=0.3)
+    return cls(
+        UCB(1.8), PI(), bad_acq_value=-1e12, threshold=0.3, apply_tr_after=0
+    )
 
   @classmethod
   def default_ucb_lcb(cls) -> 'AcquisitionTrustRegion':
-    return cls(UCB(1.8), LCB(1.8), bad_acq_value=-1e12, threshold=None)
+    return cls(
+        UCB(1.8),
+        LCB(1.8),
+        bad_acq_value=-1e12,
+        threshold=None,
+        apply_tr_after=0,
+    )
+
+  @classmethod
+  def default_ucb_lcb_wide(cls) -> 'AcquisitionTrustRegion':
+    return cls(
+        UCB(1.8),
+        LCB(2.5),
+        bad_acq_value=-1e12,
+        threshold=None,
+        apply_tr_after=0,
+    )
+
+  @classmethod
+  def default_ucb_lcb_delay_tr(cls) -> 'AcquisitionTrustRegion':
+    return cls(
+        UCB(1.8),
+        LCB(1.8),
+        bad_acq_value=-1e12,
+        threshold=None,
+        apply_tr_after=5,
+    )
 
   def __call__(
       self,
@@ -254,17 +285,19 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     del features, seed
     threshold_values = self.thresholding_acquisition(dist, labels=labels)
     acq_values = self.main_acquisition(dist)
+    threshold = -jnp.inf
+    apply_tr = False
+    if labels is not None:
+      labels_padded = labels.replace_fill_value(np.nan).padded_array
+      threshold = jnp.minimum(
+          jnp.nanmean(labels_padded), jnp.nanmedian(labels_padded)
+      )
+      apply_tr = labels._original_shape[0] <= self.apply_tr_after
     if self.threshold is not None:
       threshold = self.threshold
-    else:
-      threshold = -jnp.inf
-      if labels is not None:
-        labels = labels.replace_fill_value(np.nan).padded_array
-        threshold = jnp.nanmean(labels)
-      threshold = jnp.where(jnp.isnan(threshold), -jnp.inf, threshold)
-
+    cond = jnp.isnan(threshold) | (threshold_values >= threshold) | apply_tr
     return jnp.where(
-        threshold_values >= threshold,
+        cond,
         acq_values,
         self.bad_acq_value - threshold_values,
     )

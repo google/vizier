@@ -103,6 +103,16 @@ class AcquisitionsTest(absltest.TestCase):
         1.9,
     )
 
+  def test_acq_lcb_delay_tr(self):
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb_delay_tr()
+    self.assertAlmostEqual(
+        acq(
+            tfd.Normal(jnp.float64(0.1), 1),
+            labels=types.PaddedArray.as_padded(jnp.array([100.0, -100.0])),
+        ),
+        jnp.array([1.9]),
+    )
+
   def test_qei(self):
     acq = acquisitions.QEI(num_samples=2000)
     batch_shape = [6]
