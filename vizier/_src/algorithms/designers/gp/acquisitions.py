@@ -197,6 +197,26 @@ class EI(AcquisitionFunction):
 
 
 @struct.dataclass
+class ExpectedValue(AcquisitionFunction):
+  """Expected Improvement acquisition function."""
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      features: Optional[types.ModelInput] = None,
+      labels: Optional[types.PaddedArray] = None,
+      seed: Optional[jax.random.KeyArray] = None,
+  ) -> jax.Array:
+    del features, seed
+    if labels is not None:
+      labels = labels.replace_fill_value(-np.inf).padded_array
+    return (
+        tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
+        + dist.mean()
+    )
+
+
+@struct.dataclass
 class PI(AcquisitionFunction):
   """Probability of Improvement acquisition function."""
 
@@ -246,6 +266,16 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     )
 
   @classmethod
+  def default_ucb_expected_value(cls) -> 'AcquisitionTrustRegion':
+    return cls(
+        UCB(1.8),
+        ExpectedValue(),
+        bad_acq_value=-1e12,
+        threshold=None,
+        apply_tr_after=0,
+    )
+
+  @classmethod
   def default_ucb_lcb(cls) -> 'AcquisitionTrustRegion':
     return cls(
         UCB(1.8),
@@ -289,9 +319,10 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     apply_tr = False
     if labels is not None:
       labels_padded = labels.replace_fill_value(np.nan).padded_array
-      threshold = jnp.minimum(
-          jnp.nanmean(labels_padded), jnp.nanmedian(labels_padded)
-      )
+      # threshold = jnp.minimum(
+      #     jnp.nanmean(labels_padded), jnp.nanmedian(labels_padded)
+      # )
+      threshold = jnp.nanmedian(labels_padded)
       apply_tr = labels._original_shape[0] <= self.apply_tr_after
     if self.threshold is not None:
       threshold = self.threshold
