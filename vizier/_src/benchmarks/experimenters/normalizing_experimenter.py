@@ -62,7 +62,8 @@ class NormalizingExperimenter(experimenter.Experimenter):
     for parameters in grid_parameters:
       trial = pyvizier.Trial(parameters=parameters)
       exptr.evaluate([trial])
-      for name, metric in trial.final_measurement.metrics.items():
+      measurement = trial.final_measurement
+      for name, metric in (measurement.metrics if measurement else {}).items():
         if name in metrics:
           metrics[name].append(metric.value)
         else:

@@ -192,8 +192,17 @@ class DiscretizingExperimenter(experimenter.Experimenter):
         grid_values = converter.to_parameter_values(grid_scalars)
 
         if convert_to_str[param.name]:
-          discretization[param.name] = [point.as_str for point in grid_values]
+          discretization[param.name] = [
+              point.as_str for point in grid_values if point is not None
+          ]
         else:
-          discretization[param.name] = [point.as_float for point in grid_values]
+          discretization[param.name] = [
+              point.as_float for point in grid_values if point is not None
+          ]
+        if len(discretization[param.name]) < len(grid_values):
+          raise ValueError(
+              '%d None values in grid values'
+              % (len(grid_values) - len(discretization))
+          )
 
     return cls(exptr, discretization)

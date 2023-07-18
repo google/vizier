@@ -83,6 +83,7 @@ class MultiObjectiveExperimenter(experimenter.Experimenter):
       previous_name = self._previous_names[name]
       for idx, copied in enumerate(suggestions_copy):
         measurement = measurements[idx]
+        assert copied.final_measurement is not None
         measurement.metrics[name] = copied.final_measurement.metrics[
             previous_name
         ]
