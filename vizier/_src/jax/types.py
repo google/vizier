@@ -17,7 +17,6 @@ from __future__ import annotations
 """Types library for vizier/_src/jax."""
 
 from typing import Any, Generic, Iterable, Mapping, Optional, Sequence, TypeVar, Union
-
 import equinox as eqx
 from flax import struct
 from flax.core import scope as flax_scope
@@ -66,9 +65,15 @@ class PaddedArray(eqx.Module):
 
   @property
   def shape(self) -> tuple[int, ...]:
+    """Returns the shape of the padded array."""
     return self.padded_array.shape
 
+  def replace_array(self, array: jt.Shaped[jax.Array, '...']) -> 'PaddedArray':
+    """Replaces the original array values, maintaining the padding."""
+    return PaddedArray.from_array(array, self.shape, fill_value=self.fill_value)
+
   def replace_fill_value(self, fill_value: Any) -> 'PaddedArray':
+    """Replaces the padded fill values."""
     # TODO: Consider optimizing when fill_value == self.fill_value.
     if self._nopadding_done:
       return self

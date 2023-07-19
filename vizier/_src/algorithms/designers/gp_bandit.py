@@ -52,7 +52,10 @@ def _experimental_override_allowed(fun):
   return fun
 
 
-_GPBanditState = tuple[sp.UniformEnsemblePredictive, types.ModelData]
+_GPBanditState = tuple[
+    sp.UniformEnsemblePredictive,
+    types.ModelData,
+]
 
 
 @attr.define(auto_attribs=False)
@@ -108,6 +111,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       default='oss_gp_bandit', kw_only=True, init=False
   )
   _ensemble_size: Optional[int] = attr.field(default=1, kw_only=True)
+  _output_warper: output_warpers.OutputWarper = attr.field(
+      factory=output_warpers.create_default_warper, kw_only=True
+  )
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -119,9 +125,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       default=0, kw_only=True, init=False
   )
   _acquisition_optimizer: vb.VectorizedOptimizer = attr.field(init=False)
-  _output_warper_pipeline: output_warpers.OutputWarperPipeline = attr.field(
-      init=False
-  )
+
   _last_computed_state: _GPBanditState = attr.field(init=False)
 
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
@@ -147,7 +151,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         self._problem.search_space,
         seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
     )
-    self._output_warper_pipeline = output_warpers.create_default_warper()
 
     self._acquisition_optimizer = self._acquisition_optimizer_factory(
         self._converter
@@ -239,7 +242,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   @_experimental_override_allowed
   def _warp_labels(self, labels: types.Array) -> types.Array:
     """Subclasses can override this method for experiments."""
-    labels = self._output_warper_pipeline.warp(labels)
+    labels = self._output_warper.warp(labels)
     return labels.reshape([-1])
 
   @profiler.record_runtime
@@ -449,7 +452,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     unwarped_samples = None
     # TODO: vectorize output warping.
     for i in range(samples.shape[0]):
-      unwarp_samples_ = self._output_warper_pipeline.unwarp(
+      unwarp_samples_ = self._output_warper.unwarp(
           samples[i][..., np.newaxis]
       ).reshape(-1)
       if unwarped_samples is not None:

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import abc
 import copy
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from absl import logging
 import attr
@@ -85,6 +85,30 @@ class OutputWarper(abc.ABC):
       (num_points, 1) shaped array of finite unwarped mutated labels.
     """
     pass
+
+  def warp_padded(self, labels: types.PaddedArray) -> types.PaddedArray:
+    warped_unpadded_list = []
+    unpadded = np.array(labels.unpad())
+    for metric_id in range(labels.shape[-1]):
+      warped_unpadded_list.append(self.warp(unpadded[:, metric_id]))
+
+    warped_unpadded = np.concatenate(warped_unpadded_list, axis=-1)
+    return labels.replace_array(warped_unpadded)
+
+
+@attr.define
+class BijectorWarper(OutputWarper):
+  _bijector_factory: Callable[[types.Array], tfb.Bijector] = attr.ib
+  _bijector: Optional[tfb.Bijector] = attr.ib(init=False, default=None)
+
+  def warp(self, labels_arr: types.Array) -> types.Array:
+    self._bijector = self._bijector_factory(labels_arr)
+    return self._bijector(labels_arr)
+
+  def unwarp(self, labels_arr: types.Array) -> types.Array:
+    if self._bijector is None:
+      raise ValueError('warp must be called first.')
+    return self._bijector.inverse(labels_arr)
 
 
 @attr.define

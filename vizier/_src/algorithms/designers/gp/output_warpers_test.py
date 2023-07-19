@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 import scipy
+from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import output_warpers
 
 from absl.testing import absltest
@@ -450,6 +451,23 @@ class InfeasibleWarperTest(parameterized.TestCase):
   def test_known_arrays(self):
     # TODO: Add a couple of parameterized test cases.
     self.skipTest('No test cases provided')
+
+
+class BijectorWarperTest(absltest.TestCase):
+
+  def test_trivial(self):
+    warper = output_warpers.BijectorWarper(
+        lambda arr: tfp.bijectors.Shift(arr.mean())
+    )
+
+    original = np.array([
+        0.0,
+        1.0,
+        2.0,
+    ])
+    warped = original + 1
+    np.testing.assert_allclose(warped, warper.warp(original))
+    np.testing.assert_allclose(original, warper.unwarp(warped))
 
 
 class OutputWarperPipelineTest(absltest.TestCase):
