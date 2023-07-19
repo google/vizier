@@ -31,7 +31,7 @@ import numpy as np
 from scipy.interpolate.fitpack2 import InterpolatedUnivariateSpline
 import six
 from six.moves import range
-from sklearn.model_selection import GridSearchCV
+from sklearn import model_selection
 from vizier import algorithms as vza
 from vizier import pyvizier
 from vizier.pyvizier import converters
@@ -40,6 +40,7 @@ from vizier.pyvizier import converters
 @attrs.define
 class TrialData:
   """Light weight trial data class to be used for training regression models."""
+
   id: int
   learning_rate: float
   final_objective: float
@@ -47,8 +48,13 @@ class TrialData:
   objective_values: list[float]
 
   @classmethod
-  def from_trial(cls, trial: pyvizier.Trial, learning_rate_param_name: str,
-                 metric_name: str, converter: converters.TimedLabelsExtractor):
+  def from_trial(
+      cls,
+      trial: pyvizier.Trial,
+      learning_rate_param_name: str,
+      metric_name: str,
+      converter: converters.TimedLabelsExtractor,
+  ):
     """Preprocess the pyvizier trial into an instance of the class.
 
     Args:
@@ -61,19 +67,22 @@ class TrialData:
       returned_trial: the trial in TrialData format
     """
 
-    learning_rate = trial.parameters.get(learning_rate_param_name,
-                                         pyvizier.ParameterValue(0.0)).value
+    learning_rate = trial.parameters.get(
+        learning_rate_param_name, pyvizier.ParameterValue(0.0)
+    ).value
 
     timedlabels = converter.convert([trial])[0]
-    steps, values = np.asarray(timedlabels.times, np.int32).reshape(
-        -1).tolist(), timedlabels.labels[metric_name].reshape(-1).tolist()
+    steps, values = (
+        np.asarray(timedlabels.times, np.int32).reshape(-1).tolist(),
+        timedlabels.labels[metric_name].reshape(-1).tolist(),
+    )
 
-    final_value = values[-1] if values else 0.0
-
-    if trial.final_measurement and (metric_name
-                                    in trial.final_measurement.metrics):
+    if trial.final_measurement and (
+        metric_name in trial.final_measurement.metrics
+    ):
       final_value = converter.metric_converters[0].convert(
-          [trial.final_measurement])[0]
+          [trial.final_measurement]
+      )[0]
     else:
       final_value = values[-1] if values else 0.0
 
@@ -82,7 +91,8 @@ class TrialData:
         learning_rate=learning_rate,
         final_objective=final_value,
         steps=steps,
-        objective_values=values)
+        objective_values=values,
+    )
 
   def extrapolate_trial_objective_value(self, max_num_steps: int):
     """Extend the measurements of self to max_num_steps.
@@ -100,7 +110,8 @@ class TrialData:
 
 
 def _generate_interpolation_fn_from_trial(
-    steps: list[int], values: list[float]) -> Callable[[int], float]:
+    steps: list[int], values: list[float]
+) -> Callable[[int], float]:
   """Generates an interpolation function from a trial's measurement data.
 
   Since different trials have evaluations at different step numbers,
@@ -121,8 +132,8 @@ def _generate_interpolation_fn_from_trial(
 
 
 def _sort_dedupe_measurements(
-    steps: list[Union[int, float]],
-    values: list[float]) -> (Tuple[list[Union[int, float]], list[float]]):
+    steps: list[Union[int, float]], values: list[float]
+) -> Tuple[list[Union[int, float]], list[float]]:
   """Sort and remove duplicates in the trial's measurements.
 
   Args:
@@ -154,15 +165,17 @@ def _sort_dedupe_measurements(
 class GBMAutoRegressor(object):
   """Train and predict trial measurements using auto-regressive GBM model."""
 
-  def __init__(self,
-               target_step: Union[int, float],
-               min_points: int,
-               learning_rate_param_name: str,
-               metric_name: str,
-               converter: converters.TimedLabelsExtractor,
-               gbdt_param_grid: Optional[Dict[str, Any]] = None,
-               cv: int = 2,
-               random_state: Optional[int] = None):
+  def __init__(
+      self,
+      target_step: Union[int, float],
+      min_points: int,
+      learning_rate_param_name: str,
+      metric_name: str,
+      converter: converters.TimedLabelsExtractor,
+      gbdt_param_grid: Optional[Dict[str, Any]] = None,
+      cv: int = 2,
+      random_state: Optional[int] = None,
+  ):
     """Initialize model params.
 
     Args:
@@ -183,7 +196,7 @@ class GBMAutoRegressor(object):
     self._metric_name = metric_name
     self._gbdt_param_grid = gbdt_param_grid or {
         "max_depth": [2, 3, 5],
-        "n_estimators": [50, 100]
+        "n_estimators": [50, 100],
     }
     self._cv = cv
     self._random_state = random_state
@@ -210,10 +223,14 @@ class GBMAutoRegressor(object):
               trial,
               learning_rate_param_name=self._learning_rate_param_name,
               metric_name=self._metric_name,
-              converter=self._converter))
+              converter=self._converter,
+          )
+      )
     if len(completed_trials) < self._min_points + 1:
-      logging.info("Not enough completed trials (only %d) to train GBDT model.",
-                   len(completed_trials))
+      logging.info(
+          "Not enough completed trials (only %d) to train GBDT model.",
+          len(completed_trials),
+      )
       return
     feature_matrix = []
     targets = []
@@ -223,10 +240,12 @@ class GBMAutoRegressor(object):
       if len(trialc.steps) < self._min_points + 1:
         continue
       trialc.extrapolate_trial_objective_value(self._target_step)
-      tc_steps, tc_values = _sort_dedupe_measurements(trialc.steps,
-                                                      trialc.objective_values)
+      tc_steps, tc_values = _sort_dedupe_measurements(
+          trialc.steps, trialc.objective_values
+      )
       trial_inter_func = _generate_interpolation_fn_from_trial(
-          tc_steps, tc_values)
+          tc_steps, tc_values
+      )
       for i, step in enumerate(trialc.steps):
         if i < self._min_points - 1 or step >= self._target_step:
           continue
@@ -234,15 +253,27 @@ class GBMAutoRegressor(object):
         feature_matrix.append(features)
         targets.append(trial_inter_func(self._target_step))
     feature_matrix = np.array(feature_matrix)
+    logging.info("Feature matrix shape: %s", feature_matrix.shape)
+    if feature_matrix.shape[0] <= (self._min_points + 1) / (
+        1.0 - 1.0 / self._cv
+    ):
+      logging.info(
+          "Not enough rows in feature matrix. "
+          "This can happen when there are not enough measurements in "
+          "the completed trials."
+      )
+      return
     targets = np.array(targets)
-    gbdt_cv = GridSearchCV(
+    gbdt_cv = model_selection.GridSearchCV(
         lightgbm.LGBMRegressor(random_state=self._random_state),
         self._gbdt_param_grid,
-        cv=self._cv)
+        cv=self._cv,
+    )
     gbdt_cv = gbdt_cv.fit(feature_matrix, targets)
     self._best_params = gbdt_cv.best_params_
     gbm = lightgbm.LGBMRegressor(
-        **self._best_params, random_state=self._random_state)
+        **self._best_params, random_state=self._random_state
+    )
     self._model = gbm.fit(feature_matrix, targets)
 
   def predict(self, trial: pyvizier.Trial) -> Union[float, None]:
@@ -259,14 +290,16 @@ class GBMAutoRegressor(object):
         trial,
         learning_rate_param_name=self._learning_rate_param_name,
         metric_name=self._metric_name,
-        converter=self._converter)
+        converter=self._converter,
+    )
     if not self.is_trained:
       raise ValueError("Prediction cannot be performed before model training.")
     # Not enough features for prediction
     if len(trial_data.steps) < self._min_points:
       return None
-    features = self._create_features_from_trial(trial_data,
-                                                len(trial_data.steps) - 1)
+    features = self._create_features_from_trial(
+        trial_data, len(trial_data.steps) - 1
+    )
     features = np.asarray(features).reshape(1, -1)
     return self._model.predict(features)[0]
 
@@ -316,13 +349,13 @@ class HallucinationOptions(object):
       `elapsed_seconds` is set to be the current elapsed_seconds` + this
       constant.
   """
+
   autoregressive_order: int = attrs.field(default=5)
   learning_rate_param_name: str = attrs.field(default="learning_rate")
   use_steps: bool = attrs.field(default=True)
-  gbdt_param_grid: Dict[str, Any] = attrs.field(default={
-      "max_depth": [2, 3, 5],
-      "n_estimators": [50, 100]
-  })
+  gbdt_param_grid: Dict[str, Any] = attrs.field(
+      default={"max_depth": [2, 3, 5], "n_estimators": [50, 100]}
+  )
   min_completed_trials: int = attrs.field(default=5)
   min_steps: int = attrs.field(default=5)
   max_steps: Optional[int] = attrs.field(default=None)
@@ -330,13 +363,15 @@ class HallucinationOptions(object):
   elapsed_seconds_gap: Optional[int] = attrs.field(default=0)
 
 
-class GBMTrialHallucinator():
+class GBMTrialHallucinator:
   """Regression based early stopping hallucinations."""
 
-  def __init__(self,
-               study_config: pyvizier.ProblemStatement,
-               options: HallucinationOptions,
-               verbose: int = 0):
+  def __init__(
+      self,
+      study_config: pyvizier.ProblemStatement,
+      options: HallucinationOptions,
+      verbose: int = 0,
+  ):
     """Initialization.
 
     Args:
@@ -352,10 +387,12 @@ class GBMTrialHallucinator():
     self._converter = converters.TimedLabelsExtractor(
         [
             converters.DefaultModelOutputConverter(
-                self._metric, flip_sign_for_minimization_metrics=False),
+                self._metric, flip_sign_for_minimization_metrics=False
+            ),
         ],
         timestamp="steps" if self._options.use_steps else "elapsed_secs",
-        value_extraction="raw")
+        value_extraction="raw",
+    )
     self._max_steps = self._options.max_steps
     self._min_steps = self._options.min_steps
     # Place holder for model.
@@ -399,7 +436,8 @@ class GBMTrialHallucinator():
         metric_name=self._metric.name,
         converter=self._converter,
         gbdt_param_grid=self._options.gbdt_param_grid,
-        random_state=self._options.random_state)
+        random_state=self._options.random_state,
+    )
     global_autoregressive_model.train(train_trials)
     logging.info("Finished Training global Auto-regressive GBDT model.")
 
@@ -407,13 +445,15 @@ class GBMTrialHallucinator():
     # are not updated before making suggestions.
     if not global_autoregressive_model.is_trained:
       logging.info(
-          "Not updating stopped trials as global GBDT model is not trained.")
+          "Not updating stopped trials as global GBDT model is not trained."
+      )
       return
 
     self._model = global_autoregressive_model
 
   def update_stopped_trials(
-      self, stopped_trials: list[pyvizier.Trial]) -> list[pyvizier.Trial]:
+      self, stopped_trials: list[pyvizier.Trial]
+  ) -> list[pyvizier.Trial]:
     """Add hallucinated final measurements to stopped trials.
 
     Args:
@@ -434,8 +474,12 @@ class GBMTrialHallucinator():
       if not auto_prediction:
         updated_trials.append(pytrial)
         continue
-      logging.log_if(logging.INFO, "Trial generated prediction %f",
-                     auto_prediction, self._verbose >= 1)
+      logging.log_if(
+          logging.INFO,
+          "Trial generated prediction %f",
+          auto_prediction,
+          self._verbose >= 1,
+      )
       self._create_final_measurement(
           pytrial,
           auto_prediction=auto_prediction,
@@ -444,34 +488,42 @@ class GBMTrialHallucinator():
       updated_trials.append(pytrial)
     return updated_trials
 
-  def _create_final_measurement(self, pytrial: pyvizier.Trial,
-                                auto_prediction: float):
+  def _create_final_measurement(
+      self, pytrial: pyvizier.Trial, auto_prediction: float
+  ):
     """Creates a final measurement for stopped trials."""
     if pytrial.final_measurement:
       logging.info(
           "A pending trial somehow has a final measurement and will"
           "remain unchanged"
-          "(trial_id=%s)", pytrial.id)
+          "(trial_id=%s)",
+          pytrial.id,
+      )
       return
     final_measurement = copy.deepcopy(pytrial.measurements[-1])
     final_measurement.metrics[self._metric.name] = pyvizier.Metric(
-        value=auto_prediction)
+        value=auto_prediction
+    )
     if self._options.use_steps:
       final_measurement.steps = self._max_steps
       # Increase the elapsed_secs for the final_measurement to
       # make sure new measurements won't have newer timestamps.
-      final_measurement.elapsed_secs = pytrial.measurements[
-          -1].elapsed_secs + self._options.elapsed_seconds_gap
+      final_measurement.elapsed_secs = (
+          pytrial.measurements[-1].elapsed_secs
+          + self._options.elapsed_seconds_gap
+      )
     else:
       final_measurement.elapsed_secs = self._max_steps
       # Increase the steps for the final_measurement to ensure it's the last
       # step. Note that the gap does not effect vizier's suggestion policy
       # and therefore is a safe operation.
       if len(pytrial.measurements) > 1:
-        checkpoint_gap = pytrial.measurements[-1].steps - pytrial.measurements[
-            -2].steps
+        checkpoint_gap = (
+            pytrial.measurements[-1].steps - pytrial.measurements[-2].steps
+        )
       else:
         checkpoint_gap = pytrial.measurements[-1].steps
-      final_measurement.steps = pytrial.measurements[
-          -1].steps + checkpoint_gap * 2
+      final_measurement.steps = (
+          pytrial.measurements[-1].steps + checkpoint_gap * 2
+      )
     pytrial.complete(final_measurement)
