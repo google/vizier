@@ -36,6 +36,8 @@ class LBFGSBOptimizer:
 
   # Number of parallel runs of L-BFGS-B.
   random_restarts: int = attr.field(init=True, repr=False, default=25)
+  # Number of iterations for each L-BFGS-B run.
+  maxiter: int = attr.field(init=True, repr=False, default=50)
   # In parallel optimization (suggesting multiple candidates at once), this is
   # the number of candidates to consider at once. The score function is assumed
   # to score this many candidates together and output a scalar.
@@ -75,7 +77,9 @@ class LBFGSBOptimizer:
     if self.num_parallel_candidates:
       count = None
     optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=self.random_restarts)
+        optimizers.LbfgsBOptions(
+            random_restarts=self.random_restarts, maxiter=self.maxiter
+        )
     )
     num_features = sum(
         spec.num_dimensions for spec in converter.output_specs.continuous
