@@ -114,6 +114,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
         padding_schedule=padding_schedule,
         use_trust_region=use_trust_region,
         rng=jax.random.PRNGKey(0),
+        linear_coef=0.1,
     )
     with profiler.collect_events() as events:
       self.assertLen(

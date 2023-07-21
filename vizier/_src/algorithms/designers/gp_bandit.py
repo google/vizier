@@ -95,6 +95,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       kw_only=True,
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
+  _linear_coef: float = attr.field(default=0.0, kw_only=True)
   _acquisition_function: acquisitions.AcquisitionFunction = attr.field(
       factory=acquisitions.UCB, kw_only=True
   )
@@ -180,6 +181,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     self._acquisition_problem = acquisition_problem
 
   def _get_coroutine(self, features) -> sp.ModelCoroutine:
+    if self._linear_coef:
+      return tuned_gp_models.VizierLinearGaussianProcess.build_model(
+          features, linear_coef=self._linear_coef
+      ).coroutine
+
     return tuned_gp_models.VizierGaussianProcess.build_model(features).coroutine
 
   def update(

@@ -240,7 +240,7 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       linear_coef: float = 1e-12,
   ) -> sp.StochasticProcessModel:
     """Returns the model and loss function."""
-    gp_coroutine = VizierGaussianProcess(
+    gp_coroutine = VizierLinearGaussianProcess(
         _dim=types.ContinuousAndCategorical[int](
             features.continuous.padded_array.shape[-1],
             features.categorical.padded_array.shape[-1],
@@ -378,16 +378,17 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       )
       cholesky_fn = lambda matrix: retrying_cholesky(matrix)[0]
 
-    mean_fn = yield sp.ModelParameter(
-        init_fn=jax.random.normal,
-        regularizer=lambda x: 0.5 * x**2,
-        name='mean_fn',
-    )
+    # TODO: Add batching/ensembling support for mean_fn.
+    # mean_fn = yield sp.ModelParameter(
+    #    init_fn=jax.random.normal,
+    #    regularizer=lambda x: 0.5 * x**2,
+    #    name='mean_fn',
+    # )
 
     return tfd.GaussianProcess(
         kernel,
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         cholesky_fn=cholesky_fn,
-        mean_fn=lambda _: self._linear_coef * mean_fn,
+        # mean_fn=lambda _: self._linear_coef * mean_fn,
     )
