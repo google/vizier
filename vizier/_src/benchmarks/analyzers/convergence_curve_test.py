@@ -200,15 +200,18 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
 
 class HyperConvergenceCurveConverterTest(parameterized.TestCase):
 
-  def test_convert_basic(self):
-    generator = convergence.HypervolumeCurveConverter([
-        pyvizier.MetricInformation(
-            name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
-        ),
-        pyvizier.MetricInformation(
-            name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
-        ),
-    ])
+  def test_convert_with_origin_reference(self):
+    generator = convergence.HypervolumeCurveConverter(
+        [
+            pyvizier.MetricInformation(
+                name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+            ),
+            pyvizier.MetricInformation(
+                name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+            ),
+        ],
+        reference_value=np.array([0.0]),
+    )
     pytrials = []
     pytrials.append(
         pyvizier.Trial().complete(
@@ -262,6 +265,36 @@ class HyperConvergenceCurveConverterTest(parameterized.TestCase):
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 2.0]], decimal=1)
+
+  def test_convert_with_none_reference(self):
+    generator = convergence.HypervolumeCurveConverter([
+        pyvizier.MetricInformation(
+            name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+        ),
+        pyvizier.MetricInformation(
+            name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+        ),
+    ])
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': 2.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 3.0, 'min': -1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 4.0]], decimal=1)
 
 
 class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):

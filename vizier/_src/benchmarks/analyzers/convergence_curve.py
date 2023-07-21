@@ -313,15 +313,16 @@ class HypervolumeCurveConverter:
       self,
       metric_informations: Sequence[pyvizier.MetricInformation],
       *,
-      reference_value: np.ndarray = np.array([0.0]),
+      reference_value: Optional[np.ndarray] = None,
       num_vectors: int = 10000,
   ):
     """Init.
 
     Args:
       metric_informations:
-      reference_value: Reference point value from which hypervolume is computed.
-        Default uses the origin and the value is broadcasted for all dimensions.
+      reference_value: Reference point value from which hypervolume is computed,
+        with shape that is broadcastable with (dim,). If None, this computes the
+        minimum of each objective as the reference point.
       num_vectors: Number of vectors from which hypervolume is computed.
     """
     if len(metric_informations) < 2:
@@ -351,15 +352,18 @@ class HypervolumeCurveConverter:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
     # Returns a len(trials) x number of metrics np.ndarray.
     metrics = self._converter.to_labels_array(trials)
-    if len(self._origin_value) == 1:
-      origin = np.broadcast_to(self._origin_value, (metrics.shape[1],))
+    if self._origin_value is None:
+      origin = np.nanmin(metrics, axis=0)
     else:
-      if self._origin_value.shape != (metrics.shape[1],):
-        raise ValueError(
-            f'Metric shapes {self._origin_value.shape} do not '
-            f'match: {(metrics.shape[1],)}'
-        )
-      origin = self._origin_value
+      if len(self._origin_value) == 1:
+        origin = np.broadcast_to(self._origin_value, (metrics.shape[1],))
+      else:
+        if self._origin_value.shape != (metrics.shape[1],):
+          raise ValueError(
+              f'Metric shapes {self._origin_value.shape} do not '
+              f'match: {(metrics.shape[1],)}'
+          )
+        origin = self._origin_value
 
     front = multimetric.ParetoFrontier(
         points=metrics,

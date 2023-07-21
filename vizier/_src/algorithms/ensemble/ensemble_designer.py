@@ -45,8 +45,16 @@ class ObjectiveRewardGenerator:
       validator=[attrs.validators.instance_of(float), attrs.validators.ge(0)],
   )
   # Arguments passed to the hypervolume converter.
-  reference_value: np.ndarray = attrs.field(default=np.array([-2.0]))
-  num_vectors: int = attrs.field(default=100)
+  reference_value: Optional[np.ndarray] = attrs.field(
+      default=None,
+      kw_only=True,
+      validator=[
+          attrs.validators.optional(attrs.validators.instance_of(np.ndarray))
+      ],
+  )
+  num_vectors: int = attrs.field(
+      default=100, kw_only=True, validator=[attrs.validators.ge(0)]
+  )
 
   def __call__(self, trials: Sequence[vz.Trial]) -> list[float]:
     """Generate rewards from trials."""
