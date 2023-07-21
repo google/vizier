@@ -163,7 +163,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     losses = jnp.asarray(losses)
     all_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *params)
 
-    metrics['loss'] = losses
+    metrics['loss'] = losses[jnp.newaxis, :]
     if self._speed_test:
       metrics['train_time'] = train_times
     return (
@@ -263,7 +263,7 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
 
     losses = jnp.asarray(opt_states.value)
     metrics['train_time'] = time.time() - start_time
-    metrics['loss'] = losses
+    metrics['loss'] = losses[jnp.newaxis, :]
     return (
         core.get_best_params(losses, all_params, best_n=best_n),
         metrics,

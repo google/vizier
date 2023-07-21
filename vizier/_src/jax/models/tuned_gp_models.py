@@ -211,6 +211,9 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     )
 
 
+# TODO: Consider renaming this to reflect that it uses a
+# Matern + Linear kernel, not just a Linear kernel (or merging this class with
+# VizierGaussianProcess).
 @struct.dataclass
 class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
   """Vizier's tuned GP with linear kernel.
@@ -231,6 +234,8 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
   _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
   _linear_coef: float = struct.field(default=1e-12, kw_only=True)
 
+  # TODO: Redesign or remove this method given the updated
+  # StochasticProcessModelCoroutine class.
   @classmethod
   def build_model(
       cls,

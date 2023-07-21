@@ -36,6 +36,7 @@ INT_DTYPE = np.int32
 Array = Union[np.ndarray, jax.Array]
 
 
+# TODO: Add a `concatenate` method.
 class PaddedArray(eqx.Module):
   """Padded Array as a pytree.
 

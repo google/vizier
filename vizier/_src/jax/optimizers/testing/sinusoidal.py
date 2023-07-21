@@ -92,7 +92,10 @@ class ConvergenceTestMixin(unittest.TestCase):
     logging.info('Optimal: %s', optimal_params)
 
     self.assertLessEqual(loss_fn(optimal_params)[0], threshold)
-    np.testing.assert_array_less(metrics['loss'][-1], metrics['loss'][0])
+    if metrics['loss'].shape[0] > 1:
+      np.testing.assert_array_less(
+          metrics['loss'][-1, :], metrics['loss'][0, :]
+      )
 
     if (constraints is not None) and (constraints.bounds is not None):
       bounds = constraints.bounds

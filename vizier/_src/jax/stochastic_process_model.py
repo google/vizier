@@ -903,7 +903,14 @@ class StochasticProcessWithCoroutine(eqx.Module):
   def precompute_predictive(
       self, data: types.ModelData
   ) -> PrecomputedPredictive:
-    predictive = self(data.features).posterior_predictive(
+
+    if jnp.size(data.labels.padded_array) == 0:
+      # TFP `retrying_cholesky` does not handle empty observations.
+      prior = self(data.features).copy(cholesky_fn=None)
+    else:
+      prior = self(data.features)
+
+    predictive = prior.posterior_predictive(
         index_points=None,
         observations=data.labels.padded_array,
         observations_is_missing=data.labels.is_missing[0],

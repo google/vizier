@@ -675,6 +675,16 @@ class EquinoxModulesTest(absltest.TestCase):
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 
+    x_obs_empty, y_obs_empty, y_pred = _make_inputs(
+        key=jax.random.PRNGKey(0), num_observed=0, num_predictive=7
+    )
+    predictive_empty_obs = model.precompute_predictive(
+        types.ModelData(x_obs_empty, y_obs_empty)
+    )
+    dist = predictive_empty_obs.predict(y_pred)
+    self.assertSequenceEqual(dist.event_shape, (7,))
+    self.assertSequenceEqual(dist.batch_shape, tuple())
+
 
 class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
 
