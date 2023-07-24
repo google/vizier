@@ -19,8 +19,6 @@ jobs:
         suffix: ["core", "benchmarks", "algorithms", "clients", "pyglove", "raytune"]
         include:
           - suffix: "clients"
-            python-version: "3.7"
-          - suffix: "clients"
             python-version: "3.8"
           - suffix: "clients"
             python-version: "3.9"

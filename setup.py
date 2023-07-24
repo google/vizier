@@ -93,7 +93,7 @@ setup(
         'benchmarks': _parse_requirements('requirements-benchmarks.txt'),
         'test': _parse_requirements('requirements-test.txt'),
     },
-    python_requires='>=3.7',
+    python_requires='>=3.8',
     include_package_data=True,
     zip_safe=False,
     cmdclass={'build': BuildCmd},
