@@ -55,7 +55,7 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
         ),
     )
     labels = types.PaddedArray.as_padded(
-        jax.random.normal(key, shape=(n_samples,)),
+        jax.random.normal(key, shape=(n_samples, 1)),
     )
     xs = features
     # Model

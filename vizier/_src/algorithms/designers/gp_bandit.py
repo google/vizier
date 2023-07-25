@@ -79,7 +79,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
-    acquisition_function: acquisition function to use.
+    scoring_function_factory: Callable that returns the scoring function to use.
     use_trust_region: Uses trust region to constrain initial exploration.
     rng: If not set, uses random numbers.
     metadata_ns: Metadata namespace that this designer writes to.
@@ -96,8 +96,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _linear_coef: float = attr.field(default=0.0, kw_only=True)
-  _acquisition_function: acquisitions.AcquisitionFunction = attr.field(
-      factory=acquisitions.UCB, kw_only=True
+  _scoring_function_factory: acquisitions.ScoringFunctionFactory = attr.field(
+      factory=lambda: VizierGPBandit.default_scoring_function_factory,
+      kw_only=True,
   )
   # Whether to pad all inputs, and what type of schedule to use. This is to
   # ensure fewer JIT compilation passes. (Default implies no padding.)
@@ -132,6 +133,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory()
   )
+  default_scoring_function_factory = (
+      acquisitions.bayesian_scoring_function_factory(
+          lambda _: acquisitions.UCB()
+      )
+  )
 
   def __attrs_post_init__(self):
     # Extra validations
@@ -157,11 +163,24 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         self._converter
     )
     acquisition_problem = copy.deepcopy(self._problem)
-    if isinstance(
-        self._acquisition_function, acquisitions.MultiAcquisitionFunction
-    ):
+    empty_data = types.ModelData(
+        features=self._converter.to_features([]),
+        labels=types.PaddedArray.as_padded(
+            np.zeros((0, len(self._problem.metric_information)))
+        ),
+    )
+
+    coroutine = self._get_coroutine(empty_data.features)
+    params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
+    model = sp.StochasticProcessWithCoroutine(coroutine, params)
+    predictive = model.precompute_predictive(empty_data)
+    scoring_fn = self._scoring_function_factory(
+        empty_data, predictive, self._use_trust_region
+    )
+    acquisition_function = getattr(scoring_fn, 'acquisition_fn', None)
+    if isinstance(acquisition_function, acquisitions.MultiAcquisitionFunction):
       acquisition_config = vz.MetricsConfig()
-      for k in self._acquisition_function.acquisition_fns.keys():
+      for k in acquisition_function.acquisition_fns.keys():
         acquisition_config.append(
             vz.MetricInformation(
                 name=k,
@@ -248,8 +267,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   @_experimental_override_allowed
   def _warp_labels(self, labels: types.Array) -> types.Array:
     """Subclasses can override this method for experiments."""
-    labels = self._output_warper.warp(labels)
-    return labels.reshape([-1])
+    return self._output_warper.warp(labels)
 
   @profiler.record_runtime
   def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
@@ -397,13 +415,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     predictive, data = self._update_state(self._trials_to_data(self._trials))
 
     # Define acquisition function.
-    scoring_fn = acquisitions.BayesianScoringFunction(
-        predictive,
-        data,
-        self._acquisition_function,
-        acquisitions.TrustRegion(data.features)
-        if self._use_trust_region
-        else None,
+    scoring_fn = self._scoring_function_factory(
+        data, predictive, self._use_trust_region
     )
     logging.info('Optimizing acquisition: %s', scoring_fn)
     best_trials = self._optimize_acquisition(scoring_fn, count)

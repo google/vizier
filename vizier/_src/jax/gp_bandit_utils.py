@@ -34,8 +34,11 @@ def stochastic_process_model_loss_fn(
       data.features,
       mutable=['losses', 'predictive'],
   )
+  labels = data.labels.padded_array
+  if len(gp.event_shape) == 1 and labels.shape[-1] == 1:
+    labels = jnp.squeeze(data.labels.padded_array, axis=-1)
   loss = -gp.log_prob(
-      data.labels.padded_array,
+      labels,
       is_missing=data.labels.is_missing[0],
   ) + jax.tree_util.tree_reduce(jnp.add, mutables['losses'])
   if normalize:

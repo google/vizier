@@ -28,6 +28,15 @@ from absl.testing import absltest
 tfd = tfp.distributions
 
 
+def _make_test_model_data(labels_array):
+  labels = types.PaddedArray.as_padded(labels_array)
+  features = types.ModelInput(
+      continuous=jnp.zeros((labels_array.shape[0], 3), dtype=jnp.float64),
+      categorical=jnp.zeros((labels_array.shape[0], 1), dtype=types.INT_DTYPE),
+  )
+  return types.ModelData(features=features, labels=labels)
+
+
 class AcquisitionsTest(absltest.TestCase):
 
   def test_ucb(self):
@@ -43,88 +52,81 @@ class AcquisitionsTest(absltest.TestCase):
     self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 0.1)
 
   def test_ei(self):
-    acq = acquisitions.EI()
+    labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
+    best_labels = acquisitions.get_best_labels(labels)
+    acq = acquisitions.EI(best_labels)
     self.assertAlmostEqual(
         acq(
             tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([0.2])),
         ),
         0.34635347,
     )
 
   def test_pi(self):
-    acq = acquisitions.PI()
+    labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
+    best_labels = acquisitions.get_best_labels(labels)
+    acq = acquisitions.PI(best_labels)
     self.assertAlmostEqual(
         acq(
             tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([0.2])),
         ),
         0.46017216,
     )
 
   def test_acq_pi_tr_good_point(self):
-    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
+    data = _make_test_model_data((jnp.array([[100.0]])))
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi(data=data)
     self.assertAlmostEqual(
-        acq(
-            tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([100.0])),
-        ),
+        acq(tfd.Normal(jnp.float64(0.1), 1)),
         -1.0e12,
     )
 
   def test_acq_pi_tr_bad_point(self):
-    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi()
+    data = _make_test_model_data((jnp.array([[-100.0]])))
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi(data=data)
     self.assertAlmostEqual(
-        acq(
-            tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([-100.0])),
-        ),
+        acq(tfd.Normal(jnp.float64(0.1), 1)),
         1.9,
     )
 
   def test_acq_lcb_tr_bad_point(self):
-    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb()
+    data = _make_test_model_data((jnp.array([[100.0]])))
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb(data=data)
     self.assertAlmostEqual(
-        acq(
-            tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([100.0])),
-        ),
+        acq(tfd.Normal(jnp.float64(0.1), 1)),
         jnp.array([-1e12]),
         delta=2.0,
     )
 
   def test_acq_lcb_tr_good_point(self):
-    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb()
+    data = _make_test_model_data((jnp.array([[-100.0]])))
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb(data=data)
     self.assertAlmostEqual(
-        acq(
-            tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([-100.0])),
-        ),
+        acq(tfd.Normal(jnp.float64(0.1), 1)),
         1.9,
     )
 
   def test_acq_lcb_delay_tr(self):
-    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb_delay_tr()
+    data = _make_test_model_data((jnp.array([[100.0], [-100.0]])))
+    acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb_delay_tr(
+        data=data
+    )
     self.assertAlmostEqual(
-        acq(
-            tfd.Normal(jnp.float64(0.1), 1),
-            labels=types.PaddedArray.as_padded(jnp.array([100.0, -100.0])),
-        ),
+        acq(tfd.Normal(jnp.float64(0.1), 1)),
         jnp.array([1.9]),
     )
 
   def test_qei(self):
-    acq = acquisitions.QEI(num_samples=2000)
+    best_labels = jnp.array([0.2])
+    acq = acquisitions.QEI(num_samples=2000, best_labels=best_labels)
     batch_shape = [6]
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
-    qei = acq(dist, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0))
+    qei = acq(dist, seed=jax.random.PRNGKey(0))
     # QEI reduces over the batch shape.
     self.assertEmpty(qei.shape)
 
     dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
-    qei_single_point = acq(
-        dist_single_point, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0)
-    )
+    qei_single_point = acq(dist_single_point, seed=jax.random.PRNGKey(0))
     # Parallel matches non-parallel for a single point.
     np.testing.assert_allclose(qei_single_point, 0.346, atol=1e-2)
     self.assertEmpty(qei_single_point.shape)
@@ -133,7 +135,7 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.QUCB()
     batch_shape = [6]
     dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
-    qucb = acq(dist, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(0))
+    qucb = acq(dist, seed=jax.random.PRNGKey(0))
     # QUCB reduces over the batch shape.
     self.assertEmpty(qucb.shape)
 
@@ -142,13 +144,12 @@ class AcquisitionsTest(absltest.TestCase):
     # with the UCB coefficient (assuming a Gaussian distribution).
     acq_ucb = acquisitions.UCB(coefficient=0.5)
     acq_qucb = acquisitions.QUCB(
-        num_samples=5000, coefficient=0.5 * np.sqrt(np.pi / 2.0)
+        num_samples=5000,
+        coefficient=0.5 * np.sqrt(np.pi / 2.0),
     )
     dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
-    qucb_single_point = acq_qucb(
-        dist_single_point, labels=jnp.array([0.2]), seed=jax.random.PRNGKey(1)
-    )
-    ucb_single_point = acq_ucb(dist_single_point, labels=jnp.array([0.2]))
+    qucb_single_point = acq_qucb(dist_single_point, seed=jax.random.PRNGKey(1))
+    ucb_single_point = acq_ucb(dist_single_point)
     # Parallel matches non-parallel for a single point.
     np.testing.assert_allclose(
         qucb_single_point, ucb_single_point[0], atol=2e-2
@@ -156,14 +157,14 @@ class AcquisitionsTest(absltest.TestCase):
     self.assertEmpty(qucb_single_point.shape)
 
   def test_multi_acquisition(self):
+    best_labels = jnp.array([0.2])
     ucb = acquisitions.UCB()
-    ei = acquisitions.EI()
+    ei = acquisitions.EI(best_labels=best_labels)
     acq = acquisitions.MultiAcquisitionFunction({'ucb': ucb, 'ei': ei})
     dist = tfd.Normal(jnp.float64(0.1), 1)
-    labels = types.PaddedArray.as_padded(jnp.array([0.2]))
-    acq_val = acq(dist, labels=labels)
-    ucb_val = ucb(dist, labels=labels)
-    ei_val = ei(dist, labels=labels)
+    acq_val = acq(dist)
+    ucb_val = ucb(dist)
+    ei_val = ei(dist)
     np.testing.assert_allclose(acq_val, jnp.stack([ucb_val, ei_val]))
 
 

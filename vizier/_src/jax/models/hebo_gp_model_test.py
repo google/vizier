@@ -57,11 +57,21 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
     ], [0.51850627, 0.62689204, 0.76134879, 0.65990021, 0.82350868, 0.7429215]],
                            dtype=jnp.float64)
 
-    self.y_obs = jnp.array([
-        0.55552674, -0.29054829, -0.04703586, 0.0217839, 0.15445438, 0.46654119,
-        0.12255823, -0.19540335, -0.11772564, -0.44447326
-    ],
-                           dtype=jnp.float64)
+    self.y_obs = jnp.array(
+        [
+            0.55552674,
+            -0.29054829,
+            -0.04703586,
+            0.0217839,
+            0.15445438,
+            0.46654119,
+            0.12255823,
+            -0.19540335,
+            -0.11772564,
+            -0.44447326,
+        ],
+        dtype=jnp.float64,
+    )[:, jnp.newaxis]
 
   def test_log_prob_and_loss(self):
     inputs = types.ModelInput(

@@ -89,7 +89,7 @@ def acquisition_on_array(
 ):
   """Acquisition function on features array."""
   dist = _build_predictive_distribution(xs, model, state, use_vmap)
-  acquisition = acquisition_fn(dist, state.data.features, state.data.labels)
+  acquisition = acquisition_fn(dist)
   if trust_region is not None:
     distance = trust_region.min_linf_distance(xs)
     # Due to output normalization, acquisition can't be nearly as

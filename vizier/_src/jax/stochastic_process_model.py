@@ -281,6 +281,15 @@ class ModelCoroutine(Protocol, Generic[_D]):
     pass
 
 
+def _squeeze_to_event_dims(
+    dist: tfd.Distribution, labels: jax.Array
+) -> jax.Array:
+  """Squeezes the singleton `metrics` dimension from `labels`, if applicable."""
+  if len(dist.event_shape) == 1 and labels.shape == (dist.event_shape[0], 1):
+    return jnp.squeeze(labels, axis=-1)
+  return labels
+
+
 class StochasticProcessModel(nn.Module):
   """Builds a Stochastic Process Flax module.
 
@@ -454,8 +463,10 @@ class StochasticProcessModel(nn.Module):
     if not y_observed._nopadding_done:  # pylint: disable=protected-access
       kwargs['observations_is_missing'] = y_observed.is_missing[0]
 
-    predictive_dist = self(x_observed).posterior_predictive(
-        index_points=None, observations=y_observed.padded_array, **kwargs
+    prior = self(x_observed)
+    observations = _squeeze_to_event_dims(prior, y_observed.padded_array)
+    predictive_dist = prior.posterior_predictive(
+        index_points=None, observations=observations, **kwargs
     )
     # pylint: disable=protected-access
     cached_predictive_intermediates = {
@@ -520,8 +531,11 @@ class StochasticProcessModel(nn.Module):
         continuous=x_predictive.continuous.padded_array,
         categorical=x_predictive.categorical.padded_array,
     )
-    return self(x_observed).posterior_predictive(
-        observations=y_observed.padded_array,
+
+    prior = self(x_observed)
+    observations = _squeeze_to_event_dims(prior, y_observed.padded_array)
+    return prior.posterior_predictive(
+        observations=observations,
         predictive_index_points=predictive_index_points,
         **kwargs,
     )
@@ -777,8 +791,13 @@ class PrecomputedPredictive(eqx.Module):
         continuous=x_predictive.continuous.padded_array,
         categorical=x_predictive.categorical.padded_array,
     )
-    return self.prior(self.observed_data.features).posterior_predictive(
-        predictive_index_points=x_pred_tfp, **self._posterior_kwargs
+    prior_gp = self.prior(self.observed_data.features)
+    kwargs = self._posterior_kwargs.copy()
+    kwargs['observations'] = _squeeze_to_event_dims(
+        prior_gp, kwargs['observations']
+    )
+    return prior_gp.posterior_predictive(
+        predictive_index_points=x_pred_tfp, **kwargs
     )
 
 
@@ -886,17 +905,17 @@ class StochasticProcessWithCoroutine(eqx.Module):
       self, data: types.ModelData
   ) -> tuple[jax.Array, chex.ArrayTree]:
     dist, aux = self.call_with_aux(data.features)
+
+    labels = _squeeze_to_event_dims(dist, data.labels.padded_array)
     # TODO: Enable `is_missing` for MTGP.
     if isinstance(dist, tfde.MultiTaskGaussianProcess):
       logging.warning(
           'Using a multitask GP; note that padding/masking is not yet supported'
           'in `log_prob`.'
       )
-      nll_data = -dist.log_prob(data.labels.padded_array)
+      nll_data = -dist.log_prob(labels)
     else:
-      nll_data = -dist.log_prob(
-          data.labels.padded_array, is_missing=data.labels.is_missing[0]
-      )
+      nll_data = -dist.log_prob(labels, is_missing=data.labels.is_missing[0])
     loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])
     return loss, aux
 
@@ -910,9 +929,10 @@ class StochasticProcessWithCoroutine(eqx.Module):
     else:
       prior = self(data.features)
 
+    observations = _squeeze_to_event_dims(prior, data.labels.padded_array)
     predictive = prior.posterior_predictive(
         index_points=None,
-        observations=data.labels.padded_array,
+        observations=observations,
         observations_is_missing=data.labels.is_missing[0],
     )
     # pylint: disable=protected-access

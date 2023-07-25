@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Acquisition functions and builders implementations."""
 
-from typing import Mapping, Optional, Protocol
+from typing import Callable, Mapping, Optional, Protocol
 
 import chex
 import equinox as eqx
@@ -36,25 +36,12 @@ tfpke = tfp.experimental.psd_kernels
 class AcquisitionFunction(Protocol):
   """Acquisition function protocol."""
 
-  # TODO: Acquisition functions should take
-  # xs as additional input. All the data terms should go into the factory
-  # or constructor.
+  # TODO: Acquisition functions should take xs as additional input.
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    pass
-
-
-class Predictive(Protocol):
-  """Protocol for predicting distributions given candidate points."""
-
-  def predict_with_aux(
-      self, features: types.ModelInput
-  ) -> tuple[tfd.Distribution, chex.ArrayTree]:
     pass
 
 
@@ -72,6 +59,26 @@ class ScoreFunction(Protocol):
     pass
 
 
+class Predictive(Protocol):
+  """Protocol for predicting distributions given candidate points."""
+
+  def predict_with_aux(
+      self, features: types.ModelInput
+  ) -> tuple[tfd.Distribution, chex.ArrayTree]:
+    pass
+
+
+class ScoringFunctionFactory(Protocol):
+
+  def __call__(
+      self,
+      data: types.ModelData,
+      predictive: Predictive,
+      use_trust_region: bool = False,
+  ) -> ScoreFunction:
+    pass
+
+
 def sample_from_predictive(
     predictive: Predictive,
     xs: types.ModelInput,
@@ -82,11 +89,30 @@ def sample_from_predictive(
   return predictive.predict_with_aux(xs)[0].sample([num_samples], seed=key)
 
 
+def get_best_labels(labels: types.PaddedArray) -> jax.Array:
+  """Returns the maximum values of labels.
+
+  A note on "labels" in TFP acquisition functions: TFP acquisition functions
+  (EI, PI, qEI, qUCB) take the maximum of `"observations"` (labels) over the
+  rightmost axis, which is assumed to correspond to the number of observations.
+  `best_labels` has a (singleton) rightmost dimension corresponding to the
+  number of metrics. The shapes therefore work out correctly, although the
+  semantics are different.
+
+  Args:
+    labels: Observed labels with padded shape `(num_observations, num_metrics)`.
+
+  Returns: Maximum label values for each metric.
+  """
+  if jnp.size(labels.padded_array) == 0:
+    return -np.inf
+  return jnp.max(labels.replace_fill_value(-np.inf).padded_array, axis=-2)
+
+
 class BayesianScoringFunction(eqx.Module):
   """Combines `Predictive` with acquisition function."""
 
   predictor: Predictive
-  data: types.ModelData
   acquisition_fn: AcquisitionFunction
 
   # TODO: This should be moved out of here.
@@ -101,9 +127,7 @@ class BayesianScoringFunction(eqx.Module):
   ) -> tuple[jax.Array, chex.ArrayTree]:
     pred, aux = self.predictor.predict_with_aux(xs)
 
-    acquisition = self.acquisition_fn(
-        pred, self.data.features, self.data.labels, seed
-    )
+    acquisition = self.acquisition_fn(pred, seed=seed)
     if self.trust_region is not None:
       region: TrustRegion = self.trust_region  #  type: ignore
       distance = region.min_linf_distance(xs)
@@ -135,11 +159,9 @@ class UCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, labels, seed
+    del seed
     return dist.mean() + self.coefficient * dist.stddev()
 
 
@@ -152,11 +174,9 @@ class LCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, labels, seed
+    del seed
     return dist.mean() - self.coefficient * dist.stddev()
 
 
@@ -169,11 +189,9 @@ class HyperVolumeScalarization(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, labels, seed
+    del seed
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
     # non-convex biobjective optimization of mean vs stddev.
     return jnp.minimum(dist.mean(), self.coefficient * dist.stddev())
@@ -183,36 +201,51 @@ class HyperVolumeScalarization(AcquisitionFunction):
 class EI(AcquisitionFunction):
   """Expected Improvement acquisition function."""
 
+  best_labels: jax.Array
+
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, seed
-    if labels is not None:
-      labels = labels.replace_fill_value(-np.inf).padded_array
-    return tfp_bo.acquisition.GaussianProcessExpectedImprovement(dist, labels)()
+    del seed
+    return tfp_bo.acquisition.GaussianProcessExpectedImprovement(
+        dist, observations=self.best_labels
+    )()
 
 
 @struct.dataclass
 class PI(AcquisitionFunction):
   """Probability of Improvement acquisition function."""
 
+  best_labels: jax.Array
+
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, seed
-    if labels is not None:
-      labels = labels.replace_fill_value(-np.inf).padded_array
+    del seed
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
-        dist, labels
+        dist, observations=self.best_labels
     )()
+
+
+def bayesian_scoring_function_factory(
+    acquisition_fn_factory: Callable[[types.ModelData], AcquisitionFunction],
+) -> ScoringFunctionFactory:
+  """Builds a ScoringFunctionFactory."""
+
+  def f(
+      data: types.ModelData,
+      predictive: Predictive,
+      use_trust_region: bool = False,
+  ) -> ScoreFunction:
+    acquisition_fn = acquisition_fn_factory(data)
+    trust_region = TrustRegion(data.features) if use_trust_region else None
+    return BayesianScoringFunction(predictive, acquisition_fn, trust_region)
+
+  return f
 
 
 @struct.dataclass
@@ -226,9 +259,10 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     main_acquisition: The main acquisition function.
     thresholding_acquisition: The acquisition function used to detect promising
       (trust) regions.
+    bad_acq_value: The lower bound for the main acquisition value.
+    labels:
     threshold: The threshold for the thresholding_acquisition values to
       distinguish between the promising and unpromising regions.
-    bad_acq_value: The lower bound for the main acquisition value.
     apply_tr_after: The minimum number of labels required to apply the trust
       region.
   """
@@ -236,40 +270,55 @@ class AcquisitionTrustRegion(AcquisitionFunction):
   main_acquisition: AcquisitionFunction
   thresholding_acquisition: AcquisitionFunction
   bad_acq_value: float = struct.field(kw_only=True)
+  labels: Optional[types.PaddedArray] = struct.field(kw_only=True)
   threshold: Optional[float] = struct.field(kw_only=True, default=None)
   apply_tr_after: Optional[int] = struct.field(kw_only=True, default=0)
 
+  # TODO: Move factories to `vza_designer_factory.py`.
   @classmethod
-  def default_ucb_pi(cls) -> 'AcquisitionTrustRegion':
+  def default_ucb_pi(cls, data: types.ModelData) -> 'AcquisitionTrustRegion':
+    best_labels = get_best_labels(data.labels)
     return cls(
-        UCB(1.8), PI(), bad_acq_value=-1e12, threshold=0.3, apply_tr_after=0
+        UCB(1.8),
+        PI(best_labels),
+        bad_acq_value=-1e12,
+        labels=data.labels,
+        threshold=0.3,
+        apply_tr_after=0,
     )
 
   @classmethod
-  def default_ucb_lcb(cls) -> 'AcquisitionTrustRegion':
+  def default_ucb_lcb(cls, data: types.ModelData) -> 'AcquisitionTrustRegion':
     return cls(
         UCB(1.8),
         LCB(1.8),
+        labels=data.labels,
         bad_acq_value=-1e12,
         threshold=None,
         apply_tr_after=0,
     )
 
   @classmethod
-  def default_ucb_lcb_wide(cls) -> 'AcquisitionTrustRegion':
+  def default_ucb_lcb_wide(
+      cls, data: types.ModelData
+  ) -> 'AcquisitionTrustRegion':
     return cls(
         UCB(1.8),
         LCB(2.5),
+        labels=data.labels,
         bad_acq_value=-1e12,
         threshold=None,
         apply_tr_after=0,
     )
 
   @classmethod
-  def default_ucb_lcb_delay_tr(cls) -> 'AcquisitionTrustRegion':
+  def default_ucb_lcb_delay_tr(
+      cls, data: types.ModelData
+  ) -> 'AcquisitionTrustRegion':
     return cls(
         UCB(1.8),
         LCB(1.8),
+        labels=data.labels,
         bad_acq_value=-1e12,
         threshold=None,
         apply_tr_after=5,
@@ -278,21 +327,22 @@ class AcquisitionTrustRegion(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features, seed
-    threshold_values = self.thresholding_acquisition(dist, labels=labels)
+    del seed
+    threshold_values = self.thresholding_acquisition(dist)
     acq_values = self.main_acquisition(dist)
+
+    # TODO: Refactor so that the following is handled in the factory
+    # instead.
     threshold = -jnp.inf
     apply_tr = False
-    if labels is not None:
-      labels_padded = labels.replace_fill_value(np.nan).padded_array
+    if self.labels is not None:
+      labels_padded = self.labels.replace_fill_value(np.nan).padded_array
       threshold = jnp.minimum(
           jnp.nanmean(labels_padded), jnp.nanmedian(labels_padded)
       )
-      apply_tr = labels._original_shape[0] <= self.apply_tr_after
+      apply_tr = self.labels._original_shape[0] <= self.apply_tr_after
     if self.threshold is not None:
       threshold = self.threshold
     cond = jnp.isnan(threshold) | (threshold_values >= threshold) | apply_tr
@@ -307,20 +357,21 @@ class AcquisitionTrustRegion(AcquisitionFunction):
 class QEI(AcquisitionFunction):
   """Sampling-based batch expected improvement."""
 
+  best_labels: jax.Array
   num_samples: int = 100
 
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features
     if seed is None:
       raise ValueError('QEI requires a value for `seed`.')
     return tfp_bo.acquisition.ParallelExpectedImprovement(
-        dist, labels, seed=seed, num_samples=self.num_samples
+        dist,
+        observations=self.best_labels,
+        seed=seed,
+        num_samples=self.num_samples,
     )()
 
 
@@ -335,7 +386,6 @@ class QUCB(AcquisitionFunction):
       details:
       https://www.tensorflow.org/probability/api_docs/python/tfp/experimental/bayesopt/acquisition/ParallelUpperConfidenceBound
     num_samples: Number of distribution samples used to compute qUCB.
-    seed: Random seed for sampling.
   """
 
   coefficient: float = 1.8
@@ -344,19 +394,16 @@ class QUCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
-    del features
     if seed is None:
       raise ValueError('QEI requires a value for `seed`.')
     return tfp_bo.acquisition.ParallelUpperConfidenceBound(
         dist,
-        labels,
         seed=seed,
         exploration=self.coefficient,
         num_samples=self.num_samples,
+        observations=None,
     )()
 
 
@@ -369,13 +416,15 @@ class MultiAcquisitionFunction(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      features: Optional[types.ModelInput] = None,
-      labels: Optional[types.PaddedArray] = None,
       seed: Optional[jax.random.KeyArray] = None,
   ) -> jax.Array:
     acquisitions = []
-    for acquisition_fn in self.acquisition_fns.values():
-      acquisitions.append(acquisition_fn(dist, features, labels))
+    if seed is None:
+      seeds = [None] * len(self.acquisition_fns)
+    else:
+      seeds = jax.random.split(seed, num=len(self.acquisition_fns))
+    for i, acquisition_fn in enumerate(self.acquisition_fns.values()):
+      acquisitions.append(acquisition_fn(dist, seeds[i]))
     # TODO: Change the return type to a dict with the same
     # structure as `acquisition_fns` to clarify the meaning of the return
     # values.

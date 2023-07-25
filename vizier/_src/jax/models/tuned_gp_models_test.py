@@ -133,7 +133,7 @@ class VizierGpTest(absltest.TestCase):
             -0.44447326,
         ],
         dtype=np.float64,
-    )
+    )[:, np.newaxis]
     return x_obs, y_obs
 
   # TODO: Define generic assertions for loss values/masking in
@@ -153,7 +153,7 @@ class VizierGpTest(absltest.TestCase):
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12,), fill_value=np.nan
+            y_obs, target_shape=(12, 1), fill_value=np.nan
         ),
     )
     model1 = sp.CoroutineWithData(
@@ -219,7 +219,7 @@ class VizierGpTest(absltest.TestCase):
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12,), fill_value=np.nan
+            y_obs, target_shape=(12, 1), fill_value=np.nan
         ),
     )
     target_loss = -0.2
@@ -257,7 +257,7 @@ class VizierGpTest(absltest.TestCase):
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12,), fill_value=np.nan
+            y_obs, target_shape=(12, 1), fill_value=np.nan
         ),
     )
     target_loss = -0.2

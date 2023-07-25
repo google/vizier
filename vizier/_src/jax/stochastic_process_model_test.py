@@ -141,15 +141,13 @@ def _make_inputs(
       ),
   )
 
-  y_shape = (num_observed,) if num_tasks == 1 else (num_observed, num_tasks)
-  y_pad_shape = (
-      (num_observed + pad_obs,)
-      if num_tasks == 1
-      else (num_observed + pad_obs, num_tasks + pad_tasks)
+  y_observed = random.uniform(
+      y_key, shape=(num_observed, num_tasks), dtype=dtype
   )
-  y_observed = random.uniform(y_key, shape=y_shape, dtype=dtype)
   y_observed = types.PaddedArray.from_array(
-      y_observed, y_pad_shape, fill_value=np.nan
+      y_observed,
+      (num_observed + pad_obs, num_tasks + pad_tasks),
+      fill_value=np.nan,
   )
 
   x_predictive_cont = random.uniform(
@@ -243,7 +241,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
       lp = dist.log_prob(y_observed.padded_array)
     else:
       lp = dist.log_prob(
-          y_observed.padded_array, is_missing=y_observed.is_missing[0]
+          y_observed.padded_array[:, 0], is_missing=y_observed.is_missing[0]
       )
     self.assertTrue(np.isfinite(lp))
     self.assertEqual(lp.dtype, dtype)
@@ -471,7 +469,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
 
     init_state = model.init(init_key, x_observed)
     stp = model.apply(init_state, x_observed, mutable=False)
-    lp = stp.log_prob(y_observed.padded_array)
+    lp = stp.log_prob(y_observed.padded_array[:, 0])
     self.assertTrue(np.isfinite(lp))
 
     # The mean of the GP should equal `mean_fn` evaluated at the index points.
