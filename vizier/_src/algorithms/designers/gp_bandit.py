@@ -35,12 +35,12 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
-from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -50,12 +50,6 @@ from vizier.utils import profiler
 def _experimental_override_allowed(fun):
   """No-op. Marks functions that can be easily overriden for experimentation."""
   return fun
-
-
-_GPBanditState = tuple[
-    sp.UniformEnsemblePredictive,
-    types.ModelData,
-]
 
 
 @attr.define(auto_attribs=False)
@@ -128,7 +122,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   )
   _acquisition_optimizer: vb.VectorizedOptimizer = attr.field(init=False)
 
-  _last_computed_state: _GPBanditState = attr.field(init=False)
+  _last_computed_state: gp_models.GPState = attr.field(init=False)
 
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory()
@@ -170,7 +164,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         ),
     )
 
-    coroutine = self._get_coroutine(empty_data.features)
+    coroutine = gp_models.get_vizier_gp_coroutine(empty_data.features)
     params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
     predictive = model.precompute_predictive(empty_data)
@@ -198,14 +192,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     acquisition_problem.metric_information = acquisition_config
     self._acquisition_problem = acquisition_problem
-
-  def _get_coroutine(self, features) -> sp.ModelCoroutine:
-    if self._linear_coef:
-      return tuned_gp_models.VizierLinearGaussianProcess.build_model(
-          features, linear_coef=self._linear_coef
-      ).coroutine
-
-    return tuned_gp_models.VizierGaussianProcess.build_model(features).coroutine
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -295,25 +281,23 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     return types.ModelData(model_data.features, labels)
 
   @_experimental_override_allowed
-  def _optimize_params(self, data: types.ModelData) -> types.ParameterDict:
-    # Convert trials to Numpy arrays. Labels are warped.
-    coroutine = self._get_coroutine(data.features)
-    self._rng, ard_rng = jax.random.split(self._rng, 2)
-    model = sp.CoroutineWithData(coroutine, data)
-
-    logging.info('CoroutineWithData: %s', model)
-
-    best_params, _ = self._ard_optimizer(
-        model.setup,
-        model.loss_with_aux,
-        ard_rng,
-        constraints=model.constraints(),
-        best_n=self._ensemble_size or 1,
+  def _train_gp(
+      self, data: types.ModelData, ard_rng: jax.random.KeyArray
+  ) -> gp_models.GPState:
+    """Overrideable training of a pre-computed ensemble GP."""
+    trained_gp = gp_models.train_gp(
+        data=data,
+        ard_optimizer=self._ard_optimizer,
+        ard_rng=ard_rng,
+        coroutine=gp_models.get_vizier_gp_coroutine(
+            features=data.features, linear_coef=self._linear_coef
+        ),
+        ensemble_size=self._ensemble_size,
     )
-    return best_params
+    return trained_gp
 
   @profiler.record_runtime
-  def _update_state(self, data: types.ModelData) -> _GPBanditState:
+  def _update_state(self, data: types.ModelData) -> gp_models.GPState:
     """Compute the designer's state.
 
     Args:
@@ -323,8 +307,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       GPBanditState object containing the designer's state.
 
     1. Convert trials to features and labels.
-    2. Perform ARD to find best model parameters.
-    3. Pre-compute the Cholesky decomposition.
+    2. Trains a pre-computed ensemble GP.
 
     If no new trials were added since last call, no update will occur.
     """
@@ -333,18 +316,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       # state. The assumption is that trials can't be removed.
       return self._last_computed_state
     self._incorporated_trials_count = len(self._trials)
-
-    coroutine = self._get_coroutine(data.features)
-    best_params = self._optimize_params(data)
-    best_models = sp.StochasticProcessWithCoroutine(coroutine, best_params)
-    # Logging for debugging purposes.
-    logging.info(
-        'Best models: %s', eqx.tree_pformat(best_models, short_arrays=False)
-    )
-    predictive = sp.UniformEnsemblePredictive(
-        eqx.filter_jit(best_models.precompute_predictive)(data)
-    )
-    self._last_computed_state = (predictive, data)
+    self._rng, ard_rng = jax.random.split(self._rng, 2)
+    self._last_computed_state = self._train_gp(data=data, ard_rng=ard_rng)
     return self._last_computed_state
 
   @_experimental_override_allowed
@@ -412,7 +385,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     suggest_start_time = datetime.datetime.now()
     logging.info('Updating the designer state based on trials...')
-    predictive, data = self._update_state(self._trials_to_data(self._trials))
+    gp = self._update_state(self._trials_to_data(self._trials))
+    predictive = gp.predictive
+    data = gp.data
 
     # Define acquisition function.
     scoring_fn = self._scoring_function_factory(
@@ -455,14 +430,14 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if not trials:
       return np.zeros((num_samples, 0))
 
-    predictive, _ = self._update_state(self._trials_to_data(self._trials))
+    gp = self._update_state(self._trials_to_data(self._trials))
     xs = self._converter.to_features(trials)
     xs = types.ModelInput(
         continuous=xs.continuous.replace_fill_value(0.0),
         categorical=xs.categorical.replace_fill_value(0),
     )
     samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
-        predictive, xs, num_samples, key=rng
+        gp.predictive, xs, num_samples, key=rng
     )  # (num_samples, num_trials)
     # Scope the samples to non-padded only (there's a single padded dimension).
     samples = samples[
