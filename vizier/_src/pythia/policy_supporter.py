@@ -52,6 +52,8 @@ class PolicySupporter(abc.ABC):
         $study_guid refers to a nonexistent or inaccessible study.
     """
 
+  # TODO: Should take `TrialFilter` as input, instead of
+  # its fields listed as keyword arguments.
   @abc.abstractmethod
   def GetTrials(
       self,

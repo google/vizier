@@ -258,7 +258,7 @@ class Policy(abc.ABC):
 
   @property
   def name(self) -> str:
-    """Returns the policy name."""
+    """Returns the policy name. For monitoring purposes only."""
     # Derived classes should override this implementation.
     return __class__.__name__
 
