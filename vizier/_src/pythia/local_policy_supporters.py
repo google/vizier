@@ -58,6 +58,12 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   study_guid: str = attr.ib(init=True, kw_only=True, default='', converter=str)
   _trials: dict[int, vz.Trial] = attr.ib(init=False, factory=dict)
 
+  def __str__(self) -> str:
+    return (
+        f'InRamPolicySupporter(study_guid={self.study_guid},'
+        f' num_trials={len(self.trials)})'
+    )
+
   @property
   def trials(self) -> Sequence[vz.Trial]:
     return list(self._trials.values())
