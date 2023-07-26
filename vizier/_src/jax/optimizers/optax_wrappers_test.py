@@ -39,11 +39,10 @@ class OptaxWrapperTest(parameterized.TestCase, sinusoidal.ConvergenceTestMixin):
   def test_sinusoidal(self, bounds):
     constraints = sinusoidal.bounds_to_constraints(bounds, nest_constraint=True)
     self.assert_converges(
-        optimizers.OptaxTrainWithRandomRestarts(
-            optax.adam(5e-2), epochs=100, verbose=True, random_restarts=200
-        ),
+        optimizers.OptaxTrain(optax.adam(5e-2), epochs=100, verbose=True),
         constraints=constraints,
         threshold=5e-3 if bounds is None else 1.0,
+        random_restarts=200,
     )
 
 

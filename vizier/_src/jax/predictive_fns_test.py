@@ -75,11 +75,14 @@ class GPBanditAcquisitionBuilderTest(absltest.TestCase):
     constraints = sp.get_constraints(model)
 
     # ARD
-    ard_optimizer = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=4)
-    )
+    ard_optimizer = optimizers.JaxoptScipyLbfgsB()
+    key, init_key = jax.random.split(key, 2)
     best_model_params, _ = ard_optimizer(
-        setup, loss_fn, key, constraints=constraints, best_n=best_n
+        init_params=jax.vmap(setup)(jax.random.split(init_key, 4)),
+        loss_fn=loss_fn,
+        rng=key,
+        constraints=constraints,
+        best_n=best_n,
     )
 
     def precompute_cholesky(params):

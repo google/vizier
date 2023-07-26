@@ -43,9 +43,10 @@ class JaxoptWrappersTest(
   def test_sinusoidal(self, cls, bounds, nest_constraint):
     constraints = sinusoidal.bounds_to_constraints(bounds, nest_constraint)
     self.assert_converges(
-        cls(jw.LbfgsBOptions(random_restarts=20)),
+        cls(jw.LbfgsBOptions()),
         constraints=constraints,
         threshold=1.0,
+        random_restarts=20,
     )
 
 

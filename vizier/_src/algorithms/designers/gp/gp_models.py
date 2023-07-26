@@ -67,6 +67,7 @@ def train_gp(
     *,
     coroutine: sp.ModelCoroutine,
     ensemble_size: int = 1,
+    ard_random_restarts: int = optimizers.DEFAULT_RANDOM_RESTARTS,
 ) -> GPState:
   """Trains a Gaussian Process model.
 
@@ -80,6 +81,7 @@ def train_gp(
     ard_rng: PRNG key for the ARD optimization.
     coroutine: The model coroutine.
     ensemble_size: If set, ensembles `ensemble_size` GP models together.
+    ard_random_restarts: The number of random restarts.
 
   Returns:
     The trained GP model.
@@ -87,10 +89,11 @@ def train_gp(
   model = sp.CoroutineWithData(coroutine, data)
 
   # Optimize the parameters
+  ard_rngs = jax.random.split(ard_rng, ard_random_restarts + 1)
   best_params, _ = ard_optimizer(
-      model.setup,
+      eqx.filter_jit(eqx.filter_vmap(model.setup))(ard_rngs[1:]),
       model.loss_with_aux,
-      ard_rng,
+      ard_rngs[0],
       constraints=model.constraints(),
       best_n=ensemble_size or 1,
   )

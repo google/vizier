@@ -179,19 +179,18 @@ class VizierGpTest(absltest.TestCase):
 
     # Check that the model loss and optimal parameters are independent of those
     # dimensions and observations.
-    optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=1)
-    )
+    optimize = optimizers.JaxoptScipyLbfgsB()
+    rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params1, _ = optimize(
-        model1.setup,
-        model1.loss_with_aux,
-        jax.random.PRNGKey(2),
+        init_params=jax.vmap(model1.setup)(jax.random.split(init_rng, 1)),
+        loss_fn=model1.loss_with_aux,
+        rng=rng,
         constraints=sp.get_constraints(model1),
     )
     optimal_params2, _ = optimize(
-        model2.setup,
-        model2.loss_with_aux,
-        jax.random.PRNGKey(2),
+        init_params=jax.vmap(model2.setup)(jax.random.split(init_rng, 1)),
+        loss_fn=model2.loss_with_aux,
+        rng=rng,
         constraints=sp.get_constraints(model2),
     )
 
@@ -229,14 +228,13 @@ class VizierGpTest(absltest.TestCase):
         ),
         data=data,
     )
-    optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=50)
-    )
+    optimize = optimizers.JaxoptScipyLbfgsB()
     constraints = sp.get_constraints(model)
+    rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params, metrics = optimize(
-        model.setup,
-        model.loss_with_aux,
-        jax.random.PRNGKey(2),
+        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
+        loss_fn=model.loss_with_aux,
+        rng=rng,
         constraints=constraints,
     )
     logging.info('Optimal: %s', optimal_params)
@@ -268,13 +266,14 @@ class VizierGpTest(absltest.TestCase):
         data=data,
     )
     optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(random_restarts=50, maxiter=100)
+        optimizers.LbfgsBOptions(maxiter=100)
     )
     constraints = sp.get_constraints(model)
+    rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params, metrics = optimize(
-        model.setup,
-        model.loss_with_aux,
-        jax.random.PRNGKey(2),
+        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
+        loss_fn=model.loss_with_aux,
+        rng=rng,
         constraints=constraints,
     )
     logging.info('Optimal: %s', optimal_params)

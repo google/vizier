@@ -22,19 +22,16 @@ import functools
 from vizier._src.jax.optimizers.core import LossFunction
 from vizier._src.jax.optimizers.core import Optimizer
 from vizier._src.jax.optimizers.core import Params
-from vizier._src.jax.optimizers.core import Setup
 from vizier._src.jax.optimizers.jaxopt_wrappers import JaxoptLbfgsB
 from vizier._src.jax.optimizers.jaxopt_wrappers import JaxoptScipyLbfgsB
 from vizier._src.jax.optimizers.jaxopt_wrappers import LbfgsBOptions
-from vizier._src.jax.optimizers.optax_wrappers import OptaxTrainWithRandomRestarts
+from vizier._src.jax.optimizers.optax_wrappers import OptaxTrain
+
+DEFAULT_RANDOM_RESTARTS = 4
 
 
 @functools.lru_cache
-def default_optimizer(random_restarts: int = 4, maxiter: int = 50) -> Optimizer:
-  """Default optimizer that works okay for most cases."""
+def default_optimizer(maxiter: int = 50) -> Optimizer:
+  """Default optimizer and random restarts that work okay for most cases."""
   # NOTE: Production algorithms are recommended to stay away from using this.
-  return JaxoptScipyLbfgsB(
-      LbfgsBOptions(
-          random_restarts=random_restarts, maxiter=maxiter, best_n=None
-      )
-  )
+  return JaxoptScipyLbfgsB(LbfgsBOptions(maxiter=maxiter, best_n=None))

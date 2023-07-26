@@ -18,21 +18,15 @@ from __future__ import annotations
 
 import functools
 from typing import Generic, Optional, Protocol, TypeVar
+
 from absl import logging
 import chex
 import jax
 from jax import numpy as jnp
 from vizier._src.jax import stochastic_process_model as sp
 
+
 Params = TypeVar('Params', bound=chex.ArrayTree)
-
-
-class Setup(Protocol, Generic[Params]):
-  """Set up the model parameters given RNG key."""
-
-  def __call__(self, rng: jax.random.KeyArray) -> Params:
-    """Set up the model parameters given RNG key."""
-    pass
 
 
 class LossFunction(Protocol, Generic[Params]):
@@ -64,15 +58,18 @@ class Optimizer(Protocol[Params]):
     xs = jax.nn.sigmoid(xs)
     return jnp.cos(xs * 5 * 2 * jnp.pi) * (2 - 5 * (xs - 0.5)**2), dict()
 
-  optimize = optimizers.OptaxTrainWithRandomRestarts(
-      optax.adam(5e-3), epochs=500, verbose=True, random_restarts=50)
-  optimal_params, metrics = optimize(setup, loss_fn, jax.random.PRNGKey(0))
+  optimize = optimizers.OptaxTrain(optax.adam(5e-3), epochs=500, verbose=True)
+  rngs = jax.random.split(jax.random.PRNGKey(0), 51)
+  optimal_params, metrics = optimize(
+      init_params=jax.vmap(setup)(rngs[1:]),
+      loss_fn=loss_fn,
+      rng=rngs[0])
   ```
   """
 
   def __call__(
       self,
-      setup: Setup[Params],
+      init_params: Params,
       loss_fn: LossFunction[Params],
       rng: jax.random.KeyArray,
       *,
@@ -89,7 +86,9 @@ class Optimizer(Protocol[Params]):
     converting `None` bounds to `+inf` or `-inf` as necessary.
 
     Args:
-      setup: Generates initial points.
+      init_params: A set of initial points represented as a batched Pytree. All
+        leaf nodes are expected to have the same leading dimension, which is the
+        batch size.
       loss_fn: Evaluates a point.
       rng: JAX PRNGKey.
       constraints: Parameter constraints.

@@ -80,13 +80,15 @@ class ConvergenceTestMixin(unittest.TestCase):
       optimize: core.Optimizer,
       *,
       constraints: sp.Constraint,
-      threshold: float = 5e-3
+      threshold: float = 5e-3,
+      random_restarts: int,
   ) -> None:
     """Assert the optimizer converges."""
+    rngs = jax.random.split(jax.random.PRNGKey(1), random_restarts + 1)
     optimal_params, metrics = optimize(
-        setup,
-        jax.jit(loss_fn),
-        jax.random.PRNGKey(1),
+        init_params=jax.vmap(setup)(rngs[1:]),
+        loss_fn=jax.jit(loss_fn),
+        rng=rngs[0],
         constraints=constraints,
     )
     logging.info('Optimal: %s', optimal_params)

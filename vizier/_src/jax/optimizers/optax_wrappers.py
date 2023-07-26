@@ -24,7 +24,6 @@ import attr
 import chex
 import jax
 from jax import numpy as jnp
-from jax import random
 import optax
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
@@ -36,7 +35,7 @@ OptState = chex.ArrayTree
 
 
 @attr.define
-class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
+class OptaxTrain(core.Optimizer[core.Params]):
   """Wraps an Optax optimizer.
 
   It's recommended to use this optimizer with a loss function that normalizes by
@@ -58,31 +57,16 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
     optimizer: Optax optimizer such as `optax.adam(1e-2)`.
     epochs: Number of train epochs.
     verbose: If >=1, logs the train progress. If >=2, logs the gradients.
-    random_restarts: Must be positive; number of random initializations for the
-      optimization.
-    best_n: Number of best values to return from the initializations; must be
-      less than or equal to `random_restarts`.
   """
 
   optimizer: optax.GradientTransformation = attr.field()
   epochs: int = attr.field(kw_only=True)
   verbose: int = attr.field(kw_only=True, default=0, converter=int)
-  random_restarts: int = attr.field(kw_only=True, default=32)
-  best_n: int = attr.field(kw_only=True, default=None)
-
-  def __attrs_post_init__(self):
-    if self.random_restarts < (self.best_n or 1):
-      raise ValueError(
-          f'Cannot generate {self.best_n} results from'
-          f' {self.random_restarts} restarts'
-      )
-    if self.best_n is None:
-      self.best_n = 0
 
   # TODO: Prevent retracing.
   def __call__(
       self,
-      setup: core.Setup[core.Params],
+      init_params: core.Params,
       loss_fn: core.LossFunction[core.Params],
       rng: jax.random.KeyArray,
       *,
@@ -98,11 +82,11 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
 
     grad_fn = jax.value_and_grad(unconstrained_loss_fn, has_aux=True)
 
-    def _setup_all(rng: jax.random.KeyArray) -> tuple[core.Params, OptState]:
+    def _setup_all(init_params: core.Params) -> tuple[core.Params, OptState]:
       """Sets up both model params and optimizer state."""
-      params = setup(rng)
-      if bijector is not None:
-        params = bijector.inverse(params)
+      params = (
+          bijector.inverse(init_params) if bijector is not None else init_params
+      )
       opt_state = self.optimizer.init(params)
       return params, opt_state
 
@@ -117,15 +101,8 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
       metrics['loss'] = loss
       return params, opt_state, metrics
 
-    if self.random_restarts > 1:
-      # Random restarts are implemented via jax.vmap.
-      # Note that both setup_all and train_step are vmapped.
-      rngs = random.split(rng, self.random_restarts)
-      params, opt_state = jax.vmap(_setup_all)(rngs)
-      train_step = jax.vmap(_train_step)
-    else:
-      params, opt_state = _setup_all(rng)
-      train_step = _train_step
+    params, opt_state = jax.vmap(_setup_all)(init_params)
+    train_step = jax.vmap(_train_step)
 
     logging.info('Initialized parameters. %s',
                  jax.tree_map(lambda x: x.shape, params))
@@ -148,7 +125,7 @@ class OptaxTrainWithRandomRestarts(core.Optimizer[core.Params]):
     # dimension corresponding to train steps.
     outer_treedef = jax.tree_util.tree_structure([0] * self.epochs)
     transposed_metrics = jax.tree_util.tree_transpose(
-        outer_treedef, jax.tree_util.tree_structure(step_metrics), metrics
+        outer_treedef, jax.tree_util.tree_structure(metrics[0]), metrics
     )
     metrics = jax.tree_util.tree_map(
         jnp.array,

@@ -16,14 +16,13 @@ from __future__ import annotations
 
 """L-BFGS-B Strategy optimizer."""
 
-from typing import Optional, Union
+from typing import Callable, Optional
 
 import attr
 import jax
 import jax.numpy as jnp
 import numpy as np
 from vizier import pyvizier as vz
-from vizier._src.algorithms.optimizers import vectorized_base
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier.jax import optimizers
@@ -46,10 +45,8 @@ class LBFGSBOptimizer:
   def optimize(
       self,
       converter: converters.TrialToModelInputConverter,
-      score_fn: Union[
-          vectorized_base.ParallelArrayScoreFunction,
-          vectorized_base.ArrayScoreFunction,
-      ],
+      # TODO: Update the type to (Parallel)ArrayScoreFunction.
+      score_fn: Callable[[jax.Array], jax.Array],
       *,
       count: Optional[int] = None,
       seed: Optional[int] = None,
@@ -77,9 +74,7 @@ class LBFGSBOptimizer:
     if self.num_parallel_candidates:
       count = None
     optimize = optimizers.JaxoptScipyLbfgsB(
-        optimizers.LbfgsBOptions(
-            random_restarts=self.random_restarts, maxiter=self.maxiter
-        )
+        optimizers.LbfgsBOptions(maxiter=self.maxiter)
     )
     num_features = sum(
         spec.num_dimensions for spec in converter.output_specs.continuous
@@ -107,8 +102,13 @@ class LBFGSBOptimizer:
       # trials.
       return -score_fn(x[jnp.newaxis, ...])[0], dict()
 
+    rng, init_rng = jax.random.split(rng, 2)
     new_features, _ = optimize(
-        setup, wrapped_score_fn, rng, constraints=constraints, best_n=count
+        jax.vmap(setup)(jax.random.split(init_rng, self.random_restarts)),
+        wrapped_score_fn,
+        rng,
+        constraints=constraints,
+        best_n=count,
     )
     new_rewards = np.asarray(score_fn(new_features[jnp.newaxis, ...]))[0]
     if self.num_parallel_candidates is None:

@@ -87,14 +87,15 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
     model = sp.CoroutineWithData(
         hebo_gp_model.VizierHeboGaussianProcess(), data=data
     )
-    key = jax.random.PRNGKey(2)
-    init_params = model.setup(key)
-    optimize = optimizers.OptaxTrainWithRandomRestarts(
-        optax.adam(5e-3), epochs=500, verbose=True, random_restarts=20
-    )
+    key, init_key, init_keys = jax.random.split(jax.random.PRNGKey(2), 3)
+    init_params = model.setup(init_key)
+    optimize = optimizers.OptaxTrain(optax.adam(5e-3), epochs=500, verbose=True)
     constraints = sp.get_constraints(model)
     params, metrics = optimize(
-        model.setup, model.loss_with_aux, key, constraints=constraints
+        init_params=jax.vmap(model.setup)(jax.random.split(init_keys, 20)),
+        loss_fn=model.loss_with_aux,
+        rng=key,
+        constraints=constraints,
     )
 
     self.assertGreater(

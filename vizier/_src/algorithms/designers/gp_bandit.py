@@ -70,6 +70,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       or a batched optimizer (like Eagle).
     ard_optimizer: An optimizer which should return a batch of hyperparameters
       to be ensembled.
+    ard_random_restarts: The number of random initializations to run GP
+      hyper-parameter optimization with.
     num_seed_trials: If greater than zero, first trial is the center of the
       search space. Afterwards, uses quasirandom until this number of trials are
       observed.
@@ -87,6 +89,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
       factory=optimizers.default_optimizer,
       kw_only=True,
+  )
+  _ard_random_restarts: int = attr.field(
+      default=optimizers.DEFAULT_RANDOM_RESTARTS, kw_only=True
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _linear_coef: float = attr.field(default=0.0, kw_only=True)
@@ -288,6 +293,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     trained_gp = gp_models.train_gp(
         data=data,
         ard_optimizer=self._ard_optimizer,
+        ard_random_restarts=self._ard_random_restarts,
         ard_rng=ard_rng,
         coroutine=gp_models.get_vizier_gp_coroutine(
             features=data.features, linear_coef=self._linear_coef
