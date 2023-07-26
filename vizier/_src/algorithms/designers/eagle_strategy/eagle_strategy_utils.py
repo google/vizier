@@ -322,7 +322,7 @@ class EagleStrategyUtils:
 
   def get_metric(self, trial: vz.Trial) -> float:
     """Returns the trial metric."""
-    return trial.final_measurement.metrics[OBJECTIVE_NAME]
+    return trial.final_measurement.metrics[OBJECTIVE_NAME]  # pytype: disable=bad-return-type
 
   def is_better_than(
       self,
