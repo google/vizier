@@ -19,10 +19,10 @@ import copy
 import random
 from typing import Dict, List, Optional, Sequence
 from absl import logging
-
 import numpy as np
 from vizier import algorithms
 from vizier import pyvizier
+from vizier.interfaces import serializable
 from vizier.pyvizier import converters
 
 GridValues = Dict[str, List[pyvizier.ParameterValue]]
@@ -44,6 +44,7 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   _current_index: int
   _shuffle_seed: Optional[int]
   _double_grid_resolution: int
+  _metadata_ns: str = 'grid'  # class-level constant.
 
   def __init__(
       self,
@@ -130,20 +131,24 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
 
   def load(self, metadata: pyvizier.Metadata) -> None:
     """Load the current index."""
-    self._current_index = int(metadata.ns('grid')['current_index'])
-    none_or_int = metadata.ns('grid')['shuffle_seed']
-    if none_or_int == 'None':
-      self._shuffle_seed = None
-    else:
-      logging.info('Using integer seed for shuffling: %d', none_or_int)
-      self._shuffle_seed = int(none_or_int)
+    metadata = metadata.ns(self._metadata_ns)
+    try:
+      current_index = int(metadata['current_index'])
+      none_or_int = metadata['shuffle_seed']
+      shuffle_seed = None if (none_or_int == 'None') else int(none_or_int)
+      logging.info('Restored shuffle seed: %s', shuffle_seed)
+    except (KeyError, ValueError) as e:
+      raise serializable.HarmlessDecodeError() from e
+
+    self._current_index = current_index
+    self._shuffle_seed = shuffle_seed
     self._grid_values = self._maybe_shuffled_grid_values(self._shuffle_seed)
 
   def dump(self) -> pyvizier.Metadata:
     """Dump the current index."""
     metadata = pyvizier.Metadata()
-    metadata.ns('grid')['current_index'] = str(self._current_index)
-    metadata.ns('grid')['shuffle_seed'] = str(self._shuffle_seed)
+    metadata.ns(self._metadata_ns)['current_index'] = str(self._current_index)
+    metadata.ns(self._metadata_ns)['shuffle_seed'] = str(self._shuffle_seed)
     return metadata
 
   def _grid_points_from_parameter_config(

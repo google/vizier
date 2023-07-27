@@ -21,6 +21,8 @@ from vizier import pythia
 from vizier import pyvizier
 from vizier._src.algorithms.designers import grid
 from vizier._src.algorithms.policies import designer_policy
+from vizier._src.algorithms.testing import test_runners
+from vizier.interfaces import serializable
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -76,6 +78,21 @@ class GridSearchTest(parameterized.TestCase):
     self.assertLen(grid_values['categorical'], 3)
     self.assertLen(grid_values['discrete'], 3)
     self.assertLen(grid_values['int'], 5)
+
+  def test_load_failure(self):
+    problem = pyvizier.ProblemStatement(self.search_space)
+    test_runners.RandomMetricsRunner(
+        problem, iters=20, validate_parameters=True
+    ).run_designer(self._designer)
+
+    with self.assertRaises(serializable.HarmlessDecodeError):
+      self._designer.load(pyvizier.Metadata())
+
+    # After the load failure, the grid designer is still in a valid state
+    # and can be used to generate suggestions.
+    test_runners.RandomMetricsRunner(
+        problem, iters=10, validate_parameters=True
+    ).run_designer(self._designer)
 
   @parameterized.parameters((None,), (0,), (1,), (2,))
   def test_make_suggestions(self, shuffle_seed):
