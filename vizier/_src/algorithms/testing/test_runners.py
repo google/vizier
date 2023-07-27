@@ -38,13 +38,13 @@ class RandomMetricsRunner:
   from vizier.testing import test_studies
   from vizier import pyvizier as vz
 
-  study_config = vz.ProblemStatement(
+  problem = vz.ProblemStatement(
       test_studies.flat_space_with_all_types(),
       [vz.MetricInformation(
           'objective',
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE)],
-      validate_parameters=True)
-  test_runners.run_with_random_metrics(my_designer, study_config)
+          goal=vz.ObjectiveMetricGoal.MAXIMIZE)])
+  test_runners.RandomMetricsRunner(
+      problem, validate_parameters=True).run_designer(my_designer)
   ```
 
   EXAMPLE: This method can be used for generating a large number of trials
@@ -52,9 +52,8 @@ class RandomMetricsRunner:
   ```
   # (Continued from the above code block)
   from vizier._src.algorithms.designers import random
-  trials = test_runners.run_with_random_metrics(
-      random.RandomDesigner(study_config.search_space),
-      study_config,
+  trials = test_runners.RandomMetricsRunner(problem).run_designer(
+      random.RandomDesigner(problem.search_space),
       validate_parameters=False)
   ```
 
@@ -128,7 +127,7 @@ class RandomMetricsRunner:
     """Run the specified $designer."""
     supporter = pythia.InRamPolicySupporter(self.problem)
     policy = InRamDesignerPolicy(
-        problem_statement=self.problem,
+        self.problem,
         supporter=supporter,
         designer_factory=lambda _, **kwargs: designer,
     )
@@ -146,7 +145,7 @@ def run_with_random_metrics(
     verbose: int = 0,
     validate_parameters: bool = False,
 ) -> Sequence[vz.Trial]:
-  """DEPRECATED. Use RandomMetricsRunner.run_designer()."""
+  """DO NOT USE. DEPRECATED. Use RandomMetricsRunner.run_designer()."""
   return RandomMetricsRunner(
       problem,
       iters,
