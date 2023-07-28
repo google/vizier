@@ -49,6 +49,10 @@ class VizierTrial(pg.tuning.Trial):
   a few seconds.
   """
 
+  # Here we explicitly override the __init__ method managed by PyGlove,
+  # for we want to pass in `converter` and `trial` which are not managed by
+  # PyGlove.
+  @pg.explicit_method_override
   def __init__(self, converter: converters.VizierConverter, trial: vz.Trial,
                **kwargs):
     super().__init__(
