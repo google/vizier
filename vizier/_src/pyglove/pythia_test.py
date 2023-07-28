@@ -27,8 +27,8 @@ from absl.testing import absltest
 class DummyAlgorithm(pg.DNAGenerator):
   """Dummy algorithm for testing."""
 
-  def __init__(self):
-    super().__init__()
+  def _on_bound(self):
+    super()._on_bound()
     self._random = pg.geno.Random(seed=1)
 
   def setup(self, dna_spec: pg.DNASpec):
