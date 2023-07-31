@@ -22,13 +22,13 @@ usage is via PolicySuggester.from_designer_factory.
 """
 
 import abc
-import json
-from typing import Generic, Optional, Sequence, Type, TypeVar
+from typing import Generic, Optional, Type, TypeVar
 
 from absl import logging
 from vizier import algorithms as vza
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.algorithms.policies import trial_caches
 from vizier.interfaces import serializable
 
 
@@ -145,6 +145,7 @@ class _SerializableDesignerPolicyBase(
   """
 
   _ns_designer = 'designer'
+  _ns_cache = 'cache'
 
   def __init__(
       self,
@@ -172,7 +173,11 @@ class _SerializableDesignerPolicyBase(
     self._supporter = supporter
     self._designer_factory = designer_factory
     self._ns_root = ns_root
-    self._incorporated_completed_trial_ids: set[int] = set()
+    self._cache: trial_caches.IdDeduplicatingTrialLoader = (
+        trial_caches.IdDeduplicatingTrialLoader(
+            supporter, include_intermediate_measurements=False
+        )
+    )
     self._problem_statement = problem_statement
     self._verbose = verbose
     self._designer = None
@@ -199,12 +204,10 @@ class _SerializableDesignerPolicyBase(
     # instead of storing [1,2,3,4,11,12,13,21], store: [4,13,21], but
     # we keep things simple in this pseudocode.
     self._initialize_designer(request.study_config)
-    new_completed_trials = self._get_trials(
-        request.max_trial_id, vz.TrialStatus.COMPLETED
+    new_completed_trials = self._cache.get_newly_completed_trials(
+        request.max_trial_id
     )
-    active_trials = self._get_trials(
-        request.max_trial_id, vz.TrialStatus.ACTIVE
-    )
+    active_trials = self._cache.get_active_trials()
     self.designer.update(
         completed=vza.CompletedTrials(new_completed_trials),
         all_active=vza.ActiveTrials(active_trials),
@@ -212,11 +215,11 @@ class _SerializableDesignerPolicyBase(
     logging.info(
         (
             'Updated with %s new completed trials and %s new active trials. '
-            'Designer has seen a total of %s completed trials.'
+            'Trial Id cache state: %s'
         ),
         len(new_completed_trials),
         len(active_trials),
-        len(self._incorporated_completed_trial_ids),
+        str(self._cache),
     )
     metadata_delta = vz.MetadataDelta()
     # During the 'suggest' call the designer's state could be changed, therefore
@@ -257,28 +260,6 @@ class _SerializableDesignerPolicyBase(
       DecodeError: `designer_metadata` does not contain valid information
         to restore a Designer state.
     """
-
-  # TODO: Use timestamps to avoid metadata blowup.
-  def load(self, md: vz.Metadata) -> None:
-    if _INCOPORATED_COMPLETED_TRIALS_IDS in md:
-      try:
-        # We don't store/load ACTIVE trials as we always pass all of them.
-        self._incorporated_completed_trial_ids = set(
-            json.loads(md[_INCOPORATED_COMPLETED_TRIALS_IDS])
-        )
-      except json.JSONDecodeError as e:
-        raise serializable.HarmlessDecodeError from e
-    else:
-      raise serializable.HarmlessDecodeError('Missing expected metadata keys.')
-
-    logging.info(
-        (
-            'Successfully recovered the policy state, which incorporated %s '
-            'completed trials.'
-        ),
-        len(self._incorporated_completed_trial_ids),
-    )
-    self._designer = self._restore_designer(md.ns(self._ns_designer))
 
   def _initialize_designer(
       self, problem_statement: vz.ProblemStatement
@@ -330,7 +311,7 @@ class _SerializableDesignerPolicyBase(
       self._designer = self._designer_factory(
           problem_statement, seed=self._seed
       )
-      self._incorporated_completed_trial_ids: set[int] = set()
+      self._cache.clear()
 
   def dump(self) -> vz.Metadata:
     """Dump state.
@@ -343,47 +324,12 @@ class _SerializableDesignerPolicyBase(
     """
     md = vz.Metadata()
     md.ns(self._ns_designer).attach(self.designer.dump())
-    # TODO: Storing every id is inefficient. Optimize this.
-    # We don't store/load ACTIVE trials as we always pass all of them.
-    md[_INCOPORATED_COMPLETED_TRIALS_IDS] = json.dumps(
-        list(self._incorporated_completed_trial_ids)
-    )
+    md.ns(self._ns_cache).attach(self._cache.dump())
     return md
 
-  def _get_trials(
-      self, max_trial_id: int, status: vz.TrialStatus
-  ) -> Sequence[vz.Trial]:
-    """Returns new completed/active trials that designer should be updated with."""
-    all_trial_ids = set(range(1, max_trial_id + 1))
-
-    if status == vz.TrialStatus.ACTIVE:
-      new_trials = self._supporter.GetTrials(
-          trial_ids=all_trial_ids, status_matches=vz.TrialStatus.ACTIVE
-      )
-
-    elif status == vz.TrialStatus.COMPLETED:
-      if len(self._incorporated_completed_trial_ids) == max_trial_id:
-        # no trials need to be loaded.
-        return []
-      # Exclude completed trials that were already passed to the designer.
-      trial_ids_to_load = all_trial_ids - self._incorporated_completed_trial_ids
-      new_trials = self._supporter.GetTrials(
-          trial_ids=trial_ids_to_load, status_matches=vz.TrialStatus.COMPLETED
-      )
-      # Add new completed trials to not report on them again in the future.
-      self._incorporated_completed_trial_ids |= set(t.id for t in new_trials)
-      return new_trials
-
-    else:
-      raise ValueError('Unsupported status (%s).' % status)
-
-    logging.info(
-        'Loaded %s %s trials. Max trial id is %s.',
-        len(new_trials),
-        status,
-        max_trial_id,
-    )
-    return new_trials
+  def load(self, md: vz.Metadata) -> None:
+    self._cache.load(md.ns(self._ns_cache))
+    self._designer = self._restore_designer(md.ns(self._ns_designer))
 
   @property
   def name(self) -> str:
@@ -397,6 +343,11 @@ class InRamDesignerPolicy(_SerializableDesignerPolicyBase[vza.Designer]):
 
   # Override restore() to simply return the designer.
   def _restore_designer(self, designer_metadata: vz.Metadata) -> vza.Designer:
+    if self._designer is None:
+      raise ValueError(
+          '`self._designer` has not been initialized!'
+          ' Call self._initialize_designer(..) first.'
+      )
     return self._designer
 
   # Override dump() since this is in ram.

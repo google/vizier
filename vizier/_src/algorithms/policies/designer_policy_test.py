@@ -174,7 +174,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     )
     restored_policy.load(metadata)
     self.assertLen(
-        restored_policy._incorporated_completed_trial_ids,
+        restored_policy._cache._incorporated_completed_trial_ids,
         _NUM_INITIAL_COMPLETED_TRIALS,
     )
     self.assertEqual(
