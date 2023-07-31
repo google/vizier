@@ -1,4 +1,4 @@
-attrs==21.4.0
+attrs==23.1.0
 absl-py>=1.0.0
 numpy>=1.21.5
 protobuf>=3.6
