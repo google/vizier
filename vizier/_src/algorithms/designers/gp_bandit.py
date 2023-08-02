@@ -127,7 +127,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   )
   _acquisition_optimizer: vb.VectorizedOptimizer = attr.field(init=False)
 
-  _last_computed_state: gp_models.GPState = attr.field(init=False)
+  _last_computed_gp: gp_models.GPState = attr.field(init=False)
 
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory()
@@ -291,20 +291,22 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   ) -> gp_models.GPState:
     """Overrideable training of a pre-computed ensemble GP."""
     trained_gp = gp_models.train_gp(
-        data=data,
-        ard_optimizer=self._ard_optimizer,
-        ard_random_restarts=self._ard_random_restarts,
-        ard_rng=ard_rng,
-        coroutine=gp_models.get_vizier_gp_coroutine(
-            features=data.features, linear_coef=self._linear_coef
+        spec=gp_models.GPTrainingSpec(
+            ard_optimizer=self._ard_optimizer,
+            ard_rng=ard_rng,
+            coroutine=gp_models.get_vizier_gp_coroutine(
+                features=data.features, linear_coef=self._linear_coef
+            ),
+            ensemble_size=self._ensemble_size,
+            ard_random_restarts=self._ard_random_restarts,
         ),
-        ensemble_size=self._ensemble_size,
+        data=data,
     )
     return trained_gp
 
   @profiler.record_runtime
-  def _update_state(self, data: types.ModelData) -> gp_models.GPState:
-    """Compute the designer's state.
+  def _update_gp(self, data: types.ModelData) -> gp_models.GPState:
+    """Compute the designer's GP and caches the result. No-op without new data.
 
     Args:
       data: Data to go into GP.
@@ -320,11 +322,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if len(self._trials) == self._incorporated_trials_count:
       # If there's no change in the number of completed trials, don't update
       # state. The assumption is that trials can't be removed.
-      return self._last_computed_state
+      return self._last_computed_gp
     self._incorporated_trials_count = len(self._trials)
     self._rng, ard_rng = jax.random.split(self._rng, 2)
-    self._last_computed_state = self._train_gp(data=data, ard_rng=ard_rng)
-    return self._last_computed_state
+    self._last_computed_gp = self._train_gp(data=data, ard_rng=ard_rng)
+    return self._last_computed_gp
 
   @_experimental_override_allowed
   @profiler.record_runtime
@@ -391,13 +393,12 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     suggest_start_time = datetime.datetime.now()
     logging.info('Updating the designer state based on trials...')
-    gp = self._update_state(self._trials_to_data(self._trials))
-    predictive = gp.predictive
-    data = gp.data
+    data = self._trials_to_data(self._trials)
+    gp = self._update_gp(data)
 
     # Define acquisition function.
     scoring_fn = self._scoring_function_factory(
-        data, predictive, self._use_trust_region
+        data, gp, self._use_trust_region
     )
     logging.info('Optimizing acquisition: %s', scoring_fn)
     best_trials = self._optimize_acquisition(scoring_fn, count)
@@ -436,14 +437,14 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if not trials:
       return np.zeros((num_samples, 0))
 
-    gp = self._update_state(self._trials_to_data(self._trials))
+    gp = self._update_gp(self._trials_to_data(self._trials))
     xs = self._converter.to_features(trials)
     xs = types.ModelInput(
         continuous=xs.continuous.replace_fill_value(0.0),
         categorical=xs.categorical.replace_fill_value(0),
     )
     samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
-        gp.predictive, xs, num_samples, key=rng
+        gp, xs, num_samples, key=rng
     )  # (num_samples, num_trials)
     # Scope the samples to non-padded only (there's a single padded dimension).
     samples = samples[
