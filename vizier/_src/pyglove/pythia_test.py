@@ -17,31 +17,77 @@ from __future__ import annotations
 """Tests for pythia."""
 
 import functools
+
+import mock
 import pyglove as pg
+from vizier import pythia
+from vizier import pyvizier as vz
 from vizier._src.algorithms.testing import test_runners
 from vizier._src.pyglove import converters
 from vizier._src.pyglove import pythia as pg_pythia
+from vizier._src.pyglove import vizier_test_lib
+
 from absl.testing import absltest
 
-
-class DummyAlgorithm(pg.DNAGenerator):
-  """Dummy algorithm for testing."""
-
-  def _on_bound(self):
-    super()._on_bound()
-    self._random = pg.geno.Random(seed=1)
-
-  def setup(self, dna_spec: pg.DNASpec):
-    super().setup(dna_spec)
-    self._random.setup(dna_spec)
-
-  def _propose(self) -> pg.DNA:
-    return self._random.propose()
+_RandomAlgorithm = vizier_test_lib.DummyAlgorithm
 
 
-class PythiaTest(absltest.TestCase):
+class TunerPolicyTest(absltest.TestCase):
 
-  def test_simple_search_space(self):
+  def test_stopping_policy(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('x', 0.0, 1.0)
+    problem.metric_information.append(
+        vz.MetricInformation(name='r', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+    )
+
+    converter = converters.VizierConverter.from_problem(problem)
+    supporter = pythia.InRamPolicySupporter(problem)
+
+    m = mock.create_autospec(pg.tuning.EarlyStoppingPolicy, instance=True)
+    policy = pg_pythia.TunerPolicy(
+        supporter,
+        converter,
+        algorithm=_RandomAlgorithm(),
+        early_stopping_policy=m,
+    )
+
+    supporter.AddTrials([
+        vz.Trial(
+            parameters={'x': 0.0},
+            final_measurement=vz.Measurement({'r': 1.0}),
+        ),
+        vz.Trial(
+            parameters={'x': 0.0},
+            final_measurement=vz.Measurement({'r': 1.0}),
+        ),
+        vz.Trial(
+            parameters={'x': 0.0},
+            final_measurement=vz.Measurement({'r': 1.0}),
+        ),
+        vz.Trial(
+            parameters={'x': 0.0},
+            measurements=[vz.Measurement({'r': 1.0})],
+        ),
+    ])
+
+    descriptor = supporter.study_descriptor()
+
+    m.should_stop_early.return_value = False
+    res = policy.early_stop(
+        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])
+    )
+    self.assertFalse(res.decisions[0].should_stop)
+
+    m.should_stop_early.return_value = True
+    res = policy.early_stop(
+        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])
+    )
+    self.assertTrue(res.decisions[0].should_stop)
+    self.assertEqual(m.should_stop_early.call_count, 5)  # 3 + 1 + 1
+
+  def test_random_algorithm_on_simple_search_space(self):
+    """geno.Random wrapped into TunerPolicy should generate valid trials."""
     # Get a DNA spec.
     rewards = []
 
@@ -63,7 +109,7 @@ class PythiaTest(absltest.TestCase):
     )
 
     # Create pyglove algorithm.
-    algorithm = DummyAlgorithm()
+    algorithm = _RandomAlgorithm()
     algorithm.setup(search_space.dna_spec)
     policy_factory = functools.partial(
         pg_pythia.TunerPolicy,

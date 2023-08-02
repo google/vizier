@@ -16,13 +16,14 @@ from __future__ import annotations
 
 """TunerPolicy."""
 
-from typing import Optional, Sequence
+from typing import Optional, Sequence, cast
 
 from absl import logging
 import attr
 import pyglove as pg
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.algorithms.policies import trial_caches
 from vizier._src.pyglove import constants
 from vizier._src.pyglove import converters
 from vizier._src.pyglove import core
@@ -38,25 +39,28 @@ class TunerPolicy(pythia.Policy):
 
   supporter: pythia.PolicySupporter = attr.field()
   _converter: converters.VizierConverter = attr.field()
-  _algorithm: pg.geno.DNAGenerator = attr.field()
-  _incorporated_trial_ids: set[int] = attr.field(factory=set)
-  _early_stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = attr.field(
+  algorithm: pg.geno.DNAGenerator = attr.field()
+  early_stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = attr.field(
       default=None
   )
 
-  @property
-  def algorithm(self) -> pg.geno.DNAGenerator:
-    return self._algorithm
-
-  @property
-  def early_stopping_policy(self) -> Optional[pg.tuning.EarlyStoppingPolicy]:
-    return self._early_stopping_policy
+  def __attrs_post_init__(self):
+    # Initialize the caches. Unlike Vizier's Pythia service implementation,
+    # Pyglove's pythia service maintains a single Policy instance for each
+    # study (unless the binary crashes). We can therefore use an in-ram cache
+    # and avoid re-loading the same trials over and over again.
+    self._suggestion_cache = trial_caches.IdDeduplicatingTrialLoader(
+        self.supporter, include_intermediate_measurements=False
+    )
+    self._stopping_cache = trial_caches.IdDeduplicatingTrialLoader(
+        self.supporter, include_intermediate_measurements=True
+    )
 
   @property
   def _metric_names(self) -> Sequence[str]:
     return self._converter.metrics_to_optimize
 
-  def update(self, tuner_trial: pg.tuning.Trial) -> bool:
+  def _update(self, tuner_trial: pg.tuning.Trial) -> bool:
     """Update a single tuner Trial.
 
     Args:
@@ -65,37 +69,35 @@ class TunerPolicy(pythia.Policy):
     Returns:
       True if the trial was added.
     """
-    if tuner_trial.id in self._incorporated_trial_ids:
-      return False
     logging.info(
-        'Updating TunerTrial %s to algorithm: %s', tuner_trial, self._algorithm
+        'Updating TunerTrial id=%s to algorithm: %s',
+        tuner_trial.id,
+        self.algorithm,
     )
     reward = tuner_trial.get_reward_for_feedback(self._metric_names)
     if reward is not None:
-      self._algorithm.feedback(tuner_trial.dna, reward)
-      self._incorporated_trial_ids.add(tuner_trial.id)
+      self.algorithm.feedback(tuner_trial.dna, reward)
       return True
     return False
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
-    logging.info('Tuner policy get new suggestions')
-    completed_trials = self.supporter.GetTrials(
-        status_matches=vz.TrialStatus.COMPLETED
+    logging.info('TunerPolicy:suggest started')
+    newly_completed_trials = self._suggestion_cache.get_newly_completed_trials(
+        request.max_trial_id
     )
-
-    mu = vz.MetadataDelta()
     n_trials_updated = 0
-    for vizier_trial in completed_trials:
+    metadata_updates = vz.MetadataDelta()
+    for vizier_trial in newly_completed_trials:
       tuner_trial = core.VizierTrial(self._converter, vizier_trial)
       metadata = dict(tuner_trial.dna.metadata)  # make a deep copy.
-      if self.update(tuner_trial):
+      if self._update(tuner_trial):
         n_trials_updated += 1
         # Serialize DNA metadata to Vizier trial metadata upon change.
         if pg.ne(tuner_trial.dna.metadata, metadata):
-          mu.assign(
-              constants.METADATA_NAMESPACE,
-              constants.TRIAL_METADATA_KEY_DNA_METADATA,
-              pg.to_json_str(tuner_trial.dna.metadata),
+          metadata_updates.assign(
+              namespace=constants.METADATA_NAMESPACE,
+              key=constants.TRIAL_METADATA_KEY_DNA_METADATA,
+              value=pg.to_json_str(tuner_trial.dna.metadata),
               trial=vizier_trial,
           )
 
@@ -104,33 +106,61 @@ class TunerPolicy(pythia.Policy):
 
     logging.info(
         (
-            'The algorithm now reflects %s new trials.'
-            'The algorithm has seen %s trials total and '
-            'there are %s total completed trials in the study '
-            'Now generating %s new suggestions.'
+            'The algorithm is updated with %s new trials out of %s newly'
+            ' completed trials.It has seen %s trials total. Now generating %s'
+            ' new suggestions.'
         ),
         n_trials_updated,
-        len(self._incorporated_trial_ids),
-        len(completed_trials),
+        len(newly_completed_trials),
+        str(self._suggestion_cache),
         count,
     )
     for _ in range(request.count or 1):
-      dna = self._algorithm.propose()
+      dna = self.algorithm.propose()
       if dna.spec is None:
         dna.use_spec(self._converter.dna_spec)
       trial = self._converter.to_trial(dna, fallback='return_dummy')
       new_trials.append(trial)
       logging.info(
           'algorithm : %s proposed DNA: %s which is translated to trial: %s',
-          self._algorithm,
+          self.algorithm,
           repr(dna),
           trial,
       )
 
-    return pythia.SuggestDecision(new_trials, mu)
+    logging.info('TunerPolicy:suggest ended')
+    return pythia.SuggestDecision(new_trials, metadata_updates)
 
   def early_stop(
       self, request: pythia.EarlyStopRequest
   ) -> pythia.EarlyStopDecisions:
-    # TODO: Support early stopping in the future.
-    return pythia.EarlyStopDecisions()
+    if self.early_stopping_policy is None:
+      return pythia.EarlyStopDecisions()
+
+    early_stopping_policy = cast(
+        pg.tuning.EarlyStoppingPolicy, self.early_stopping_policy
+    )
+
+    newly_completed_trials = self._stopping_cache.get_newly_completed_trials(
+        request.max_trial_id
+    )
+    for vizier_trial in newly_completed_trials:
+      tuner_trial = core.VizierTrial(self._converter, vizier_trial)
+      # For completed trials, we do not need the actual stopping decision but
+      # we still have to feed them in and update the stopping policy's state.
+      early_stopping_policy.should_stop_early(tuner_trial)
+
+    active_trials = self._stopping_cache.get_active_trials()
+
+    decisions = pythia.EarlyStopDecisions()
+    for vizier_trial in active_trials:
+      tuner_trial = core.VizierTrial(self._converter, vizier_trial)
+      should_stop = early_stopping_policy.should_stop_early(tuner_trial)
+      decisions.decisions.append(
+          pythia.EarlyStopDecision(
+              vizier_trial.id,
+              should_stop=should_stop,
+              reason='Pyglove stopping policy stopped the trial.',
+          )
+      )
+    return decisions
