@@ -204,11 +204,16 @@ class ArrayScoreFunction(Protocol):
   its own separate score).
   """
 
-  def __call__(self, batched_array_trials: types.ModelInput) -> types.Array:
+  def __call__(
+      self,
+      batched_array_trials: types.ModelInput,
+      seed: jax.random.KeyArray,
+  ) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
       batched_array_trials: Array of shape (batch_size, n_feature_dimensions).
+      seed: Random seed.
 
     Returns:
       Array of shape (batch_size,).
@@ -224,12 +229,17 @@ class ParallelArrayScoreFunction(Protocol):
   (e.g. qUCB).
   """
 
-  def __call__(self, parallel_array_trials: types.ModelInput) -> types.Array:
+  def __call__(
+      self,
+      parallel_array_trials: types.ModelInput,
+      seed: jax.random.KeyArray,
+  ) -> types.Array:
     """Evaluates the array of batched trials.
 
     Arguments:
       parallel_array_trials: Array of shape (batch_size, n_parallel,
         n_feature_dimensions).
+      seed: Random seed.
 
     Returns:
       Array of shape (batch_size).
@@ -313,7 +323,8 @@ class VectorizedOptimizer(Generic[_S]):
     Arguments:
       score_fn: A callback that expects 2D Array with dimensions (batch_size,
         features_count) or a 3D array with dimensions (batch_size, n_parallel,
-        features_count) and returns a 1D Array (batch_size,).
+        features_count), and a random seed, and returns a 1D Array
+        (batch_size,).
       score_with_aux_fn: A callback similar to score_fn but additionally returns
         an array tree.
       count: The number of suggestions to generate.
@@ -337,6 +348,7 @@ class VectorizedOptimizer(Generic[_S]):
       (count, n_parallel or 1, n_feature_dimensions).
     """
     seed = jax.random.PRNGKey(0) if seed is None else seed
+    seed, acq_fn_seed = jax.random.split(seed)
 
     dimension_is_missing = jax.tree_util.tree_map(
         lambda pad_dim, dim: jnp.arange(pad_dim) >= dim,
@@ -347,14 +359,17 @@ class VectorizedOptimizer(Generic[_S]):
     if n_parallel is None:
       # Squeeze out the singleton dimension of `features` before passing to a
       # non-parallel acquisition function to avoid batch shape collisions.
+      # Use the same acquisition function seed at every call.
       eval_score_fn = lambda x: score_fn(  # pylint: disable=g-long-lambda
           _optimizer_to_model_input(
               x, self.n_feature_dimensions, squeeze_middle_dim=True
-          )
+          ),
+          acq_fn_seed,
       )
     else:
       eval_score_fn = lambda x: score_fn(  # pylint: disable=g-long-lambda
-          _optimizer_to_model_input(x, self.n_feature_dimensions)
+          _optimizer_to_model_input(x, self.n_feature_dimensions),
+          acq_fn_seed,
       )
 
     # TODO: We should pass RNGKey to score_fn.
@@ -459,13 +474,15 @@ class VectorizedOptimizer(Generic[_S]):
                 best_results.features,
                 self.n_feature_dimensions,
                 squeeze_middle_dim=True,
-            )
+            ),
+            seed=acq_fn_seed,
         )[1]
       else:
         aux = score_with_aux_fn(
             _optimizer_to_model_input(
                 best_results.features, self.n_feature_dimensions
-            )
+            ),
+            seed=acq_fn_seed,
         )[1]
 
       return VectorizedStrategyResults(

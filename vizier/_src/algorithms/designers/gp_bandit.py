@@ -99,6 +99,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       factory=lambda: VizierGPBandit.default_scoring_function_factory,
       kw_only=True,
   )
+  _num_parallel_suggestions: Optional[int] = attr.field(
+      default=None, kw_only=True
+  )
   # Whether to pad all inputs, and what type of schedule to use. This is to
   # ensure fewer JIT compilation passes. (Default implies no padding.)
   _padding_schedule: padding.PaddingSchedule = attr.field(
@@ -418,6 +421,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         count=count,
         seed=acq_rng,
         score_with_aux_fn=score_with_aux,
+        n_parallel=self._num_parallel_suggestions,
     )
 
     # TODO: Move the logging into `VectorizedOptimizer`.
@@ -457,8 +461,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
           ' suggestions. Suggestions in the batch are likely to be very'
           ' similar.'
       )
+    n_parallel = self._num_parallel_suggestions or 1
     if len(self._trials) < self._num_seed_trials:
-      return self._generate_seed_trials(count)
+      return self._generate_seed_trials(count * n_parallel)
 
     suggest_start_time = datetime.datetime.now()
     logging.info('Updating the designer state based on trials...')

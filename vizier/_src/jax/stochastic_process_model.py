@@ -787,10 +787,33 @@ class PrecomputedPredictive(eqx.Module):
     Returns:
       Distribution with sample shape [B].
     """
+    return self._predict(x_predictive)
+
+  def _predict(
+      self,
+      x_predictive: types.ModelInput,
+      expand_batch_dim: bool = False,
+  ) -> tfd.Distribution:
+    """Returns the posterior distribution on index points `xs`.
+
+    Args:
+      x_predictive: Array(Tree) of batch shape [B].
+      expand_batch_dim: If True, expand the dimensions of `x_predictive` so that
+        it broadcasts with the distribution's batch shape. This is useful for
+        predictions on a batch of predictive points using an ensemble GP.
+
+    Returns:
+      Distribution with sample shape [B].
+    """
     x_pred_tfp = tfpke.ContinuousAndCategoricalValues(
         continuous=x_predictive.continuous.padded_array,
         categorical=x_predictive.categorical.padded_array,
     )
+    if expand_batch_dim:
+      x_pred_tfp = tfpke.ContinuousAndCategoricalValues(
+          continuous=x_pred_tfp.continuous[:, jnp.newaxis, ...],
+          categorical=x_pred_tfp.categorical[:, jnp.newaxis, ...],
+      )
     prior_gp = self.prior(self.observed_data.features)
     kwargs = self._posterior_kwargs.copy()
     kwargs['observations'] = _squeeze_to_event_dims(
@@ -815,15 +838,23 @@ class UniformEnsemblePredictive(eqx.Module):
   def predict_with_aux(
       self, xs: types.ModelInput
   ) -> tuple[tfd.Distribution, chex.ArrayTree]:
-    dist = self.predictives.predict(xs)
+    # If `xs` has a batch dimension, we expand its batch shape so as not to
+    # collide with the ensemble dimensions of the predictive distribution
+    # (`vmap` cannot currently be used on functions returning TFP
+    # distributions).
+    expand_x = (
+        len(xs.continuous.shape) == 3
+        and self.predictives.precomputed_divisor_matrix_cholesky.ndim == 3
+    )
+    dist = self.predictives._predict(xs, expand_batch_dim=expand_x)  # pylint: disable=protected-access
     if dist.batch_shape.rank == 0:
       return dist, {}
-    elif dist.batch_shape[0] == 1:
-      return tfd.BatchReshape(dist, []), {}
+    elif dist.batch_shape[-1] == 1:
+      return tfd.BatchReshape(dist, dist.batch_shape[:-1]), {}
     else:
       return (
           tfd.MixtureSameFamily(
-              tfd.Categorical(logits=jnp.zeros(dist.batch_shape[0])), dist
+              tfd.Categorical(logits=jnp.zeros(dist.batch_shape[-1])), dist
           ),
           {
               'components_mean': dist.mean().T,

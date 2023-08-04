@@ -334,7 +334,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
       },
   )
   def test_optimizer_convergence(self, candidate_x_value, goal, should_pass):
-    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=-1)
+    score_fn = lambda x, _: jnp.sum(x.continuous.padded_array, axis=-1)
     simple_regret_test = comparator_runner.SimpleRegretComparisonTester(
         baseline_num_trials=100,
         candidate_num_trials=100,

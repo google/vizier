@@ -131,6 +131,24 @@ class AcquisitionsTest(absltest.TestCase):
     np.testing.assert_allclose(qei_single_point, 0.346, atol=1e-2)
     self.assertEmpty(qei_single_point.shape)
 
+  def test_qpi(self):
+    best_labels = jnp.array([0.2])
+    acq = acquisitions.QPI(num_samples=5000, best_labels=best_labels)
+    batch_shape = [6]
+    dist = tfd.Normal(loc=0.1 * jnp.ones(batch_shape), scale=1.0)
+    qpi = acq(dist, seed=jax.random.PRNGKey(0))
+    # QPI reduces over the batch shape.
+    self.assertEmpty(qpi.shape)
+
+    dist_single_point = tfd.Normal(jnp.array([0.1], dtype=jnp.float64), 1)
+    qpi_single_point = acq(dist_single_point, seed=jax.random.PRNGKey(0))
+    # Parallel matches non-parallel for a single point.
+    pi_single_point = acquisitions.PI(best_labels=best_labels)(
+        dist_single_point
+    )
+    np.testing.assert_allclose(qpi_single_point, pi_single_point[0], atol=1e-2)
+    self.assertEmpty(qpi_single_point.shape)
+
   def test_qucb_shape(self):
     acq = acquisitions.QUCB()
     batch_shape = [6]
