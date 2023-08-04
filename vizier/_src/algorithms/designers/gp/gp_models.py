@@ -213,7 +213,7 @@ def _pred_mean(
   return pred.predict_with_aux(features)[0].mean()
 
 
-def _train_stacked_residual_gp(
+def train_stacked_residual_gp(
     base_gp: GPState,
     spec: GPTrainingSpec,
     data: types.ModelData,
@@ -322,7 +322,7 @@ def train_gp(
     else:
       # Otherwise, we have a base GP to use - the GP trained on the last
       # iteration.
-      curr_gp = _train_stacked_residual_gp(
+      curr_gp = train_stacked_residual_gp(
           base_gp=curr_gp,
           spec=curr_spec,
           data=curr_data,
