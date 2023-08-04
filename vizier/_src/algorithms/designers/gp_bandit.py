@@ -209,6 +209,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     del all_active
     self._trials.extend(copy.deepcopy(completed.trials))
 
+  @_experimental_override_allowed
   def set_priors(self, prior_studies: Sequence[vza.CompletedTrials]) -> None:
     """Updates the list of prior studies for transfer learning.
 
