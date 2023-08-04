@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for `transfer_learning.py`."""
 
+import chex
 import jax
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import transfer_learning as vtl
@@ -43,7 +44,7 @@ class GoogleGpBanditTest(absltest.TestCase):
         num_hyperparameters=15,
     )  # Try one case with `training_data_count` < `num_hyperparameters`.
 
-    comb_pred, _ = vtl.combine_predictions_with_aux(
+    comb_pred, comb_aux = vtl.combine_predictions_with_aux(
         top_pred=top_pred, base_pred=prior_pred
     )
 
@@ -54,6 +55,9 @@ class GoogleGpBanditTest(absltest.TestCase):
     # individual standard deviation, because we are combining the same
     # standard deviations together.
     self.assertSequenceAlmostEqual(comb_pred.stddev(), [10.0, 5.0], places=4)
+
+    # Batch shapes in aux must be the same as the batch shape of predictions
+    chex.assert_tree_shape_prefix(comb_aux, [2])
 
 
 if __name__ == '__main__':

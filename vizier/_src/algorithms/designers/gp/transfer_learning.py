@@ -130,19 +130,23 @@ def combine_predictions_with_aux(
       base_pred.pred.stddev(), (1 - alpha)
   )
 
-  # TODO: Adjust this so that it meets the contract of matching
-  # batch shape.
   prev_aux = {
       'base_aux': base_pred.aux,
       'top_aux': top_pred.aux,
   }
+
+  # Entries in `aux` must have the same batch shape as the predictions.
+  batch_shape = comb_mean.shape[0]
   aux = {
       'prev_aux': prev_aux,
       'mean': comb_mean,
       'stddev': comb_stddev,
-      'alpha': alpha,
-      'expected_base_stddev_mismatch': expected_base_stddev_mismatch,
-      'beta_squared': beta_squared,
+      'alpha': jnp.ones(batch_shape) * alpha,
+      'expected_base_stddev_mismatch': (
+          jnp.ones(batch_shape) * expected_base_stddev_mismatch
+      ),
+      'beta_squared': jnp.ones(batch_shape) * beta_squared,
   }
+
   # Assume a multivariate normal distribution with diagonal covariance as output
   return tfd.MultivariateNormalDiag(loc=comb_mean, scale_diag=comb_stddev), aux
