@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for gp_bandit."""
 
+from typing import Callable
 from unittest import mock
 
 import jax
@@ -45,6 +46,69 @@ def _build_mock_continuous_array_specs(n):
   continuous_spec.type = converters.NumpyArraySpecType.CONTINUOUS
   continuous_spec.num_dimensions = 1
   return [continuous_spec] * n
+
+
+def _setup_lambda_search(
+    f: Callable[[float], float], num_trials: int = 100
+) -> tuple[gp_bandit.VizierGPBandit, list[vz.Trial]]:
+  """Sets up a GP designer and outputs completed studies for `f`.
+
+  Args:
+    f: 1D objective to be optimized, i.e. f(x), where x is a scalar in [-5., 5.)
+    num_trials: Number of mock "evaluated" trials to return.
+
+  Returns:
+  A GP designer set up for the problem of optimizing the objective, without any
+  data updated.
+  Evaluated trials against `f`.
+  """
+  assert (
+      num_trials > 0
+  ), f'Must provide a positive number of trials. Got {num_trials}.'
+
+  search_space = vz.SearchSpace()
+  search_space.root.add_float_param('x0', -5.0, 5.0)
+  problem = vz.ProblemStatement(
+      search_space=search_space,
+      metric_information=vz.MetricsConfig(
+          metrics=[
+              vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
+          ]
+      ),
+  )
+
+  suggestions = quasi_random.QuasiRandomDesigner(
+      problem.search_space, seed=1
+  ).suggest(num_trials)
+
+  obs_trials = []
+  for idx, suggestion in enumerate(suggestions):
+    trial = suggestion.to_trial(idx)
+    x = suggestions[idx].parameters['x0'].value
+    trial.complete(vz.Measurement(metrics={'obj': f(x)}))
+    obs_trials.append(trial)
+
+  gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
+  return gp_designer, obs_trials
+
+
+def _compute_mse(
+    designer: gp_bandit.VizierGPBandit,
+    test_trials: list[vz.Trial],
+    y_test: list[float],
+) -> float:
+  """Evaluate the designer's accuracy on the test set.
+
+  Args:
+    designer: The GP bandit designer to predict from.
+    test_trials: The trials of the test set
+    y_test: The results of the test set
+
+  Returns:
+    The MSE of `designer` on `test_trials` and `y_test`
+  """
+  preds = designer.predict(test_trials)
+  return np.sum(np.square(preds.mean - y_test))
 
 
 class GoogleGpBanditTest(parameterized.TestCase):
@@ -216,32 +280,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
     self.assertFalse(np.isnan(prediction.stddev).any())
 
   def test_prediction_accuracy(self):
-    search_space = vz.SearchSpace()
-    search_space.root.add_float_param('x0', -5.0, 5.0)
-    problem = vz.ProblemStatement(
-        search_space=search_space,
-        metric_information=vz.MetricsConfig(
-            metrics=[
-                vz.MetricInformation(
-                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-                ),
-            ]
-        ),
-    )
     f = lambda x: -((x - 0.5) ** 2)
-
-    suggestions = quasi_random.QuasiRandomDesigner(
-        problem.search_space, seed=1
-    ).suggest(100)
-
-    obs_trials = []
-    for idx, suggestion in enumerate(suggestions):
-      trial = suggestion.to_trial(idx)
-      x = suggestions[idx].parameters['x0'].value
-      trial.complete(vz.Measurement(metrics={'obj': f(x)}))
-      obs_trials.append(trial)
-
-    gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
+    gp_designer, obs_trials = _setup_lambda_search(f)
     gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
     pred_trial = vz.Trial({'x0': 0.0})
     pred = gp_designer.predict([pred_trial])
@@ -261,6 +301,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
+
     def create_designer(problem):
       return gp_bandit.VizierGPBandit(
           problem=problem,
@@ -297,6 +338,78 @@ class GoogleGpBanditTest(parameterized.TestCase):
     # Retracing should not occur when a new VizierGPBandit instance is created.
     designer2 = create_designer(problem)
     create_runner(problem).run_designer(designer2)
+
+  def test_priors_work(self):
+    f = lambda x: -((x - 0.5) ** 2)
+
+    # X is in range of what is defined in `_setup_lambda_search`, [-5.0, 5.0)
+    x_test = np.random.default_rng(1).uniform(-5.0, 5.0, 100)
+    y_test = [f(x) for x in x_test]
+    test_trials = [vz.Trial({'x0': x}) for x in x_test]
+
+    # Create the designer with a prior and the trials to train the prior.
+    gp_designer_with_prior, obs_trials_for_prior = _setup_lambda_search(
+        f=f, num_trials=100
+    )
+
+    # Update prior with above trials.
+    gp_designer_with_prior.update_priors(
+        [vza.CompletedTrials(obs_trials_for_prior)]
+    )
+
+    # Purposefully set a low number of trials for the actual study, so that
+    # the designer without the prior will predict with poor accuracy.
+    gp_designer_no_prior, obs_trials = _setup_lambda_search(f=f, num_trials=20)
+
+    # Update both priors with the actual study.
+    gp_designer_no_prior.update(
+        vza.CompletedTrials(obs_trials), vza.ActiveTrials()
+    )
+    gp_designer_with_prior.update(
+        vza.CompletedTrials(obs_trials), vza.ActiveTrials()
+    )
+
+    # Evaluate the no prior designer's accuracy on the test set.
+    mse_no_prior = _compute_mse(gp_designer_no_prior, test_trials, y_test)
+
+    # Evaluate the designer with prior's accuracy on the test set.
+    mse_with_prior = _compute_mse(gp_designer_with_prior, test_trials, y_test)
+
+    # The designer with a prior should predict better.
+    self.assertLess(mse_with_prior, mse_no_prior)
+
+  def test_multiple_priors(self):
+    """Tests that a multi-prior GP predicts better than a GP with one prior."""
+    f = lambda x: -((x - 0.5) ** 2)
+    multi_prior_gp_designer, multi_prior_trials = _setup_lambda_search(
+        f, num_trials=300
+    )
+    prior_0, prior_1, top = np.array_split(multi_prior_trials, 3)
+    multi_prior_gp_designer.update_priors([vza.CompletedTrials(prior_0)])
+    multi_prior_gp_designer.update_priors([vza.CompletedTrials(prior_1)])
+    multi_prior_gp_designer.update(vza.CompletedTrials(top), vza.ActiveTrials())
+    self.assertLen(multi_prior_gp_designer._prior_studies, 2)
+    self.assertLen(multi_prior_gp_designer._trials, len(top))
+
+    single_prior_gp_designer, single_prior_trials = _setup_lambda_search(
+        f, num_trials=200
+    )
+    prior, top = np.array_split(single_prior_trials, 2)
+    single_prior_gp_designer.update_priors([vza.CompletedTrials(prior)])
+    single_prior_gp_designer.update(
+        vza.CompletedTrials(top), vza.ActiveTrials()
+    )
+    self.assertLen(single_prior_gp_designer._prior_studies, 1)
+    self.assertLen(single_prior_gp_designer._trials, len(top))
+
+    x_test = np.random.default_rng(1).uniform(-5.0, 5.0, 100)
+    y_test = [f(x) for x in x_test]
+    test_trials = [vz.Trial({'x0': x}) for x in x_test]
+    multi_prior_mse = _compute_mse(multi_prior_gp_designer, test_trials, y_test)
+    single_prior_mse = _compute_mse(
+        single_prior_gp_designer, test_trials, y_test
+    )
+    self.assertLess(multi_prior_mse, single_prior_mse)
 
 
 if __name__ == '__main__':

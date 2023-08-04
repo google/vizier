@@ -191,7 +191,7 @@ class StackedResidualGPTest(parameterized.TestCase):
 
     # Combine the good base and the bad top into transfer learning GP.
     seq_base_gp = gp_models.train_gp(
-        [top_spec, base_spec], [top_train_data, base_train_data]
+        [base_spec, top_spec], [base_train_data, top_train_data]
     )
 
     # Create a purposefully-bad GP with `bad_num_samples` for comparison.
@@ -244,8 +244,8 @@ class StackedResidualGPTest(parameterized.TestCase):
         ensemble_size=ensemble_size,
     )
 
-    train_specs = [top_spec]
-    train_data = [top_train_data]
+    train_specs = []
+    train_data = []
 
     for _ in range(2):
       base_spec, base_train_data, _ = _setup_lambda_search(
@@ -257,6 +257,8 @@ class StackedResidualGPTest(parameterized.TestCase):
       )
       train_specs.append(base_spec)
       train_data.append(base_train_data)
+    train_specs.append(top_spec)
+    train_data.append(top_train_data)
 
     seq_base_gp = gp_models.train_gp(train_specs, train_data)
 
@@ -323,10 +325,10 @@ class StackedResidualGPTest(parameterized.TestCase):
     # Combine the good base and the bad top into transfer learning GP.
     seq_base_gp = gp_models.train_gp(
         [
-            top_spec,
             bad_base_spec,
+            top_spec,
         ],
-        [top_train_data, bad_base_train_data],
+        [bad_base_train_data, top_train_data],
     )
 
     # Create a GP on the fake objective with sufficient training data

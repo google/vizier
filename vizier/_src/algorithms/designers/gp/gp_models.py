@@ -277,13 +277,14 @@ def train_gp(
   """Trains a Gaussian Process model.
 
   If `spec` contains multiple elements, each will be used to train a
-  `StackedResidualGP`, sequentially. The last entry will be used to train the
+  `StackedResidualGP`, sequentially. The first entry will be used to train the
   first GP, and then subsequent GPs will be trained on the residuals from the
-  previous GP. This process completes in reverse order, such that `spec[-1]` is
-  the first GP trained and `spec[0]` is the last GP trained.
+  previous GP. This process completes in the order that `spec` and `data are
+  provided, such that `spec[0]` is the first GP trained and `spec[-1]` is the
+  last GP trained.
 
-  spec[0] and data[0] make up the top-level GP, and spec[1:] and data[1:] define
-  the priors in context of transfer learning.
+  spec[-1] and data[-1] make up the top-level GP, and spec[:-1] and data[:-1]
+  define the priors in context of transfer learning.
 
   Args:
     spec: Specification for how to train a GP model. If multiple specs are
@@ -314,7 +315,7 @@ def train_gp(
     )
 
   curr_gp: Optional[GPState] = None
-  for curr_spec, curr_data in reversed(list(zip(spec, data))):
+  for curr_spec, curr_data in zip(spec, data):
     if curr_gp is None:
       # We are on the first iteration.
       curr_gp = _train_gp(spec=curr_spec, data=curr_data)
