@@ -114,13 +114,25 @@ class NumpyArraySpec:
     scale: Scaling of the values.
   """
 
-  type: NumpyArraySpecType
-  dtype: np.dtype
+  type: NumpyArraySpecType = attr.field(
+      validator=attr.validators.instance_of(NumpyArraySpecType)
+  )
+  dtype: np.dtype = attr.field(
+      converter=np.dtype,
+      validator=attr.validators.in_(
+          [np.float32, np.int32, np.float64, np.int64]
+      ),
+  )
   bounds: Union[Tuple[float, float], Tuple[int, int]]
-  num_dimensions: int
-  name: str
-  num_oovs: int
-  scale: Optional[pyvizier.ScaleType] = None
+  num_dimensions: int = attr.field(validator=attr.validators.instance_of(int))
+  name: str = attr.field(validator=attr.validators.instance_of(str))
+  num_oovs: int = attr.field(validator=attr.validators.instance_of(int))
+  scale: Optional[pyvizier.ScaleType] = attr.field(
+      default=None,
+      validator=attr.validators.optional(
+          attr.validators.instance_of(pyvizier.ScaleType)
+      ),
+  )
 
   def __attrs_post_init__(self):
     object.__setattr__(
