@@ -372,18 +372,18 @@ class GoogleGpBanditTest(parameterized.TestCase):
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
         scoring_function_factory=scoring_fn_factory,
+        scoring_function_is_parallel=True,
         use_trust_region=False,
         num_seed_trials=n_parallel,
         ensemble_size=3,
         rng=jax.random.PRNGKey(0),
         linear_coef=0.1,
-        num_parallel_suggestions=n_parallel,
     )
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
             iters=iters,
-            batch_size=1,
+            batch_size=n_parallel,
             verbose=1,
             validate_parameters=True,
             seed=1,
