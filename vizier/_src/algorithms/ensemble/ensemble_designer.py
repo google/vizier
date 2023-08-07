@@ -126,7 +126,6 @@ class EnsembleDesigner(vza.Designer):
     self._ensemble_design_factory = ensemble_design_factory
     # Each index corresponds to the designer order in the dictionary.
     self._strategy = ensemble_design_factory(list(range(len(self._designers))))
-    self._rewards = []
     self._use_diverse_suggest = use_diverse_suggest
     self._reward_generator = reward_generator
     self._use_separate_update = use_separate_update
@@ -177,14 +176,15 @@ class EnsembleDesigner(vza.Designer):
     for trial, reward in zip(completed.trials, rewards):
       designer_key = trial.metadata.ns(ENSEMBLE_NS).get(EXPERT_KEY)
       if designer_key is None:
-        raise RuntimeError(
-            'Trial does not contain required metadata with key'
-            f' {EXPERT_KEY}: {trial}'
+        logging.warning(
+            'Trial does not contain required metadata with key %s: %s',
+            EXPERT_KEY,
+            trial,
         )
+        continue
 
       observation = (list(self._designers.keys()).index(designer_key), reward)
       logging.info('Updating with expert, rewards: %s', observation)
-      self._rewards.append(observation)
       self._strategy.update(observation)
 
     # Update the underlying designers.
