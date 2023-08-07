@@ -433,7 +433,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         self.converter
     )
     optimizer(
-        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, 1), count=1
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1), count=1
     )
 
   def test_optimize_with_eagle_continuous_only(self):
@@ -449,7 +449,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     n_parallel = 5
     results = optimizer(
-        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
         count=1,
         n_parallel=n_parallel,
     )
@@ -476,7 +476,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     n_parallel = 2
     results = optimizer(
-        score_fn=lambda x: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
         count=1,
         n_parallel=n_parallel,
     )

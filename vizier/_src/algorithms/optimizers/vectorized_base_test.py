@@ -173,7 +173,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=-1)
+    score_fn = lambda x, _: jnp.sum(x.continuous.padded_array, axis=-1)
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
@@ -191,7 +191,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 10.0)
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: jnp.sum(x.continuous.padded_array, axis=(-1, -2))
+    score_fn = lambda x, _: jnp.sum(x.continuous.padded_array, axis=(-1, -2))
     optimizer = vb.VectorizedOptimizerFactory(
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
@@ -206,7 +206,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: -jnp.max(
+    score_fn = lambda x, _: -jnp.max(
         jnp.square(x.continuous.padded_array - 0.52), axis=-1
     )
     strategy_factory = FakeIncrementVectorizedStrategy
@@ -234,7 +234,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: -jnp.max(
+    score_fn = lambda x, _: -jnp.max(
         jnp.square(x.continuous.padded_array - 0.52), axis=-1
     )
     optimizer = vb.VectorizedOptimizerFactory(
@@ -317,7 +317,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         [trial1, trial2, trial1], converter=converter
     )
     best_trial_array = optimizer(
-        lambda x: -jnp.max(
+        lambda x, _: -jnp.max(
             jnp.square(x.continuous.padded_array - 0.52), axis=-1
         ),
         count=1,
@@ -330,7 +330,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(best_trial[0].parameters['x2'].value, 2)
 
     best_trial_array = optimizer(
-        lambda x: -jnp.max(
+        lambda x, _: -jnp.max(
             jnp.square(x.continuous.padded_array - 0.52), axis=-1
         ),
         count=1,
@@ -372,7 +372,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         ),
     )
     suggestions = optimizer(
-        lambda x: -jnp.max(
+        lambda x, _: -jnp.max(
             jnp.square(x.continuous.padded_array - 0.52), axis=(-1, -2)
         ),
         prior_features=prior_features,

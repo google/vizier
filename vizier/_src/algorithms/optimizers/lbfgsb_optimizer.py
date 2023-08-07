@@ -46,7 +46,7 @@ class LBFGSBOptimizer:
       self,
       converter: converters.TrialToModelInputConverter,
       # TODO: Update the type to (Parallel)ArrayScoreFunction.
-      score_fn: Callable[[jax.Array], jax.Array],
+      score_fn: Callable[[jax.Array, jax.random.KeyArray], jax.Array],
       *,
       count: Optional[int] = None,
       seed: Optional[int] = None,
@@ -88,6 +88,7 @@ class LBFGSBOptimizer:
       return jax.random.uniform(rng, shape=feature_shape)
 
     rng = jax.random.PRNGKey(seed or 0)
+    score_rng, rng = jax.random.split(rng)
 
     # Constraints are [0, 1].
     constraints = sp.Constraint(
@@ -100,7 +101,7 @@ class LBFGSBOptimizer:
     def wrapped_score_fn(x):
       # Add a batch axis since `score_fn` is assumed to work on a batch of
       # trials.
-      return -score_fn(x[jnp.newaxis, ...])[0], dict()
+      return -score_fn(x[jnp.newaxis, ...], score_rng)[0], dict()
 
     rng, init_rng = jax.random.split(rng, 2)
     new_features, _ = optimize(
@@ -110,7 +111,9 @@ class LBFGSBOptimizer:
         constraints=constraints,
         best_n=count,
     )
-    new_rewards = np.asarray(score_fn(new_features[jnp.newaxis, ...]))[0]
+    new_rewards = np.asarray(
+        score_fn(new_features[jnp.newaxis, ...], score_rng)
+    )[0]
     if self.num_parallel_candidates is None:
       new_features = new_features[jnp.newaxis, ...]
     parameters = converter.to_parameters(

@@ -34,7 +34,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     problem.search_space.root.add_float_param('f3', 0.0, 10.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: jnp.sum(x, axis=-1)
+    score_fn = lambda x, _: jnp.sum(x, axis=-1)
     optimizer = lo.LBFGSBOptimizer(random_restarts=10)
     res = optimizer.optimize(converter=converter, score_fn=score_fn)
     self.assertLen(res, 1)
@@ -44,7 +44,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x: -jnp.sum(jnp.square(x - 0.52), axis=-1)
+    score_fn = lambda x, _: -jnp.sum(jnp.square(x - 0.52), axis=-1)
     optimizer = lo.LBFGSBOptimizer(random_restarts=10)
     candidates = optimizer.optimize(converter=converter, score_fn=score_fn)
     # check the best candidate
@@ -68,7 +68,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     problem.search_space.root.add_float_param('f3', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
     # Minimize sum over all features.
-    score_fn = lambda x: -jnp.sum(jnp.square(x - 0.52), axis=[-1, -2])
+    score_fn = lambda x, _: -jnp.sum(jnp.square(x - 0.52), axis=[-1, -2])
     optimizer = lo.LBFGSBOptimizer(
         num_parallel_candidates=3, random_restarts=10
     )

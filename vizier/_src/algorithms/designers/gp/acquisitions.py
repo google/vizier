@@ -48,13 +48,11 @@ class AcquisitionFunction(Protocol):
 class ScoreFunction(Protocol):
   """Protocol for scoring candidate points."""
 
-  def score(
-      self, xs: types.ModelInput, seed: Optional[jax.random.KeyArray] = None
-  ) -> jax.Array:
+  def score(self, xs: types.ModelInput, seed: jax.random.KeyArray) -> jax.Array:
     pass
 
   def score_with_aux(
-      self, xs: types.ModelInput, seed: Optional[jax.random.KeyArray] = None
+      self, xs: types.ModelInput, seed: jax.random.KeyArray
   ) -> tuple[jax.Array, chex.ArrayTree]:
     pass
 
@@ -119,11 +117,11 @@ class BayesianScoringFunction(eqx.Module):
   # If set, uses trust region.
   trust_region: Optional['TrustRegion']
 
-  def score(self, xs, seed: Optional[jax.random.KeyArray] = None) -> jax.Array:
+  def score(self, xs, seed: jax.random.KeyArray) -> jax.Array:
     return self.score_with_aux(xs, seed)[0]
 
   def score_with_aux(
-      self, xs, seed: Optional[jax.random.KeyArray] = None
+      self, xs, seed: jax.random.KeyArray
   ) -> tuple[jax.Array, chex.ArrayTree]:
     pred, aux = self.predictor.predict_with_aux(xs)
 
@@ -368,6 +366,28 @@ class QEI(AcquisitionFunction):
     if seed is None:
       raise ValueError('QEI requires a value for `seed`.')
     return tfp_bo.acquisition.ParallelExpectedImprovement(
+        dist,
+        observations=self.best_labels,
+        seed=seed,
+        num_samples=self.num_samples,
+    )()
+
+
+@struct.dataclass
+class QPI(AcquisitionFunction):
+  """Sampling-based batch probability of improvement."""
+
+  best_labels: jax.Array
+  num_samples: int = 100
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      seed: Optional[jax.random.KeyArray] = None,
+  ) -> jax.Array:
+    if seed is None:
+      raise ValueError('QPI requires a value for `seed`.')
+    return tfp_bo.acquisition.ParallelProbabilityOfImprovement(
         dist,
         observations=self.best_labels,
         seed=seed,

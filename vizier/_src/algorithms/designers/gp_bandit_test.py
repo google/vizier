@@ -25,9 +25,11 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
+from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import test_runners
+from vizier._src.jax import types
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -339,6 +341,56 @@ class GoogleGpBanditTest(parameterized.TestCase):
     designer2 = create_designer(problem)
     create_runner(problem).run_designer(designer2)
 
+  def test_parallel_acquisition(self):
+    problem = vz.ProblemStatement(
+        test_studies.flat_continuous_space_with_scaling()
+    )
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
+        strategy_factory=es.VectorizedEagleStrategyFactory(),
+        max_evaluations=10,
+    )
+
+    def _qei_factory(data: types.ModelData) -> acquisitions.AcquisitionFunction:
+      best_labels = acquisitions.get_best_labels(data.labels)
+      return acquisitions.QEI(best_labels=best_labels, num_samples=100)
+
+    scoring_fn_factory = acquisitions.bayesian_scoring_function_factory(
+        _qei_factory
+    )
+
+    n_parallel = 4
+    iters = 3
+    designer = gp_bandit.VizierGPBandit(
+        problem=problem,
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        ard_optimizer=optimizers.JaxoptLbfgsB(
+            optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
+        ),
+        scoring_function_factory=scoring_fn_factory,
+        use_trust_region=False,
+        num_seed_trials=n_parallel,
+        ensemble_size=3,
+        rng=jax.random.PRNGKey(0),
+        linear_coef=0.1,
+        num_parallel_suggestions=n_parallel,
+    )
+    self.assertLen(
+        test_runners.RandomMetricsRunner(
+            problem,
+            iters=iters,
+            batch_size=1,
+            verbose=1,
+            validate_parameters=True,
+            seed=1,
+        ).run_designer(designer),
+        iters * n_parallel,
+    )
+
 
 class GPBanditPriorsTest(parameterized.TestCase):
 
@@ -421,5 +473,4 @@ if __name__ == '__main__':
   # Jax disables float64 computations by default and will silently convert
   # float64s to float32s. We must explicitly enable float64.
   jax.config.update('jax_enable_x64', True)
-  jax.config.update('jax_log_compiles', True)
   absltest.main()
