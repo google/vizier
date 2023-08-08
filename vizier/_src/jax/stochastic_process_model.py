@@ -838,20 +838,16 @@ class UniformEnsemblePredictive(eqx.Module):
   def predict_with_aux(
       self, xs: types.ModelInput
   ) -> tuple[tfd.Distribution, chex.ArrayTree]:
-    # If `xs` has a batch dimension, we expand its batch shape so as not to
-    # collide with the ensemble dimensions of the predictive distribution
-    # (`vmap` cannot currently be used on functions returning TFP
-    # distributions).
-    expand_x = (
-        len(xs.continuous.shape) == 3
-        and self.predictives.precomputed_divisor_matrix_cholesky.ndim == 3
+    # If `xs` has a batch dimension and the predictive distribution is
+    # ensembled, we expand xs' batch shape so as not to collide with the
+    # ensemble dimensions. (`vmap` cannot currently be used on functions
+    # returning TFP distributions).
+    has_batched_hparams = (
+        self.predictives.precomputed_divisor_matrix_cholesky.ndim > 2
     )
+    expand_x = len(xs.continuous.shape) == 3 and has_batched_hparams
     dist = self.predictives._predict(xs, expand_batch_dim=expand_x)  # pylint: disable=protected-access
-    if dist.batch_shape.rank == 0:
-      return dist, {}
-    elif dist.batch_shape[-1] == 1:
-      return tfd.BatchReshape(dist, dist.batch_shape[:-1]), {}
-    else:
+    if has_batched_hparams:
       return (
           tfd.MixtureSameFamily(
               tfd.Categorical(logits=jnp.zeros(dist.batch_shape[-1])), dist
@@ -861,6 +857,7 @@ class UniformEnsemblePredictive(eqx.Module):
               'components_stddev': dist.stddev().T,
           },
       )
+    return dist, {}
 
 
 def _initialize_params(

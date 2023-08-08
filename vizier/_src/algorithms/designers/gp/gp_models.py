@@ -21,6 +21,7 @@ from typing import Iterable, Optional, Union
 import chex
 import equinox as eqx
 import jax
+from jax import numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import transfer_learning as vtl
@@ -174,13 +175,18 @@ def _train_gp(spec: GPTrainingSpec, data: types.ModelData) -> GPState:
 
   # Optimize the parameters
   ard_rngs = jax.random.split(spec.ard_rng, spec.ard_random_restarts + 1)
+  best_n = spec.ensemble_size or 1
   best_params, _ = spec.ard_optimizer(
       eqx.filter_jit(eqx.filter_vmap(model.setup))(ard_rngs[1:]),
       model.loss_with_aux,
       ard_rngs[0],
       constraints=model.constraints(),
-      best_n=spec.ensemble_size or 1,
+      best_n=best_n,
   )
+  if best_n == 1 and all(x.shape[0] == 1 for x in best_params.values()):
+    best_params = jax.tree_util.tree_map(
+        lambda x: jnp.squeeze(x, axis=0), best_params
+    )
   best_models = sp.StochasticProcessWithCoroutine(
       coroutine=spec.coroutine, params=best_params
   )

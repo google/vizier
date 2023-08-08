@@ -26,13 +26,21 @@ from vizier._src.jax import types
 from absl.testing import absltest
 
 tfd = tfp.distributions
+tfpk = tfp.math.psd_kernels
+tfpke = tfp.experimental.psd_kernels
 
 
-def _make_test_model_data(labels_array):
+def _make_test_model_data(labels_array, num_categorical=1):
   labels = types.PaddedArray.as_padded(labels_array)
   features = types.ModelInput(
-      continuous=jnp.zeros((labels_array.shape[0], 3), dtype=jnp.float64),
-      categorical=jnp.zeros((labels_array.shape[0], 1), dtype=types.INT_DTYPE),
+      continuous=types.PaddedArray.as_padded(
+          jnp.zeros((labels_array.shape[0], 3), dtype=jnp.float64)
+      ),
+      categorical=types.PaddedArray.as_padded(
+          jnp.zeros(
+              (labels_array.shape[0], num_categorical), dtype=types.INT_DTYPE
+          ),
+      ),
   )
   return types.ModelData(features=features, labels=labels)
 
@@ -72,6 +80,52 @@ class AcquisitionsTest(absltest.TestCase):
         ),
         0.46017216,
     )
+
+  def test_mes(self):
+    num_obs = 10
+    num_pred = 6
+    labels = np.random.normal(size=([num_obs, 1]))
+    data = _make_test_model_data(labels, num_categorical=0)
+    init_features = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(
+            jnp.ones((num_pred, 3), dtype=jnp.float64)
+        ),
+        categorical=types.PaddedArray.as_padded(
+            jnp.zeros((num_pred, 0), dtype=types.INT_DTYPE)
+        ),
+    )
+
+    class _TestPredictive:
+
+      def predict_with_aux(self, x):
+        gp = tfd.GaussianProcess(
+            kernel=tfpke.FeatureScaledWithCategorical(
+                kernel=tfpk.ExponentiatedQuadratic(),
+                scale_diag=tfpke.ContinuousAndCategoricalValues(
+                    continuous=jnp.ones([3]), categorical=jnp.ones([0])
+                ),
+            ),
+            index_points=tfpke.ContinuousAndCategoricalValues(
+                continuous=data.features.continuous.padded_array,
+                categorical=data.features.categorical.padded_array,
+            ),
+            observation_noise_variance=np.float64(1.0),
+        )
+        return (
+            gp.posterior_predictive(
+                observations=data.labels.padded_array[:, 0],
+                predictive_index_points=tfpke.ContinuousAndCategoricalValues(
+                    x.continuous.padded_array, x.categorical.padded_array
+                ),
+            ),
+            {},
+        )
+
+    score_fn = acquisitions.MaxValueEntropySearch.scoring_fn_factory(
+        data=data, predictive=_TestPredictive(), use_trust_region=True
+    )
+    score = score_fn.score(init_features, seed=jax.random.PRNGKey(0))
+    self.assertEqual(score.shape, (num_pred,))
 
   def test_acq_pi_tr_good_point(self):
     data = _make_test_model_data((jnp.array([[100.0]])))

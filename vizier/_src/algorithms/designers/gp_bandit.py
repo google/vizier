@@ -177,10 +177,20 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     coroutine = gp_models.get_vizier_gp_coroutine(empty_data.features)
     params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
-    predictive = model.precompute_predictive(empty_data)
+    predictive = sp.UniformEnsemblePredictive(
+        eqx.filter_jit(model.precompute_predictive)(empty_data)
+    )
     scoring_fn = self._scoring_function_factory(
         empty_data, predictive, self._use_trust_region
     )
+    if (
+        isinstance(scoring_fn, acquisitions.MaxValueEntropySearch)
+        and self._ensemble_size > 1
+    ):
+      raise ValueError(
+          'MaxValueEntropySearch is not supported with ensemble '
+          'size greater than one.'
+      )
     acquisition_function = getattr(scoring_fn, 'acquisition_fn', None)
     if isinstance(acquisition_function, acquisitions.MultiAcquisitionFunction):
       acquisition_config = vz.MetricsConfig()

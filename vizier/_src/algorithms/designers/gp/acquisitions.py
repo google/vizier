@@ -26,6 +26,7 @@ from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import types
+from vizier._src.jax.models import continuous_only_kernel
 
 
 tfd = tfp.distributions
@@ -107,6 +108,31 @@ def get_best_labels(labels: types.PaddedArray) -> jax.Array:
   return jnp.max(labels.replace_fill_value(-np.inf).padded_array, axis=-2)
 
 
+def _apply_trust_region(
+    region: 'TrustRegion',
+    xs: types.ModelInput,
+    acquisition: jax.Array,
+    pred: tfd.Distribution,
+    aux: chex.ArrayTree,
+) -> tuple[jax.Array, chex.ArrayTree]:
+  """Applies the trust region to acquisition values."""
+  distance = region.min_linf_distance(xs)
+  raw_acquisition = acquisition
+  acquisition = jnp.where(
+      ((distance <= region.trust_radius) | (region.trust_radius > 0.5)),
+      acquisition,
+      -1e12 - distance,
+  )
+  aux = aux | {
+      'mean': pred.mean(),
+      'stddev': pred.stddev(),
+      'raw_acquisition': raw_acquisition,
+      'linf_distance': distance,
+      'radius': jnp.ones_like(distance) * region.trust_radius,
+  }
+  return acquisition, aux
+
+
 class BayesianScoringFunction(eqx.Module):
   """Combines `Predictive` with acquisition function."""
 
@@ -127,21 +153,13 @@ class BayesianScoringFunction(eqx.Module):
 
     acquisition = self.acquisition_fn(pred, seed=seed)
     if self.trust_region is not None:
-      region: TrustRegion = self.trust_region  #  type: ignore
-      distance = region.min_linf_distance(xs)
-      raw_acquisition = acquisition
-      acquisition = jnp.where(
-          ((distance <= region.trust_radius) | (region.trust_radius > 0.5)),
+      acquisition, aux = _apply_trust_region(
+          self.trust_region,
+          xs,
           acquisition,
-          -1e12 - distance,
+          pred,
+          aux,
       )
-      aux = aux | {
-          'mean': pred.mean(),
-          'stddev': pred.stddev(),
-          'raw_acquisition': raw_acquisition,
-          'linf_distance': distance,
-          'radius': jnp.ones_like(distance) * region.trust_radius,
-      }
     return acquisition, aux
 
 
@@ -227,6 +245,76 @@ class PI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
         dist, observations=self.best_labels
     )()
+
+
+class MaxValueEntropySearch(eqx.Module):
+  """MES score function. Implements the `ScoreFunction` protocol."""
+
+  tfp_mes: tfp_bo.acquisition.GaussianProcessMaxValueEntropySearch
+  trust_region: Optional['TrustRegion']
+
+  @classmethod
+  def scoring_fn_factory(
+      cls,
+      data: types.ModelData,
+      predictive: Predictive,
+      use_trust_region: bool = False,
+  ) -> 'MaxValueEntropySearch':
+    """Builds a MaxValueEntropySearch scoring function."""
+    if data.features.categorical.shape[-1] > 0:
+      raise ValueError('Categorical data is not supported.')
+    pred_gp = predictive.predict_with_aux(data.features)[0]
+    continuous_gp = pred_gp.copy(
+        kernel=continuous_only_kernel.EmptyCategoricalKernel(pred_gp.kernel),
+        observation_index_points=(pred_gp.observation_index_points.continuous),
+        index_points=jnp.zeros_like(
+            pred_gp.index_points.continuous,
+            shape=(0,) + pred_gp.index_points.continuous.shape[1:],
+        ),
+        # pylint: disable=protected-access
+        _conditional_kernel=continuous_only_kernel.EmptyCategoricalKernel(
+            pred_gp._conditional_kernel
+        ),
+        _conditional_mean_fn=lambda x: pred_gp._conditional_mean_fn(  # pylint: disable=g-long-lambda
+            continuous_only_kernel._continuous_to_cacv(x)
+        ),
+        # pylint: enable=protected-access
+    )
+
+    observations = pred_gp.observations
+    # Allow the score function to build with no observations.
+    if not observations.size:
+      observations = jnp.asarray([-jnp.inf])
+    tfp_mes = tfp_bo.acquisition.GaussianProcessMaxValueEntropySearch(
+        predictive_distribution=continuous_gp,
+        observations=observations,
+        # TODO: Finalize API and plumb seed through.
+        seed=jax.random.PRNGKey(123),
+        num_max_value_samples=100,
+    )
+    trust_region = TrustRegion(data.features) if use_trust_region else None
+    return cls(tfp_mes, trust_region=trust_region)
+
+  def score(self, xs: types.ModelInput, seed: jax.random.KeyArray) -> jax.Array:
+    return self.score_with_aux(xs, seed)[0]
+
+  def score_with_aux(
+      self, xs: types.ModelInput, seed: jax.random.KeyArray
+  ) -> tuple[jax.Array, chex.ArrayTree]:
+    del seed
+    if xs.categorical.shape[-1] > 0:
+      raise ValueError('Categorical data is not supported.')
+    acquisition = self.tfp_mes(index_points=xs.continuous.padded_array)
+    aux = {}
+    if self.trust_region is not None:
+      acquisition, aux = _apply_trust_region(
+          self.trust_region,
+          xs,
+          acquisition,
+          self.tfp_mes.predictive_distribution,
+          aux,
+      )
+    return acquisition, aux
 
 
 def bayesian_scoring_function_factory(

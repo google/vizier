@@ -17,6 +17,7 @@ from __future__ import annotations
 """PSD Kernel for convenience with continuous-only data."""
 
 import jax
+from jax import numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import types
 
@@ -53,13 +54,17 @@ class ContinuousOnly(tfpk.PositiveSemidefiniteKernel):
   def __getattr__(self, name):
     return getattr(self.kernel, name)
 
-  def _apply(self, x1, x2, example_ndims=0):
+  def _apply(
+      self, x1: types.ModelInput, x2: types.ModelInput, example_ndims=0
+  ) -> jax.Array:
     return self.kernel._apply(x1.continuous, x2.continuous, example_ndims)  # pylint: disable=protected-access
 
-  def _matrix(self, x1, x2):
+  def _matrix(self, x1: types.ModelInput, x2: types.ModelInput) -> jax.Array:
     return self.kernel._matrix(x1.continuous, x2.continuous)  # pylint: disable=protected-access
 
-  def matrix_over_all_tasks(self, x1, x2):
+  def matrix_over_all_tasks(
+      self, x1: types.ModelInput, x2: types.ModelInput
+  ) -> jax.Array:
     return self.kernel.matrix_over_all_tasks(x1.continuous, x2.continuous)  # pylint: disable=protected-access
 
   @classmethod
@@ -69,17 +74,92 @@ class ContinuousOnly(tfpk.PositiveSemidefiniteKernel):
     )
 
 
-def _continuous_only_flatten(v):
+def _continuous_to_cacv(x: jax.Array) -> tfpke.ContinuousAndCategoricalValues:
+  return tfpke.ContinuousAndCategoricalValues(
+      continuous=x, categorical=jnp.zeros(x.shape[:-1] + (0,))
+  )
+
+
+class EmptyCategoricalKernel(tfpk.PositiveSemidefiniteKernel):
+  """Kernel that packs continuous data to ModelInput with empty categorical.
+
+  If `k` is a PSDKernel that operates on `ModelInput` structures, then
+  `EmptyCategoricalKernel(k)` is a kernel that operates on arrays of continuous
+  data.
+
+  Example:
+
+  ```python
+  tfpke = tfp.experimental.psd_kernels
+  tfpk = tfp.math.psd_kernels
+
+  # Define a kernel that operates on continuous and categorical values, with the
+  # `categorical` field empty.
+  kernel = tfpke.FeatureScaledWithCategorical(
+      tfpk.ExponentiatedQuadratic(),
+      scale_diag=tfpke.ContinuousAndCategoricalValues(
+          continuous=jnp.ones([3]),
+          categorical=jnp.ones([0])
+      )
+  )
+
+  # Define an `EmptyCategoricalKernel` that operates on arrays of continuous
+  # data.
+  empty_cat_kernel = EmptyCategoricalKernel(k)
+  xs = np.random.normal([10, 3])
+  mat = empty_cat_kernel.matrix(xs, xs)  # Returns a [10, 10] matrix.
+  ```
+  """
+
+  def __init__(
+      self,
+      kernel: tfpk.PositiveSemidefiniteKernel,
+  ):
+    parameters = dict(locals())
+    self._kernel = kernel
+
+    super(EmptyCategoricalKernel, self).__init__(
+        feature_ndims=kernel.feature_ndims.continuous,
+        dtype=kernel.dtype.continuous,
+        name='EmptyCategoricalKernel',
+        validate_args=False,
+        parameters=parameters,
+    )
+
+  @property
+  def kernel(self):
+    return self._kernel
+
+  def __getattr__(self, name):
+    return getattr(self.kernel, name)
+
+  def _apply(self, x1: jax.Array, x2: jax.Array, example_ndims: int = 0):
+    return self.kernel._apply(  # pylint: disable=protected-access
+        _continuous_to_cacv(x1), _continuous_to_cacv(x2), example_ndims
+    )
+
+  def _matrix(self, x1: jax.Array, x2: jax.Array):
+    return self.kernel._matrix(  # pylint: disable=protected-access
+        _continuous_to_cacv(x1), _continuous_to_cacv(x2)
+    )
+
+  @classmethod
+  def _parameter_properties(cls, dtype):
+    return dict(
+        kernel=tfp.internal.parameter_properties.BatchedComponentProperties(),
+    )
+
+
+def _flatten(v):
   children = (v.kernel,)
   return (children, None)
 
 
-def _continuous_only_unflatten(_, children):
+def _unflatten(_, children):
   return ContinuousOnly(*children)
 
 
-jax.tree_util.register_pytree_node(
-    ContinuousOnly, _continuous_only_flatten, _continuous_only_unflatten
-)
+jax.tree_util.register_pytree_node(ContinuousOnly, _flatten, _unflatten)
+jax.tree_util.register_pytree_node(EmptyCategoricalKernel, _flatten, _unflatten)
 
 tfpke.MultiTaskKernel.register(ContinuousOnly)
