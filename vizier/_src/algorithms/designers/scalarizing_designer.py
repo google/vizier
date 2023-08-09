@@ -16,67 +16,15 @@ from __future__ import annotations
 
 """Scalarizing Designer for MOO via reducing to a scalarized objective."""
 import copy
-from typing import Optional, Protocol, Sequence
+import random
+from typing import Optional, Sequence
 
-import attr
-import jax
 from jax import numpy as jnp
-from jax.typing import ArrayLike
+from jax import random as jax_random
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
-
-
-# TODO Separate into another file/folder.
-class Scalarization(Protocol):
-  """Reduces an array of objectives to a single float.
-
-  Assumes all objectives are for MAXIMIZATION.
-  """
-
-  def __call__(self, objectives: ArrayLike) -> jax.Array:
-    pass
-
-
-@attr.define(init=True)
-class LinearScalarization(Scalarization):
-  """Linear Scalarization."""
-
-  # Weights shape should be broadcastable with objectives when called.
-  weights: ArrayLike = attr.ib()
-
-  def __attrs_post_init__(self):
-    if any(self.weights <= 0):
-      raise ValueError(f'Non-positive weights {self.weights}')
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      objectives: ArrayLike,
-  ) -> jax.Array:
-    return jnp.sum(self.weights * objectives)
-
-
-@attr.define(init=True)
-class HyperVolumeScalarization(Scalarization):
-  """HyperVolume Scalarization."""
-
-  weights: ArrayLike = attr.ib()
-
-  reference_point: Optional[ArrayLike] = attr.ib(default=None, kw_only=True)
-
-  def __attrs_post_init__(self):
-    if any(self.weights <= 0):
-      raise ValueError(f'Non-positive weights {self.weights}')
-
-  def __call__(  # pytype: disable=signature-mismatch  # numpy-scalars
-      self,
-      objectives: ArrayLike,
-  ) -> jax.Array:
-    # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
-    # non-convex multiobjective optimization.
-    if self.reference_point is not None:
-      return jnp.min((objectives - self.reference_point) / self.weights)
-    else:
-      return jnp.min(objectives / self.weights)
+from vizier._src.algorithms.designers import scalarization
+from vizier._src.algorithms.ensemble import ensemble_designer
 
 
 class ScalarizingDesigner(vza.Designer):
@@ -90,7 +38,7 @@ class ScalarizingDesigner(vza.Designer):
       self,
       problem_statement: vz.ProblemStatement,
       designer_factory: vza.DesignerFactory[vza.Designer],
-      scalarization: Scalarization,
+      scalarizer: scalarization.Scalarization,
       *,
       seed: Optional[int] = None,
   ):
@@ -99,10 +47,10 @@ class ScalarizingDesigner(vza.Designer):
     Args:
       problem_statement: Must be a mulitobjective search space.
       designer_factory: Factory to create the single-objective designer.
-      scalarization: Scalarization to be applied to objective metrics.
+      scalarizer: Scalarization to be applied to objective metrics.
       seed: Any valid seed for factory.
     """
-    self._scalarization = scalarization
+    self._scalarizer = scalarizer
     self._objectives = problem_statement.metric_information.of_type(
         vz.MetricType.OBJECTIVE
     )
@@ -136,7 +84,7 @@ class ScalarizingDesigner(vza.Designer):
       ]
       # Simply append the scalarized value.
       trial.final_measurement.metrics[self._scalarized_metric_name] = (
-          self._scalarization(jnp.array(objectives))
+          self._scalarizer(jnp.array(objectives))
       )
 
     self._designer.update(completed, all_active)
@@ -154,3 +102,37 @@ class ScalarizingDesigner(vza.Designer):
       New suggestions.
     """
     return self._designer.suggest(count)
+
+
+def create_gaussian_scalarizing_designer(
+    problem_statement: vz.ProblemStatement,
+    designer_factory: vza.DesignerFactory[vza.Designer],
+    scalarization_factory: scalarization.ScalarizationFromWeights,
+    num_ensemble: int,
+    *,
+    seed: Optional[int] = None,
+) -> vza.Designer:
+  """Factory for an Ensemble of Gaussian weighted scalarized Designers."""
+  objectives = problem_statement.metric_information.of_type(
+      vz.MetricType.OBJECTIVE
+  )
+  if len(objectives) <= 1:
+    raise ValueError(
+        'Problem should be multi-objective for applying '
+        f'scalarization ensembling {objectives}'
+    )
+
+  key = jax_random.PRNGKey(seed or random.getrandbits(32))
+  weights = abs(
+      jax_random.normal(key=key, shape=(num_ensemble, len(objectives)))
+  )
+  weights /= jnp.linalg.norm(weights, axis=1)[..., jnp.newaxis]
+  ensemble_dict = {}
+  for weight in weights:
+    ensemble_dict[f'scalarized_weight: {weight}'] = ScalarizingDesigner(
+        problem_statement=problem_statement,
+        designer_factory=designer_factory,
+        scalarizer=scalarization_factory(weight),
+        seed=seed,
+    )
+  return ensemble_designer.EnsembleDesigner(ensemble_dict)
