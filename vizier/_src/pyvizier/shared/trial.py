@@ -254,7 +254,7 @@ class ParameterValue:
 class _MetricDict(collections.UserDict, Mapping[str, Metric]):
   """Dictionary of string to metrics."""
 
-  def get_value(self, key: str, default: float) -> float:
+  def get_value(self, key: str, default: float | None) -> float | None:
     if key in self.data:
       return self.data[key].value
     else:
