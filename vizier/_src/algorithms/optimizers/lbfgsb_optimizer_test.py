@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
+from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
@@ -34,19 +35,26 @@ class LBFGSBOptimizer(parameterized.TestCase):
     problem.search_space.root.add_float_param('f2', 0.0, 10.0)
     problem.search_space.root.add_float_param('f3', 0.0, 10.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x, _: jnp.sum(x, axis=-1)
-    optimizer = lo.LBFGSBOptimizer(random_restarts=10)
-    res = optimizer.optimize(converter=converter, score_fn=score_fn)
-    self.assertLen(res, 1)
+    score_fn = lambda x, _: jnp.sum(x.continuous.padded_array, axis=-1)
+    optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
+        converter
+    )
+    res = optimizer(score_fn=score_fn)
+    self.assertLen(res.rewards, 1)
 
   def test_best_candidates_count_is_1(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
     problem.search_space.root.add_float_param('f2', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
-    score_fn = lambda x, _: -jnp.sum(jnp.square(x - 0.52), axis=-1)
-    optimizer = lo.LBFGSBOptimizer(random_restarts=10)
-    candidates = optimizer.optimize(converter=converter, score_fn=score_fn)
+    optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
+        converter
+    )
+    score_fn = lambda x, _: -jnp.sum(  # pylint: disable=g-long-lambda
+        jnp.square(x.continuous.padded_array - 0.52), axis=-1
+    )
+    results = optimizer(score_fn=score_fn)
+    candidates = vb.best_candidates_to_trials(results, converter)
     # check the best candidate
     self.assertLessEqual(
         np.abs(candidates[0].parameters['f1'].value - 0.52), 1e-6
@@ -68,13 +76,15 @@ class LBFGSBOptimizer(parameterized.TestCase):
     problem.search_space.root.add_float_param('f3', 0.0, 1.0)
     converter = converters.TrialToModelInputConverter.from_problem(problem)
     # Minimize sum over all features.
-    score_fn = lambda x, _: -jnp.sum(jnp.square(x - 0.52), axis=[-1, -2])
-    optimizer = lo.LBFGSBOptimizer(
-        num_parallel_candidates=3, random_restarts=10
+    score_fn = lambda x, _: -jnp.sum(  # pylint: disable=g-long-lambda
+        jnp.square(x.continuous.padded_array - 0.52),
+        axis=[-1, -2],
     )
-    best_candidates = optimizer.optimize(
-        converter=converter, score_fn=score_fn, count=1
+    optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
+        converter
     )
+    best_results = optimizer(score_fn=score_fn, count=1, n_parallel=3)
+    best_candidates = vb.best_candidates_to_trials(best_results, converter)
     self.assertLen(best_candidates, 3)
     # check the best candidates
     for b in best_candidates:

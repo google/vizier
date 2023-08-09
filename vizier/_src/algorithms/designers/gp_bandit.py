@@ -38,6 +38,7 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
+from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
@@ -413,7 +414,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def _optimize_acquisition(
       self, scoring_fn: acquisitions.BayesianScoringFunction, count: int
   ) -> list[vz.Trial]:
-    start_time = datetime.datetime.now()
     # Set up optimizer and run
     seed_features = vb.trials_to_sorted_array(self._trials, self._converter)
     acq_rng, self._rng = jax.random.split(self._rng)
@@ -426,9 +426,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       n_parallel = count
       count = 1
 
-    best_candidates: vb.VectorizedStrategyResults = eqx.filter_jit(
-        self._acquisition_optimizer
-    )(
+    acquisition_optimizer = self._acquisition_optimizer
+    if not isinstance(acquisition_optimizer, lo.LBFGSBOptimizer):
+      acquisition_optimizer = eqx.filter_jit(acquisition_optimizer)
+    best_candidates: vb.VectorizedStrategyResults = acquisition_optimizer(
         score,
         prior_features=seed_features,
         count=count,
@@ -437,22 +438,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         n_parallel=n_parallel,
     )
 
-    # TODO: Move the logging into `VectorizedOptimizer`.
-    logging.info(
-        (
-            'Optimization completed. Duration: %s. Evaluations: %s. Best'
-            ' Results: %s'
-        ),
-        datetime.datetime.now() - start_time,
-        (
-            (
-                self._acquisition_optimizer.max_evaluations
-                // self._acquisition_optimizer.suggestion_batch_size
-            )
-            * self._acquisition_optimizer.suggestion_batch_size
-        ),
-        best_candidates,
-    )
     optimal_features = best_candidates.features
     best_candidates = dataclasses.replace(
         best_candidates, features=optimal_features
@@ -468,7 +453,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   @profiler.record_runtime
   def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
     logging.info('Suggest called with count=%d', count)
-    if count > 1:
+    if count > 1 and not self._scoring_function_is_parallel:
       logging.warning(
           'GAUSSIAN_PROCESS_BANDIT currently is not optimized for batched'
           ' suggestions. Suggestions in the batch are likely to be very'

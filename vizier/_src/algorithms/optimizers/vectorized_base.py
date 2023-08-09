@@ -17,9 +17,11 @@ from __future__ import annotations
 """Base class for vectorized acquisition optimizers."""
 
 import abc
+import datetime
 import json
 from typing import Callable, Generic, Optional, Protocol, TypeVar, Union
 
+from absl import logging
 import attr
 import equinox as eqx
 from flax import struct
@@ -39,7 +41,7 @@ _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 VectorizedOptimizerInput = types.ContinuousAndCategorical[types.Array]
 
 
-def _optimizer_to_model_input_single_array(
+def optimizer_to_model_input_single_array(
     x: types.Array, n_features: jax.Array
 ) -> types.PaddedArray:
   mask = jnp.ones_like(x, dtype=bool)
@@ -67,10 +69,10 @@ def _optimizer_to_model_input(
     x_cont = x.continuous
     x_cat = x.categorical
   return types.ModelInput(
-      continuous=_optimizer_to_model_input_single_array(
+      continuous=optimizer_to_model_input_single_array(
           x_cont, n_features.continuous
       ),
-      categorical=_optimizer_to_model_input_single_array(
+      categorical=optimizer_to_model_input_single_array(
           x_cat, n_features.categorical
       ),
   )
@@ -347,6 +349,7 @@ class VectorizedOptimizer(Generic[_S]):
       An array containing the best trials found in the optimization of shape
       (count, n_parallel or 1, n_feature_dimensions).
     """
+    start_time = datetime.datetime.now()
     seed = jax.random.PRNGKey(0) if seed is None else seed
     seed, acq_fn_seed = jax.random.split(seed)
 
@@ -485,11 +488,25 @@ class VectorizedOptimizer(Generic[_S]):
             seed=acq_fn_seed,
         )[1]
 
-      return VectorizedStrategyResults(
+      best_results = VectorizedStrategyResults(
           best_results.features,
           best_results.rewards,
           aux,
       )
+
+    logging.info(
+        (
+            'Optimization completed. Duration: %s. Evaluations: %s. Best'
+            ' Results: %s'
+        ),
+        datetime.datetime.now() - start_time,
+        (
+            self.max_evaluations
+            // self.suggestion_batch_size
+            * self.suggestion_batch_size
+        ),
+        best_results,
+    )
 
     return best_results
 

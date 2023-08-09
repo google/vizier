@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Tests for gp_bandit."""
 
-from typing import Callable
+from typing import Callable, Union
 from unittest import mock
 
 import jax
@@ -27,6 +27,7 @@ from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
+from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import test_runners
 from vizier._src.jax import types
@@ -41,6 +42,11 @@ from absl.testing import parameterized
 
 
 ard_optimizer = optimizers.default_optimizer()
+vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
+    strategy_factory=es.VectorizedEagleStrategyFactory(),
+    max_evaluations=10,
+)
+lbfgsb_optimizer_factory = lo.LBFGSBOptimizerFactory()
 
 
 def _build_mock_continuous_array_specs(n):
@@ -117,7 +123,13 @@ class GoogleGpBanditTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(iters=3, batch_size=2, num_seed_trials=1, ensemble_size=2),
-      dict(iters=3, batch_size=1, num_seed_trials=1, ensemble_size=2),
+      dict(
+          iters=3,
+          batch_size=1,
+          num_seed_trials=1,
+          ensemble_size=2,
+          acquisition_optimizer_factory=lbfgsb_optimizer_factory,
+      ),
       dict(
           iters=3,
           batch_size=5,
@@ -135,6 +147,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
               num_trials=padding.PaddingType.POWERS_OF_2,
               num_features=padding.PaddingType.POWERS_OF_2,
           ),
+          acquisition_optimizer_factory=lbfgsb_optimizer_factory,
       ),
       dict(
           padding_schedule=padding.PaddingSchedule(
@@ -153,6 +166,9 @@ class GoogleGpBanditTest(parameterized.TestCase):
       ensemble_size: int = 1,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(),
       use_trust_region: bool = False,
+      acquisition_optimizer_factory: Union[
+          vb.VectorizedOptimizerFactory, lo.LBFGSBOptimizerFactory
+      ] = vectorized_optimizer_factory,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -164,14 +180,10 @@ class GoogleGpBanditTest(parameterized.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
-    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=es.VectorizedEagleStrategyFactory(),
-        max_evaluations=10,
-    )
 
     designer = gp_bandit.VizierGPBandit(
         problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        acquisition_optimizer_factory=acquisition_optimizer_factory,
         ard_optimizer=optimizers.JaxoptLbfgsB(
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
@@ -242,9 +254,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
-    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=es.VectorizedEagleStrategyFactory(), max_evaluations=10
-    )
     designer = gp_bandit.VizierGPBandit(
         problem=problem,
         acquisition_optimizer_factory=vectorized_optimizer_factory,
@@ -307,10 +316,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     def create_designer(problem):
       return gp_bandit.VizierGPBandit(
           problem=problem,
-          acquisition_optimizer_factory=vb.VectorizedOptimizerFactory(
-              strategy_factory=es.VectorizedEagleStrategyFactory(),
-              max_evaluations=10,
-          ),
+          acquisition_optimizer_factory=vectorized_optimizer_factory,
           num_seed_trials=3,
           ensemble_size=2,
           padding_schedule=padding.PaddingSchedule(
@@ -349,10 +355,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
         vz.MetricInformation(
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
-    )
-    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
-        strategy_factory=es.VectorizedEagleStrategyFactory(),
-        max_evaluations=10,
     )
 
     def _qei_factory(data: types.ModelData) -> acquisitions.AcquisitionFunction:
