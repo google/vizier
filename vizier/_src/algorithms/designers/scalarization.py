@@ -19,27 +19,24 @@ from __future__ import annotations
 import abc
 from typing import Callable, Optional
 
-import attr
+import equinox as eqx
 import jax
 from jax import numpy as jnp
-from jax import typing
 import jaxtyping as jt
+import typeguard
 
 
-@attr.define
-class Scalarization(abc.ABC):
+class Scalarization(abc.ABC, eqx.Module):
   """Reduces an array of objectives to a single float.
 
   Assumes all objectives are for MAXIMIZATION.
   """
 
   # Weights shape should be broadcastable with objectives when called.
-  weights: typing.ArrayLike = attr.ib()
+  weights: jt.Float[jax.Array, '#OBJ'] = eqx.field(converter=jnp.asarray)
 
-  def __attrs_post_init__(self):
-    if any(self.weights <= 0):
-      raise ValueError(f'Non-positive weights {self.weights}')
-
+  @jt.jaxtyped
+  @typeguard.typechecked
   def __call__(
       self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
   ) -> jt.Float[jax.Array, '*BATCH']:
@@ -47,37 +44,42 @@ class Scalarization(abc.ABC):
 
 
 # Scalarization factory from weights.
-ScalarizationFromWeights = Callable[[typing.ArrayLike], Scalarization]
+ScalarizationFromWeights = Callable[
+    [jt.Float[jax.Array, '#OBJ']], Scalarization
+]
 
 
-@attr.define
 class LinearScalarization(Scalarization):
   """Linear Scalarization."""
 
+  @jt.jaxtyped
+  @typeguard.typechecked
   def __call__(
       self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
   ) -> jt.Float[jax.Array, '*BATCH']:
     return jnp.sum(self.weights * objectives, axis=-1)
 
 
-@attr.define
 class ChebyshevScalarization(Scalarization):
   """Chebyshev Scalarization."""
 
+  @jt.jaxtyped
+  @typeguard.typechecked
   def __call__(
       self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
   ) -> jt.Float[jax.Array, '*BATCH']:
     return jnp.min(objectives * self.weights, axis=-1)
 
 
-@attr.define
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
 
-  reference_point: Optional[jt.Float[jax.Array, '* #OBJ']] = attr.ib(
-      default=None, kw_only=True
+  reference_point: Optional[jt.Float[jax.Array, '* #OBJ']] = eqx.field(
+      default=None
   )
 
+  @jt.jaxtyped
+  @typeguard.typechecked
   def __call__(
       self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
   ) -> jt.Float[jax.Array, '*BATCH']:
@@ -93,22 +95,19 @@ class HyperVolumeScalarization(Scalarization):
       return jnp.min(objectives / self.weights, axis=-1)
 
 
-@attr.define
 class LinearAugmentedScalarization(Scalarization):
   """Scalarization augmented with a linear sum.
 
   See https://arxiv.org/pdf/1904.05760.pdf.
   """
 
-  scalarization_factory: ScalarizationFromWeights = attr.ib(
-      kw_only=True, default=HyperVolumeScalarization
-  )
-  augment_weight: float = attr.ib(
-      default=1.0,
-      validator=[attr.validators.instance_of(float), attr.validators.ge(0.0)],
-      kw_only=True,
+  scalarization_factory: ScalarizationFromWeights = eqx.field(static=True)
+  augment_weight: jt.Float[jax.Array, ''] = eqx.field(
+      default=1.0, converter=jnp.asarray
   )
 
+  @jt.jaxtyped
+  @typeguard.typechecked
   def __call__(
       self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
   ) -> jt.Float[jax.Array, '*BATCH']:

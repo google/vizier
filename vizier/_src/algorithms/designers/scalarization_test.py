@@ -48,10 +48,10 @@ class ScalarizationsTest(absltest.TestCase):
   def test_augmented_scalarizer(self):
     scalarizer = scalarization.LinearAugmentedScalarization(
         weights=jnp.array([0.1, 0.2]),
+        scalarization_factory=scalarization.HyperVolumeScalarization,
     )
     # Should be the sum of hypervolume and linear scalarizations.
     self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 23.7)
-
 
 if __name__ == "__main__":
   absltest.main()
