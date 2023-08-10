@@ -539,7 +539,6 @@ class DefaultModelInputConverter(ModelInputConverter):
       onehot_embed: bool = False,
       converts_to_parameter: bool = True,
       pad_oovs: bool = True,
-      rounding_error_limit: float = 1e-16,
   ):
     """Init.
 
@@ -561,10 +560,6 @@ class DefaultModelInputConverter(ModelInputConverter):
         returns None
       pad_oovs: If True, pad the out-of-vocabulary dimensions to onehot
         embedding.
-      rounding_error_limit: For discrete parameters, due to limited floating
-        precision, we cannot guarantee that we can precisely restore a feasible
-        value as it appears in the discrete set. to_parameters() method logs an
-        error if the gap is bigger than this limit.
     """
     self._converts_to_parameter = converts_to_parameter
     self._parameter_config = copy.deepcopy(parameter_config)
@@ -601,8 +596,6 @@ class DefaultModelInputConverter(ModelInputConverter):
       self.onehot_encoder = ModelInputArrayBijector.identity(spec)
 
     spec = self.onehot_encoder.output_spec
-
-    self._rounding_error_limit = rounding_error_limit
     self._output_spec = spec
 
   def convert(self, trials: Sequence[pyvizier.TrialSuggestion]) -> np.ndarray:
@@ -677,8 +670,7 @@ class DefaultModelInputConverter(ModelInputConverter):
           self.parameter_config.feasible_values[idx]
       )
 
-      if diffs[idx] > self._rounding_error_limit:
-        # TODO: Do not round.
+      if diffs[idx] > 1e-16 + abs(diffs[idx]) * 1e-14:
         logging.error(
             'Detected a potential out-of-range value %s while converting'
             ' parameter %s. Please note that to_trial method always clips to'
