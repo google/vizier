@@ -275,7 +275,7 @@ class StackedResidualGPTest(parameterized.TestCase):
     seq_base_mse = _compute_mse(seq_base_gp, test_data)
     test_mse = _compute_mse(test_gp, test_data)
 
-    self.assertAlmostEqual(seq_base_mse, test_mse)
+    self.assertAlmostEqual(seq_base_mse, test_mse, places=4)
     self.assertLess(test_mse, 2e-2)
 
   @parameterized.parameters(

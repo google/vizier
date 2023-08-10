@@ -211,6 +211,17 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     )
 
 
+@struct.dataclass
+class ConstantMeanFn:
+  """Implements a constant GP mean function."""
+
+  constant: jax.Array
+
+  def __call__(self, x: types.ModelInput) -> jax.Array:
+    del x
+    return self.constant
+
+
 # TODO: Consider renaming this to reflect that it uses a
 # Matern + Linear kernel, not just a Linear kernel (or merging this class with
 # VizierGaussianProcess).
@@ -383,17 +394,24 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       )
       cholesky_fn = lambda matrix: retrying_cholesky(matrix)[0]
 
-    # TODO: Add batching/ensembling support for mean_fn.
-    # mean_fn = yield sp.ModelParameter(
-    #    init_fn=jax.random.normal,
-    #    regularizer=lambda x: 0.5 * x**2,
-    #    name='mean_fn',
-    # )
+    # The mean function output must broadcast to
+    # `[batch_shape, num_observations]`, where `batch_shape` is the
+    # (possibly empty) batch shape of the other hyperparameters. Initializing
+    # `mean_fn_constant` with an array of shape `[1]` gives the mean function
+    # output a shape of `[batch_shape, 1]`, ensuring that batch dimensions line
+    # up properly.
+    mean_fn_constant = yield sp.ModelParameter(
+        init_fn=lambda k: jax.random.normal(key=k, shape=[1]),
+        regularizer=lambda x: 0.5 * jnp.squeeze(x, axis=-1) ** 2,
+        name='mean_fn',
+    )
+
+    mean_fn = ConstantMeanFn(mean_fn_constant * self._linear_coef)
 
     return tfd.GaussianProcess(
         kernel,
         index_points=inputs,
         observation_noise_variance=observation_noise_variance,
         cholesky_fn=cholesky_fn,
-        # mean_fn=lambda _: self._linear_coef * mean_fn,
+        mean_fn=mean_fn,
     )

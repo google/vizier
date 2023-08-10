@@ -17,6 +17,7 @@ from __future__ import annotations
 """Tests for tuned_gp_models."""
 
 from absl import logging
+import equinox as eqx
 import jax
 from jax.config import config
 import numpy as np
@@ -270,15 +271,45 @@ class VizierGpTest(absltest.TestCase):
     )
     constraints = sp.get_constraints(model)
     rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
+    best_n = 7
     optimal_params, metrics = optimize(
         init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
         loss_fn=model.loss_with_aux,
         rng=rng,
         constraints=constraints,
+        best_n=best_n,
     )
     logging.info('Optimal: %s', optimal_params)
     logging.info('Loss: %s', metrics['loss'])
     self.assertLess(np.min(metrics['loss']), target_loss)
+
+    best_models = sp.StochasticProcessWithCoroutine(
+        coroutine=model.coroutine, params=optimal_params
+    )
+    predictive = eqx.filter_jit(best_models.precompute_predictive)(data)
+    n_pred_features = 6
+    cont_pred_feature_dim = 6
+    cont_pred_feature_dim_padded = 9
+    cat_pred_feature_dim = 3
+    cat_pred_feature_dim_padded = 5
+    pred_features = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            np.random.normal(size=(n_pred_features, cont_pred_feature_dim)),
+            target_shape=(n_pred_features, cont_pred_feature_dim_padded),
+            fill_value=np.nan,
+        ),
+        categorical=types.PaddedArray.from_array(
+            np.random.randint(
+                3,
+                size=(n_pred_features, cat_pred_feature_dim),
+                dtype=types.INT_DTYPE,
+            ),
+            target_shape=(n_pred_features, cat_pred_feature_dim_padded),
+            fill_value=-1,
+        ),
+    )
+    y_pred_mean = predictive.predict(pred_features).mean()
+    self.assertEqual(y_pred_mean.shape, (best_n, n_pred_features))
 
 
 if __name__ == '__main__':
