@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Setup for pip package."""
+import itertools
 import os
 import sys
 from setuptools import find_namespace_packages
@@ -68,6 +69,18 @@ class BuildCmd(build):
 
 _VERSION = _get_version()
 
+extras_require = {
+    'jax': _parse_requirements('requirements-jax.txt'),
+    'tf': _parse_requirements('requirements-tf.txt'),
+    'algorithms': _parse_requirements('requirements-algorithms.txt'),
+    'benchmarks': _parse_requirements('requirements-benchmarks.txt'),
+    'test': _parse_requirements('requirements-test.txt'),
+}
+
+extras_require['all'] = list(
+    itertools.chain.from_iterable(extras_require.values())
+)
+
 setup(
     name='google-vizier',
     version=_VERSION,
@@ -86,13 +99,7 @@ setup(
         include=['vizier*'], exclude=['*_test.py', 'examples']
     ),
     install_requires=_parse_requirements('requirements.txt'),
-    extras_require={
-        'jax': _parse_requirements('requirements-jax.txt'),
-        'tf': _parse_requirements('requirements-tf.txt'),
-        'algorithms': _parse_requirements('requirements-algorithms.txt'),
-        'benchmarks': _parse_requirements('requirements-benchmarks.txt'),
-        'test': _parse_requirements('requirements-test.txt'),
-    },
+    extras_require=extras_require,
     python_requires='>=3.8',
     include_package_data=True,
     zip_safe=False,
