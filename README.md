@@ -83,7 +83,7 @@ pip install google-vizier
 For **full installation** to support all algorithms and benchmarks, run:
 
 ```bash
-pip install google-vizier[extra]
+pip install google-vizier[all]
 ```
 
 For **specific installations**, you can run:
