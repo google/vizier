@@ -43,6 +43,19 @@ def assert_not_none(instance: Any, attribute: attr.Attribute,
     raise ValueError(f'{attribute.name} must not be None in {type(instance)}.')
 
 
+def assert_between(
+    low: float, high: float
+) -> Callable[[Any, attr.Attribute, str], None]:
+  def validator(instance, attribute, value):
+    del instance
+    if value < low or value > high:
+      raise ValueError(
+          f'{attribute.name} ({value}) must be between {low} and {high}'
+      )
+
+  return validator
+
+
 def assert_re_fullmatch(
     regex: str) -> Callable[[Any, attr.Attribute, str], None]:
 

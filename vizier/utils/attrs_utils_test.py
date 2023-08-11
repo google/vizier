@@ -53,6 +53,19 @@ class ValidatorsTest(parameterized.TestCase):
         Test(value)
 
   @parameterized.parameters(
+      (0.0, 1.0, 0.5, True),
+      (0.0, 1.0, 1.0, True),
+      (0.0, 1.0, 0.0, True),
+      (0.0, 1.0, 5.0, False),
+  )
+  def test_between_validator(
+      self, low: float, high: float, value: float, result: bool
+  ):
+    self.assertValidatorWorksAsIntended(
+        attrs_utils.assert_between(low, high), value, result
+    )
+
+  @parameterized.parameters(
       (r'[^\/]+', 'good', True),
       (r'[^\/]+', 'bad/', False),
       (r'[^\/]+', '', False),
