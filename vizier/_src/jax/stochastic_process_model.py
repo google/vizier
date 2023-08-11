@@ -466,7 +466,7 @@ class StochasticProcessModel(nn.Module):
     prior = self(x_observed)
     observations = _squeeze_to_event_dims(prior, y_observed.padded_array)
     predictive_dist = prior.posterior_predictive(
-        index_points=None, observations=observations, **kwargs
+        predictive_index_points=None, observations=observations, **kwargs
     )
     # pylint: disable=protected-access
     cached_predictive_intermediates = {
@@ -930,9 +930,17 @@ class StochasticProcessWithCoroutine(eqx.Module):
     return self.call_with_aux(x)[0]
 
   def loss_with_aux(
-      self, data: types.ModelData
+      self,
+      data: types.ModelData,
+      seed: Optional[jax.random.KeyArray] = None,
   ) -> tuple[jax.Array, chex.ArrayTree]:
     dist, aux = self.call_with_aux(data.features)
+
+    # If `seed` is provided, that implies `dist.log_prob` is a stochastic
+    # approximation that requires a random seed.
+    log_prob_kwargs = {}
+    if seed is not None:
+      log_prob_kwargs['key'] = seed
 
     labels = _squeeze_to_event_dims(dist, data.labels.padded_array)
     # TODO: Enable `is_missing` for MTGP.
@@ -941,9 +949,11 @@ class StochasticProcessWithCoroutine(eqx.Module):
           'Using a multitask GP; note that padding/masking is not yet supported'
           'in `log_prob`.'
       )
-      nll_data = -dist.log_prob(labels)
+      nll_data = -dist.log_prob(labels, **log_prob_kwargs)
     else:
-      nll_data = -dist.log_prob(labels, is_missing=data.labels.is_missing[0])
+      nll_data = -dist.log_prob(
+          labels, is_missing=data.labels.is_missing[0], **log_prob_kwargs
+      )
     loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])
     return loss, aux
 
@@ -959,7 +969,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
 
     observations = _squeeze_to_event_dims(prior, data.labels.padded_array)
     predictive = prior.posterior_predictive(
-        index_points=None,
+        predictive_index_points=None,
         observations=observations,
         observations_is_missing=data.labels.is_missing[0],
     )
@@ -989,7 +999,9 @@ class CoroutineWithData(eqx.Module):
         self.coroutine, rng=rng
     ).params
 
-  def loss_with_aux(self, params) -> tuple[jax.Array, chex.ArrayTree]:
+  def loss_with_aux(
+      self, params, seed: Optional[jax.random.KeyArray] = None
+  ) -> tuple[jax.Array, chex.ArrayTree]:
     return StochasticProcessWithCoroutine(self.coroutine, params).loss_with_aux(
-        self.data
+        self.data, seed=seed
     )
