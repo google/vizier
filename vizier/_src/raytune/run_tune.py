@@ -22,6 +22,7 @@ import numpy as np
 from ray import air
 from ray import data
 from ray import tune
+from ray.air import session
 from vizier import pyvizier
 from vizier._src.raytune import converters
 from vizier.benchmarks import experimenters
@@ -98,7 +99,7 @@ def run_tune_bbob(
     # Trial. Evaluation is static for BBOB so we simply loop.
     for _ in range(tune_config.num_samples):
       result_dict = objective(config)
-      air.session.report(result_dict)
+      session.report(result_dict)
 
   tuner = tune.Tuner(
       objective_fn,

@@ -55,6 +55,6 @@ case $1 in
     pip install -r requirements-jax.txt
     pip install pyarrow
     pip install pandas
-    # pytest -n auto vizier/_src/raytune/
+    pytest -n auto vizier/_src/raytune/
     ;;
 esac
