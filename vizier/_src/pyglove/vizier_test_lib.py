@@ -467,11 +467,14 @@ class SampleTest(VizierTest):
     f1.set_metadata('x', 1)
     f1.set_metadata('y', DummyAlgorithm(), per_trial=False)
 
-    # lambda is not serializable via `pg.to_json_str()`.
+    # X is not serializable via `pg.to_json_str()`.
+    class X:
+      pass
+
     with self.assertRaisesRegex(
-        ValueError, 'Cannot convert complex type .* to JSON'
+        ValueError, 'Cannot convert local class .* to JSON'
     ):
-      f1.set_metadata('z', lambda x: x * 2)
+      f1.set_metadata('z', X)
 
     _, f2 = next(sample2)
     self.assertEqual(f2.id, 2)
