@@ -206,6 +206,10 @@ class VizierGpTest(absltest.TestCase):
     )
 
   def test_good_log_likelihood(self):
+    # We use a fixed random seed for sampling categorical data (and continuous
+    # data from `_generate_xys`, above) so that the same data is used for every
+    # test run.
+    rng, init_rng, cat_rng = jax.random.split(jax.random.PRNGKey(2), 3)
     x_cont_obs, y_obs = self._generate_xys()
     data = types.ModelData(
         features=types.ModelInput(
@@ -213,7 +217,13 @@ class VizierGpTest(absltest.TestCase):
                 x_cont_obs, target_shape=(12, 9), fill_value=np.nan
             ),
             categorical=types.PaddedArray.from_array(
-                np.random.randint(3, size=(12, 3), dtype=types.INT_DTYPE),
+                jax.random.randint(
+                    cat_rng,
+                    shape=(12, 3),
+                    minval=0,
+                    maxval=3,
+                    dtype=types.INT_DTYPE,
+                ),
                 target_shape=(12, 5),
                 fill_value=-1,
             ),
@@ -231,7 +241,6 @@ class VizierGpTest(absltest.TestCase):
     )
     optimize = optimizers.JaxoptScipyLbfgsB()
     constraints = sp.get_constraints(model)
-    rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params, metrics = optimize(
         init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
         loss_fn=model.loss_with_aux,
@@ -243,6 +252,10 @@ class VizierGpTest(absltest.TestCase):
     self.assertLess(np.min(metrics['loss']), target_loss)
 
   def test_good_log_likelihood_linear(self):
+    # We use a fixed random seed for sampling categorical data (and continuous
+    # data from `_generate_xys`, above) so that the same data is used for every
+    # test run.
+    rng, init_rng, cat_rng = jax.random.split(jax.random.PRNGKey(2), 3)
     x_cont_obs, y_obs = self._generate_xys()
     data = types.ModelData(
         features=types.ModelInput(
@@ -250,7 +263,13 @@ class VizierGpTest(absltest.TestCase):
                 x_cont_obs, target_shape=(12, 9), fill_value=np.nan
             ),
             categorical=types.PaddedArray.from_array(
-                np.random.randint(3, size=(12, 3), dtype=types.INT_DTYPE),
+                jax.random.randint(
+                    cat_rng,
+                    shape=(12, 3),
+                    minval=0,
+                    maxval=3,
+                    dtype=types.INT_DTYPE,
+                ),
                 target_shape=(12, 5),
                 fill_value=-1,
             ),
@@ -270,7 +289,6 @@ class VizierGpTest(absltest.TestCase):
         optimizers.LbfgsBOptions(maxiter=100)
     )
     constraints = sp.get_constraints(model)
-    rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     best_n = 7
     optimal_params, metrics = optimize(
         init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
