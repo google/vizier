@@ -93,7 +93,6 @@ def _test_coroutine(
         index_points=inputs,
         observation_noise_variance=np.ones([], dtype=dtype),
         validate_args=True,
-        always_yield_multivariate_student_t=True,
     )
 
   multi_task_kernel = tfpke.Independent(num_tasks=num_tasks, base_kernel=kernel)
