@@ -79,6 +79,27 @@ def run_tune_bbob(
     experimenter_factory = experimenters.SingleObjectiveExperimenterFactory(
         base_factory=experimenter_factory, shift=shift
     )
+  return run_tune_from_factory(experimenter_factory, tune_config, run_config)
+
+
+def run_tune_from_factory(
+    experimenter_factory: experimenters.ExperimenterFactory,
+    tune_config: Optional[tune.TuneConfig] = None,
+    run_config: Optional[air.RunConfig] = None,
+) -> tune.result_grid.ResultGrid:
+  """Runs Ray Tuners from an Experimenter Factory.
+
+  See https://docs.ray.io/en/latest/tune/key-concepts.html
+  For more information on Tune and Run configs, see
+  https://docs.ray.io/en/latest/ray-air/tuner.html
+
+  Args:
+    experimenter_factory: Experimenter Factory.
+    tune_config: Ray Tune Config.
+    run_config: Ray Run Config.
+
+  Returns:
+  """
   experimenter = experimenter_factory()
   problem = experimenter.problem_statement()
 

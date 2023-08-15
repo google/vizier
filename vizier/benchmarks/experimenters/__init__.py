@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Lightweight experimenters."""
 
+from vizier._src.benchmarks.experimenters import experimenter_factory
 from vizier._src.benchmarks.experimenters.combo_experimenter import CentroidExperimenter
 from vizier._src.benchmarks.experimenters.combo_experimenter import ContaminationExperimenter
 from vizier._src.benchmarks.experimenters.combo_experimenter import IsingExperimenter
