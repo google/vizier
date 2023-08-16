@@ -968,10 +968,15 @@ class StochasticProcessWithCoroutine(eqx.Module):
       prior = self(data.features)
 
     observations = _squeeze_to_event_dims(prior, data.labels.padded_array)
+    if isinstance(prior, tfde.MultiTaskGaussianProcess):
+      # TODO: Make `_mask` public on PaddedArray.
+      observations_is_missing = ~data.labels._mask  # pylint: disable=protected-access
+    else:
+      observations_is_missing = data.labels.is_missing[0]
     predictive = prior.posterior_predictive(
         predictive_index_points=None,
         observations=observations,
-        observations_is_missing=data.labels.is_missing[0],
+        observations_is_missing=observations_is_missing,
     )
     # pylint: disable=protected-access
     return PrecomputedPredictive(
