@@ -30,7 +30,7 @@ from vizier.pyvizier import multimetric
 
 
 # TODO: Keep the Pareto frontier trials.
-@attr.s(frozen=True, init=True, slots=True)
+@attr.s(frozen=False, init=True, slots=True)
 class InRamPolicySupporter(policy_supporter.PolicySupporter):
   """Runs a fresh Study in RAM using a Policy.
 
@@ -54,9 +54,20 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   """
 
   study_config: vz.ProblemStatement = attr.ib(
-      init=True, validator=attr.validators.instance_of(vz.ProblemStatement))
-  study_guid: str = attr.ib(init=True, kw_only=True, default='', converter=str)
-  _trials: dict[int, vz.Trial] = attr.ib(init=False, factory=dict)
+      init=True,
+      validator=attr.validators.instance_of(vz.ProblemStatement),
+      on_setattr=attr.setters.frozen,
+  )
+  study_guid: str = attr.ib(
+      init=True,
+      kw_only=True,
+      default='',
+      converter=str,
+      on_setattr=attr.setters.frozen,
+  )
+  _trials: dict[int, vz.Trial] = attr.ib(
+      init=False, factory=dict, on_setattr=attr.setters.frozen
+  )
 
   def __str__(self) -> str:
     return (

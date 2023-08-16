@@ -36,6 +36,10 @@ def _runner_with_10trials():
 
 class LocalPolicySupportersTest(parameterized.TestCase):
 
+  def test_time_remaining(self):
+    runner = _runner_with_10trials()
+    runner.TimeRemaining()
+
   def test_add_and_get_trials(self):
     runner = _runner_with_10trials()
     trials = runner.GetTrials()
