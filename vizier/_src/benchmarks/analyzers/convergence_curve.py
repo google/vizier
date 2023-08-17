@@ -20,7 +20,7 @@ import abc
 import bisect
 import enum
 import logging
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, List, Optional, Protocol, Sequence
 
 import attr
 import numpy as np
@@ -381,7 +381,7 @@ class HypervolumeCurveConverter:
 
 
 @attr.define
-class ConvergenceComparatorBase(abc.ABC):
+class ConvergenceComparator(abc.ABC):
   """Base class for convergence curve compartors.
 
   Attributes:
@@ -491,11 +491,24 @@ class ConvergenceComparatorBase(abc.ABC):
 
   @abc.abstractmethod
   def score(self) -> float:
+    pass
+
+
+class ConvergenceComparatorFactory(Protocol):
+  """ConvergenceComparator factory interface."""
+
+  def __call__(
+      self,
+      baseline_curve: ConvergenceCurve,
+      compared_curve: ConvergenceCurve,
+      baseline_quantile: float = 0.5,
+      compared_quantile: float = 0.5,
+  ) -> ConvergenceComparator:
     ...
 
 
 @attr.define
-class LogEfficiencyConvergenceCurveComparator(ConvergenceComparatorBase):
+class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
   """Comparator methods for ConvergenceCurves.
 
   Methods in this class generally return comparison metrics for a compared curve
@@ -611,7 +624,7 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparatorBase):
 
 
 @attr.define
-class SimpleConvergenceCurveComparator(ConvergenceComparatorBase):
+class SimpleConvergenceCurveComparator(ConvergenceComparator):
   """Comparator method based on simple comparison.
 
   Attributes:
@@ -640,7 +653,7 @@ class SimpleConvergenceCurveComparator(ConvergenceComparatorBase):
 
 
 @attr.define
-class PercentageBetterConvergenceCurveComparator(ConvergenceComparatorBase):
+class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
   """Comparator method based on percentage better.
 
   Attributes:
@@ -711,6 +724,26 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparatorBase):
         compared_ys, baseline_ys
     )
     return baseline_compared_score - compared_baseline_score
+
+
+class PercentageBetterConvergenceCurveComparatorFactory(
+    ConvergenceComparatorFactory
+):
+  """Factory class for PercentageBetterConvergenceCurveComparator."""
+
+  def __call__(
+      self,
+      baseline_curve: ConvergenceCurve,
+      compared_curve: ConvergenceCurve,
+      baseline_quantile: float = 0.5,
+      compared_quantile: float = 0.5,
+  ) -> ConvergenceComparator:
+    return PercentageBetterConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+    )
 
 
 def build_convergence_curve(

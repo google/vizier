@@ -17,7 +17,8 @@ from __future__ import annotations
 """Curve Analysis utilities for benchmarking and metalearning."""
 # pylint: disable=unused-import
 
-from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceComparatorBase
+from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceComparator
+from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceComparatorFactory
 from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurve
 from vizier._src.benchmarks.analyzers.convergence_curve import ConvergenceCurveConverter
 from vizier._src.benchmarks.analyzers.convergence_curve import HypervolumeCurveConverter
