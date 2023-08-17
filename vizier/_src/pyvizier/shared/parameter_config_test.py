@@ -460,6 +460,7 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
         scale_type=pc.ScaleType.LOG)
     # Test the search space.
     self.assertLen(space.parameters, 1)
+    self.assertLen(space.get('model_type').subspaces(), 1)
 
     linear = root.select('model_type', ['linear'])
     linear.add_float_param(
@@ -470,6 +471,7 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
         scale_type=pc.ScaleType.LOG)
     # Test the search space.
     self.assertLen(space.parameters, 1)
+    self.assertLen(space.get('model_type').subspaces(), 2)
 
     _ = dnn.add_categorical_param('optimizer_type', ['adam', 'adagrad'])
     # Test the search space.

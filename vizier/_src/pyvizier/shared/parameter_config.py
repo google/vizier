@@ -29,6 +29,7 @@ from absl import logging
 import attr
 from vizier._src.pyvizier.shared import trial
 
+
 ExternalType = trial.ExternalType
 ParameterType = trial.ParameterType
 
@@ -402,6 +403,11 @@ class ParameterConfig:
   @property
   def child_parameter_configs(self) -> List['ParameterConfig']:
     return copy.deepcopy(list(self._child_parameter_configs))
+
+  def subspaces(
+      self,
+  ) -> Collection[Tuple[ParameterValueTypes, 'SearchSpace']]:
+    return self._children.items()
 
   # TODO: TO BE DEPRECATED.
   def _del_child_parameter_configs(self):

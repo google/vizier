@@ -48,6 +48,51 @@ def flat_space_with_all_types() -> vz.SearchSpace:
   return space
 
 
+def conditional_automl_space() -> vz.SearchSpace:
+  """Conditional space for a simple AutoML task."""
+  space = vz.SearchSpace()
+  root = space.select_root()
+  root.add_categorical_param(
+      'model_type', ['linear', 'dnn'], default_value='dnn'
+  )
+
+  dnn = root.select('model_type', ['dnn'])
+  dnn.add_float_param(
+      'learning_rate',
+      0.0001,
+      1.0,
+      default_value=0.001,
+      scale_type=vz.ScaleType.LOG,
+  )
+
+  linear = root.select('model_type', ['linear'])
+  linear.add_float_param(
+      'learning_rate', 0.1, 1.0, default_value=0.1, scale_type=vz.ScaleType.LOG
+  )
+
+  _ = dnn.add_categorical_param('optimizer_type', ['adam', 'evolution'])
+
+  # Chained select() calls, path length of 1.
+  root.select('model_type', ['dnn']).select(
+      'optimizer_type', ['adam']
+  ).add_float_param(
+      'learning_rate', 0.1, 1.0, default_value=0.1, scale_type=vz.ScaleType.LOG
+  )
+
+  # Chained select() calls, path length of 2.
+  ko = (
+      root.select('model_type', ['dnn'])
+      .select('optimizer_type', ['adam'])
+      .add_bool_param('use_special_logic', default_value=False)
+  )
+
+  ko2 = ko.select_values(['True'])
+  _ = ko2.add_float_param(
+      'special_logic_parameter', 1.0, 3.0, default_value=2.1
+  )
+  return space
+
+
 def metrics_objective_goals() -> List[vz.MetricInformation]:
   return [
       vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),

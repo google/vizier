@@ -16,9 +16,9 @@ from __future__ import annotations
 
 """Tools for iterating through a collection of Parameter(config)s."""
 
-from typing import Iterator, Generator
+from typing import Iterator
 import copy
-
+from typing import Generator, Union
 
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.parameter_config import SearchSpace
@@ -65,23 +65,30 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
 
   def _coroutine(
       self, search_space: SearchSpace
-  ) -> Generator[ParameterConfig, ParameterValueTypes, None]:
+  ) -> Generator[ParameterConfig, Union[ParameterValueTypes, None], None]:
     search_space = copy.deepcopy(search_space)
     while search_space.parameters:
       parameter_config = search_space.parameters[0]
       value = yield parameter_config
-      subspace = search_space.get(
-          parameter_config.name).get_subspace_deepcopy(value)
+      if value is None:
+        search_space.pop(parameter_config.name)
+        continue
+
+      subspace = search_space.get(parameter_config.name).get_subspace_deepcopy(
+          value
+      )
       search_space.pop(parameter_config.name)
+      self._parameters[parameter_config.name] = value
 
       if self._traverse_order == 'bfs':
+        # For BFS: append the subspace to the current search space.
         for child_parameter in subspace.parameters:
           search_space.add(child_parameter)
       else:
+        # For DFS: append the current search space to the subspace.
         for parameter in search_space.parameters:
           subspace.add(parameter)
         search_space = subspace
-      self._parameters[parameter_config.name] = value
 
   def __next__(self) -> ParameterConfig:
     if self._stop_iteration is not None:
@@ -92,6 +99,13 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
     """Choose the value for the last ParameterConfig."""
     try:
       self._next = self._gen.send(value)
+    except StopIteration as e:
+      self._stop_iteration = e
+
+  def skip(self) -> None:
+    """Skip the value for the last ParameterConfig."""
+    try:
+      self._next = self._gen.send(None)
     except StopIteration as e:
       self._stop_iteration = e
 
