@@ -334,7 +334,8 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
             jnp.sqrt(categorical_length_scale_squared),
         ),
     )
-    # TODO: Tune priors and add in shift/bias_amplitudes.
+
+    # We do not need to tune bias here because we are tuning mean_fn.
     slopes = yield sp.ModelParameter(
         init_fn=_log_uniform_init(*amplitude_bounds),
         constraint=sp.Constraint(
