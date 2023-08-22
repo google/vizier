@@ -164,3 +164,29 @@ class TunerPolicy(pythia.Policy):
           )
       )
     return decisions
+
+
+def create_policy(
+    supporter: pythia.PolicySupporter,
+    problem_statement: vz.ProblemStatement,
+    algorithm: pg.geno.DNAGenerator,
+    early_stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = None,
+    prior_trials: Optional[Sequence[vz.Trial]] = None,
+) -> pythia.Policy:
+  """Creates a Pythia policy that uses PyGlove algorithms."""
+  converter = converters.VizierConverter.from_problem(problem_statement)
+
+  # Warm up algorithm if prior trials are present.
+  if prior_trials:
+
+    def get_trial_history():
+      for trial in prior_trials:
+        tuner_trial = core.VizierTrial(converter, trial)
+        reward = tuner_trial.get_reward_for_feedback(
+            converter.metrics_to_optimize
+        )
+        yield (tuner_trial.dna, reward)
+
+    algorithm.recover(get_trial_history())
+
+  return TunerPolicy(supporter, converter, algorithm, early_stopping_policy)

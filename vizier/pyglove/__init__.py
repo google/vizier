@@ -18,3 +18,4 @@ from __future__ import annotations
 from vizier._src.pyglove.algorithms import BuiltinAlgorithm
 from vizier._src.pyglove.converters import VizierConverter
 from vizier._src.pyglove.oss_vizier import init
+from vizier._src.pyglove.pythia import create_policy
