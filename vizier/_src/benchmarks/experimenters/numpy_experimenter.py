@@ -85,6 +85,7 @@ class NumpyExperimenter(experimenter.Experimenter):
     self._metric_name = objective_metrics.item().name
 
     self._problem_statement = copy.deepcopy(problem_statement)
+    self._problem_statement.metadata['function_name'] = self._impl_name
     self._converter = converters.TrialToArrayConverter.from_study_config(
         study_config=self._problem_statement,
         scale=False,
