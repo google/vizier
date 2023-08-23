@@ -17,7 +17,6 @@ from __future__ import annotations
 """Tests for vizier.pythia.base.local_policy_supporters."""
 
 import numpy as np
-
 from vizier import pyvizier as vz
 from vizier._src.pythia import local_policy_supporters
 from absl.testing import absltest
@@ -72,6 +71,53 @@ class LocalPolicySupportersTest(parameterized.TestCase):
 
     trials = runner.GetTrials(status_matches=vz.TrialStatus.ACTIVE)
     self.assertLen(trials, 9)
+
+  def test_prior_studies(self):
+    runner = _runner_with_10trials()
+
+    # Add a PriorStudy with study guid 1 and 10 completed Trials.
+    prior_runner = _runner_with_10trials()
+    completed_trials = []
+    for t in prior_runner.GetTrials():
+      t.complete(vz.Measurement())
+      completed_trials.append(t)
+    study = vz.ProblemAndTrials(
+        problem=vz.ProblemStatement(), trials=completed_trials
+    )
+    study_guid = runner.SetPriorStudy(study, study_guid='1')
+    self.assertEqual(study_guid, '1')
+
+    # Add another PriorStudy with generated study guid and it has
+    # 5 active and completed Trials
+    prior_runner = _runner_with_10trials()
+    trials = []
+    for idx, t in enumerate(prior_runner.GetTrials()):
+      if idx > 4:
+        t.complete(vz.Measurement())
+      trials.append(t)
+    study = vz.ProblemAndTrials(problem=vz.ProblemStatement(), trials=trials)
+    generated_study_guid = runner.SetPriorStudy(study)
+
+    active_trials = runner.GetTrials(
+        study_guid=study_guid, status_matches=vz.TrialStatus.ACTIVE
+    )
+    self.assertEmpty(active_trials)
+    completed_trials = runner.GetTrials(
+        study_guid=study_guid, status_matches=vz.TrialStatus.COMPLETED
+    )
+    self.assertLen(completed_trials, 10)
+
+    active_trials = runner.GetTrials(
+        study_guid=generated_study_guid, status_matches=vz.TrialStatus.ACTIVE
+    )
+    self.assertLen(active_trials, 5)
+    completed_trials = runner.GetTrials(
+        study_guid=generated_study_guid, status_matches=vz.TrialStatus.COMPLETED
+    )
+    self.assertLen(completed_trials, 5)
+
+    with self.assertRaises(KeyError):
+      runner.GetTrials(study_guid='2')
 
   def test_push_metadata(self):
     runner = _runner_with_10trials()

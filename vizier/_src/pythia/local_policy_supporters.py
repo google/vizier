@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime
 from typing import Iterable, List, Optional, Sequence
+import uuid
 
 from absl import logging
 import attr
@@ -50,7 +51,7 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
 
   Attributes:
     study_config: Study config.
-    study_guid: Unique identifier for the study.
+    study_guid: Unique identifier for the current study.
   """
 
   study_config: vz.ProblemStatement = attr.ib(
@@ -67,6 +68,10 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   )
   _trials: dict[int, vz.Trial] = attr.ib(
       init=False, factory=dict, on_setattr=attr.setters.frozen
+  )
+  # Dictionary of study_guid to ProblemAndTrials.
+  prior_studies: dict[str, vz.ProblemAndTrials] = attr.ib(
+      init=False, factory=dict
   )
 
   def __str__(self) -> str:
@@ -108,17 +113,26 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
   ) -> List[vz.Trial]:
     """Returns trials by reference to allow changing their status and attributes."""
     self.CheckCancelled('GetTrials')
+    if study_guid is not None and study_guid != self.study_guid:
+      if study_guid not in self.prior_studies:
+        raise KeyError(f'Study Guid does not exist {study_guid}')
+
+      candidate_trials = self.prior_studies[study_guid].trials
+    else:
+      candidate_trials = self.trials
+
+    trial_id_set = None
     if trial_ids is not None:
       trial_id_set = set(trial_ids)
     output: List[vz.Trial] = []
-    for t in self.trials:
+    for t in candidate_trials:
       if status_matches is not None and t.status != status_matches:
         continue
       if min_trial_id is not None and t.id < min_trial_id:
         continue
       if max_trial_id is not None and t.id > max_trial_id:
         continue
-      if trial_ids is not None and t.id not in trial_id_set:
+      if trial_id_set is not None and t.id not in trial_id_set:
         continue
       # NOTE: we ignore include_intermediate_measurements and always enclude
       # them.  That should be safe, and avoids a nasty conflict with the
@@ -190,6 +204,21 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
           points=converter.to_labels(self.trials)
       )
       return list(np.asarray(self.trials)[is_optimal][:count])
+
+  def SetPriorStudy(
+      self, study: vz.ProblemAndTrials, study_guid: Optional[str] = None
+  ) -> str:
+    if study_guid is None:
+      # Assign study_guid using unique identifier.
+      study_guid = f'prior_{uuid.uuid1()}'
+      if study_guid in self.prior_studies:
+        raise RuntimeError(f'Cannot set unique id: {study_guid}')
+
+    if study_guid in self.prior_studies:
+      logging.warning('Prior study already exists with guid %s ', study_guid)
+
+    self.prior_studies[study_guid] = study
+    return study_guid
 
   def AddTrials(self, trials: Sequence[vz.Trial]) -> None:
     """Assigns ids to the trials and add them to the supporter (by reference).
