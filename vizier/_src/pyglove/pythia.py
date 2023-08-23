@@ -176,6 +176,9 @@ def create_policy(
   """Creates a Pythia policy that uses PyGlove algorithms."""
   converter = converters.VizierConverter.from_problem(problem_statement)
 
+  # Bind the algorithm with the search space before usage.
+  algorithm.setup(converter.dna_spec)
+
   # Warm up algorithm if prior trials are present.
   if prior_trials:
 

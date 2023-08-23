@@ -41,13 +41,12 @@ class TunerPolicyTest(absltest.TestCase):
         vz.MetricInformation(name='r', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
     )
 
-    converter = converters.VizierConverter.from_problem(problem)
     supporter = pythia.InRamPolicySupporter(problem)
 
     m = mock.create_autospec(pg.tuning.EarlyStoppingPolicy, instance=True)
-    policy = pg_pythia.TunerPolicy(
+    policy = pg_pythia.create_policy(
         supporter,
-        converter,
+        problem,
         algorithm=_RandomAlgorithm(),
         early_stopping_policy=m,
     )
