@@ -107,12 +107,12 @@ class TunerPolicy(pythia.Policy):
     logging.info(
         (
             'The algorithm is updated with %s new trials out of %s newly'
-            ' completed trials.It has seen %s trials total. Now generating %s'
+            ' completed trials. It has seen %s trials total. Now generating %s'
             ' new suggestions.'
         ),
         n_trials_updated,
         len(newly_completed_trials),
-        str(self._suggestion_cache),
+        self._suggestion_cache.num_incorporated_trials,
         count,
     )
     for _ in range(request.count or 1):

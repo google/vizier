@@ -57,6 +57,9 @@ class IdDeduplicatingTrialLoader(serializable.PartiallySerializable):
   def __attrs_post_init__(self):
     logging.info('Initialized %s', self)
 
+  def num_incorporated_trials(self) -> int:
+    return len(self._incorporated_completed_trial_ids)
+
   def clear(self) -> None:
     """Make the next call to get_newly_completed_trials() return all trials."""
     self._incorporated_completed_trial_ids = set()

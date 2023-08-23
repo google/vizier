@@ -40,14 +40,14 @@ class CompletedTrialIdsCacheTest(absltest.TestCase):
     supporter.AddTrials([new_completed(), active_trial, new_completed()])
 
     self.assertLen(cache.get_newly_completed_trials(3), 2)
-    self.assertLen(cache._incorporated_completed_trial_ids, 2)
+    self.assertEqual(cache.num_incorporated_trials(), 2)
 
     # dump and load should restore the state.
     dump = cache.dump()
     cache = trial_caches.IdDeduplicatingTrialLoader(supporter)
     cache.load(dump)
     self.assertEmpty(cache.get_newly_completed_trials(3))
-    self.assertLen(cache._incorporated_completed_trial_ids, 2)
+    self.assertEqual(cache.num_incorporated_trials(), 2)
 
     ################## PHASE 2 ################
 
@@ -57,14 +57,14 @@ class CompletedTrialIdsCacheTest(absltest.TestCase):
     supporter.AddTrials([new_active(), new_completed()])
     self.assertLen(cache.get_newly_completed_trials(5), 2)
     self.assertLen(cache.get_active_trials(), 1)
-    self.assertLen(cache._incorporated_completed_trial_ids, 4)
+    self.assertEqual(cache.num_incorporated_trials(), 4)
 
     # dump and load should restore the state.
     dump = cache.dump()
     cache = trial_caches.IdDeduplicatingTrialLoader(supporter)
     cache.load(dump)
     self.assertEmpty(cache.get_newly_completed_trials(5))
-    self.assertLen(cache._incorporated_completed_trial_ids, 4)
+    self.assertEqual(cache.num_incorporated_trials(), 4)
 
     # clear should reset.
     cache.clear()
