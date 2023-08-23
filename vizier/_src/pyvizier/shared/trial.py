@@ -615,6 +615,12 @@ class Trial(TrialSuggestion):
       return clone.complete(
           measurement, inplace=True, infeasibility_reason=infeasibility_reason)
 
+  @property
+  def final_measurement_or_die(self) -> Measurement:
+    if self.final_measurement is None:
+      raise ValueError('Trial is missing final_measurement.')
+    return self.final_measurement
+
 
 # Define aliases.
 CompletedTrial = Trial
