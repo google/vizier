@@ -16,8 +16,10 @@ from __future__ import annotations
 
 """Libraries for testing different Tuners on the shared backend."""
 # pylint:disable=protected-access
+# pylint:disable=invalid-name
 import inspect
 from typing import Type
+
 from absl import flags
 from absl import logging
 import pyglove as pg
@@ -28,7 +30,7 @@ from absl.testing import absltest
 FLAGS = flags.FLAGS
 
 
-class DummyAlgorithm(pg.DNAGenerator):
+class RandomAlgorithm(pg.DNAGenerator):
   """Dummy algorithm for testing."""
 
   def setup(self, dna_spec: pg.DNASpec):
@@ -38,6 +40,32 @@ class DummyAlgorithm(pg.DNAGenerator):
 
   def _propose(self) -> pg.DNA:
     return self._random.propose()
+
+
+@pg.members([
+    ('max_trial_id', pg.typing.Int()),
+    ('max_step', pg.typing.Int()),
+])
+class SizeLimitingStoppingPolicy(pg.tuning.EarlyStoppingPolicy):
+  """Policy that stops trials when either ID or step is larger."""
+
+  def _on_bound(self):
+    super()._on_bound()
+    self.requested_trial_steps = []
+    self.stopped_trial_steps = []
+
+  def should_stop_early(self, trial: pg.tuning.Trial) -> bool:
+    if trial.status == 'COMPLETED':
+      return False
+
+    measurement = trial.measurements[-1]
+    self.requested_trial_steps.append((trial.id, measurement.step))
+    should_stop = (
+        trial.id > self.max_trial_id or measurement.step > self.max_step
+    )
+    if should_stop:
+      self.stopped_trial_steps.append((trial.id, measurement.step))
+    return should_stop
 
 
 class VizierTest(absltest.TestCase):
@@ -54,6 +82,10 @@ class VizierTest(absltest.TestCase):
 class SampleTest(VizierTest):
   """Tests for PyGlove sampling with Vizier backend."""
 
+  def setUp(self):
+    super().setUp()
+    self._backend_class.use_study_prefix(self.id())
+
   def __init__(
       self,
       backend_class: Type[backend.VizierBackend],
@@ -69,7 +101,7 @@ class SampleTest(VizierTest):
     self._backend_class.use_study_prefix('distributed_sampling')
 
     rewards_a = []
-    algorithm = DummyAlgorithm()
+    algorithm = RandomAlgorithm()
     for a, fa in pg.sample(
         pg.Dict(x=pg.oneof([1, 2, 3])),  # Outer search space.
         algorithm=algorithm,
@@ -428,6 +460,43 @@ class SampleTest(VizierTest):
         ),
     )
 
+  def testSampleWithEarlyStopping(self):
+    """Test sample with early stopping."""
+    # Stop trial early if either the trial id or trial-step is greater than 1.
+    early_stopping_policy = SizeLimitingStoppingPolicy(
+        max_trial_id=1, max_step=1
+    )
+    actually_stopped = []
+    for x, f in pg.sample(
+        pg.oneof([1, 2, 3]),
+        algorithm=RandomAlgorithm(),
+        early_stopping_policy=early_stopping_policy,
+        num_examples=2,
+    ):
+      skipped = False
+      for i in range(4):
+        f.add_measurement(x, step=i)
+        # Add a minimal sleep to ensure that the measurement is added to DB.
+        if f.should_stop_early():
+          f.skip()
+          skipped = True
+          actually_stopped.append((f.id, i))
+          break
+      if not skipped:
+        f.done()
+
+    self.assertEqual(
+        early_stopping_policy.requested_trial_steps,
+        [(1, 0), (1, 1), (1, 2), (2, 0)],
+    )
+    self.assertEqual(
+        early_stopping_policy.stopped_trial_steps, actually_stopped
+    )
+
+    self.assertEqual(
+        early_stopping_policy.stopped_trial_steps, [(1, 2), (2, 0)]
+    )
+
   def testSampleWithMultipleWorkers(self):
     """Test `pg.sample` with multiple workers."""
     self._backend_class.use_study_prefix(None)
@@ -465,7 +534,7 @@ class SampleTest(VizierTest):
     _, f1 = next(sample1)
     self.assertEqual(f1.id, 1)
     f1.set_metadata('x', 1)
-    f1.set_metadata('y', DummyAlgorithm(), per_trial=False)
+    f1.set_metadata('y', RandomAlgorithm(), per_trial=False)
 
     # X is not serializable via `pg.to_json_str()`.
     class X:
@@ -479,12 +548,12 @@ class SampleTest(VizierTest):
     _, f2 = next(sample2)
     self.assertEqual(f2.id, 2)
     self.assertIsNone(f2.get_metadata('x'))
-    self.assertEqual(f2.get_metadata('y', per_trial=False), DummyAlgorithm())
+    self.assertEqual(f2.get_metadata('y', per_trial=False), RandomAlgorithm())
 
     _, f3 = next(sample3)
     self.assertEqual(f3.id, 1)
     self.assertEqual(f3.get_metadata('x'), 1)
-    self.assertEqual(f3.get_metadata('y', per_trial=False), DummyAlgorithm())
+    self.assertEqual(f3.get_metadata('y', per_trial=False), RandomAlgorithm())
     # Update the value of 'x'.
     f3.set_metadata('x', 2)
     f3.set_metadata('z', 'foo')

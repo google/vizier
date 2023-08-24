@@ -97,6 +97,11 @@ class PolicySupporter(abc.ABC):
       $status_matches will be ignored.
     """
 
+  @property
+  @abc.abstractmethod
+  def study_guid(self) -> str:
+    """Default study GUID."""
+
   def CheckCancelled(self, note: Optional[str] = None) -> None:
     """Throws a CancelComputeError on timeout or if Vizier cancels.
 

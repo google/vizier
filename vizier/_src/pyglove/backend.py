@@ -146,7 +146,12 @@ class VizierBackend(pg.tuning.Backend):
             constants.STUDY_METADATA_KEY_TUNER_ID
         ] = local_tuner_id
         self._study = self._tuner.create_study(
-            problem, self._converter, study_owner, name, self._algorithm
+            problem,
+            self._converter,
+            study_owner,
+            name,
+            self._algorithm,
+            early_stopping_policy,
         )
         if local_tuner_id == self._get_chief_tuner_id():
           # For multi-thread scenario, `local_tuner_id` will be the same for

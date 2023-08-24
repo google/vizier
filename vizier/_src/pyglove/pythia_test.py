@@ -29,7 +29,7 @@ from vizier._src.pyglove import vizier_test_lib
 
 from absl.testing import absltest
 
-_RandomAlgorithm = vizier_test_lib.DummyAlgorithm
+_RandomAlgorithm = vizier_test_lib.RandomAlgorithm
 
 
 class TunerPolicyTest(absltest.TestCase):

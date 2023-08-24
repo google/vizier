@@ -43,6 +43,10 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     self._study_guid = study_guid
     self._vizier_service = vizier_service
 
+  @property
+  def study_guid(self) -> str:
+    return self._study_guid
+
   def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
     study = self._vizier_service.GetStudy(request)

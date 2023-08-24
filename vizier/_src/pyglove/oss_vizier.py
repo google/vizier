@@ -207,6 +207,7 @@ class _OSSVizierTuner(client.VizierTuner):
       owner: str,
       name: str,
       algorithm: pg.DNAGenerator,
+      stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = None,
   ) -> client_abc.StudyInterface:
     """See parent class."""
     study_config = svz.StudyConfig.from_problem(problem)

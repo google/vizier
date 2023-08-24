@@ -15,9 +15,10 @@
 from __future__ import annotations
 
 """Tests for pyglove.tuner.vizier2.oss_vizier_test."""
+import datetime
 import os
-from absl import logging
 
+from absl import logging
 from vizier._src.pyglove import oss_vizier as vizier
 from vizier._src.pyglove import vizier_test_lib
 from vizier._src.service import constants
@@ -32,7 +33,9 @@ class OSSVizierSampleTest(vizier_test_lib.SampleTest):
   def setUpClass(cls):
     super().setUpClass()
     server = vizier_server.DefaultVizierServer(
-        host=os.uname()[1], database_url=constants.SQL_MEMORY_URL
+        host=os.uname()[1],
+        database_url=constants.SQL_MEMORY_URL,
+        early_stop_recycle_period=datetime.timedelta(seconds=0.0),
     )
     logging.info(server.endpoint)
     vizier._services.reset_for_testing()

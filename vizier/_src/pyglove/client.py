@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import abc
 import threading
-from typing import Dict, NewType, Union
+from typing import Dict, NewType, Optional, Union
 
 import attrs
 import pyglove as pg
@@ -89,6 +89,7 @@ class VizierTuner(abc.ABC):
       owner: str,
       name: str,
       algorithm: pg.DNAGenerator,
+      stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = None,
   ) -> client_abc.StudyInterface:
     """Creates a new study."""
 
