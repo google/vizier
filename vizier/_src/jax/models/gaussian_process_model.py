@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Generator, Optional, Type, Union
 
+import jax
 from jax import numpy as jnp
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp_model
@@ -90,6 +91,11 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
     self._kernel_class = kernel_class
     self._use_tfp_runtime_validation = use_tfp_runtime_validation
     self.dtype = dtype
+    if dtype == jnp.float64 and not jax.config.read('jax_enable_x64'):
+      raise ValueError(
+          "x64 is not enabled for jax. Add jax_config.update('jax_enable_x64',"
+          ' True) to your main'
+      )
 
   def __call__(
       self, inputs: Optional[types.ModelInput] = None

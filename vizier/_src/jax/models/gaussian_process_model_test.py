@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for gaussian_process_model."""
 
+import jax
 from jax import random
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
@@ -93,4 +94,5 @@ def _run_coroutine(g, seed):
 
 
 if __name__ == '__main__':
+  jax.config.update('jax_enable_x64', True)
   absltest.main()
