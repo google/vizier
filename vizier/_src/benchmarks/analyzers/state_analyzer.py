@@ -16,10 +16,61 @@ from __future__ import annotations
 
 """Analyzers for BenchmarkStates for fast comparisons and statistics."""
 
-from typing import List
-
+from typing import Dict, List, Optional, Tuple
+import attrs
+import numpy as np
 from vizier import benchmarks
+from vizier import pyvizier as vz
 from vizier._src.benchmarks.analyzers import convergence_curve
+from vizier.benchmarks import experimenters
+
+
+@attrs.define(init=True, kw_only=True)
+class PlotElement:
+  """PlotElement with relevant information for a subplot."""
+
+  curve: Optional[convergence_curve.ConvergenceCurve] = attrs.field(
+      default=None,
+      validator=attrs.validators.optional(
+          attrs.validators.instance_of(convergence_curve.ConvergenceCurve)
+      ),
+  )
+  plot_array: Optional[np.ndarray] = attrs.field(
+      default=None,
+      validator=attrs.validators.optional(
+          attrs.validators.instance_of(np.ndarray)
+      ),
+  )
+  # Error-bar uses curve, whereas histogram/scatter uses plot_array.
+  plot_type: str = attrs.field(
+      default='error-bar',
+      validator=attrs.validators.in_(['error-bar', 'histogram', 'scatter']),
+  )
+  yscale: str = attrs.field(
+      default='linear',
+      validator=attrs.validators.in_(['linear', 'symlog', 'logit']),
+  )
+  # Lower and upper percentiles to display for error bar.
+  percentile_error_bar: Tuple[int, int] = attrs.field(
+      default=(25, 75),
+      validator=attrs.validators.deep_iterable(
+          member_validator=attrs.validators.instance_of(int),
+          iterable_validator=attrs.validators.instance_of(tuple),
+      ),
+  )
+
+
+# Stores all relevant information and plots for a specific BenchmarkState.
+@attrs.define(init=True, kw_only=True)
+class BenchmarkRecord:
+  algorithm: str = attrs.field(
+      default='',
+      validator=attrs.validators.instance_of(str),
+  )
+  experimenter_metadata: vz.Metadata = attrs.field(
+      factory=vz.Metadata, validator=attrs.validators.instance_of(vz.Metadata)
+  )
+  plot_elements: Dict[str, PlotElement] = attrs.field(factory=dict)
 
 
 class BenchmarkStateAnalyzer:
@@ -69,3 +120,36 @@ class BenchmarkStateAnalyzer:
       curve = converter.convert(state_trials)
       curves.append(curve)
     return convergence_curve.ConvergenceCurve.align_xs(curves)[0]
+
+  @classmethod
+  def to_record(
+      cls,
+      algorithm: str,
+      experimenter_factory: experimenters.SerializableExperimenterFactory,
+      states: List[benchmarks.BenchmarkState],
+      flip_signs_for_min: bool = False,
+  ) -> BenchmarkRecord:
+    """Generates a BenchmarkRecord from a batch of BenchmarkStates.
+
+    Each state in batch should represent the same study (different repeat).
+
+    Args:
+      algorithm: Algorithm name.
+      experimenter_factory: Factory used for running BenchmarkState.
+      states: List of BenchmarkStates.
+      flip_signs_for_min: If true, flip signs of curve when it is MINIMIZE
+        metric.
+
+    Returns:
+      BenchmarkRecord.
+    """
+    plot_elements = {}
+    objective_key = 'objective'
+    plot_elements[objective_key] = PlotElement(
+        curve=cls.to_curve(states, flip_signs_for_min=flip_signs_for_min)
+    )
+    return BenchmarkRecord(
+        algorithm=algorithm,
+        experimenter_metadata=experimenter_factory.dump(),
+        plot_elements=plot_elements,
+    )

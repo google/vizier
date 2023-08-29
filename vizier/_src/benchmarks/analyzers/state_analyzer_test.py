@@ -83,6 +83,40 @@ class StateAnalyzerTest(absltest.TestCase):
     with self.assertRaisesRegex(ValueError, 'must have same problem'):
       state_analyzer.BenchmarkStateAnalyzer.to_curve([state1, state2])
 
+  def test_record_conversion(self):
+    dim = 10
+    factory = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)
+    experimenter = factory()
+
+    def _designer_factory(config: vz.ProblemStatement, seed: int):
+      return random.RandomDesigner(config.search_space, seed=seed)
+
+    benchmark_state_factory = benchmark_state.DesignerBenchmarkStateFactory(
+        designer_factory=_designer_factory, experimenter=experimenter
+    )
+    num_trials = 20
+    runner = benchmark_runner.BenchmarkRunner(
+        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate()],
+        num_repeats=num_trials,
+    )
+
+    states = []
+    num_repeats = 3
+    for i in range(num_repeats):
+      bench_state = benchmark_state_factory(seed=i)
+      runner.run(bench_state)
+      states.append(bench_state)
+
+    record = state_analyzer.BenchmarkStateAnalyzer.to_record(
+        algorithm='random', experimenter_factory=factory, states=states
+    )
+    objective_curve = record.plot_elements['objective'].curve
+    self.assertIsNotNone(objective_curve)
+    self.assertEqual(objective_curve.ys.shape, (num_repeats, num_trials))
+    self.assertEqual(record.algorithm, 'random')
+    self.assertIn('Sphere', str(record.experimenter_metadata))
+    self.assertIn(f'{dim}', str(record.experimenter_metadata))
+
 
 if __name__ == '__main__':
   absltest.main()
