@@ -146,7 +146,8 @@ class BenchmarkStateAnalyzer:
     plot_elements = {}
     objective_key = 'objective'
     plot_elements[objective_key] = PlotElement(
-        curve=cls.to_curve(states, flip_signs_for_min=flip_signs_for_min)
+        curve=cls.to_curve(states, flip_signs_for_min=flip_signs_for_min),
+        yscale='symlog',
     )
     return BenchmarkRecord(
         algorithm=algorithm,
