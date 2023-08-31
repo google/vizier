@@ -491,6 +491,16 @@ class ConvergenceComparator(abc.ABC):
 
   @abc.abstractmethod
   def score(self) -> float:
+    """Returns a summary score for the comparison between base and compared.
+
+    Usually, higher positive numbers mean the compared curve is better than the
+    baseline and vice versa.
+    """
+    pass
+
+  @abc.abstractmethod
+  def curve(self) -> ConvergenceCurve:
+    """Returns a score curve for each xs."""
     pass
 
 
@@ -503,6 +513,7 @@ class ConvergenceComparatorFactory(Protocol):
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      **kwargs,
   ) -> ConvergenceComparator:
     ...
 
@@ -518,7 +529,7 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
   Example usage:
     baseline_curve = ConvergenceCurve(...)
     comparator = LogEfficiencyConvergenceCurveComparator(baseline_curve)
-    comparator.log_efficiency_curve(compared_curve)
+    comparator.curve(compared_curve)
   """
   max_score: float = attr.field(
       default=1.0, validator=[attr.validators.ge(0)], kw_only=True
@@ -527,7 +538,7 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
       default=np.median
   )
 
-  def log_efficiency_curve(self) -> ConvergenceCurve:
+  def curve(self) -> ConvergenceCurve:
     """Builds the log sample efficiency curve.
 
     The compared curve should approximately use exp(-relative efficiency)% less
@@ -564,8 +575,12 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
         ),
     )
 
-    ys = np.log(1 + np.asarray(baseline_index_curve)) - np.log(
-        1 + np.asarray(other_index_curve))
+    ys = np.clip(
+        np.log(1 + np.asarray(baseline_index_curve))
+        - np.log(1 + np.asarray(other_index_curve)),
+        a_min=-self.max_score,
+        a_max=self.max_score,
+    )
     return ConvergenceCurve(
         xs=self._baseline_curve.xs, ys=ys.reshape(1, len(ys)))
 
@@ -606,13 +621,13 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
         compared_curve=extended_baseline,
         compared_quantile=self._baseline_quantile,
     )
-    efficiency_baseline = baseline_comparator.log_efficiency_curve()
+    efficiency_baseline = baseline_comparator.curve()
     compared_comparator = LogEfficiencyConvergenceCurveComparator(
         baseline_curve=combined_curve,
         compared_curve=extended_compared,
         compared_quantile=self._compared_quantile,
     )
-    efficiency_compared = compared_comparator.log_efficiency_curve()
+    efficiency_compared = compared_comparator.curve()
 
     # Clip log efficiency and return median log efficiency in last half.
     diff = np.clip(
@@ -650,6 +665,9 @@ class SimpleConvergenceCurveComparator(ConvergenceComparator):
     baseline_ys, compared_ys = self._standardize_curves(self._xs_cutoff)
     # Compute mean indices that compared is better than baseline.
     return np.mean(baseline_ys < compared_ys)
+
+  def curve(self) -> ConvergenceCurve:
+    raise NotImplementedError('Curve not yet implemented.')
 
 
 @attr.define
@@ -724,6 +742,9 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
         compared_ys, baseline_ys
     )
     return baseline_compared_score - compared_baseline_score
+
+  def curve(self) -> ConvergenceCurve:
+    raise NotImplementedError('Curve not yet implemented.')
 
 
 class PercentageBetterConvergenceCurveComparatorFactory(

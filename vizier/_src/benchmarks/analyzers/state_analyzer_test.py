@@ -14,13 +14,13 @@
 
 from __future__ import annotations
 
+import itertools
+from vizier import benchmarks as vzb
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
 from vizier._src.benchmarks.analyzers import state_analyzer
-from vizier._src.benchmarks.experimenters import experimenter_factory
-from vizier._src.benchmarks.runners import benchmark_runner
-from vizier._src.benchmarks.runners import benchmark_state
-
+from vizier.algorithms import designers
+from vizier.benchmarks import experimenters
 from absl.testing import absltest
 
 
@@ -28,17 +28,17 @@ class StateAnalyzerTest(absltest.TestCase):
 
   def test_curve_conversion(self):
     dim = 10
-    experimenter = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)()
+    experimenter = experimenters.BBOBExperimenterFactory('Sphere', dim)()
 
     def _designer_factory(config: vz.ProblemStatement, seed: int):
       return random.RandomDesigner(config.search_space, seed=seed)
 
-    benchmark_state_factory = benchmark_state.DesignerBenchmarkStateFactory(
+    benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
         designer_factory=_designer_factory, experimenter=experimenter
     )
     num_trials = 20
-    runner = benchmark_runner.BenchmarkRunner(
-        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate()],
+    runner = vzb.BenchmarkRunner(
+        benchmark_subroutines=[vzb.GenerateAndEvaluate()],
         num_repeats=num_trials,
     )
 
@@ -57,21 +57,21 @@ class StateAnalyzerTest(absltest.TestCase):
       state_analyzer.BenchmarkStateAnalyzer.to_curve([])
 
   def test_different_curve_error(self):
-    exp1 = experimenter_factory.BBOBExperimenterFactory('Sphere', dim=2)()
-    exp2 = experimenter_factory.BBOBExperimenterFactory('Sphere', dim=3)()
+    exp1 = experimenters.BBOBExperimenterFactory('Sphere', dim=2)()
+    exp2 = experimenters.BBOBExperimenterFactory('Sphere', dim=3)()
 
     def _designer_factory(config: vz.ProblemStatement, seed: int):
       return random.RandomDesigner(config.search_space, seed=seed)
 
-    state1_factory = benchmark_state.DesignerBenchmarkStateFactory(
+    state1_factory = vzb.DesignerBenchmarkStateFactory(
         designer_factory=_designer_factory, experimenter=exp1
     )
-    state2_factory = benchmark_state.DesignerBenchmarkStateFactory(
+    state2_factory = vzb.DesignerBenchmarkStateFactory(
         designer_factory=_designer_factory, experimenter=exp2
     )
 
-    runner = benchmark_runner.BenchmarkRunner(
-        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate()],
+    runner = vzb.BenchmarkRunner(
+        benchmark_subroutines=[vzb.GenerateAndEvaluate()],
         num_repeats=10,
     )
 
@@ -85,18 +85,18 @@ class StateAnalyzerTest(absltest.TestCase):
 
   def test_record_conversion(self):
     dim = 10
-    factory = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)
+    factory = experimenters.BBOBExperimenterFactory('Sphere', dim)
     experimenter = factory()
 
     def _designer_factory(config: vz.ProblemStatement, seed: int):
       return random.RandomDesigner(config.search_space, seed=seed)
 
-    benchmark_state_factory = benchmark_state.DesignerBenchmarkStateFactory(
+    benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
         designer_factory=_designer_factory, experimenter=experimenter
     )
     num_trials = 20
-    runner = benchmark_runner.BenchmarkRunner(
-        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate()],
+    runner = vzb.BenchmarkRunner(
+        benchmark_subroutines=[vzb.GenerateAndEvaluate()],
         num_repeats=num_trials,
     )
 
@@ -116,6 +116,68 @@ class StateAnalyzerTest(absltest.TestCase):
     self.assertEqual(record.algorithm, 'random')
     self.assertIn('Sphere', str(record.experimenter_metadata))
     self.assertIn(f'{dim}', str(record.experimenter_metadata))
+
+  def test_add_comparison_metrics(self):
+    function_names = ['Sphere', 'Discus']
+    dimensions = [4, 8]
+    product_list = list(itertools.product(function_names, dimensions))
+
+    experimenter_factories = []
+    for product in product_list:
+      experimenter_factory = experimenters.BBOBExperimenterFactory(
+          name=product[0], dim=product[1]
+      )
+      experimenter_factories.append(experimenter_factory)
+
+    num_repeats = 5
+    num_iterations = 20
+    runner = vzb.BenchmarkRunner(
+        benchmark_subroutines=[
+            vzb.GenerateSuggestions(),
+            vzb.EvaluateActiveTrials(),
+        ],
+        num_repeats=num_iterations,
+    )
+    algorithms = {
+        'grid': designers.GridSearchDesigner.from_problem,
+        'random': designers.RandomDesigner.from_problem,
+    }
+
+    records = []
+    for experimenter_factory in experimenter_factories:
+      for algo_name, algo_factory in algorithms.items():
+        benchmark_state_factory = vzb.ExperimenterDesignerBenchmarkStateFactory(
+            experimenter_factory=experimenter_factory,
+            designer_factory=algo_factory,
+        )
+        states = []
+        for _ in range(num_repeats):
+          benchmark_state = benchmark_state_factory()
+          runner.run(benchmark_state)
+          states.append(benchmark_state)
+        record = state_analyzer.BenchmarkStateAnalyzer.to_record(
+            algorithm=algo_name,
+            experimenter_factory=experimenter_factory,
+            states=states,
+        )
+        records.append(record)
+
+    compare_metric = state_analyzer.RECORD_OBJECTIVE_KEY
+    baseline_algo = 'random'
+    analyzed_records = (
+        state_analyzer.BenchmarkRecordAnalyzer.add_comparison_metrics(
+            records, baseline_algo='random', compare_metric='objective'
+        )
+    )
+    for record in analyzed_records:
+      self.assertIn(
+          compare_metric + ':score:' + baseline_algo,
+          record.plot_elements.keys(),
+      )
+      self.assertIn(
+          compare_metric + ':score_curve:' + baseline_algo,
+          record.plot_elements.keys(),
+      )
 
 
 if __name__ == '__main__':

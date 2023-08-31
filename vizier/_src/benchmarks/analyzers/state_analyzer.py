@@ -16,13 +16,18 @@ from __future__ import annotations
 
 """Analyzers for BenchmarkStates for fast comparisons and statistics."""
 
-from typing import Dict, List, Optional, Tuple
+import json
+from typing import Dict, Optional, Sequence, Tuple
+from absl import logging
 import attrs
 import numpy as np
+import pandas as pd
 from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.analyzers import convergence_curve
 from vizier.benchmarks import experimenters
+
+RECORD_OBJECTIVE_KEY = 'objective'
 
 
 @attrs.define(init=True, kw_only=True)
@@ -79,7 +84,7 @@ class BenchmarkStateAnalyzer:
   @classmethod
   def to_curve(
       cls,
-      states: List[benchmarks.BenchmarkState],
+      states: list[benchmarks.BenchmarkState],
       flip_signs_for_min: bool = False,
   ) -> convergence_curve.ConvergenceCurve:
     """Generates a ConvergenceCurve from a batch of BenchmarkStates.
@@ -126,7 +131,7 @@ class BenchmarkStateAnalyzer:
       cls,
       algorithm: str,
       experimenter_factory: experimenters.SerializableExperimenterFactory,
-      states: List[benchmarks.BenchmarkState],
+      states: list[benchmarks.BenchmarkState],
       flip_signs_for_min: bool = False,
   ) -> BenchmarkRecord:
     """Generates a BenchmarkRecord from a batch of BenchmarkStates.
@@ -144,8 +149,7 @@ class BenchmarkStateAnalyzer:
       BenchmarkRecord.
     """
     plot_elements = {}
-    objective_key = 'objective'
-    plot_elements[objective_key] = PlotElement(
+    plot_elements[RECORD_OBJECTIVE_KEY] = PlotElement(
         curve=cls.to_curve(states, flip_signs_for_min=flip_signs_for_min),
         yscale='symlog',
     )
@@ -154,3 +158,117 @@ class BenchmarkStateAnalyzer:
         experimenter_metadata=experimenter_factory.dump(),
         plot_elements=plot_elements,
     )
+
+
+class BenchmarkRecordAnalyzer:
+  """Analyzer for a sequence of Benchmark Records."""
+
+  @classmethod
+  def add_comparison_metrics(
+      cls,
+      records: Sequence[BenchmarkRecord],
+      baseline_algo: str,
+      compare_metric: str = RECORD_OBJECTIVE_KEY,
+      comparator: convergence_curve.ConvergenceComparatorFactory = convergence_curve.LogEfficiencyConvergenceCurveComparator,
+  ) -> list[BenchmarkRecord]:
+    """Adds comparison scores as metrics via PlotElements to BenchmarkRecord.
+
+    Comparisons are done for compare_metric with respect to the baseline_algo.
+
+    Args:
+      records: Sequence of BenchmarkRecords
+      baseline_algo: Baseline algorithm to be compared against.
+      compare_metric: Metric of comparison.
+      comparator: Comparator used for scoring.
+
+    Returns:
+      List of BenchmarkRecords with comparison scores added as metrics.
+
+    Raises:
+      ValueError: When baseline_algo cannot be found in records or the metric
+      of comparison does not correspond to a curve.
+    """
+    records_list = [
+        (rec.algorithm, json.dumps(dict(rec.experimenter_metadata)), rec)
+        for rec in records
+    ]
+    df = pd.DataFrame(
+        records_list, columns=['algorithm', 'experimenter', 'record']
+    )
+    analyzed_records = []
+    for experimenter_key, experimenter_group in df.groupby('experimenter'):
+      # Checks and stores the mapping from algorithm to plot_elements
+      algo_to_elements_dict = {}
+      for algorithm_name, group in experimenter_group.groupby('algorithm'):
+        if not group.size:
+          continue
+        if len(group) != 1:
+          output_str = (
+              f'Condense {len(group)} records for {algorithm_name} with exptr '
+              f' {experimenter_key} before applying comparisons for'
+              f' {group}'
+          )
+          logging.error('%s', output_str)
+          continue
+        algo_to_elements_dict[algorithm_name] = group.record.iloc[
+            0
+        ].plot_elements
+
+      # Finds the baseline algorithm and the comparison element.
+      if compare_metric not in algo_to_elements_dict[baseline_algo]:
+        raise ValueError(
+            f'Compare metric {compare_metric} not in baseline {baseline_algo}'
+        )
+      baseline_element = algo_to_elements_dict[baseline_algo][compare_metric]
+      if baseline_element.plot_type != 'error-bar':
+        raise ValueError(
+            f'No comparison can be done for {compare_metric} since'
+            f' plot type is {baseline_element.plot_type}'
+        )
+
+      # Attempts to apply comparison and add comparison metrics.
+      for algorithm_name, elems_dict in algo_to_elements_dict.items():
+        compared_element = elems_dict[compare_metric]
+        try:
+          elems_dict[compare_metric + ':score_curve:' + baseline_algo] = (
+              PlotElement(
+                  curve=comparator(
+                      baseline_curve=baseline_element.curve,
+                      compared_curve=compared_element.curve,
+                  ).curve(),
+                  plot_type='error-bar',
+              )
+          )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+          output_str = (
+              f'Skip comparing curve for algo {algorithm_name} with'
+              f' {compared_element} \n due to error {e}'
+          )
+          logging.error('%s', output_str)
+        try:
+          elems_dict[compare_metric + ':score:' + baseline_algo] = PlotElement(
+              plot_array=np.asarray(
+                  [
+                      comparator(
+                          baseline_curve=baseline_element.curve,
+                          compared_curve=compared_element.curve,
+                      ).score()
+                  ]
+              ),
+              plot_type='histogram',
+          )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+          output_str = (
+              f'Skip comparing score for algo {algorithm_name} with '
+              f'  {compared_element} \n due to error {e}'
+          )
+          logging.error('%s', output_str)
+        analyzed_records.append(
+            BenchmarkRecord(
+                algorithm=algorithm_name,
+                experimenter_metadata=vz.Metadata(json.loads(experimenter_key)),
+                plot_elements=elems_dict,
+            )
+        )
+
+    return analyzed_records

@@ -321,12 +321,12 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     baseline_length = len(self._baseline_curve.xs)
     rel_effiency = convergence.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=self._baseline_curve, compared_curve=self._better_curves
-    ).log_efficiency_curve()
+    ).curve()
     higher_quantile = convergence.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=self._baseline_curve,
         compared_curve=self._better_curves,
         compared_quantile=0.9,
-    ).log_efficiency_curve()
+    ).curve()
 
     self.assertEqual(rel_effiency.ys.shape, (1, baseline_length))
     self.assertEqual(higher_quantile.ys.shape, (1, baseline_length))
@@ -342,7 +342,7 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
     self_eff = convergence.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=flat_curve, compared_curve=flat_curve
-    ).log_efficiency_curve()
+    ).curve()
     # Relative efficiency of a curve on itself is close to 0.
     self.assertAlmostEqual(np.linalg.norm(self_eff.ys), 0.0, delta=0.1)
 
@@ -353,11 +353,14 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         xs=self._baseline_curve.xs[:short_length],
         ys=self._baseline_curve.ys[:, :short_length],
         trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+    max_score = 10.3
     short_efficiency = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=short_curve
-    ).log_efficiency_curve()
+        baseline_curve=self._baseline_curve,
+        compared_curve=short_curve,
+        max_score=max_score,
+    ).curve()
     self.assertEqual(short_efficiency.ys.shape, (1, baseline_length))
-    self.assertEqual(float(short_efficiency.ys[:, -1]), -float('inf'))
+    self.assertEqual(float(short_efficiency.ys[:, -1]), -max_score)
 
   def test_get_efficiency_score(self):
     # Higher compared quantile should increase score. Higher baseline
