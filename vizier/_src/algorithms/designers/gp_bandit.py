@@ -559,3 +559,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     mean = np.mean(unwarped_samples, axis=0)
     stddev = np.std(unwarped_samples, axis=0)
     return vza.Prediction(mean=mean, stddev=stddev)
+
+  @classmethod
+  def from_problem(
+      cls, problem: vz.ProblemStatement, seed: Optional[int] = None
+  ) -> 'VizierGPBandit':
+    return cls(problem, rng=jax.random.PRNGKey(seed or 0))

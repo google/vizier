@@ -172,7 +172,7 @@ def _R(dim: int, seed: int, *moreseeds: bytes) -> np.ndarray:
 
   Args:
     dim: size of the resulting matrix.
-    seed: int seed
+    seed: int seed. 0 means identity.
     *moreseeds: Additional parameters to include in the hash.  Arguments must be
       interpretable as a buffer of bytes.
 
