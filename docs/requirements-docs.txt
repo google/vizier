@@ -3,3 +3,4 @@
 autodocsumm
 sphinx_autodoc_typehints
 myst_nb
+sphinx-rtd-theme
