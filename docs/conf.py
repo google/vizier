@@ -100,6 +100,7 @@ napolean_use_rtype = False
 
 # -- Options for HTML output -------------------------------------------------
 
+html_theme = 'sphinx_rtd_theme'
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
 html_logo = './assets/vizier_logo2.png'
