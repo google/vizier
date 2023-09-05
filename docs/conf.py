@@ -51,6 +51,7 @@ extensions = [
     'sphinx_autodoc_typehints',
     'autodocsumm',
     # 'myst_parser', TODO: 'myst_commonmark_only' flag conflict
+    'sphinx_rtd_theme',
     'myst_nb',
 ]
 
@@ -119,3 +120,5 @@ myst_enable_extensions = ['dollarmath']
 add_module_names = False
 
 jupyter_execute_notebooks = 'off'
+
+html_theme = 'sphinx_rtd_theme'
