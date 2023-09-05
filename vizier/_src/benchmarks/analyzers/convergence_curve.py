@@ -393,6 +393,7 @@ class ConvergenceComparator(abc.ABC):
     compared_quantile: Quantile in [0, 1] of the batched compared curve to use
       for efficiency comparison. The higher the quantile, the better the quality
       of the baseline batch.
+    name: Name of comparator.
   """
 
   _baseline_curve: ConvergenceCurve = attr.field()
@@ -406,6 +407,9 @@ class ConvergenceComparator(abc.ABC):
       default=0.5,
       validator=[attr.validators.le(1), attr.validators.ge(0)],
       kw_only=True,
+  )
+  _name: str = attr.field(
+      default='score', validator=attr.validators.instance_of(str), kw_only=True
   )
   _sign: float = attr.field(init=False)
 
@@ -435,6 +439,24 @@ class ConvergenceComparator(abc.ABC):
         if (self._baseline_curve.trend == ConvergenceCurve.YTrend.INCREASING)
         else -1.0
     )
+
+  @abc.abstractmethod
+  def score(self) -> float:
+    """Returns a summary score for the comparison between base and compared.
+
+    Usually, higher positive numbers mean the compared curve is better than the
+    baseline and vice versa.
+    """
+    pass
+
+  @abc.abstractmethod
+  def curve(self) -> ConvergenceCurve:
+    """Returns a score curve for each xs."""
+    pass
+
+  @property
+  def name(self) -> str:
+    return self._name
 
   def _standardize_curves(
       self,
@@ -488,20 +510,6 @@ class ConvergenceComparator(abc.ABC):
         compared_ys = compared_ys[compared_cutoff_ind[0] :]
 
     return baseline_ys, compared_ys
-
-  @abc.abstractmethod
-  def score(self) -> float:
-    """Returns a summary score for the comparison between base and compared.
-
-    Usually, higher positive numbers mean the compared curve is better than the
-    baseline and vice versa.
-    """
-    pass
-
-  @abc.abstractmethod
-  def curve(self) -> ConvergenceCurve:
-    """Returns a score curve for each xs."""
-    pass
 
 
 class ConvergenceComparatorFactory(Protocol):
@@ -747,6 +755,27 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
     raise NotImplementedError('Curve not yet implemented.')
 
 
+class LogEfficiencyConvergenceCurveComparatorFactory(
+    ConvergenceComparatorFactory
+):
+  """Factory class for LogEfficiencyConvergenceCurveComparator."""
+
+  def __call__(
+      self,
+      baseline_curve: ConvergenceCurve,
+      compared_curve: ConvergenceCurve,
+      baseline_quantile: float = 0.5,
+      compared_quantile: float = 0.5,
+  ) -> ConvergenceComparator:
+    return LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='log_eff',
+    )
+
+
 class PercentageBetterConvergenceCurveComparatorFactory(
     ConvergenceComparatorFactory
 ):
@@ -764,6 +793,7 @@ class PercentageBetterConvergenceCurveComparatorFactory(
         compared_curve=compared_curve,
         baseline_quantile=baseline_quantile,
         compared_quantile=compared_quantile,
+        name='%_better',
     )
 
 

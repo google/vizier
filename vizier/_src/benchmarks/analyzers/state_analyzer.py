@@ -168,8 +168,9 @@ class BenchmarkRecordAnalyzer:
       cls,
       records: Sequence[BenchmarkRecord],
       baseline_algo: str,
+      *,
       compare_metric: str = RECORD_OBJECTIVE_KEY,
-      comparator: convergence_curve.ConvergenceComparatorFactory = convergence_curve.LogEfficiencyConvergenceCurveComparator,
+      comparator_factory: convergence_curve.ConvergenceComparatorFactory = convergence_curve.LogEfficiencyConvergenceCurveComparator,
   ) -> list[BenchmarkRecord]:
     """Adds comparison scores as metrics via PlotElements to BenchmarkRecord.
 
@@ -179,7 +180,7 @@ class BenchmarkRecordAnalyzer:
       records: Sequence of BenchmarkRecords
       baseline_algo: Baseline algorithm to be compared against.
       compare_metric: Metric of comparison.
-      comparator: Comparator used for scoring.
+      comparator_factory: Comparator used for scoring.
 
     Returns:
       List of BenchmarkRecords with comparison scores added as metrics.
@@ -195,6 +196,7 @@ class BenchmarkRecordAnalyzer:
     df = pd.DataFrame(
         records_list, columns=['algorithm', 'experimenter', 'record']
     )
+
     analyzed_records = []
     for experimenter_key, experimenter_group in df.groupby('experimenter'):
       # Checks and stores the mapping from algorithm to plot_elements
@@ -229,15 +231,17 @@ class BenchmarkRecordAnalyzer:
       # Attempts to apply comparison and add comparison metrics.
       for algorithm_name, elems_dict in algo_to_elements_dict.items():
         compared_element = elems_dict[compare_metric]
+        comparator = comparator_factory(
+            baseline_curve=baseline_element.curve,
+            compared_curve=compared_element.curve,
+        )
         try:
-          elems_dict[compare_metric + ':score_curve:' + baseline_algo] = (
-              PlotElement(
-                  curve=comparator(
-                      baseline_curve=baseline_element.curve,
-                      compared_curve=compared_element.curve,
-                  ).curve(),
-                  plot_type='error-bar',
-              )
+          dict_key = (
+              compare_metric + f':{comparator.name}_curve:' + baseline_algo
+          )
+          elems_dict[dict_key] = PlotElement(
+              curve=comparator.curve(),
+              plot_type='error-bar',
           )
         except Exception as e:  # pylint: disable=broad-exception-caught
           output_str = (
@@ -246,15 +250,9 @@ class BenchmarkRecordAnalyzer:
           )
           logging.error('%s', output_str)
         try:
-          elems_dict[compare_metric + ':score:' + baseline_algo] = PlotElement(
-              plot_array=np.asarray(
-                  [
-                      comparator(
-                          baseline_curve=baseline_element.curve,
-                          compared_curve=compared_element.curve,
-                      ).score()
-                  ]
-              ),
+          dict_key = compare_metric + f':{comparator.name}:' + baseline_algo
+          elems_dict[dict_key] = PlotElement(
+              plot_array=np.asarray([comparator.score()]),
               plot_type='histogram',
           )
         except Exception as e:  # pylint: disable=broad-exception-caught
