@@ -266,7 +266,7 @@ class BenchmarkRecordAnalyzer:
         analyzed_records.append(
             BenchmarkRecord(
                 algorithm=algorithm_name,
-                experimenter_metadata=vz.Metadata(json.loads(experimenter_key)),
+                experimenter_metadata=vz.Metadata(json.loads(experimenter_key)),  # pytype: disable=wrong-arg-types  # pandas-drop-duplicates-overloads
                 plot_elements=elems_dict,
             )
         )
