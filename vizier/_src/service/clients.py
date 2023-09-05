@@ -250,6 +250,8 @@ class Study(client_abc.StudyInterface):
     Returns:
       Study.
     """
+    # Use a dummy client_id, since for multi-worker workflows, each worker is
+    # expected to provide a client_id in the suggest() call.
     return Study(
         vizier_client.create_or_load_study(
             owner_id=owner,
