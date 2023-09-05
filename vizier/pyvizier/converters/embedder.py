@@ -32,7 +32,6 @@ The scaling is performed using the DefaultTrialConverter.
 
 import copy
 from typing import Sequence, TypeVar
-
 import attr
 from vizier import pyvizier as vz
 from vizier.pyvizier.converters import core

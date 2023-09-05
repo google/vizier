@@ -693,7 +693,9 @@ class DefaultModelInputConverter(ModelInputConverter):
       self, array: np.ndarray
   ) -> List[Optional[pyvizier.ParameterValue]]:
     """Convert and clip to the nearest feasible parameter values."""
-    array = self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
+    array = np.asarray(
+        self.scaler.backward_fn(self.onehot_encoder.backward_fn(array))
+    )
     return [self._to_parameter_value(v) for v in list(array.flatten())]
 
   def _convert_index(self, trial: pyvizier.TrialSuggestion):

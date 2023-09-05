@@ -26,7 +26,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 
-EagleStrategyDesiger = eagle_strategy.EagleStrategyDesigner
+EagleStrategyDesigner = eagle_strategy.EagleStrategyDesigner
 
 
 class EagleStrategyTest(parameterized.TestCase):
@@ -46,7 +46,7 @@ class EagleStrategyTest(parameterized.TestCase):
 
   def test_load_with_no_state(self):
     problem = testing.create_fake_problem_statement()
-    eagle_designer = EagleStrategyDesiger(problem)
+    eagle_designer = EagleStrategyDesigner(problem)
     metadata = vz.Metadata()
     # Check that the designer can accept empty metadata in load.
     eagle_designer.load(metadata)
@@ -124,6 +124,21 @@ class EagleStrategyTest(parameterized.TestCase):
     self.assertLen(trial_suggestions, 10)
     self.assertIsInstance(trial_suggestions[0], vz.TrialSuggestion)
 
+  def test_suggest_flat(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.root
+    root.add_float_param('x1', 0.0, 1.0)
+    root.add_float_param('x2', 0.0, 2.0)
+    metric = vz.MetricInformation(
+        name='obj',
+        goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+    )
+    problem.metric_information.append(metric)
+
+    designer = EagleStrategyDesigner(problem)
+    suggestions = designer.suggest(count=1)
+    self.assertLen(suggestions, 1)
+
   def test_update_capacitated_pool_no_parent_fly_trial_is_better(self):
     # Capacitated pool size has 11 fireflies.
     eagle_designer = testing.create_fake_populated_eagle_designer(
@@ -186,7 +201,7 @@ class EagleStrategyTest(parameterized.TestCase):
     problem.metric_information.append(
         vz.MetricInformation(goal=vz.ObjectiveMetricGoal.MINIMIZE, name='')
     )
-    eagle_designer = EagleStrategyDesiger(problem)
+    eagle_designer = EagleStrategyDesigner(problem)
 
     tid = 1
     # Simulate running the designer for 3 suggestions each with a batch.
