@@ -33,6 +33,7 @@ The scaling is performed using the DefaultTrialConverter.
 import copy
 from typing import Sequence, TypeVar
 import attr
+import numpy as np
 from vizier import pyvizier as vz
 from vizier.pyvizier.converters import core
 
@@ -147,7 +148,9 @@ class ProblemAndTrialsScaler:
           # Get the parameter converter.
           param_converter = self._converter.parameter_converters_dict[name]
           # Convert back the feature to parameters in the original space.
-          parameters[name] = param_converter.to_parameter_values(value)[0]
+          parameters[name] = param_converter.to_parameter_values(
+              np.array(value)
+          )[0]
       # Create a copy of the trial with updated parameters.
       unmapped_trials.append(attr.evolve(trial, parameters=parameters))
     return unmapped_trials
