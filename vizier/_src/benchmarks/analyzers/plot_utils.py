@@ -124,8 +124,10 @@ def plot_from_records(
     metrics: Optional[Sequence[str]] = None,
     *,
     fig_title: str = 'All Plot Elements',
+    title_maxlen: int = 50,
     col_figsize: float = 6.0,
     row_figsize: float = 6.0,
+    **kwargs,
 ):
   """Generates a grid of algorithm comparison plots.
 
@@ -137,8 +139,10 @@ def plot_from_records(
     metrics: Keys in the plot_elements dict in BenchmarkRecord used for plot. If
       not supplied, all keys are plotted.
     fig_title: Title of the entire grid plot.
+    title_maxlen: Maximum length of title of each Experimenter.
     col_figsize: Size of the column of each subfigure.
     row_figsize: Size of the row of each subfigure.
+    **kwargs: Additional keyword args forwarded to pyplot.
 
   Raises:
     ValueError: When plot type is not supported.
@@ -175,7 +179,8 @@ def plot_from_records(
   for experimenter_key, group_by_experimenter in df.groupby('experimenter'):
     for metric_idx, metric in enumerate(metrics):
       ax = axes[fig_idx, metric_idx]
-      ax.set_title(experimenter_key)
+      subplot_title = str(experimenter_key)[:title_maxlen]
+      ax.set_title(subplot_title)
       ax.set_ylabel(metric)
       for algorithm_name, group in group_by_experimenter.groupby('algorithm'):
         if not group.size:
@@ -200,6 +205,7 @@ def plot_from_records(
               label=f'{algorithm_name}',
               color=colors[algorithm_name],
               percentiles=(elem_for_metric.percentile_error_bar,),
+              **kwargs,
           )
           ax.set_xlabel('# of Trials')
         elif plot_type == 'scatter':
@@ -209,6 +215,7 @@ def plot_from_records(
               plot[:, 1],
               label=f'{algorithm_name}',
               color=colors[algorithm_name],
+              **kwargs,
           )
         elif plot_type == 'histogram':
           plot = elem_for_metric.plot_array
@@ -225,6 +232,7 @@ def plot_from_records(
               linewidth=linewidth,
               label=f'{algorithm_name}',
               color=colors[algorithm_name],
+              **kwargs,
           )
         else:
           raise ValueError(f'{plot_type} plot not yet supported!')
