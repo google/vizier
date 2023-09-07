@@ -29,3 +29,4 @@ from vizier._src.algorithms.optimizers.base import BranchSelection
 from vizier._src.algorithms.optimizers.base import BranchSelector
 from vizier._src.algorithms.optimizers.base import BranchThenOptimizer
 from vizier._src.algorithms.optimizers.base import GradientFreeOptimizer
+from vizier._src.algorithms.policies.designer_policy import DesignerPolicy

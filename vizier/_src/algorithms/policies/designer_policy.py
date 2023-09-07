@@ -25,9 +25,9 @@ import abc
 from typing import Generic, Optional, Type, TypeVar
 
 from absl import logging
-from vizier import algorithms as vza
 from vizier import pythia
 from vizier import pyvizier as vz
+from vizier._src.algorithms.core import abstractions as vza
 from vizier._src.algorithms.policies import trial_caches
 from vizier.interfaces import serializable
 
