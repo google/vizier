@@ -32,3 +32,4 @@ For Benchmarking
 
     benchmarks/creating_benchmarks
     benchmarks/running_benchmarks
+    benchmarks/analyzing_benchmarks
