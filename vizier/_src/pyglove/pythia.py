@@ -116,7 +116,14 @@ class TunerPolicy(pythia.Policy):
         count,
     )
     for _ in range(request.count or 1):
-      dna = self.algorithm.propose()
+      try:
+        dna = self.algorithm.propose()
+      except StopIteration:
+        logging.info(
+            'Search algorithm %s has no new suggestions.', self.algorithm
+        )
+        break
+
       if dna.spec is None:
         dna.use_spec(self._converter.dna_spec)
       trial = self._converter.to_trial(dna, fallback='return_dummy')

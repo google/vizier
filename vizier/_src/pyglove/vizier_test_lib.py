@@ -151,6 +151,25 @@ class SampleTest(VizierTest):
           )
       )
 
+  @absltest.skip('Pythia cannot accept empty trials.')
+  def testSampleWithSearchAlgorithmStopIteration(self):
+    """Test `pg.sample` with algorithm-side stop iteration."""
+    self._backend_class.use_study_prefix('algorithm-stop-iteration')
+    for sd, f in pg.sample(
+        pg.Dict(x=pg.oneof(range(3)), y=pg.oneof(range(4))), pg.geno.Sweeping()
+    ):
+      f(sd.x + sd.y)
+    self.assertLen(pg.tuning.poll_result('').trials, 3 * 4)
+
+    # Continue from previous one.
+    # We create a new Sweeping instance to test recovery of controller state.
+    for _, _ in pg.sample(
+        pg.Dict(x=pg.oneof(range(3)), y=pg.oneof(range(4))), pg.geno.Sweeping()
+    ):
+      assert False, 'should never happen'
+
+    self.assertLen(pg.tuning.poll_result('').trials, 3 * 4)
+
   def testSampleWithRaceCondition(self):
     """Test `pg.sample` with race condition among co-workers."""
     self._backend_class.use_study_prefix('coworkers-with-race-conditions')
