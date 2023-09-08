@@ -771,11 +771,21 @@ class PrecomputedPredictive(eqx.Module):
 
   @property
   def _posterior_kwargs(self):
+    if self.observed_data.labels.shape[-1] > 1:
+      # If there is more than one metric, assume we are using a MultiTask GP, in
+      # which case `observations_is_missing` should be a 2D array instead of a
+      # vector.
+      # TODO: Make `_mask` public on PaddedArray.
+      observations_is_missing = ~self.observed_data.labels._mask  # pylint: disable=protected-access
+    else:
+      # If there is one metric, then squeeze out the `num_metrics` dimension
+      # (which has size 1).
+      observations_is_missing = self.observed_data.labels.is_missing[0]
     return dict(
         _precomputed_divisor_matrix_cholesky=self.precomputed_divisor_matrix_cholesky,
         _precomputed_solve_on_observation=self.precomputed_solve_on_observation,
         observations=self.observed_data.labels.padded_array,
-        observations_is_missing=self.observed_data.labels.is_missing[0],
+        observations_is_missing=observations_is_missing,
     )
 
   def predict(self, x_predictive: types.ModelInput) -> tfd.Distribution:
