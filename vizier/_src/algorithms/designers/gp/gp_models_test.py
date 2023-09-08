@@ -363,6 +363,54 @@ class StackedResidualGPTest(parameterized.TestCase):
 
     self.assertAlmostEqual(list_gp_mse, singleton_gp_mse)
 
+  def test_multi_task(self):
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[
+                vz.MetricInformation(
+                    'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+                vz.MetricInformation(
+                    'obj2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    quasi_random_designer = quasi_random.QuasiRandomDesigner(
+        problem.search_space, seed=1
+    )
+    num_entries = 100
+    suggestions = quasi_random_designer.suggest(num_entries)
+    obs_trials: list[vz.Trial] = []
+    for idx, suggestion in enumerate(suggestions):
+      trial = suggestion.to_trial(idx)
+      x = suggestions[idx].parameters['x0'].value
+      trial.complete(vz.Measurement(metrics={'obj1': x + 1, 'obj2': 2 * x - 1}))
+      obs_trials.append(trial)
+
+    train_entries = 60
+    train_trials = obs_trials[:train_entries]
+    test_trials = obs_trials[train_entries:]
+    model_data = converter.to_xy(train_trials)
+    train_spec = gp_models.GPTrainingSpec(
+        ard_optimizer=optimizers.default_optimizer(),
+        ard_rng=jax.random.PRNGKey(0),
+        coroutine=gp_models.get_vizier_gp_coroutine(
+            features=model_data.features, labels=model_data.labels
+        ),
+    )
+    gp = gp_models.train_gp(train_spec, model_data)
+
+    test_data = converter.to_xy(test_trials)
+    pred_dist, _ = gp.predict_with_aux(test_data.features)
+    mse = np.mean(np.square(pred_dist.mean() - test_data.labels.unpad()))
+    self.assertLess(mse, 1e-2)
+
 
 if __name__ == '__main__':
   # Jax disables float64 computations by default and will silently convert

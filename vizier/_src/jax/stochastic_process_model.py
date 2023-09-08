@@ -853,7 +853,7 @@ class UniformEnsemblePredictive(eqx.Module):
     # ensemble dimensions. (`vmap` cannot currently be used on functions
     # returning TFP distributions).
     has_batched_hparams = (
-        self.predictives.precomputed_divisor_matrix_cholesky.ndim > 2
+        self.predictives.precomputed_solve_on_observation.ndim > 1
     )
     expand_x = len(xs.continuous.shape) == 3 and has_batched_hparams
     dist = self.predictives._predict(xs, expand_batch_dim=expand_x)  # pylint: disable=protected-access

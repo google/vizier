@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Gaussian Process models."""
+
 import logging
 from typing import Iterable, Optional, Union
 
@@ -27,6 +28,7 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import transfer_learning as vtl
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 
@@ -138,7 +140,10 @@ class StackedResidualGP(GPState):
 
 
 def get_vizier_gp_coroutine(
-    features: types.ModelInput, *, linear_coef: float = 0.0
+    features: types.ModelInput,
+    *,
+    linear_coef: float = 0.0,
+    labels: Optional[types.PaddedArray] = None,
 ) -> sp.ModelCoroutine:
   """Gets a GP model coroutine.
 
@@ -146,10 +151,24 @@ def get_vizier_gp_coroutine(
     features: The features used to the train the GP model
     linear_coef: If non-zero, uses a linear kernel with `linear_coef`
       hyperparameter.
+    labels: The labels used to train the GP model, default to None, which gives
+      a single-metric GP-coroutine. The last dimension should equal the number
+      of metrics.
 
   Returns:
     The model coroutine.
   """
+  # Construct the multi-task GP.
+  if labels and labels.shape[-1] > 1:
+    gp_coroutine = multitask_tuned_gp_models.VizierMultitaskGaussianProcess(
+        _feature_dim=types.ContinuousAndCategorical[int](
+            features.continuous.padded_array.shape[-1],
+            features.categorical.padded_array.shape[-1],
+        ),
+        _num_tasks=labels.shape[-1],
+    )
+    return sp.StochasticProcessModel(gp_coroutine).coroutine
+
   if linear_coef:
     return tuned_gp_models.VizierLinearGaussianProcess.build_model(
         features=features, linear_coef=linear_coef
