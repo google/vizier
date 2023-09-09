@@ -20,7 +20,8 @@ from typing import Optional
 from absl import logging
 import attr
 import grpc
-from vizier._src.service import policy_factory as policy_factory_lib
+from vizier import pythia
+from vizier._src.service import policy_factory as service_policy_factory
 from vizier._src.service import pythia_service_pb2
 from vizier._src.service import pythia_service_pb2_grpc
 from vizier._src.service import service_policy_supporter
@@ -42,8 +43,8 @@ class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
   )
   # Factory for creating policies. Defaulted to OSS Vizier-specific policies,
   # but allows use of external package (e.g. PyGlove) poliices.
-  _policy_factory: policy_factory_lib.PolicyFactory = attr.field(
-      init=True, factory=policy_factory_lib.DefaultPolicyFactory
+  _policy_factory: pythia.PolicyFactory = attr.field(
+      init=True, factory=service_policy_factory.DefaultPolicyFactory
   )
 
   def __attrs_post_init__(self):

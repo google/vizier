@@ -26,10 +26,10 @@ import time
 import attr
 import grpc
 import portpicker
-
+from vizier import pythia
 from vizier._src.service import constants
 from vizier._src.service import datastore
-from vizier._src.service import policy_factory as policy_factory_lib
+from vizier._src.service import policy_factory as service_policy_factory_lib
 from vizier._src.service import pythia_service
 from vizier._src.service import pythia_service_pb2_grpc
 from vizier._src.service import stubs_util
@@ -51,8 +51,10 @@ class DefaultVizierServer:
   _database_url: str = attr.field(
       init=True, default=constants.SQL_LOCAL_URL, kw_only=True
   )
-  _policy_factory: policy_factory_lib.PolicyFactory = attr.field(
-      init=True, factory=policy_factory_lib.DefaultPolicyFactory, kw_only=True
+  _policy_factory: pythia.PolicyFactory = attr.field(
+      init=True,
+      factory=service_policy_factory_lib.DefaultPolicyFactory,
+      kw_only=True,
   )
   _early_stop_recycle_period: datetime.timedelta = attr.field(
       init=True, default=datetime.timedelta(seconds=0.1), kw_only=True

@@ -34,7 +34,7 @@ from vizier._src.pyglove import client
 from vizier._src.pyglove import converters
 from vizier._src.service import clients as pyvizier_clients
 from vizier._src.service import constants
-from vizier._src.service import policy_factory as policy_factory_lib
+from vizier._src.service import policy_factory as service_policy_factory_lib
 from vizier._src.service import pythia_service
 from vizier._src.service import pythia_service_pb2_grpc
 from vizier._src.service import resources
@@ -53,7 +53,7 @@ PolicyCache = client.PolicyCache
 StudyKey = client.StudyKey
 
 
-class PyGlovePolicyFactory(policy_factory_lib.PolicyFactory):
+class PyGlovePolicyFactory(pythia.PolicyFactory):
   """PolicyFactory for OSSVizierTuner."""
 
   def __init__(self, policy_cache: PolicyCache):
@@ -76,7 +76,9 @@ class PyGlovePolicyFactory(policy_factory_lib.PolicyFactory):
     logging.info(
         'StudyKey %s was not found in cache. Using default policy factory.'
     )
-    return policy_factory_lib.DefaultPolicyFactory()(
+
+    default_policy_factory = service_policy_factory_lib.DefaultPolicyFactory()
+    return default_policy_factory(
         problem_statement, algorithm, policy_supporter, study_name
     )
 

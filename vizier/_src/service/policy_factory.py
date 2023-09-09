@@ -14,32 +14,18 @@
 
 from __future__ import annotations
 
-"""Policy Factory API."""
+"""Service-related policy factories."""
 # pylint:disable=g-import-not-at-top
 import functools
 import time
-from typing import Protocol
 
 from vizier import pythia
+from vizier import pyvizier as vz
 from vizier._src.algorithms.policies import designer_policy as dp
-from vizier.service import pyvizier as vz
 
 
-class PolicyFactory(Protocol):
-  """Protocol (PEP-544) for a Policy Factory."""
-
-  def __call__(
-      self,
-      problem_statement: vz.ProblemStatement,
-      algorithm: str,
-      policy_supporter: pythia.PolicySupporter,
-      study_name: str,
-  ) -> pythia.Policy:
-    """Creates a Pythia Policy."""
-
-
-class DefaultPolicyFactory(PolicyFactory):
-  """Default Policy Factory used in Pythia."""
+class DefaultPolicyFactory(pythia.PolicyFactory):
+  """Default Policy Factory used in Pythia service."""
 
   def __call__(
       self,
