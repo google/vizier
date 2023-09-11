@@ -17,12 +17,15 @@ from __future__ import annotations
 """Tools for visualization with PlotElements."""
 
 
+import json
 from typing import Optional, Sequence, Tuple
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from vizier import pyvizier as vz
 from vizier._src.benchmarks.analyzers import state_analyzer
+from vizier.utils import json_utils
 
 
 def plot_median_convergence(
@@ -147,8 +150,21 @@ def plot_from_records(
   Raises:
     ValueError: When plot type is not supported.
   """
+
+  def _metadata_to_str(metadata: vz.Metadata) -> str:
+    visual_dict = {}
+    for _, key, value in metadata.all_items():
+      try:
+        loaded = json.loads(value, cls=json_utils.NumpyDecoder)
+        assert isinstance(loaded, dict)
+        visual_dict = visual_dict | {k: v for k, v in loaded.items() if v}
+      except Exception as e:  # pylint: disable=broad-except
+        del e
+        visual_dict[key] = value
+    return str(visual_dict)
+
   records_list = [
-      (rec.algorithm, str(dict(rec.experimenter_metadata)), rec)
+      (rec.algorithm, _metadata_to_str(rec.experimenter_metadata), rec)
       for rec in records
   ]
   df = pd.DataFrame(
