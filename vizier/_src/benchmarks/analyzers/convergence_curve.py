@@ -253,6 +253,9 @@ class ConvergenceCurveConverter:
 
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a single curve."""
+    if not trials:
+      raise ValueError(f'No trials provided {trials}')
+
     yvals = [np.nan]
     xvals = [0]
     candidates = []
@@ -351,6 +354,9 @@ class HypervolumeCurveConverter:
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
     # Returns a len(trials) x number of metrics np.ndarray.
+    if not trials:
+      raise ValueError(f'No trials provided {trials}')
+
     metrics = self._converter.to_labels_array(trials)
     if self._origin_value is None:
       origin = np.nanmin(metrics, axis=0)

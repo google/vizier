@@ -162,6 +162,12 @@ class EnsembleDesigner(vza.Designer):
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:
+    # With no completed Trials, simply update with reward calcuations.
+    if not completed.trials:
+      for designer in self._designers.values():
+        designer.update(completed, all_active)
+      return
+
     if self._reward_generator is None:
       rewards = []
       for t in completed.trials:

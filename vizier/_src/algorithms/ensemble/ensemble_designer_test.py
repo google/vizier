@@ -14,9 +14,12 @@
 
 from __future__ import annotations
 
+import jax.numpy as jnp
 from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
+from vizier._src.algorithms.designers import scalarization
+from vizier._src.algorithms.designers import scalarizing_designer
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.ensemble import ensemble_design
 from vizier._src.algorithms.ensemble import ensemble_designer
@@ -95,6 +98,71 @@ class EnsembleDesignerTest(parameterized.TestCase):
       ):
         num_eagle_trials += 1
     self.assertEqual(num_random_trials + num_eagle_trials, 250)
+
+  @parameterized.parameters(
+      (ensemble_design.EXP3UniformEnsembleDesign),
+      (ensemble_design.EXP3IXEnsembleDesign),
+      (
+          lambda ind: ensemble_design.AdaptiveEnsembleDesign(
+              indices=ind, max_lengths=[50, 100, 200]
+          )
+      ),
+  )
+  def testPendingMulitobjectiveUpdate(self, ensemble_design_factory):
+    dim = 2
+    func1 = experimenters.bbob.Sphere
+    func2 = experimenters.bbob.Rastrigin
+    exptr1 = experimenters.NumpyExperimenter(
+        func1, experimenters.bbob.DefaultBBOBProblemStatement(dim)
+    )
+    exptr2 = experimenters.NumpyExperimenter(
+        func2, experimenters.bbob.DefaultBBOBProblemStatement(dim)
+    )
+    exptr = experimenters.MultiObjectiveExperimenter(
+        {'m1': exptr1, 'm2': exptr2}
+    )
+
+    def ensemble_designer_factory(config: vz.ProblemStatement, seed: int):
+      random_designer = random.RandomDesigner(config.search_space, seed=seed)
+
+      def eagle_designer_factory(ps, seed):
+        return eagle_strategy.EagleStrategyDesigner(
+            problem_statement=ps, seed=seed
+        )
+
+      scalarized_eagle = scalarizing_designer.ScalarizingDesigner(
+          config,
+          eagle_designer_factory,
+          scalarizer=scalarization.HyperVolumeScalarization(
+              weights=jnp.ones(len(config.metric_information))
+          ),
+      )
+
+      reward_generator = ensemble_designer.ObjectiveRewardGenerator(
+          config, reward_regularization=0.1
+      )
+      return ensemble_designer.EnsembleDesigner(
+          {'random': random_designer, 'eagle': scalarized_eagle},
+          ensemble_design_factory=ensemble_design_factory,
+          reward_generator=reward_generator,
+      )
+
+    benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
+        designer_factory=ensemble_designer_factory,
+        experimenter=exptr,
+    )
+    bench_state = benchmark_state_factory()
+    runner = benchmarks.BenchmarkRunner(
+        benchmark_subroutines=[benchmarks.GenerateSuggestions(1)],
+        num_repeats=5,
+    )
+    runner.run(bench_state)
+    self.assertLen(
+        bench_state.algorithm.supporter.GetTrials(
+            status_matches=vz.TrialStatus.ACTIVE
+        ),
+        5,
+    )
 
 
 if __name__ == '__main__':
