@@ -115,7 +115,7 @@ class ExperimenterDesignerBenchmarkStateFactory(BenchmarkStateFactory):
 
   def __call__(self, seed: Optional[int] = None) -> BenchmarkState:
     """Create a BenchmarkState from experimenter and designer factory."""
-    experimenter = self.experimenter_factory(seed=seed)
+    experimenter = self.experimenter_factory()
     factory = DesignerBenchmarkStateFactory(
         experimenter=experimenter, designer_factory=self.designer_factory
     )

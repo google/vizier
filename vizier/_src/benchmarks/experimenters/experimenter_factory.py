@@ -17,6 +17,7 @@ from __future__ import annotations
 """Experimenter factories."""
 
 import abc
+import functools
 import json
 from typing import Optional
 
@@ -41,16 +42,28 @@ class ExperimenterFactory(abc.ABC):
   """Abstraction for creating Experimenters."""
 
   @abc.abstractmethod
-  def __call__(
-      self, *, seed: Optional[int] = None
-  ) -> experimenter.Experimenter:
-    """Creates the Experimenter."""
+  def __call__(self) -> experimenter.Experimenter:
+    """Creates the Experimenter.
+
+    This method should behave deterministcally. That is, multiple invocations of
+    __call__ should always return the identical experimenter that given the
+    same sequence of trials, behaves exactly the same.
+
+    This method should not be used for generating a random experimenter.
+
+    Returns:
+      Same exact experimenter created fresh.
+    """
 
 
 class SerializableExperimenterFactory(
     ExperimenterFactory, serializable.Serializable
 ):
-  """Abstraction for experimenter factories with dump/recover methods."""
+  """Abstraction for experimenter factories with dump/recover methods.
+
+  Subclasses of this interface can be serialized so that we can re-create
+  the exact same experimenter object.
+  """
 
 
 @attr.define
@@ -63,21 +76,24 @@ class BBOBExperimenterFactory(SerializableExperimenterFactory):
       default=1,
       validator=[attr.validators.instance_of(int), attr.validators.gt(0)],
   )
+  rotation_seed: int = attr.field(default=0)
 
-  def __call__(
-      self, seed: Optional[int] = None
-  ) -> numpy_experimenter.NumpyExperimenter:
-    del seed
+  def __call__(self) -> numpy_experimenter.NumpyExperimenter:
     bbob_function = getattr(bbob, self.name, None)
     if bbob_function is None:
       raise ValueError(f'{self.name} is not a valid BBOB function in bbob.py')
+    bbob_function = functools.partial(bbob_function, seed=self.rotation_seed)
     return numpy_experimenter.NumpyExperimenter(
         bbob_function, bbob.DefaultBBOBProblemStatement(self.dim)
     )
 
   def dump(self) -> vz.Metadata:
     metadata = vz.Metadata()
-    metadata_dict = {'name': self.name, 'dim': self.dim}
+    metadata_dict = {
+        'name': self.name,
+        'dim': self.dim,
+        'rotation_seed': self.rotation_seed,
+    }
     metadata[BBOB_FACTORY_KEY] = json.dumps(metadata_dict)
     return metadata
 
@@ -89,28 +105,36 @@ class BBOBExperimenterFactory(SerializableExperimenterFactory):
 
 @attr.define
 class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
-  """Factory for a single objective Experimenter."""
+  """Factory for a single objective Experimenter.
+
+  Attributes:
+    base_factory:
+    shift: An array of doubles that is broadcastable to dim of search space.
+    noise_type: Should be one of the noise types in noisy_experimenter.py
+    noise_seed: Seed for the noise.
+    num_normalization_samples: Number of normalization samples. If zero, no
+      normalization is done.
+    discrete_dict: Dictionary of parameter indices to discretize in a grid. Key
+      = index of parameter to be discretize Value = Number of feasible points to
+      discretize to. For example, {0: 3, 2 : 2} discretizes the first parameter
+      to 3 feasible points and the third to 2 feasible points. Generally, this
+      should be used only when base_factory generates only continuous
+      parameters.
+    categorical_dict: Dictionary of parameter indices to categorize in a grid.
+      Similar to `discrete_dict`, except this converts a parameter to
+      categorical instead of discrete.
+  """
 
   base_factory: SerializableExperimenterFactory = attr.field()
-  # An array of doubles that is broadcastable to dim of search space.
   shift: Optional[np.ndarray] = attr.field(default=None)
-  # Should be one of the noise types in noisy_experimenter.py
   noise_type: Optional[str] = attr.field(default=None)
-  # Number of normalization samples. If zero, no normalization is done.
+  noise_seed: int = attr.field(default=0)
   num_normalization_samples: int = attr.field(default=0)
-  # Dictionary of parameter indices to discretize in a grid.
-  # Key = index of parameter to be discretize and Value = Number of feasible
-  # points to discretize to. For example, {0: 3, 2 : 2} discretizes the first
-  # parameter to 3 feasible points and the third to 2 feasible points.
-  # Note: Generally, this should be used only when base_factory generates
-  # only continuous parameters.
   discrete_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
-  # Dictionary of parameter indices to categorize in a grid.
-  # Key = index of parameter to be categorize and Value = Number of feasible
-  # points to categorize to. See discrete_dict.
   categorical_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
+  # TODO: Add support for sparsification.
 
-  def __call__(self, seed: Optional[int] = None) -> experimenter.Experimenter:
+  def __call__(self) -> experimenter.Experimenter:
     """Creates the SingleObjective Experimenter."""
     exptr = self.base_factory()
     if self.shift is not None:
@@ -149,9 +173,10 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
               exptr, categorization, convert_to_str=True
           )
       )
+
     if self.noise_type is not None:
       exptr = noisy_experimenter.NoisyExperimenter.from_type(
-          exptr, noise_type=self.noise_type.upper(), seed=seed
+          exptr, noise_type=self.noise_type.upper(), seed=self.noise_seed
       )
 
     return exptr
