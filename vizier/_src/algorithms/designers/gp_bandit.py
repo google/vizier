@@ -414,6 +414,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def _optimize_acquisition(
       self, scoring_fn: acquisitions.BayesianScoringFunction, count: int
   ) -> list[vz.Trial]:
+    jax.monitoring.record_event(
+        '/vizier/jax/gp_bandit/optimize_acquisition/called'
+    )
     # Set up optimizer and run
     seed_features = vb.trials_to_sorted_array(self._trials, self._converter)
     acq_rng, self._rng = jax.random.split(self._rng)

@@ -349,6 +349,7 @@ class VectorizedOptimizer(Generic[_S]):
       An array containing the best trials found in the optimization of shape
       (count, n_parallel or 1, n_feature_dimensions).
     """
+    jax.monitoring.record_event('/vizier/jax/vectorized_optimizer/call/traced')
     start_time = datetime.datetime.now()
     seed = jax.random.PRNGKey(0) if seed is None else seed
     seed, acq_fn_seed = jax.random.split(seed)
@@ -401,6 +402,9 @@ class VectorizedOptimizer(Generic[_S]):
       )
 
     def _optimization_one_step(_, args):
+      jax.monitoring.record_event(
+          '/vizier/jax/vectorized_optimizer/call/one_step/traced'
+      )
       state, best_results, seed = args
       suggest_seed, update_seed, new_seed = jax.random.split(seed, num=3)
       new_features = self.strategy.suggest(

@@ -133,7 +133,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     # a tuple of size 2. The tuple must contain lower/upper bounds, which may be
     # None or a pytree with the same structure as the model parameters returned
     # by setup (otherwise Jaxopt will raise an error).
-
+    jax.monitoring.record_event('/vizier/jax/optimizers/scipylbfgsb/called')
     lbfgsb = jaxopt.ScipyBoundedMinimize(
         fun=loss_fn,
         method='L-BFGS-B',

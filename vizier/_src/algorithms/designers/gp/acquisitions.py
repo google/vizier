@@ -149,6 +149,9 @@ class BayesianScoringFunction(eqx.Module):
   def score_with_aux(
       self, xs, seed: jax.random.KeyArray
   ) -> tuple[jax.Array, chex.ArrayTree]:
+    jax.monitoring.record_event(
+        '/vizier/jax/acquisitions/bayesian_scoring_function/score_with_aux/traced'
+    )
     pred, aux = self.predictor.predict_with_aux(xs)
 
     acquisition = self.acquisition_fn(pred, seed=seed)

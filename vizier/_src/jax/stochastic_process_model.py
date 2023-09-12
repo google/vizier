@@ -970,7 +970,9 @@ class StochasticProcessWithCoroutine(eqx.Module):
   def precompute_predictive(
       self, data: types.ModelData
   ) -> PrecomputedPredictive:
-
+    jax.monitoring.record_event(
+        '/vizier/jax/coroutine_with_params/precompute_predictive/traced'
+    )
     if jnp.size(data.labels.padded_array) == 0:
       # TFP `retrying_cholesky` does not handle empty observations.
       prior = self(data.features).copy(cholesky_fn=None)
@@ -1010,6 +1012,7 @@ class CoroutineWithData(eqx.Module):
     return get_constraints(StochasticProcessModel(self.coroutine))
 
   def setup(self, rng: jax.random.KeyArray):
+    jax.monitoring.record_event('/vizier/jax/coroutine_with_data/setup/traced')
     return StochasticProcessWithCoroutine.initialize(
         self.coroutine, rng=rng
     ).params
@@ -1017,6 +1020,9 @@ class CoroutineWithData(eqx.Module):
   def loss_with_aux(
       self, params, seed: Optional[jax.random.KeyArray] = None
   ) -> tuple[jax.Array, chex.ArrayTree]:
+    jax.monitoring.record_event(
+        '/vizier/jax/coroutine_with_data/loss_with_aux/traced'
+    )
     return StochasticProcessWithCoroutine(self.coroutine, params).loss_with_aux(
         self.data, seed=seed
     )

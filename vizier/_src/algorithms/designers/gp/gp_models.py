@@ -190,6 +190,7 @@ def _train_gp(spec: GPTrainingSpec, data: types.ModelData) -> GPState:
   Returns:
     The trained GP model.
   """
+  jax.monitoring.record_event('/vizier/jax/designers/gp_bandit/train_gp')
   model = sp.CoroutineWithData(spec.coroutine, data)
 
   # Optimize the parameters
