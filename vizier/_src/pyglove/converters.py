@@ -290,8 +290,7 @@ class VizierConverter:
     json_str_compressed = problem.metadata.ns(constants.METADATA_NAMESPACE).get(
         constants.STUDY_METADATA_KEY_DNA_SPEC, None)
     if json_str_compressed is not None:
-      dna_spec = pg.from_json(
-          json.loads(lzma.decompress(base64.b64decode(json_str_compressed))))
+      dna_spec = restore_dna_spec(json_str_compressed)
     else:
       dna_spec = _to_dna_spec(problem.search_space)
 
@@ -497,3 +496,10 @@ class VizierConverter:
             vizier_trial.completion_time.replace(
                 tzinfo=datetime.timezone.utc).timestamp()),
         infeasible=vizier_trial.infeasible)
+
+
+def restore_dna_spec(json_str_compressed: str) -> pg.DNASpec:
+  """Restores DNASpec from compressed JSON str."""
+  return pg.from_json(
+      json.loads(lzma.decompress(base64.b64decode(json_str_compressed)))
+  )

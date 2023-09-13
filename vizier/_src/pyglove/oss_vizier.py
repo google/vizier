@@ -175,7 +175,9 @@ class _OSSVizierTuner(client.VizierTuner):
   def get_tuner_id(self, algorithm: pg.DNAGenerator) -> str:
     """See parent class."""
     del algorithm
-    return _services.pythia_endpoint
+    # We use hostname plus thread ID as tuner ID, so we could test
+    # distributed tuning scenarios using multi-threading.
+    return f'{threading.get_ident()}@{_services.pythia_endpoint}'
 
   def _start_pythia_service(self, policy_cache: PolicyCache) -> None:
     """See parent class."""
@@ -200,7 +202,7 @@ class _OSSVizierTuner(client.VizierTuner):
       study_config.algorithm = algorithm.name
     else:
       study_config.algorithm = 'EXTERNAL_PYTHIA_SERVICE'
-    study_config.pythia_endpoint = self.get_tuner_id(algorithm)
+    study_config.pythia_endpoint = _services.pythia_endpoint
 
   def create_study(
       self,
@@ -236,8 +238,10 @@ class _OSSVizierTuner(client.VizierTuner):
 
   def ping_tuner(self, tuner_id: str) -> bool:
     # We treat `tuner_id` as the Pythia endpoint.
+    assert '@' in tuner_id, tuner_id
+    pythia_endpoint = tuner_id.split('@')[1]
     try:
-      stubs_util.create_pythia_server_stub(tuner_id, timeout=3).Ping(
+      stubs_util.create_pythia_server_stub(pythia_endpoint, timeout=3).Ping(
           empty_pb2.Empty()
       )
       return True

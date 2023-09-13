@@ -18,6 +18,7 @@ from __future__ import annotations
 # pylint:disable=protected-access
 # pylint:disable=invalid-name
 import inspect
+import threading
 from typing import Type
 
 from absl import flags
@@ -630,6 +631,20 @@ class SampleTest(VizierTest):
     with self.assertRaises(StopIteration):
       next(sample3)
 
+  def testSampleWithDifferentSearchSpace(self):
+    """Test client-side search space mismatch with server-side search space."""
+    self._backend_class.use_study_prefix('different_search_space_vizier')
+
+    ssd1 = pg.Dict(x=pg.oneof([1, 2, 3]))
+    sample1 = pg.sample(ssd1, pg.geno.Random())
+    x, f = next(sample1)
+    f(x.x)
+
+    ssd2 = pg.Dict(x=pg.oneof([1, 2]))
+    sample2 = pg.sample(ssd2, pg.geno.Random())
+    with self.assertRaisesRegex(ValueError, '.*different.*search space.*'):
+      next(sample2)
+
   def testSampleWithCustomHyper(self):
     """Test sample with custom hyper."""
     self._backend_class.use_study_prefix('custom_hyper_vizier')
@@ -667,3 +682,31 @@ class SampleTest(VizierTest):
     x, f = next(sample)
     self.assertEqual(x, 'abcabcabcabc')
     f(len(x))
+
+  def testAllProposedTrialAreDeliveredToWorkers(self):
+    """Test that all proposed trials are delivered to the workers."""
+    self._backend_class.use_study_prefix('proposal_delivery')
+    searchable_list = pg.List(
+        [
+            pg.one_of([1, 2, 3]),
+            pg.one_of([-1, 0, 1]),
+            pg.one_of([1, 2, 0]),
+        ]
+        * 5
+    )
+    algorithm = pg.evolution.regularized_evolution()
+
+    def worker_fun():
+      for l, f in pg.sample(searchable_list, algorithm, num_examples=100):
+        reward = float(sum(l))
+        f(reward)
+
+    workers = [threading.Thread(target=worker_fun) for _ in range(10)]
+    for w in workers:
+      w.start()
+    for w in workers:
+      w.join()
+
+    result = pg.tuning.poll_result('')
+    for t in result.trials:
+      self.assertEqual(t.id, t.dna.metadata.proposal_id)

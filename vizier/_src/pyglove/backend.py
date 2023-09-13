@@ -219,6 +219,32 @@ class VizierBackend(pg.tuning.Backend):
       pg.logging.info(
           'Connecting tuner to existing study %r... ', study_descriptor
       )
+
+      #
+      # Ensure the client-side search space matches with the server-side search
+      # space.
+      #
+      stored_dna_spec = self._get_stored_dna_spec()
+
+      # CustomDecisionPoint could be non-serializable and non-compariable.
+      if pg.contains(self._dna_spec, pg.geno.CustomDecisionPoint):
+        pg.logging.info(
+            'There is a CustomDecisionPoint. Skipping the check to ensure the '
+            'client-side search space matches the server-side search space.'
+        )
+      elif pg.eq(self._dna_spec, stored_dna_spec):
+        pg.logging.info(
+            'Verified that the client-side search space matches the '
+            'server-side.'
+        )
+      else:
+        raise ValueError(
+            'The client-side search space is different from the search space '
+            'from the study stored in Vizier. Try launching the experiment '
+            'with a different study name. '
+            f'Diff: {pg.diff(stored_dna_spec, self._dna_spec)}.'
+        )
+
       chief_tuner_id = self._get_chief_tuner_id()
 
       if self._run_mode != TunerMode.SECONDARY and not self._tuner.ping_tuner(
@@ -367,6 +393,20 @@ class VizierBackend(pg.tuning.Backend):
         early_stopping_policy=self._early_stopping_policy,
     )
 
+  def _get_stored_dna_spec(self) -> pg.DNASpec:
+    metadata = self._study.materialize_problem_statement().metadata.ns(
+        constants.METADATA_NAMESPACE
+    )
+    try:
+      return converters.restore_dna_spec(
+          metadata[constants.STUDY_METADATA_KEY_DNA_SPEC]
+      )
+    except KeyError as e:
+      raise RuntimeError(
+          f'Metadata {constants.STUDY_METADATA_KEY_DNA_SPEC} does not exist '
+          f'in study: {self._study.resource_name}.'
+      ) from e
+
   def _get_chief_tuner_id(self) -> str:
     metadata = self._study.materialize_problem_statement().metadata.ns(
         constants.METADATA_NAMESPACE
@@ -375,7 +415,8 @@ class VizierBackend(pg.tuning.Backend):
       return str(metadata[constants.STUDY_METADATA_KEY_TUNER_ID])
     except KeyError as e:
       raise RuntimeError(
-          f'Metadata does not exist in study: {self._study.resource_name}'
+          f'Metadata {constants.STUDY_METADATA_KEY_TUNER_ID} does not exist '
+          f'in study: {self._study.resource_name}.'
       ) from e
 
   @functools.lru_cache(maxsize=None)d_property
