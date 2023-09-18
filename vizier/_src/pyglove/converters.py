@@ -484,18 +484,26 @@ class VizierConverter:
         metadata=vizier_trial.metadata.ns(constants.METADATA_NAMESPACE),
         related_links=dict(
             vizier_trial.metadata.ns(constants.METADATA_NAMESPACE).ns(
-                constants.RELATED_LINKS_NAMESPACE)),
+                constants.RELATED_LINKS_SUBNAMESPACE
+            )
+        ),
         measurements=vizier_trial.measurements,
         final_measurement=self.to_tuner_measurement(
-            vizier_trial.final_measurement),
+            vizier_trial.final_measurement
+        ),
         status=vizier_trial.status.name,
         created_time=int(
             vizier_trial.creation_time.replace(
-                tzinfo=datetime.timezone.utc).timestamp()),
+                tzinfo=datetime.timezone.utc
+            ).timestamp()
+        ),
         completed_time=int(
             vizier_trial.completion_time.replace(
-                tzinfo=datetime.timezone.utc).timestamp()),
-        infeasible=vizier_trial.infeasible)
+                tzinfo=datetime.timezone.utc
+            ).timestamp()
+        ),
+        infeasible=vizier_trial.infeasible,
+    )
 
 
 def restore_dna_spec(json_str_compressed: str) -> pg.DNASpec:

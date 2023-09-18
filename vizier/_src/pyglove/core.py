@@ -29,6 +29,7 @@ from vizier import pyvizier as vz
 from vizier._src.pyglove import constants
 from vizier._src.pyglove import converters
 from vizier.client import client_abc
+from vizier.google import metadata_to_user
 
 
 def _trial_status_legacy_value(status: vz.TrialStatus) -> str:
@@ -91,7 +92,9 @@ class VizierTrial(pg.tuning.Trial):
     if not self.sym_init_args.related_links and self._trial:
       self.sym_init_args.related_links = dict(
           self._trial.metadata.ns(constants.METADATA_NAMESPACE).ns(
-              constants.RELATED_LINKS_NAMESPACE))
+              constants.RELATED_LINKS_SUBNAMESPACE
+          )
+      )
     return self.sym_init_args.related_links
 
   @property
@@ -153,8 +156,7 @@ class Feedback(pg.tuning.Feedback):
     """Gets checkpoint path to warm start from. Refreshes `_trial`."""
     # TODO: Add official support.
     self._trial = self._trial_client.materialize()
-    return self._trial.metadata.ns(constants.METADATA_NAMESPACE).get(
-        constants.WARMSTART_CHECKPOINT_PATH_KEY, None)
+    return metadata_to_user.get_warmstart_checkpoint_path(self._trial)
 
   @contextlib.contextmanager
   def _maybe_race_condition(self, message: str):
@@ -176,8 +178,7 @@ class Feedback(pg.tuning.Feedback):
     if checkpoint_path:
       # TODO: Add official support.
       mu = vz.Metadata()
-      mu.ns(constants.METADATA_NAMESPACE)[
-          constants.WARMSTART_CHECKPOINT_PATH_KEY] = checkpoint_path
+      metadata_to_user.set_warmstart_checkpoint_path(mu, checkpoint_path)
       self._trial_client.update_metadata(mu)
     if reward is not None and not self._discard_reward:
       metrics |= {'reward': reward}
@@ -209,7 +210,8 @@ class Feedback(pg.tuning.Feedback):
     """Adds related link."""
     md = vz.Metadata()
     md.ns(constants.METADATA_NAMESPACE).ns(
-        constants.RELATED_LINKS_NAMESPACE)[name] = url
+        constants.RELATED_LINKS_SUBNAMESPACE
+    )[name] = url
     self._trial_client.update_metadata(md)
 
   def done(self,
