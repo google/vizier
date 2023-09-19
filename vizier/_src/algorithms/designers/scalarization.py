@@ -33,19 +33,19 @@ class Scalarization(abc.ABC, eqx.Module):
   """
 
   # Weights shape should be broadcastable with objectives when called.
-  weights: jt.Float[jax.Array, '#OBJ'] = eqx.field(converter=jnp.asarray)
+  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
 
   @jt.jaxtyped
   @typeguard.typechecked
   def __call__(
-      self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
-  ) -> jt.Float[jax.Array, '*BATCH']:
+      self, objectives: jt.Float[jax.Array, '*Batch Obj']
+  ) -> jt.Float[jax.Array, '*Batch']:
     pass
 
 
 # Scalarization factory from weights.
 ScalarizationFromWeights = Callable[
-    [jt.Float[jax.Array, '#OBJ']], Scalarization
+    [jt.Float[jax.Array, '#Obj']], Scalarization
 ]
 
 
@@ -55,8 +55,8 @@ class LinearScalarization(Scalarization):
   @jt.jaxtyped
   @typeguard.typechecked
   def __call__(
-      self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
-  ) -> jt.Float[jax.Array, '*BATCH']:
+      self, objectives: jt.Float[jax.Array, '*Batch Obj']
+  ) -> jt.Float[jax.Array, '*Batch']:
     return jnp.sum(self.weights * objectives, axis=-1)
 
 
@@ -66,23 +66,23 @@ class ChebyshevScalarization(Scalarization):
   @jt.jaxtyped
   @typeguard.typechecked
   def __call__(
-      self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
-  ) -> jt.Float[jax.Array, '*BATCH']:
+      self, objectives: jt.Float[jax.Array, '*Batch Obj']
+  ) -> jt.Float[jax.Array, '*Batch']:
     return jnp.min(objectives * self.weights, axis=-1)
 
 
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
 
-  reference_point: Optional[jt.Float[jax.Array, '* #OBJ']] = eqx.field(
+  reference_point: Optional[jt.Float[jax.Array, '* #Obj']] = eqx.field(
       default=None
   )
 
   @jt.jaxtyped
   @typeguard.typechecked
   def __call__(
-      self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
-  ) -> jt.Float[jax.Array, '*BATCH']:
+      self, objectives: jt.Float[jax.Array, '*Batch Obj']
+  ) -> jt.Float[jax.Array, '*Batch']:
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
     # non-convex multiobjective optimization. Removes the exponentiation
     # factor in number of objectives as it is a monotone transformation and
@@ -109,8 +109,8 @@ class LinearAugmentedScalarization(Scalarization):
   @jt.jaxtyped
   @typeguard.typechecked
   def __call__(
-      self, objectives: jt.Float[jax.Array, '*BATCH OBJ']
-  ) -> jt.Float[jax.Array, '*BATCH']:
+      self, objectives: jt.Float[jax.Array, '*Batch Obj']
+  ) -> jt.Float[jax.Array, '*Batch']:
     return self.scalarization_factory(self.weights)(
         objectives
     ) + self.augment_weight * LinearScalarization(weights=self.weights)(
