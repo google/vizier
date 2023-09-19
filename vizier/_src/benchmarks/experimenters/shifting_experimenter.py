@@ -28,17 +28,24 @@ from vizier.pyvizier import converters
 class ShiftingExperimenter(experimenter.Experimenter):
   """ShiftingExperimenter shifts the parameters of suggestions in Evaluate."""
 
-  def __init__(self, exptr: experimenter.Experimenter, shift: np.ndarray):
+  def __init__(
+      self,
+      exptr: experimenter.Experimenter,
+      shift: np.ndarray,
+      should_restrict=True,
+  ):
     """ShiftingExperiment shifts parameter values before passing to exptr.
 
-    Currently only supports flat double search spaces. Note that the parameter
-    bounds of the search space are RESTRICTED to never cause a parameter to
+    Currently only supports flat double search spaces. Note that when
+    should_restrict is True, the parameter bounds of the search space are
+    RESTRICTED to never cause a parameter to
     exceed the underlying experimenter's parameter bounds, so the problem
-    statement can change.
+    statement will change.
 
     Args:
       exptr: Underlying experimenter to be wrapped.
       shift: Shift that broadcasts to array of shape (dimension,).
+      should_restrict: Whether to restrict the parameter bounds of search space.
 
     Raises:
       ValueError: Non-positive dimension or non-broadcastable/large shift.
@@ -65,29 +72,35 @@ class ShiftingExperimenter(experimenter.Experimenter):
         study_config=exptr_problem_statement, scale=False)
 
     self._problem_statement = copy.deepcopy(exptr_problem_statement)
-    self._problem_statement.search_space = pyvizier.SearchSpace()
+    if should_restrict:
+      self._problem_statement.search_space = pyvizier.SearchSpace()
 
-    for parameter, shift in zip(exptr_problem_statement.search_space.parameters,
-                                self._shift):
-      if parameter.type != pyvizier.ParameterType.DOUBLE:
-        raise ValueError(f'Non-double parameters {parameter}')
-      if (bounds := parameter.bounds) is not None:
-        if abs(shift) >= bounds[1] - bounds[0]:
-          raise ValueError(f'Bounds {bounds} may need to be extended'
-                           f'as shift {shift} is too large ')
-        # Shift the bounds to maintain valid bounds.
-        if shift >= 0:
-          new_bounds = (bounds[0], bounds[1] - shift)
-        else:
-          # Shift is negative so this restricts the bounds.
-          new_bounds = (bounds[0] - shift, bounds[1])
-        self._problem_statement.search_space.add(
-            pyvizier.ParameterConfig.factory(
-                name=parameter.name,
-                bounds=new_bounds,
-                scale_type=parameter.scale_type,
-                default_value=parameter.default_value,
-                external_type=parameter.external_type))
+      for parameter, shift in zip(
+          exptr_problem_statement.search_space.parameters, self._shift
+      ):
+        if parameter.type != pyvizier.ParameterType.DOUBLE:
+          raise ValueError(f'Non-double parameters {parameter}')
+        if (bounds := parameter.bounds) is not None:
+          if abs(shift) >= bounds[1] - bounds[0]:
+            raise ValueError(
+                f'Bounds {bounds} may need to be extended'
+                f'as shift {shift} is too large '
+            )
+          # Shift the bounds to maintain valid bounds.
+          if shift >= 0:
+            new_bounds = (bounds[0], bounds[1] - shift)
+          else:
+            # Shift is negative so this restricts the bounds.
+            new_bounds = (bounds[0] - shift, bounds[1])
+          self._problem_statement.search_space.add(
+              pyvizier.ParameterConfig.factory(
+                  name=parameter.name,
+                  bounds=new_bounds,
+                  scale_type=parameter.scale_type,
+                  default_value=parameter.default_value,
+                  external_type=parameter.external_type,
+              )
+          )
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return copy.deepcopy(self._problem_statement)

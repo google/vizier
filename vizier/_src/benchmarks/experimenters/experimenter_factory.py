@@ -110,6 +110,8 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
   Attributes:
     base_factory:
     shift: An array of doubles that is broadcastable to dim of search space.
+    should_restrict: Whether to restrict the parameter bounds of search space
+      when shifting. Note that this will change the search space bounds.
     noise_type: Should be one of the noise types in noisy_experimenter.py
     noise_seed: Seed for the noise.
     num_normalization_samples: Number of normalization samples. If zero, no
@@ -127,6 +129,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
 
   base_factory: SerializableExperimenterFactory = attr.field()
   shift: Optional[np.ndarray] = attr.field(default=None)
+  should_restrict: bool = attr.field(default=True, kw_only=True)
   noise_type: Optional[str] = attr.field(default=None)
   noise_seed: int = attr.field(default=0)
   num_normalization_samples: int = attr.field(default=0)

@@ -159,6 +159,19 @@ class ShiftingExperimenterTest(parameterized.TestCase):
       shifting_experimenter.ShiftingExperimenter(
           exptr=exptr, shift=np.asarray(shift))
 
+    shifted_exptr = shifting_experimenter.ShiftingExperimenter(
+        exptr=exptr, shift=np.asarray(shift), should_restrict=False
+    )
+    parameters = exptr.problem_statement().search_space.parameters
+    self.assertEqual(
+        parameters, shifted_exptr.problem_statement().search_space.parameters
+    )
+    t = pyvizier.Trial(
+        parameters={
+            param.name: float(index) for index, param in enumerate(parameters)
+        }
+    )
+    shifted_exptr.evaluate([t])
 
 if __name__ == '__main__':
   absltest.main()
