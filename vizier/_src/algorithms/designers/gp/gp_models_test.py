@@ -93,7 +93,7 @@ def _setup_lambda_search(
       ard_optimizer=optimizers.default_optimizer(),
       ard_rng=jax.random.PRNGKey(0),
       coroutine=gp_models.get_vizier_gp_coroutine(
-          features=train_data.features, linear_coef=linear_coef
+          data=train_data, linear_coef=linear_coef
       ),
       ensemble_size=ensemble_size,
       ard_random_restarts=optimizers.DEFAULT_RANDOM_RESTARTS,
@@ -400,9 +400,7 @@ class StackedResidualGPTest(parameterized.TestCase):
     train_spec = gp_models.GPTrainingSpec(
         ard_optimizer=optimizers.default_optimizer(),
         ard_rng=jax.random.PRNGKey(0),
-        coroutine=gp_models.get_vizier_gp_coroutine(
-            features=model_data.features, labels=model_data.labels
-        ),
+        coroutine=gp_models.get_vizier_gp_coroutine(data=model_data),
     )
     gp = gp_models.train_gp(train_spec, model_data)
 

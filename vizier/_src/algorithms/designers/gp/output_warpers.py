@@ -38,9 +38,12 @@ def _validate_labels(labels_arr: types.Array) -> types.Array:
   """Checks and modifies the shape and values of the labels."""
   labels_arr = labels_arr.astype(float)
   if not (labels_arr.ndim == 2 and labels_arr.shape[-1] == 1):
-    raise ValueError('Labels need to be an array of shape (num_points, 1).')
+    raise ValueError(
+        'Labels need to be an array of shape (num_points, 1).'
+        f'Got shape: {labels_arr.shape}'
+    )
   if np.isposinf(labels_arr).any():
-    raise ValueError('Inifinity metric value is not valid.')
+    raise ValueError('Infinity metric value is not valid.')
   if np.isneginf(labels_arr).any():
     labels_arr[np.isneginf(labels_arr)] = np.nan
   return labels_arr

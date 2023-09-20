@@ -148,8 +148,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Extra validations
     if self._problem.search_space.is_conditional:
       raise ValueError(f'{type(self)} does not support conditional search.')
-    elif len(self._problem.metric_information) != 1:
-      raise ValueError(f'{type(self)} works with exactly one metric.')
     # Extra initializations.
     # Discrete parameters are continuified to account for their actual values.
     self._converter = converters.TrialToModelInputConverter.from_problem(
@@ -175,7 +173,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         ),
     )
 
-    coroutine = gp_models.get_vizier_gp_coroutine(empty_data.features)
+    coroutine = gp_models.get_vizier_gp_coroutine(empty_data)
     params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
     predictive = sp.UniformEnsemblePredictive(
@@ -305,7 +303,13 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   @_experimental_override_allowed
   def _warp_labels(self, labels: types.Array) -> types.Array:
     """Subclasses can override this method for experiments."""
-    return self._output_warper.warp(labels)
+    return np.concatenate(
+        [
+            self._output_warper.warp(labels[:, i : i + 1])
+            for i in range(labels.shape[1])
+        ],
+        axis=-1,
+    )
 
   @profiler.record_runtime
   def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
@@ -341,7 +345,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         ard_optimizer=self._ard_optimizer,
         ard_rng=ard_rng,
         coroutine=gp_models.get_vizier_gp_coroutine(
-            features=data.features, linear_coef=self._linear_coef
+            data=data, linear_coef=self._linear_coef
         ),
         ensemble_size=self._ensemble_size,
         ard_random_restarts=self._ard_random_restarts,

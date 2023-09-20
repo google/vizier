@@ -25,6 +25,7 @@ import jax
 from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+from vizier._src.algorithms.designers import scalarization
 from vizier._src.jax import types
 from vizier._src.jax.models import continuous_only_kernel
 
@@ -516,6 +517,21 @@ class QUCB(AcquisitionFunction):
         num_samples=self.num_samples,
         observations=None,
     )()
+
+
+@struct.dataclass
+class ScalarizedAcquisition(AcquisitionFunction):
+  """Wrapper that scalarizes multiple objective before acquisition eval."""
+
+  acquisition_fn: AcquisitionFunction
+  scalarizer: scalarization.Scalarization
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      seed: Optional[jax.random.KeyArray] = None,
+  ) -> jax.Array:
+    return jnp.squeeze(self.scalarizer(self.acquisition_fn(dist, seed)))
 
 
 @struct.dataclass

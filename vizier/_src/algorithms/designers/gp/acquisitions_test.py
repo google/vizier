@@ -21,10 +21,10 @@ from jax import numpy as jnp
 from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
+from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
 from absl.testing import absltest
-
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
 tfpke = tfp.experimental.psd_kernels
@@ -68,6 +68,16 @@ class AcquisitionsTest(absltest.TestCase):
             tfd.Normal(jnp.float64(0.1), 1),
         ),
         0.34635347,
+    )
+
+  def test_scalarized_ucb(self):
+    ucb = acquisitions.UCB(coefficient=2.0)
+    scalarizer = scalarization.HyperVolumeScalarization(
+        weights=jnp.array([0.1, 0.2])
+    )
+    acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
+    self.assertAlmostEqual(
+        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(21), delta=1e-5
     )
 
   def test_pi(self):
