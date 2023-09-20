@@ -87,7 +87,7 @@ class ObjectiveRewardGenerator:
         regularized_reward = (
             obj_reward + self.reward_regularization * objective_curve.ys[:, idx]
         )
-        rewards.append(max(self.min_reward, float(regularized_reward)))
+        rewards.append(max(self.min_reward, np.squeeze(regularized_reward)))
       return rewards
 
 
