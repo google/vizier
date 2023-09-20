@@ -24,7 +24,7 @@ Articles
 Videos/Talks
 ------------
 
--  `AutoML Conference 2023 Tutorial <https://www.tele-task.de/lecture/video/10145/>`__ (`Hands-on Colab <https://github.com/google/vizier/blob/main/docs/tutorials/automl_conf_2023.ipynb>`__)
+-  `AutoML Conference 2023 Tutorial <https://youtu.be/Xpdn_9uPEZY?si=wHXLYVV_j0yE5sLI>`__ (`Hands-on Colab <https://github.com/google/vizier/blob/main/docs/tutorials/automl_conf_2023.ipynb>`__)
 -  `AutoML Seminar 2023 Talk <https://youtu.be/Ya_V5isGdG8>`__
 -  `AutoML Conference 2022 Paper Presentation <https://youtu.be/b5hemgM16tM>`__
 -  `AutoML Conference 2022 AutoRL Tutorial <https://youtu.be/9FDqUsByRiQ>`__
