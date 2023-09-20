@@ -15,19 +15,24 @@
 from __future__ import annotations
 
 """Grid Search Designer which searches over a discretized grid of Trial parameter values."""
+
 import copy
 import random
 from typing import Dict, List, Optional, Sequence
+
 from absl import logging
+import attrs
 import numpy as np
 from vizier import algorithms
 from vizier import pyvizier
 from vizier.interfaces import serializable
 from vizier.pyvizier import converters
 
+
 GridValues = Dict[str, List[pyvizier.ParameterValue]]
 
 
+@attrs.define(auto_attribs=False, init=False)
 class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   """Grid Search designer.
 
@@ -39,11 +44,12 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
   use in Pythia, thus requiring load/dump implementations.
   """
 
-  _unshuffled_grid_values: GridValues
-  _grid_values: GridValues
-  _current_index: int
-  _shuffle_seed: Optional[int]
-  _double_grid_resolution: int
+  _unshuffled_grid_values: GridValues = attrs.field()
+  _grid_values: GridValues = attrs.field()
+  _current_index: int = attrs.field()
+  _shuffle_seed: Optional[int] = attrs.field()
+  _double_grid_resolution: int = attrs.field()
+
   _metadata_ns: str = 'grid'  # class-level constant.
 
   def __init__(
