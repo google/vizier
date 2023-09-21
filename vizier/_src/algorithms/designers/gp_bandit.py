@@ -294,10 +294,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
               parameters, metadata=vz.Metadata({'seeded': 'center'})
           )
       )
-    if (remaining_counts := count - len(seed_suggestions)) > 0:
-      seed_suggestions.extend(
-          self._quasi_random_sampler.suggest(remaining_counts)
-      )
+    with profiler.timeit('quasi_random_sampler_seed_trials'):
+      if (remaining_counts := count - len(seed_suggestions)) > 0:
+        seed_suggestions.extend(
+            self._quasi_random_sampler.suggest(remaining_counts)
+        )
     return seed_suggestions
 
   @_experimental_override_allowed
