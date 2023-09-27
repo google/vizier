@@ -120,6 +120,7 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
     Returns:
       A `tfd.GaussianProcess` with the given index points.
     """
+    # pytype: disable=not-callable  # jnp-type
     amplitude = yield sp_model.ModelParameter.from_prior(
         tfd.LogNormal(self.dtype(0.0), 1.0, name='amplitude'),
         constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
@@ -160,6 +161,7 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
                       name='observation_noise_variance'),
         constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
     )
+    # pytype: enable=not-callable
     if inputs is not None:
       inputs = tfpke.ContinuousAndCategoricalValues(
           inputs.continuous.padded_array, inputs.categorical.padded_array

@@ -232,6 +232,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       # This configuration updates all the fireflies in each iteration.
       suggestion_batch_size = pool_size
     # Use priors to populate Eagle state
+    # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategy(
         n_feature_dimensions=n_feature_dimensions,
         n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
@@ -242,6 +243,7 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         max_categorical_size=max_categorical_size,
         dtype=converter._impl.dtype,
     )
+    # pytype: enable=wrong-arg-types
 
 
 @struct.dataclass
@@ -343,6 +345,7 @@ class VectorizedEagleStrategy(
       init_features = self._sample_random_features(
           self.pool_size, n_parallel=n_parallel, seed=seed
       )
+    # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategyState(
         iterations=jnp.array(0),
         features=init_features,
@@ -350,6 +353,7 @@ class VectorizedEagleStrategy(
         best_reward=-jnp.inf,
         perturbations=jnp.ones(self.pool_size) * self.config.perturbation,
     )
+    # pytype: enable=wrong-arg-types
 
   def _sample_random_features(
       self, num_samples: int, n_parallel: int, seed: jax.random.KeyArray
@@ -664,12 +668,14 @@ class VectorizedEagleStrategy(
     if self.config.mutate_normalization_type == MutateNormalizationType.MEAN:
       # Divide the push and pull forces by the number of flies participating.
       # Also multiply by normalization_scale.
+      # pytype: disable=wrong-arg-types  # jnp-type
       norm_scaled_pulls = self.config.normalization_scale * jnp.nan_to_num(
           scaled_pulls / jnp.sum(scaled_pulls > 0.0, axis=1, keepdims=True), 0
       )
       norm_scaled_push = self.config.normalization_scale * jnp.nan_to_num(
           scaled_push / jnp.sum(scaled_push < 0.0, axis=1, keepdims=True), 0
       )
+      # pytype: enable=wrong-arg-types
     elif self.config.mutate_normalization_type == (
         MutateNormalizationType.RANDOM
     ):

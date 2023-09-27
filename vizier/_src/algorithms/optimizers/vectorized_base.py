@@ -286,7 +286,7 @@ class VectorizedOptimizer(Generic[_S]):
   max_evaluations: int = struct.field(pytree_node=False, default=75_000)
   dtype: types.ContinuousAndCategorical[jnp.dtype] = struct.field(
       pytree_node=False,
-      default=types.ContinuousAndCategorical[jnp.dtype](
+      default=types.ContinuousAndCategorical[jnp.dtype](  # pytype: disable=wrong-arg-types  # jnp-type
           jnp.float64, types.INT_DTYPE
       ),
   )

@@ -649,8 +649,8 @@ class LinearOutputWarper:
       raise ValueError('labels can not have any NaN entry.')
     self._min_value = jnp.min(y, axis=0)
     self._max_value = jnp.max(y, axis=0)
-    self.low_bound = jnp.array(self.low_bound)
-    self.high_bound = jnp.array(self.high_bound)
+    self.low_bound = jnp.array(self.low_bound)  # pytype: disable=annotation-type-mismatch  # jnp-type
+    self.high_bound = jnp.array(self.high_bound)  # pytype: disable=annotation-type-mismatch  # jnp-type
     # The linear transformation is:
     # norm_y = (y - self._min_value) / (self._max_value - self._min_value)
     # return norm_y * (self.high_bound - self.low_bound) + self.low_bound
