@@ -430,6 +430,11 @@ class ModelInputArrayBijector:
       )
 
     if spec.scale == pyvizier.ScaleType.LOG:
+      if low < 0 or high < 0:
+        raise ValueError(
+            'Log scale requires both parameter boundaries to be positive,'
+            f' though low bound is {low} and high bound is {high}.'
+        )
       low, high = np.log(low), np.log(high)
       denom = (high - low) or 1.0
       if denom < 1e-6:
@@ -555,7 +560,7 @@ class DefaultModelInputConverter(ModelInputConverter):
         continuified first.
       scale:
       onehot_embed:
-      converts_to_parameter: If False, this converter does not correspodn to an
+      converts_to_parameter: If False, this converter does not correspond to an
         actual parameter in Vizier search space, and `to_parameter_value` always
         returns None
       pad_oovs: If True, pad the out-of-vocabulary dimensions to onehot

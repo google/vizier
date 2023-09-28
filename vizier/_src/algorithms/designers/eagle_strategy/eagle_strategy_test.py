@@ -188,8 +188,12 @@ class EagleStrategyTest(parameterized.TestCase):
   @parameterized.parameters(1, 3, 5)
   def test_suggest_update(self, batch_size):
     problem = vz.ProblemStatement()
-    problem.search_space.select_root().add_float_param('float1', 0.0, 5.0)
-    problem.search_space.select_root().add_float_param('float2', -2.0, 5.0)
+    problem.search_space.select_root().add_float_param(
+        'float1', 1e-2, 1e3, scale_type=vz.ScaleType.LOG
+    )
+    problem.search_space.select_root().add_float_param(
+        'float2', -2.0, 5.0, scale_type=vz.ScaleType.LINEAR
+    )
     problem.search_space.select_root().add_int_param(
         'int', min_value=0, max_value=10
     )
