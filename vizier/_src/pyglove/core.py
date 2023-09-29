@@ -118,6 +118,21 @@ class VizierTrial(pg.tuning.Trial):
     return super().format(*args, **kwargs)
 
 
+def _parse_namespace_from_key(
+    encoded_key: str, default_ns: vz.Namespace
+) -> tuple[vz.Namespace, str]:
+  """From ':ns:key' to (ns, key)."""
+  ns_and_key = tuple(vz.Namespace.decode(encoded_key))
+  if not ns_and_key:
+    raise ValueError(
+        f'String did not parse into namespace and key: {encoded_key}'
+    )
+  elif len(ns_and_key) == 1:
+    return (default_ns, ns_and_key[-1])
+  else:
+    return (vz.Namespace(ns_and_key[:-1]), ns_and_key[-1])
+
+
 class Feedback(pg.tuning.Feedback):
   """Tuning feedback for a vizier trial."""
 
@@ -197,13 +212,32 @@ class Feedback(pg.tuning.Feedback):
       self._trial_client.study.update_metadata(md)
 
   def get_metadata(self, key: str, per_trial: bool = True) -> Optional[Any]:
-    """Gets metadata for current trial or current sampling."""
+    """Gets metadata for current trial or current sampling.
+
+    Args:
+      key: A key to the Trial or StudyConfig metadata.  Vizier treats this as
+        {namespace}:{key} where colons in {key} are escaped with a backslash,
+        and {namespace} is encoded per vizier.pyvizier.Namespace.encode (i.e.
+        colons are escaped and namespace components are separated by colons).
+        But for the special case of the empty namespace, this simplifies to be
+        just the key string.
+      per_trial: True if you want to see per-trial metadata for the current
+        Trial; false for study-related metadata.
+
+    Returns:
+      A metadata item, interpreted as JSON format.
+    """
+    abs_ns, key_in_ns = _parse_namespace_from_key(
+        key, default_ns=vz.Namespace([constants.METADATA_NAMESPACE])
+    )
     if per_trial:
-      value = self._trial.metadata.ns(constants.METADATA_NAMESPACE).get(
-          key, None)
+      value = self._trial.metadata.abs_ns(abs_ns).get(key_in_ns, None)
     else:
-      value = self._trial_client.study.materialize_problem_statement(
-      ).metadata.ns(constants.METADATA_NAMESPACE).get(key, None)
+      value = (
+          self._trial_client.study.materialize_problem_statement()
+          .metadata.abs_ns(abs_ns)
+          .get(key_in_ns, None)
+      )
     return pg.from_json_str(value) if value is not None else None
 
   def add_link(self, name: str, url: str) -> None:
