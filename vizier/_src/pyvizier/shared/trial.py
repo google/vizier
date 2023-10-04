@@ -618,7 +618,7 @@ class Trial(TrialSuggestion):
   @property
   def final_measurement_or_die(self) -> Measurement:
     if self.final_measurement is None:
-      raise ValueError('Trial is missing final_measurement.')
+      raise ValueError(f'Trial is missing final_measurement: {self}')
     return self.final_measurement
 
 
