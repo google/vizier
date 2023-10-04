@@ -52,7 +52,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
 
   def init_state(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       n_parallel: int = 1,
       *,
       prior_features: Optional[vb.VectorizedOptimizerInput] = None,
@@ -62,7 +62,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
 
   def suggest(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: None,
       n_parallel: int = 1,
   ) -> vb.VectorizedOptimizerInput:
@@ -88,7 +88,7 @@ class FakeVectorizedStrategy(vb.VectorizedStrategy):
 
   def update(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: None,
       batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,

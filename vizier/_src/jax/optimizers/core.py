@@ -71,7 +71,7 @@ class Optimizer(Protocol[Params]):
       self,
       init_params: Params,
       loss_fn: LossFunction[Params],
-      rng: jax.random.KeyArray,
+      rng: jax.Array,
       *,
       constraints: Optional[sp.Constraint] = None,
       best_n: Optional[int] = None,

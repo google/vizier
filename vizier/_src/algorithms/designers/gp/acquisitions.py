@@ -42,7 +42,7 @@ class AcquisitionFunction(Protocol):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     pass
 
@@ -50,11 +50,11 @@ class AcquisitionFunction(Protocol):
 class ScoreFunction(Protocol):
   """Protocol for scoring candidate points."""
 
-  def score(self, xs: types.ModelInput, seed: jax.random.KeyArray) -> jax.Array:
+  def score(self, xs: types.ModelInput, seed: jax.Array) -> jax.Array:
     pass
 
   def score_with_aux(
-      self, xs: types.ModelInput, seed: jax.random.KeyArray
+      self, xs: types.ModelInput, seed: jax.Array
   ) -> tuple[jax.Array, chex.ArrayTree]:
     pass
 
@@ -84,7 +84,7 @@ def sample_from_predictive(
     xs: types.ModelInput,
     num_samples: int,
     *,
-    key: jax.random.KeyArray
+    key: jax.Array
 ) -> jax.Array:
   return predictive.predict_with_aux(xs)[0].sample([num_samples], seed=key)
 
@@ -144,11 +144,11 @@ class BayesianScoringFunction(eqx.Module):
   # If set, uses trust region.
   trust_region: Optional['TrustRegion']
 
-  def score(self, xs, seed: jax.random.KeyArray) -> jax.Array:
+  def score(self, xs, seed: jax.Array) -> jax.Array:
     return self.score_with_aux(xs, seed)[0]
 
   def score_with_aux(
-      self, xs, seed: jax.random.KeyArray
+      self, xs, seed: jax.Array
   ) -> tuple[jax.Array, chex.ArrayTree]:
     jax.monitoring.record_event(
         '/vizier/jax/acquisitions/bayesian_scoring_function/score_with_aux/traced'
@@ -179,7 +179,7 @@ class UCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     return dist.mean() + self.coefficient * dist.stddev()
@@ -194,7 +194,7 @@ class LCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     return dist.mean() - self.coefficient * dist.stddev()
@@ -209,7 +209,7 @@ class HyperVolumeScalarization(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
@@ -226,7 +226,7 @@ class EI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     return tfp_bo.acquisition.GaussianProcessExpectedImprovement(
@@ -243,7 +243,7 @@ class PI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
@@ -299,11 +299,11 @@ class MaxValueEntropySearch(eqx.Module):
     trust_region = TrustRegion(data.features) if use_trust_region else None
     return cls(tfp_mes, trust_region=trust_region)
 
-  def score(self, xs: types.ModelInput, seed: jax.random.KeyArray) -> jax.Array:
+  def score(self, xs: types.ModelInput, seed: jax.Array) -> jax.Array:
     return self.score_with_aux(xs, seed)[0]
 
   def score_with_aux(
-      self, xs: types.ModelInput, seed: jax.random.KeyArray
+      self, xs: types.ModelInput, seed: jax.Array
   ) -> tuple[jax.Array, chex.ArrayTree]:
     del seed
     if xs.categorical.shape[-1] > 0:
@@ -417,7 +417,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     del seed
     threshold_values = self.thresholding_acquisition(dist)
@@ -453,7 +453,7 @@ class QEI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     if seed is None:
       raise ValueError('QEI requires a value for `seed`.')
@@ -475,7 +475,7 @@ class QPI(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     if seed is None:
       raise ValueError('QPI requires a value for `seed`.')
@@ -506,7 +506,7 @@ class QUCB(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     if seed is None:
       raise ValueError('QEI requires a value for `seed`.')
@@ -529,7 +529,7 @@ class ScalarizedAcquisition(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     return jnp.squeeze(self.scalarizer(self.acquisition_fn(dist, seed)))
 
@@ -543,7 +543,7 @@ class MultiAcquisitionFunction(AcquisitionFunction):
   def __call__(
       self,
       dist: tfd.Distribution,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     acquisitions = []
     if seed is None:

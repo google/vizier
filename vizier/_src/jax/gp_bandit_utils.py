@@ -47,7 +47,7 @@ def stochastic_process_model_loss_fn(
 
 
 def stochastic_process_model_setup(
-    key: jax.random.KeyArray,
+    key: jax.Array,
     model: sp.StochasticProcessModel,
     data: types.ModelData,
 ):

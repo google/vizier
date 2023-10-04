@@ -107,7 +107,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       factory=padding.PaddingSchedule, kw_only=True
   )
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
-  _rng: jax.random.KeyArray = attr.field(
+  _rng: jax.Array = attr.field(
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
   )
   _metadata_ns: str = attr.field(
@@ -339,7 +339,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   @_experimental_override_allowed
   def _create_gp_spec(
-      self, data: types.ModelData, ard_rng: jax.random.KeyArray
+      self, data: types.ModelData, ard_rng: jax.Array
   ) -> gp_models.GPTrainingSpec:
     """Overrideable creation of a training spec for a GP model."""
     return gp_models.GPTrainingSpec(
@@ -356,7 +356,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def _train_prior_gp(
       self,
       priors: Sequence[types.ModelData],
-      ard_rng: jax.random.KeyArray,
+      ard_rng: jax.Array,
   ):
     """Trains a transfer-learning-enabled GP with prior studies.
 
@@ -495,7 +495,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def sample(
       self,
       trials: Sequence[vz.TrialSuggestion],
-      rng: Optional[jax.random.KeyArray] = None,
+      rng: Optional[jax.Array] = None,
       num_samples: Optional[int] = None,
   ) -> types.Array:
     """Returns unwarped samples from the model for any given trials.
@@ -547,7 +547,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def predict(
       self,
       trials: Sequence[vz.TrialSuggestion],
-      rng: Optional[jax.random.KeyArray] = None,
+      rng: Optional[jax.Array] = None,
       num_samples: Optional[int] = None,
   ) -> vza.Prediction:
     """Returns the mean and stddev for any given trials.

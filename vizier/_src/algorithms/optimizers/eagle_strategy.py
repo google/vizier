@@ -318,7 +318,7 @@ class VectorizedEagleStrategy(
 
   def init_state(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       n_parallel: int = 1,
       *,
       prior_features: Optional[vb.VectorizedOptimizerInput] = None,
@@ -356,7 +356,7 @@ class VectorizedEagleStrategy(
     # pytype: enable=wrong-arg-types
 
   def _sample_random_features(
-      self, num_samples: int, n_parallel: int, seed: jax.random.KeyArray
+      self, num_samples: int, n_parallel: int, seed: jax.Array
   ) -> vb.VectorizedOptimizerInput:
     cont_seed, cat_seed = jax.random.split(seed)
 
@@ -388,7 +388,7 @@ class VectorizedEagleStrategy(
 
   def _populate_pool_with_prior_trials(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       prior_features: types.ContinuousAndCategoricalArray,
       prior_rewards: types.Array,
   ) -> types.ContinuousAndCategoricalArray:
@@ -535,7 +535,7 @@ class VectorizedEagleStrategy(
 
   def suggest(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: VectorizedEagleStrategyState,
       n_parallel: int = 1,
   ) -> vb.VectorizedOptimizerInput:
@@ -607,7 +607,7 @@ class VectorizedEagleStrategy(
       features_batch: vb.VectorizedOptimizerInput,
       rewards_batch: jax.Array,
       perturbations_batch: types.ContinuousAndCategoricalArray,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
   ) -> vb.VectorizedOptimizerInput:
     """Create new batch of mutated and perturbed features.
 
@@ -815,7 +815,7 @@ class VectorizedEagleStrategy(
       self,
       perturbations_batch: jax.Array,
       n_parallel: int,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
   ) -> types.ContinuousAndCategoricalArray:
     """Create random perturbations for the newly created batch.
 
@@ -875,7 +875,7 @@ class VectorizedEagleStrategy(
 
   def update(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: VectorizedEagleStrategyState,
       batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
@@ -1004,7 +1004,7 @@ class VectorizedEagleStrategy(
       batch_rewards: jax.Array,
       batch_perturbations: jax.Array,
       best_reward: jax.Array,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
   ) -> Tuple[vb.VectorizedOptimizerInput, jax.Array, jax.Array]:
     """Trim the pool by replacing unsuccessful fireflies with new random ones.
 

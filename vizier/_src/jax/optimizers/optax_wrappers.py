@@ -68,7 +68,7 @@ class OptaxTrain(core.Optimizer[core.Params]):
       self,
       init_params: core.Params,
       loss_fn: core.LossFunction[core.Params],
-      rng: jax.random.KeyArray,
+      rng: jax.Array,
       *,
       constraints: Optional[sp.Constraint] = None,
       best_n: Optional[int] = None,

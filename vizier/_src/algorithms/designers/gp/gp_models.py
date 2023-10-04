@@ -48,7 +48,7 @@ class GPTrainingSpec(eqx.Module):
   """
 
   ard_optimizer: optimizers.Optimizer[types.ParameterDict]
-  ard_rng: jax.random.KeyArray
+  ard_rng: jax.Array
   coroutine: sp.ModelCoroutine
   ensemble_size: int = eqx.field(static=True, default=1)
   ard_random_restarts: int = eqx.field(

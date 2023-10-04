@@ -48,7 +48,7 @@ class InitFn(Protocol):
   """Protocol for Flax parameter initialization functions."""
 
   @abc.abstractmethod
-  def __call__(self, rng: jax.random.KeyArray) -> jax.Array:
+  def __call__(self, rng: jax.Array) -> jax.Array:
     pass
 
 
@@ -871,7 +871,7 @@ class UniformEnsemblePredictive(eqx.Module):
 
 
 def _initialize_params(
-    coroutine: ModelCoroutine, rng: jax.random.KeyArray
+    coroutine: ModelCoroutine, rng: jax.Array
 ) -> chex.ArrayTree:
   """Randomly initializes a coroutine's parameters."""
   gen = coroutine()
@@ -896,7 +896,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
   params: chex.ArrayTree
 
   @classmethod
-  def initialize(cls, coroutine: ModelCoroutine, *, rng: jax.random.KeyArray):
+  def initialize(cls, coroutine: ModelCoroutine, *, rng: jax.Array):
     """Builds module parameters."""
     # return cls(coroutine, params=_initialize_params(coroutine, rng))
     # TODO: Put back the line above. This code currently uses
@@ -942,7 +942,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
   def loss_with_aux(
       self,
       data: types.ModelData,
-      seed: Optional[jax.random.KeyArray] = None,
+      seed: Optional[jax.Array] = None,
   ) -> tuple[jax.Array, chex.ArrayTree]:
     dist, aux = self.call_with_aux(data.features)
 
@@ -1011,14 +1011,14 @@ class CoroutineWithData(eqx.Module):
   def constraints(self):
     return get_constraints(StochasticProcessModel(self.coroutine))
 
-  def setup(self, rng: jax.random.KeyArray):
+  def setup(self, rng: jax.Array):
     jax.monitoring.record_event('/vizier/jax/coroutine_with_data/setup/traced')
     return StochasticProcessWithCoroutine.initialize(
         self.coroutine, rng=rng
     ).params
 
   def loss_with_aux(
-      self, params, seed: Optional[jax.random.KeyArray] = None
+      self, params, seed: Optional[jax.Array] = None
   ) -> tuple[jax.Array, chex.ArrayTree]:
     jax.monitoring.record_event(
         '/vizier/jax/coroutine_with_data/loss_with_aux/traced'

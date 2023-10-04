@@ -114,7 +114,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
   @abc.abstractmethod
   def init_state(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       n_parallel: int = 1,
       *,
       prior_features: Optional[VectorizedOptimizerInput] = None,
@@ -137,7 +137,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
   @abc.abstractmethod
   def suggest(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: _S,
       n_parallel: int = 1,
   ) -> VectorizedOptimizerInput:
@@ -162,7 +162,7 @@ class VectorizedStrategy(abc.ABC, Generic[_S]):
   @abc.abstractmethod
   def update(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: _S,
       batch_features: VectorizedOptimizerInput,
       batch_rewards: types.Array,
@@ -209,7 +209,7 @@ class ArrayScoreFunction(Protocol):
   def __call__(
       self,
       batched_array_trials: types.ModelInput,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
   ) -> types.Array:
     """Evaluates the array of batched trials.
 
@@ -234,7 +234,7 @@ class ParallelArrayScoreFunction(Protocol):
   def __call__(
       self,
       parallel_array_trials: types.ModelInput,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
   ) -> types.Array:
     """Evaluates the array of batched trials.
 

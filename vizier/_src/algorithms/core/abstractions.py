@@ -182,7 +182,7 @@ class Predictor(abc.ABC):
   def predict(
       self,
       trials: Sequence[vz.TrialSuggestion],
-      rng: Optional[jax.random.KeyArray] = None,
+      rng: Optional[jax.Array] = None,
       num_samples: Optional[int] = None,
   ) -> Prediction:
     """Returns the mean and stddev for any given suggestions.

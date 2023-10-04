@@ -49,7 +49,7 @@ class FakeIncrementVectorizedStrategy(
 
   def suggest(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: FakeIncrementVectorizedStrategyState,
       n_parallel: int = 1,
   ) -> vb.VectorizedOptimizerInput:
@@ -76,7 +76,7 @@ class FakeIncrementVectorizedStrategy(
 
   def update(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: FakeIncrementVectorizedStrategyState,
       batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
@@ -85,7 +85,7 @@ class FakeIncrementVectorizedStrategy(
 
   def init_state(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       n_parallel: int = 1,
       *,
       prior_features: Optional[vb.VectorizedOptimizerInput] = None,
@@ -118,7 +118,7 @@ class FakePriorTrialsVectorizedStrategy(
 
   def init_state(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       n_parallel: int = 1,
       *,
       prior_features: Optional[vb.VectorizedOptimizerInput] = None,
@@ -132,7 +132,7 @@ class FakePriorTrialsVectorizedStrategy(
 
   def suggest(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: FakePriorTrialsStrategyState,
       n_parallel: int = 1,
   ) -> vb.VectorizedOptimizerInput:
@@ -149,7 +149,7 @@ class FakePriorTrialsVectorizedStrategy(
 
   def update(
       self,
-      seed: jax.random.KeyArray,
+      seed: jax.Array,
       state: FakePriorTrialsStrategyState,
       batch_features: vb.VectorizedOptimizerInput,
       batch_rewards: types.Array,
