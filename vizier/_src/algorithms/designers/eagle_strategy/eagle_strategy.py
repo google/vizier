@@ -16,48 +16,58 @@ from __future__ import annotations
 
 """Pythia Eagle Strategy Designer.
 
-Implements a variation of Eagle Strategy without the Levy random walk, aka
-Firefly Algorithm (FA).
+The designer implements a variation of Eagle Strategy without the Levy random
+walk, aka Firefly Algorithm [1].
 
-Reference: Yang XS. (2009) Firefly Algorithms for Multimodal Optimization.
+[1] Yang XS. (2009) Firefly Algorithms for Multimodal Optimization.
 In: Stochastic Algorithms: Foundations and Applications (SAGA) 2009.
 DOI: https://doi.org/10.1007/978-3-642-04944-6_14
 
 
 Firefly Algorithm Summary
 =========================
-FA is a genetic algorithm that maintains a pool of fireflies. Each
-firefly emits a light whose intensity is non-decreasing in (or simply equal
-to) the objective value. Each iteration, a firefly chases after a brighter
-firefly, but the brightness it perceives decreases in distance. This allows
-multiple "clusters" to form, as opposed to all fireflies collapsing to a
-single point. Not included in the original algorithm, we added "repulsion" which
-in addition to the "attraction" forces, meaning fireflies move towards the
-bright spots as well as away from the dark spots. We also support non-decimal
-parameter types (categorical, discrete, integer), and treat them uniquely when
-computing distance, adding pertrubation, and mutating fireflies.
+The Firefly algorithm is a genetic algorithm that operates by maintaining a
+population of fireflies. Each firefly emits a light whose intensity corresponds
+to the objective value being optimized. During each iteration, a firefly chases
+after a brighter firefly in its vicinity, with the perceived brightness
+diminishing as the distance increases. This feature fosters the formation of
+multiple "clusters" of fireflies, as opposed to all fireflies converging to a
+single point.
 
-For more details, see the linked paper.
+In addition to the inherent "attraction" forces guiding fireflies towards
+brighter areas, we have incorporated a "repulsion" mechanism into the algorithm.
+This means that fireflies not only move towards the brighter spots but also
+actively move away from darker regions, enhancing the algorithm's exploration
+capabilities.
+
+We also incorporated support for various parameter types, including categorical,
+discrete, and integer variables. We treat these parameter types uniquely when
+computing distances, applying perturbations, and performing mutations on
+fireflies, ensuring the algorithm's versatility in optimizing a wide range of
+problem domains.
+
+For more details about the Firefly algorithm, please refer to the linked paper.
 
 OSS Vizier Implementation Summary
 =================================
-We maintain a pool of fireflies. Each firefly stores the best trial it created.
-During 'Suggest' each firefly on its turn is used to suggest a new trial. The
-best trial parameters are used to compute distances and to generate new
-suggested parameters by calling the '_mutate' and '_perturb' methods. During
-'Update' the trial results comeback and we create a new firefly if needed or
-update/remove the associated firefly in the pool. To facilitate this
-association, during 'Suggest', the newly created suggested trial stores in
-its metadata the id of its parent firefly ('parent_fly_id'). Throughout the
-study lifetime, the same firefly could be associated with multiple trials
-created from it.
+We maintain a dynamic pool of fireflies, with each firefly holding information
+about the best trial it has produced. During the 'Suggest' phase, each firefly
+takes its turn to propose a new trial. The best trial parameters are used to
+calculate distances and generate fresh parameter suggestions by invoking the
+'_mutate' and '_perturb' methods.
 
-In our stateful implementation, across 'Suggest' calls, we persist the pool of
-fireflies and update it using previously unseen COMPLETED trials. We also
-persist the last firefly used to generate a suggestion so to not use
-sequentially the same firefly even if there are ACTIVE trials. Lastly we persist
-the maximum value of firefly id created, to ensure that each firefly has its own
-unique id.
+When the results of the suggested trials come in during the 'Update' phase,
+we update/remove the corresponding firefly from the pool or create a new firefly
+if necessary. To facilitate this association, during the 'Suggest' phase, each
+newly sugggested trial stores in its metadata the identifier of its parent
+firefly, denoted as 'parent_fly_id.' Over the course of the designer run, the
+same firefly can be linked to multiple (child) trials that originated from it.
+
+In our stateful implementation, across successive 'Suggest' calls, we
+persistently maintain the firefly pool and update it using any new COMPLETED
+trials that have not been seen before. We also ensure to not consecutively use
+the same firefly for generating suggestions. Lastly we persist the maximum value
+of firefly id created, to ensure that each firefly has its own unique id.
 """
 
 import json
@@ -91,7 +101,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       *,
       config: Optional[FireflyAlgorithmConfig] = None,
       seed: Optional[int] = None,
-      verbose: bool = True,
   ):
     """Initializes the Eagle Strategy desiger.
 
@@ -99,7 +108,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       problem_statement: A problem description including the search space.
       config: The Firefly algorithm hyperparameters.
       seed: A seed to deterministically generate samples from random variables.
-      verbose: Whether to display
 
     Raises:
       Exception: if the problem statement includes condional search space,
@@ -282,11 +290,12 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         # Update the parameters using 'other_fly' and 'explore_pull_rate'.
         mutated_parameters[param_config.name] = (
             self._utils.combine_two_parameters(
-                param_config,
-                other_fly.trial.parameters,
-                mutated_parameters,
-                explore_pull_weight,
-            ))
+                param_config=param_config,
+                param1=other_fly.trial.parameters,
+                param2=mutated_parameters,
+                param1_weight=explore_pull_weight,
+            )
+        )
 
   def _perturb_fly(self, moving_fly: Firefly) -> None:
     """Perturbs the fly's trial parameters inplace.
@@ -366,7 +375,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
 
     elif not trial.infeasible and self._utils.is_better_than(
         trial, parent_fly.trial):
-      # If there's an improvement, we update the parent with the new trial.
+      # There's improvement. Update the parent with the new trial.
       logging.info(
           'Good step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',
           self._utils.get_metric(parent_fly.trial),
@@ -377,7 +386,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       parent_fly.trial = trial
       parent_fly.generation += 1
     else:
-      # If there's no improvement, we penalize the parent by decreasing its
+      # There's no improvement. Penalize the parent by decreasing its
       # exploration capability and potenitally remove it from the pool.
       logging.info(
           'Bad step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',

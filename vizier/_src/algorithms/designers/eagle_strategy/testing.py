@@ -146,6 +146,20 @@ def create_continuous_exptr(func, dim=6):
   )
 
 
+def create_continuous_log_scale_exptr(func, dim=6):
+  problem = experimenters.bbob.DefaultBBOBProblemStatement(
+      dim,
+      scale_type=vz.ScaleType.LOG,
+      min_value=1e1,
+      max_value=1e4,
+  )
+  rng = np.random.default_rng(0)
+  shift = rng.uniform(low=-1e2, high=0.0, size=(dim,))
+  return experimenters.ShiftingExperimenter(
+      exptr=experimenters.NumpyExperimenter(func, problem), shift=shift
+  )
+
+
 def create_categorical_exptr(num_params: int = 9, num_feasible_values: int = 5):
   return experimenters.L1CategorialExperimenter(
       num_categories=[num_feasible_values] * num_params, verbose=True

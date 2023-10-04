@@ -112,7 +112,7 @@ class EagleStrategyUtils:
       suggested_parameters: vz.ParameterDict,
       is_other_fly_better: bool,
   ) -> Dict[vz.ParameterType, float]:
-    """Computes the pull wieghts by type."""
+    """Computes the pull weights by type."""
     # Compute squared distances between the vector of parameters of each type.
     squared_distances = self._compute_canonical_distance_squared_by_type(
         other_parameters, suggested_parameters)
@@ -120,7 +120,7 @@ class EagleStrategyUtils:
     if is_other_fly_better > 0:
       pull_direction = self.config.gravity
     else:
-      pull_direction = self.config.negative_gravity
+      pull_direction = -self.config.negative_gravity
 
     pull_weights = {}
     # Iterate over the squared distance by type and compute the pull force.
@@ -139,6 +139,8 @@ class EagleStrategyUtils:
           visiblity = self.config.discrete_visibility
         elif param_type == vz.ParameterType.DOUBLE:
           visiblity = self.config.visibility
+        else:
+          raise ValueError('Unsupported parameter type: %s' % param_type)
         # Compute the pull weight and insert to dictionary.
         pull_weights[param_type] = math.exp(
             -visiblity * scaled_squared_distance) * pull_direction
@@ -239,15 +241,17 @@ class EagleStrategyUtils:
     if param_config.type == vz.ParameterType.CATEGORICAL:
       if 0.0 < param1_weight < 1.0:
         prob1 = param1_weight
-        new_value = random_sample.sample_bernoulli(self.rng, prob1, value1,
-                                                   value2)
-      if param1_weight <= 0.0:
+        new_value = random_sample.sample_bernoulli(
+            self.rng, prob1, value1, value2
+        )
+      elif param1_weight <= 0.0:
         new_value = value2
-      elif param1_weight >= 1.0:
+      else:  # param1_weight >= 1.0
         new_value = value1
     else:
-      weighted_param_value = value1 * param1_weight + value2 * (1 -
-                                                                param1_weight)
+      weighted_param_value = value1 * param1_weight + value2 * (
+          1 - param1_weight
+      )
       if param_config.type == vz.ParameterType.DOUBLE:
         new_value = weighted_param_value
       elif param_config.type == vz.ParameterType.INTEGER:
@@ -255,6 +259,8 @@ class EagleStrategyUtils:
       elif param_config.type == vz.ParameterType.DISCRETE:
         new_value = random_sample.get_closest_element(
             param_config.feasible_values, weighted_param_value)
+      else:
+        raise ValueError('Invalid parameter type: %s' % param_config.type)
       new_value = min(new_value, param_config.bounds[1])
       new_value = max(new_value, param_config.bounds[0])
     return new_value
@@ -318,7 +324,7 @@ class EagleStrategyUtils:
     elif param_config.type == vz.ParameterType.INTEGER:
       return round(perturb_val)
     else:
-      raise Exception('Invalid parameter type: %s' % param_config.type)
+      raise ValueError('Invalid parameter type: %s' % param_config.type)
 
   def get_metric(self, trial: vz.Trial) -> float:
     """Returns the trial metric."""
@@ -367,6 +373,8 @@ class EagleStrategyUtils:
 
   def standardize_trial_metric_name(self, trial: vz.Trial) -> vz.Trial:
     """Creates a new trial with canonical metric name."""
+    if trial.infeasible:
+      raise ValueError(f'Trial must feasible. trial: {trial}')
     value = trial.final_measurement.metrics[self._original_metric_name].value
     new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)
     new_trial.complete(
@@ -485,7 +493,7 @@ class FireflyPool:
   def find_closest_parent(self, trial: vz.Trial) -> Firefly:
     """Finds the closest fly in the pool to a given trial."""
     if not self._pool:
-      raise Exception('Pool was empty when searching for closest parent.')
+      raise ValueError('Pool was empty when searching for closest parent.')
 
     min_dist, closest_parent = float('inf'), next(iter(self._pool.values()))
     for other_fly in self._pool.values():
@@ -523,9 +531,10 @@ class FireflyPool:
       logging.info('Create a fly in pool. Parent fly ID: %s.', parent_fly_id)
       new_fly = Firefly(
           id_=parent_fly_id,
-          generation=1,
           perturbation=self.utils.config.perturbation,
-          trial=trial)
+          generation=1,
+          trial=trial,
+      )
       self._pool[parent_fly_id] = new_fly
     else:
       # Parent fly id already in pool. Update trial if there was improvement.

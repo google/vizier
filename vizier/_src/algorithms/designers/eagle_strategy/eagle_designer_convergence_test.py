@@ -36,8 +36,9 @@ class EagleStrategyConvergenceTest(parameterized.TestCase):
 
   @parameterized.parameters(
       testing.create_continuous_exptr(bbob.Gallagher101Me),
-      testing.create_continuous_exptr(bbob.Rastrigin),
-      testing.create_categorical_exptr())
+      testing.create_continuous_log_scale_exptr(bbob.Rastrigin),
+      testing.create_categorical_exptr(),
+  )
   def test_convergence(self, exptr):
 
     def _random_designer_factory(problem, seed):
@@ -63,10 +64,11 @@ class EagleStrategyConvergenceTest(parameterized.TestCase):
         baseline_num_repeats=5,
         candidate_num_repeats=1,
         alpha=0.05,
-        goal=vz.ObjectiveMetricGoal.MINIMIZE
+        goal=vz.ObjectiveMetricGoal.MINIMIZE,
     ).assert_benchmark_state_better_simple_regret(
         baseline_benchmark_state_factory=random_benchmark_state_factory,
-        candidate_benchmark_state_factory=eagle_benchmark_state_factory)
+        candidate_benchmark_state_factory=eagle_benchmark_state_factory,
+    )
 
 
 if __name__ == '__main__':
