@@ -27,13 +27,17 @@ Notes
 1) The 'meta-learning' designer's search space is the hyper-parameters of
 the 'tuned' designer which we seek to tune.
 
-2) The 'tuned_designer_factory' should accept the hyper-parameters as arguments.
+2) Before tuning starts, a tuned designer instantiated with the default
+parameter values defined by the search space is used. This means that
+default configuration defined in the designer level will be overridden.
+
+3) The 'tuned_designer_factory' should accept the hyper-parameters as arguments.
 This means for example, that if the 'tuned_designer' relies on an internal
 configuration class the 'tuned_designer_factory' function would have to handle
 the instantiation of that class (see 'eagle_meta_learning_convergence_test.py'
 for an example).
 
-3) Each instance of 'tuned' designer is updated with all trials seen thus-far,
+4) Each instance of 'tuned' designer is updated with all trials seen thus-far,
 therefore hyper-parameters that were created later in the process will benefit
 from being instantiated with larger trajectory. This violates the assumption
 of the meta-learning designer which the meta-trial metrics are derived from the
@@ -60,18 +64,18 @@ class MetaLearningConfig:
   suggestion trials on further exploration.
 
   With the default configuration the number of meta-learning iterations is
-  (3000-750) / 50 = 45. In order to not terminate the meta-learning process,
+  (10000-3000) / 100 = 70. In order to not terminate the meta-learning process,
   set the `tuning_max_num_trials` to sufficiently large value (e.g. 1e6).
   """
 
   # Number of trials to use per tuning iteration.
-  num_trials_per_tuning: int = 50
-
-  # Once the number of trials exceeds this threshold meta-learning stops.
-  tuning_max_num_trials: int = 3000
+  num_trials_per_tuning: int = 100
 
   # Tuning starts when number of completed trials is at least this threshold.
-  tuning_min_num_trials: int = 750
+  tuning_min_num_trials: int = 3000
+
+  # Once the number of trials exceeds this threshold meta-learning stops.
+  tuning_max_num_trials: int = 10000
 
 
 class MetaLearningState(enum.Enum):
@@ -145,6 +149,9 @@ class MetaLearningDesigner(vza.Designer):
 
   def __attrs_post_init__(self):
     """Initializes the meta learning desiger."""
+    if len(self.problem.metric_information) != 1:
+      raise ValueError(f'Expected exactly one metric. {self.problem}')
+
     if self.seed is None:
       # JAX random seed doesn't accept None, so generating random integer.
       self.seed = np.random.randint(low=0, high=1e6)
@@ -152,6 +159,7 @@ class MetaLearningDesigner(vza.Designer):
     # Instantiate an MetaLearningUtils.
     self._utils = utils.MetaLearningUtils(
         goal=self.problem.metric_information.item().goal,
+        tuned_metric_name=self.problem.metric_information.item().name,
         meta_metric_name=self._meta_designer_metric_name,
         tuning_params=self.tuning_hyperparams,
     )
@@ -203,8 +211,8 @@ class MetaLearningDesigner(vza.Designer):
         vza.CompletedTrials(completed.trials), vza.ActiveTrials()
     )
 
+    # Check if enough trials already accumulated to start meta learning.
     if len(self._trials) < self.config.tuning_min_num_trials:
-      # Not enough trials yet to start meta learning.
       return
 
     # Check if the meta-learning process should be terminated.
@@ -212,7 +220,7 @@ class MetaLearningDesigner(vza.Designer):
       # Check if the meta-learning has just terminated. If so, finalize it.
       if self._state == MetaLearningState.TUNE:
         # Find the best meta-learn result.
-        best_meta_trial = self._utils.get_best_trial(self._meta_trials)
+        best_meta_trial = self._utils.get_best_meta_trial(self._meta_trials)
         self._curr_tuned_designer = self.tuned_designer_factory(
             self.problem, seed=self.seed, **best_meta_trial.parameters.as_dict()
         )
@@ -229,7 +237,7 @@ class MetaLearningDesigner(vza.Designer):
         # Get best score for the current iteration.
         meta_trial = self._utils.complete_meta_suggestion(
             meta_suggestion=self._curr_tuned_hyperparams,
-            score=self._utils.get_best_trial_score(self._curr_trials),
+            score=self._utils.get_best_tuned_trial_score(self._curr_trials),
         )
         self._meta_designer.update(
             vza.CompletedTrials([meta_trial]), vza.ActiveTrials()

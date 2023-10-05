@@ -26,6 +26,8 @@ class MetaLearningUtils:
 
   # The objective goal of 'meta' and 'tuned' algorithms.
   _goal: vz.ObjectiveMetricGoal
+  # The metric name associated with the 'tuned' designer trials.
+  _tuned_metric_name: str
   # The metric name associated with the 'meta' designer trials.
   _meta_metric_name: str
   # The 'tuned' algorithms params to be tuned (meta designer's search space).
@@ -62,50 +64,62 @@ class MetaLearningUtils:
         suggestion.parameters[param.name] = param.default_value
     return suggestion
 
-  def _metric_name(self, trial: vz.Trial) -> str:
-    """Return the metric name."""
-    if (
-        trial.final_measurement is None
-        or len(trial.final_measurement.metrics) != 1
-    ):
-      raise ValueError("There should exactly one final measurement metric.")
-    return next(iter(trial.final_measurement.metrics))
+  def get_best_meta_trial(self, trials: list[vz.Trial]) -> vz.Trial:
+    """Return the best meta trial."""
+    return self._get_best_trial(trials, self._meta_metric_name)
 
-  def get_best_trial_score(self, trials: list[vz.Trial]) -> float:
-    """Return the best trial score."""
-    best_trial = self.get_best_trial(trials)
-    if best_trial.final_measurement is None:
-      raise ValueError("'final_measurement' is None; this should not happen.")
-    return best_trial.final_measurement.metrics[
-        self._metric_name(best_trial)
-    ].value
+  def get_best_tuned_trial(self, trials: list[vz.Trial]) -> vz.Trial:
+    """Return the best tuned trial."""
+    return self._get_best_trial(trials, self._tuned_metric_name)
 
-  def get_best_trial(self, trials: list[vz.Trial]) -> vz.Trial:
+  def get_best_meta_trial_score(self, trials: list[vz.Trial]) -> float:
+    """Return the best meta trial score."""
+    return self._get_best_trial_score(trials, self._meta_metric_name)
+
+  def get_best_tuned_trial_score(self, trials: list[vz.Trial]) -> float:
+    """Return the best tuned trial score."""
+    return self._get_best_trial_score(trials, self._tuned_metric_name)
+
+  def _get_best_trial(
+      self, trials: list[vz.Trial], metric_name: str
+  ) -> vz.Trial:
     """Return the best trial with the metric specified by `trial_type`."""
     best_trial = trials[0]
     for trial in trials:
-      if self._is_trial_better(trial, best_trial):
+      if self._is_trial_better(trial, best_trial, metric_name):
         best_trial = trial
     return best_trial
+
+  def _get_best_trial_score(
+      self, trials: list[vz.Trial], metric_name: str
+  ) -> float:
+    """Return the best trial score."""
+    best_trial = self._get_best_trial(trials, metric_name)
+    if best_trial.final_measurement is None:
+      raise ValueError("'final_measurement' shouldn't be None.")
+    return best_trial.final_measurement.metrics[metric_name].value
 
   def _is_trial_better(
       self,
       trial1: vz.Trial,
       trial2: vz.Trial,
+      metric_name: str,
   ) -> bool:
     """Returns whether trial1 is better than trial2 in terms of `metric_name`."""
-    if self._metric_name(trial1) != self._metric_name(trial2):
-      raise ValueError("trial1 and trial2 should have the same metric name.")
-
-    metric_name = self._metric_name(trial1)
-    if trial1.final_measurement is None or trial2.final_measurement is None:
-      raise ValueError("Both trial1 and trial2 should have final measurements.")
+    if metric_name not in trial1.final_measurement_or_die.metrics:
+      raise ValueError(
+          f"Metric name ({metric_name}) not found in trial1. {trial1}"
+      )
+    if metric_name not in trial2.final_measurement_or_die.metrics:
+      raise ValueError(
+          f"Metric name ({metric_name}) not found in trial2. {trial2}"
+      )
     if trial1.infeasible:
       return False
     if trial2.infeasible:
       return True
-    val1 = trial1.final_measurement.metrics[metric_name].value
-    val2 = trial2.final_measurement.metrics[metric_name].value
+    val1 = trial1.final_measurement_or_die.metrics[metric_name].value
+    val2 = trial2.final_measurement_or_die.metrics[metric_name].value
     if self._goal == vz.ObjectiveMetricGoal.MAXIMIZE and val1 > val2:
       return True
     elif self._goal == vz.ObjectiveMetricGoal.MINIMIZE and val1 < val2:

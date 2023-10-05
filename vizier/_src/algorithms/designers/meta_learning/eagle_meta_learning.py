@@ -28,7 +28,7 @@ def meta_eagle_search_space() -> vz.SearchSpace:
       name='perturbation',
       min_value=1e-4,
       max_value=1e2,
-      default_value=1e-2,
+      default_value=1e-1,
       scale_type=vz.ScaleType.LOG,
   )
   search_space.root.add_float_param(
@@ -38,18 +38,34 @@ def meta_eagle_search_space() -> vz.SearchSpace:
       default_value=1e-3,
       scale_type=vz.ScaleType.LOG,
   )
+  # Gravity
   search_space.root.add_float_param(
-      name='pure_categorical_perturbation',
-      min_value=0.001,
-      max_value=10.0,
-      default_value=0.1,
+      name='gravity',
+      min_value=1e-2,
+      max_value=1e2,
+      default_value=1.0,
+      scale_type=vz.ScaleType.LOG,
+  )
+  # Visibility
+  search_space.root.add_float_param(
+      name='visibility',
+      min_value=3 * 1e-2,
+      max_value=3 * 1e2,
+      default_value=3.0,
       scale_type=vz.ScaleType.LOG,
   )
   search_space.root.add_float_param(
-      name='max_perturbation',
-      min_value=1e-3,
+      name='categorical_visibility',
+      min_value=2.0 * 1e-3,
+      max_value=2.0 * 1e1,
+      default_value=2.0 * 1e-1,
+      scale_type=vz.ScaleType.LOG,
+  )
+  search_space.root.add_float_param(
+      name='discrete_visibility',
+      min_value=1e-2,
       max_value=1e2,
-      default_value=5 * 1e-1,
+      default_value=1.0,
       scale_type=vz.ScaleType.LOG,
   )
   search_space.root.add_float_param(
@@ -66,43 +82,6 @@ def meta_eagle_search_space() -> vz.SearchSpace:
       default_value=1e1,
       scale_type=vz.ScaleType.LOG,
   )
-  # Gravity
-  search_space.root.add_float_param(
-      name='gravity',
-      min_value=1e-2,
-      max_value=1e2,
-      default_value=1.0,
-      scale_type=vz.ScaleType.LOG,
-  )
-  search_space.root.add_float_param(
-      name='negative_gravity',
-      min_value=2 * 1e-4,
-      max_value=2.0,
-      default_value=2 * 1e-2,
-      scale_type=vz.ScaleType.LOG,
-  )
-  # Visibility
-  search_space.root.add_float_param(
-      name='visibility',
-      min_value=3 * 1e-2,
-      max_value=3 * 1e2,
-      default_value=3.0,
-      scale_type=vz.ScaleType.LOG,
-  )
-  search_space.root.add_float_param(
-      name='categorical_visibility',
-      min_value=2 * 1e-3,
-      max_value=2.0 * 1e1,
-      default_value=2.0 * 1e-1,
-      scale_type=vz.ScaleType.LOG,
-  )
-  search_space.root.add_float_param(
-      name='discrete_visibility',
-      min_value=1e-2,
-      max_value=1e2,
-      default_value=1.0,
-      scale_type=vz.ScaleType.LOG,
-  )
   # Pool size.
   search_space.root.add_float_param(
       name='pool_size_factor',
@@ -111,4 +90,19 @@ def meta_eagle_search_space() -> vz.SearchSpace:
       default_value=1.2,
       scale_type=vz.ScaleType.LOG,
   )
+  search_space.root.add_float_param(
+      name='negative_gravity',
+      min_value=2.0 * 1e-4,
+      max_value=2.0,
+      default_value=2 * 1e-2,
+      scale_type=vz.ScaleType.LOG,
+  )
+  search_space.root.add_float_param(
+      name='pure_categorical_perturbation',
+      min_value=1e-3,
+      max_value=1e1,
+      default_value=1e-1,
+      scale_type=vz.ScaleType.LOG,
+  )
+
   return search_space

@@ -31,6 +31,7 @@ class MetaLearningUtilsTest(parameterized.TestCase):
     space.root.add_int_param('tuned_param', 0, 100, default_value=55)
     self.utils = meta_learning_utils.MetaLearningUtils(
         goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+        tuned_metric_name='tuned_obj',
         meta_metric_name='meta_obj',
         tuning_params=space,
     )
@@ -50,18 +51,22 @@ class MetaLearningUtilsTest(parameterized.TestCase):
 
   def test_best_trial(self):
     # meta trial
-    best_meta_trial = self.utils.get_best_trial(self.meta_trials)
+    best_meta_trial = self.utils.get_best_meta_trial(self.meta_trials)
     self.assertEqual(best_meta_trial.parameters['meta_param'].value, 9)
     # tuned trial
-    best_tuned_trial = self.utils.get_best_trial(self.tuned_trials)
+    best_tuned_trial = self.utils.get_best_tuned_trial(self.tuned_trials)
     self.assertEqual(best_tuned_trial.parameters['tuned_param'].value, 49)
 
   def test_best_trial_score(self):
     # meta trial score
-    best_meta_trial_score = self.utils.get_best_trial_score(self.meta_trials)
+    best_meta_trial_score = self.utils.get_best_meta_trial_score(
+        self.meta_trials
+    )
     self.assertEqual(best_meta_trial_score, 9.0)
     # tuned trial score
-    best_tuned_trial_score = self.utils.get_best_trial_score(self.tuned_trials)
+    best_tuned_trial_score = self.utils.get_best_tuned_trial_score(
+        self.tuned_trials
+    )
     self.assertEqual(best_tuned_trial_score, 49.0)
 
   def test_generate_default_tuned_parameters(self):

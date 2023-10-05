@@ -15,15 +15,14 @@
 from __future__ import annotations
 
 """Tests for meta learning designer."""
-from typing import Sequence
+from typing import Optional
 
-import attr
+import attrs
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
-from vizier._src.algorithms.designers import grid
 from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.designers import random
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.designers.meta_learning import meta_learning
 
 from absl.testing import absltest
@@ -35,101 +34,28 @@ MetaLearningConfig = meta_learning.MetaLearningConfig
 MetaLearningState = meta_learning.MetaLearningState
 
 
-@attr.define
-class FakeDesigner(vza.Designer):
-  """Fake designer."""
-
-  problem: vz.ProblemStatement
-  designer_param: float = attr.field(
-      default=0.5, validator=attr.validators.instance_of(float)
+def _eagle_designer_factory(
+    problem: vz.ProblemStatement, seed: Optional[int], **kwargs
+):
+  """Creates an EagleStrategyDesigner with hyper-parameters and seed."""
+  config = eagle_strategy.FireflyAlgorithmConfig()
+  # Unpack the hyperparameters into the Eagle config class.
+  for param_name, param_value in kwargs.items():
+    if param_name not in attrs.asdict(config):
+      raise ValueError(f"'{param_name}' is not in FireflyAlgorithmConfig!")
+    setattr(config, param_name, param_value)
+  return eagle_strategy.EagleStrategyDesigner(
+      problem_statement=problem,
+      seed=seed,
+      config=config,
   )
 
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
-    search_space = self.problem.search_space
-    if np.random.random() < self.designer_param:
-      return random.RandomDesigner(search_space).suggest(count)
-    else:
-      return grid.GridSearchDesigner(search_space).suggest(count)
 
-  def update(
-      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
-  ) -> None:
-    pass
-
-
-@attr.define
-class FakeMetaDesigner(vza.Designer):
-  """Fake meta designer."""
-
-  problem: vz.ProblemStatement
-  meta_param1: float = 0.7
-  meta_param2: float = 1.0
-
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
-    search_space = self.problem.search_space
-    if np.random.random() * self.meta_param1 < self.meta_param2:
-      return random.RandomDesigner(search_space).suggest(count)
-    else:
-      return quasi_random.QuasiRandomDesigner(search_space).suggest(count)
-
-  def update(
-      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
-  ) -> None:
-    pass
-
-
-def fake_designer_factory(
-    problem: vz.ProblemStatement, **kwargs
-) -> vza.Designer:
-  if 'designer_param' not in kwargs:
-    return FakeDesigner(problem=problem)
-  else:
-    return FakeDesigner(
-        problem=problem, designer_param=kwargs['designer_param']
-    )
-
-
-def fake_meta_designer_factory(
-    problem: vz.ProblemStatement, **kwargs
-) -> vza.Designer:
-  del kwargs
-  return FakeMetaDesigner(problem=problem)
-
-
-def _create_fake_problem() -> vz.ProblemStatement:
-  problem = vz.ProblemStatement()
-  problem.search_space.root.add_float_param('x', 0.0, 15.0)
-  problem.search_space.root.add_float_param('y', -5.0, 10.0)
-  problem.search_space.root.add_categorical_param('c', ['a', 'b', 'c'])
-  problem.metric_information.append(
-      vz.MetricInformation(
-          name='objective',
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-      )
-  )
-  return problem
-
-
-def _create_meta_learning_designer() -> MetaLearningDesigner:
-  problem = _create_fake_problem()
-  meta_config = MetaLearningConfig(
-      num_trials_per_tuning=10,
-      tuning_min_num_trials=100,
-      tuning_max_num_trials=500,
-  )
-  tuning_params = vz.SearchSpace()
-  tuning_params.root.add_float_param(
-      'designer_param', 0.0, 1.0, default_value=0.5
-  )
-
-  meta_learning_designer = MetaLearningDesigner(
-      problem=problem,
-      tuning_hyperparams=tuning_params,
-      tuned_designer_factory=fake_designer_factory,
-      meta_designer_factory=fake_meta_designer_factory,
-      config=meta_config,
-  )
-  return meta_learning_designer
+def _quasirandom_designer_factory(
+    problem: vz.ProblemStatement, seed: Optional[int] = None
+):
+  """Creates a QuasiRandomDesigner with seed."""
+  return quasi_random.QuasiRandomDesigner(problem.search_space, seed=seed)
 
 
 def meta_learning_suggest_update_loop(
@@ -144,7 +70,15 @@ def meta_learning_suggest_update_loop(
     for i in range(batch_size):
       trial = suggestions[i].to_trial(trial_id)
       trial_id += 1
-      trial.complete(vz.Measurement(metrics={'objective': np.random.random()}))
+      # Complete the trial with additional metric to test 'tuned_metric'.
+      trial.complete(
+          vz.Measurement(
+              metrics={
+                  'objective': np.random.random(),
+                  'secondary_metric': np.random.random(),
+              }
+          )
+      )
       trials.append(trial)
     meta_learning_designer.update(
         vza.CompletedTrials(trials), vza.ActiveTrials()
@@ -154,9 +88,59 @@ def meta_learning_suggest_update_loop(
 class MetaLearningDesignerTest(parameterized.TestCase):
   """Tests for AutoTunerDesinger."""
 
-  @parameterized.parameters([1, 3, 5, 10])
+  def setUp(self):
+    super().setUp()
+    self.problem = vz.ProblemStatement()
+    self.problem.search_space.root.add_float_param('x', 0.0, 15.0)
+    self.problem.search_space.root.add_float_param('y', -5.0, 10.0)
+    self.problem.search_space.root.add_categorical_param('c', ['a', 'b', 'c'])
+    self.problem.metric_information.append(
+        vz.MetricInformation(
+            name='objective',
+            goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+        )
+    )
+    self.meta_config = MetaLearningConfig(
+        num_trials_per_tuning=10,
+        tuning_min_num_trials=100,
+        tuning_max_num_trials=500,
+    )
+    self.tuning_params = vz.SearchSpace()
+    self.tuning_params.root.add_float_param(
+        'visibility', 0.0, 10.0, default_value=2.22
+    )
+    self.tuning_params.root.add_float_param(
+        'gravity', 0.0, 10.0, default_value=3.33
+    )
+
+  def test_initialize_designer(self):
+    meta_learning_designer = MetaLearningDesigner(
+        problem=self.problem,
+        tuning_hyperparams=self.tuning_params,
+        tuned_designer_factory=_eagle_designer_factory,
+        meta_designer_factory=_quasirandom_designer_factory,
+        config=self.meta_config,
+    )
+    self.assertEqual(
+        meta_learning_designer._state, MetaLearningState.INITIALIZE
+    )
+    # type: ignore[attribute-error]  # pylint: disable=protected-access
+    self.assertEqual(
+        meta_learning_designer._curr_tuned_designer._config.visibility, 2.22
+    )
+    self.assertEqual(
+        meta_learning_designer._curr_tuned_designer._config.gravity, 3.33
+    )
+
+  @parameterized.parameters([1, 5])
   def test_state_transitions(self, batch_size):
-    meta_learning_designer = _create_meta_learning_designer()
+    meta_learning_designer = MetaLearningDesigner(
+        problem=self.problem,
+        tuning_hyperparams=self.tuning_params,
+        tuned_designer_factory=_eagle_designer_factory,
+        meta_designer_factory=_quasirandom_designer_factory,
+        config=self.meta_config,
+    )
     self.assertEqual(
         meta_learning_designer._state,
         MetaLearningState.INITIALIZE,
