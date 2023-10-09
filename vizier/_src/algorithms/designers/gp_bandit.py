@@ -34,6 +34,7 @@ import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
+from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.algorithms.designers.gp import output_warpers
@@ -46,6 +47,14 @@ from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
 from vizier.utils import profiler
+
+default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
+    strategy_factory=es.VectorizedEagleStrategyFactory(), max_evaluations=10
+)
+
+default_scoring_function_factory = (
+    acquisitions.bayesian_scoring_function_factory(lambda _: acquisitions.UCB())
+)
 
 
 def _experimental_override_allowed(fun):
@@ -85,7 +94,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
   _acquisition_optimizer_factory: vb.VectorizedOptimizerFactory = attr.field(
       kw_only=True,
-      factory=lambda: VizierGPBandit.default_acquisition_optimizer_factory,
+      factory=lambda: default_acquisition_optimizer_factory,
   )
   _ard_optimizer: optimizers.Optimizer[types.ParameterDict] = attr.field(
       factory=optimizers.default_optimizer,
@@ -97,7 +106,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _linear_coef: float = attr.field(default=0.0, kw_only=True)
   _scoring_function_factory: acquisitions.ScoringFunctionFactory = attr.field(
-      factory=lambda: VizierGPBandit.default_scoring_function_factory,
+      factory=lambda: default_scoring_function_factory,
       kw_only=True,
   )
   _scoring_function_is_parallel: bool = attr.field(default=False, kw_only=True)
@@ -134,15 +143,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   # The prior GP used in transfer learning. `last_computed_gp` is trained
   # on the residuals of `_prior_gp`, if one is trained.
   _prior_gp: Optional[gp_models.GPState] = attr.field(init=False, default=None)
-
-  default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
-      strategy_factory=es.VectorizedEagleStrategyFactory()
-  )
-  default_scoring_function_factory = (
-      acquisitions.bayesian_scoring_function_factory(
-          lambda _: acquisitions.UCB()
-      )
-  )
 
   def __attrs_post_init__(self):
     # Extra validations
@@ -572,4 +572,31 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   def from_problem(
       cls, problem: vz.ProblemStatement, seed: Optional[int] = None
   ) -> 'VizierGPBandit':
-    return cls(problem, rng=jax.random.PRNGKey(seed or 0))
+    rng = jax.random.PRNGKey(seed or 0)
+    if problem.is_single_objective:
+      return cls(problem, rng=rng)
+    else:
+      num_objectives = len(
+          problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
+      )
+      random_weights = np.abs(np.random.normal(size=num_objectives))
+
+      def _scalarized_ucb(
+          data: types.ModelData,
+      ) -> acquisitions.AcquisitionFunction:
+        del data
+        ucb = acquisitions.UCB()
+        scalarizer = scalarization.HyperVolumeScalarization(
+            weights=random_weights
+        )
+        return acquisitions.ScalarizedAcquisition(ucb, scalarizer)
+
+      scoring_fn_factory = acquisitions.bayesian_scoring_function_factory(
+          _scalarized_ucb
+      )
+      return cls(
+          problem,
+          scoring_function_factory=scoring_fn_factory,
+          scoring_function_is_parallel=True,
+          use_trust_region=False,
+      )

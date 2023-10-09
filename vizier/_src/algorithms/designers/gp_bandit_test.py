@@ -25,7 +25,6 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
@@ -411,34 +410,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ),
     )
 
-    def _scalarized_ucb(
-        data: types.ModelData,
-    ) -> acquisitions.AcquisitionFunction:
-      del data
-      ucb = acquisitions.UCB(coefficient=2.0)
-      scalarizer = scalarization.HyperVolumeScalarization(
-          weights=np.array([0.1, 0.2])
-      )
-      return acquisitions.ScalarizedAcquisition(ucb, scalarizer)
-
-    scoring_fn_factory = acquisitions.bayesian_scoring_function_factory(
-        _scalarized_ucb
-    )
-
-    iters = 3
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        ard_optimizer=optimizers.JaxoptLbfgsB(
-            optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
-        ),
-        scoring_function_factory=scoring_fn_factory,
-        scoring_function_is_parallel=True,
-        use_trust_region=False,
-        ensemble_size=3,
-        rng=jax.random.PRNGKey(0),
-        linear_coef=0.1,
-    )
+    iters = 2
+    designer = gp_bandit.VizierGPBandit.from_problem(problem)
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
