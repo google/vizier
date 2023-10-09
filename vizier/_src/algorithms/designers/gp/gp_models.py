@@ -31,6 +31,7 @@ from vizier._src.jax import types
 from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
+from vizier.utils import profiler
 
 tfd = tfp.distributions
 
@@ -189,7 +190,21 @@ def _train_gp(spec: GPTrainingSpec, data: types.ModelData) -> GPState:
   Returns:
     The trained GP model.
   """
-  jax.monitoring.record_event('/vizier/jax/designers/gp_bandit/train_gp')
+  jax.monitoring.record_event(
+      '/vizier/jax/designers/gp_bandit/train_gp', scope=profiler.current_scope()
+  )
+
+  jax.monitoring.record_event(
+      '/vizier/jax/train_gp_with_data_shapes',
+      **{
+          'num_rows': data.features.categorical.shape[0],
+          'num_categoricals': data.features.categorical.shape[1],
+          'num_continuous': data.features.continuous.shape[1],
+          'num_labels': (
+              data.labels.shape[1] if data.labels.padded_array.ndim == 2 else 1
+          ),
+      },
+  )
   model = sp.CoroutineWithData(spec.coroutine, data)
 
   # Optimize the parameters

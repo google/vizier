@@ -125,9 +125,13 @@ _GLOBAL_SOTRAGE: _Storage = _Storage()
 def _enter_profile_scope(scope: str):
   try:
     _GLOBAL_SOTRAGE.scope.append(scope)
-    yield '::'.join(_GLOBAL_SOTRAGE.scope)
+    yield current_scope()
   finally:
     _GLOBAL_SOTRAGE.scope.pop()
+
+
+def current_scope() -> str:
+  return '::'.join(_GLOBAL_SOTRAGE.scope)
 
 
 @contextlib.contextmanager
