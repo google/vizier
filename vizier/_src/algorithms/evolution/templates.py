@@ -175,7 +175,6 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     self._num_trials_seen += len(completed)
     candidates = self._population + self._converter.to_population(completed)
     self._population = self._survival.select(candidates)
-    self._pool = self._population
 
   def load(self, metadata: vz.Metadata):
     self._population = type(self._population).recover(metadata)
