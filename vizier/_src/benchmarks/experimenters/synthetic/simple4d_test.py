@@ -47,6 +47,18 @@ class Simple4DTest(parameterized.TestCase):
     )
     runner.run(state)
 
+  @parameterized.parameters(
+      dict(best_category='corner'),
+      dict(best_category='center'),
+      dict(best_category='mixed'),
+  )
+  def test_compute_simple4d_optimal_objective(
+      self, best_category: simple4d.Simple4DCategory
+  ) -> None:
+    exptr = simple4d.Simple4D(best_category)
+    opt_value = exptr.compute_simple4d_optimal_objective(50)
+    self.assertIsInstance(opt_value, float)
+
 
 if __name__ == '__main__':
   absltest.main()

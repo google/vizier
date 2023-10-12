@@ -90,7 +90,7 @@ class Simple4D(experimenter.Experimenter):
         'discrete', _feasible_discrete_values
     )
     problem.metric_information.append(
-        vz.MetricInformation(name='value', goal=vz.ObjectiveMetricGoal.MINIMIZE)
+        vz.MetricInformation(name='value', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
     )
     return problem
 
@@ -120,3 +120,35 @@ class Simple4D(experimenter.Experimenter):
     raise NotImplementedError(
         f'Unknown categorical parameter: {params["categorical"]}'
     )
+
+  def compute_simple4d_optimal_objective(
+      self, num_continuous_samples: int = 1001
+  ) -> float:
+    """Computes an approximated optimal objective value of a Simple4D problem."""
+    search_space = self.problem_statement().search_space
+    categorical_values = search_space.get('categorical').feasible_values
+    discrete_values = search_space.get('discrete').feasible_values
+    integer_values = np.arange(
+        search_space.get('int').bounds[0], search_space.get('int').bounds[1] + 1
+    )
+    continuous_values = np.linspace(
+        search_space.get('float').bounds[0],
+        search_space.get('float').bounds[1],
+        num=num_continuous_samples,
+    )
+    opt_value = np.nan
+    for cat_value in categorical_values:
+      for disc_value in discrete_values:
+        for cont_value in continuous_values:
+          for int_value in integer_values:
+            trial = vz.Trial(
+                parameters={
+                    'categorical': cat_value,
+                    'discrete': disc_value,
+                    'int': float(int_value),
+                    'float': float(cont_value),
+                }
+            )
+            # pylint: disable=protected-access
+            opt_value = np.nanmax([self._unimodal4d(trial), opt_value])
+    return opt_value
