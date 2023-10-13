@@ -31,18 +31,22 @@ EagleStrategyDesigner = eagle_strategy.EagleStrategyDesigner
 
 class EagleStrategyTest(parameterized.TestCase):
 
-  def test_dump_and_load(self):
-    eagle_designer = testing.create_fake_populated_eagle_designer()
-    partial_serialized_eagle = eagle_designer.dump()
+  @parameterized.parameters(
+      testing.create_fake_populated_eagle_designer,  # suggest by mutation.
+      testing.create_fake_empty_eagle_designer,  # suggest by initial designer.
+  )
+  def test_dump_and_load(self, designer_factory):
+    eagle_designer = designer_factory()
+    metadata = eagle_designer.dump()
     # Create a new eagle designer and load state
     eagle_designer_restored = testing.create_fake_empty_eagle_designer()
-    eagle_designer_restored.load(partial_serialized_eagle)
-    # Generate suggestions from the two designers
-    trial_suggestions = eagle_designer.suggest(count=1)
-    trial_suggestions_recovered = eagle_designer_restored.suggest(count=1)
-    # Test if the suggestion from the two designers equal
-    self.assertEqual(trial_suggestions[0].parameters,
-                     trial_suggestions_recovered[0].parameters)
+    eagle_designer_restored.load(metadata)
+    # Generate suggestions from the two designers and test if they're equal.
+    for _ in range(10):
+      self.assertEqual(
+          eagle_designer.suggest()[0].parameters,
+          eagle_designer_restored.suggest()[0].parameters,
+      )
 
   def test_load_with_no_state(self):
     problem = testing.create_fake_problem_statement()
@@ -77,7 +81,6 @@ class EagleStrategyTest(parameterized.TestCase):
     )
     complete_trials = vza.CompletedTrials([trial])
     eagle_designer.update(complete_trials, vza.ActiveTrials())
-    print(eagle_designer._firefly_pool)
     self.assertEqual(
         eagle_designer._firefly_pool._pool[0].trial.parameters['x'].value, 1.0
     )
@@ -143,18 +146,22 @@ class EagleStrategyTest(parameterized.TestCase):
     # Capacitated pool size has 11 fireflies.
     eagle_designer = testing.create_fake_populated_eagle_designer(
         x_values=[1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1],
-        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    )
     trial = testing.create_fake_trial(
-        parent_fly_id=98, x_value=1.42, obj_value=100.0)
+        parent_fly_id=98, x_value=1.42, obj_value=100.0
+    )
     eagle_designer._update_one(trial)
     self.assertIs(eagle_designer._firefly_pool._pool[3].trial, trial)
 
   def test_update_capacitated_pool_no_parent_fly_trial_is_not_better(self):
     eagle_designer = testing.create_fake_populated_eagle_designer(
         x_values=[1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1],
-        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    )
     trial = testing.create_fake_trial(
-        parent_fly_id=98, x_value=1.42, obj_value=-80.0)
+        parent_fly_id=98, x_value=1.42, obj_value=-80.0
+    )
     prev_trial = eagle_designer._firefly_pool._pool[3].trial
     eagle_designer._update_one(trial)
     self.assertIs(eagle_designer._firefly_pool._pool[3].trial, prev_trial)
@@ -162,18 +169,22 @@ class EagleStrategyTest(parameterized.TestCase):
   def test_update_capacitated_pool_with_parent_fly_trial_is_better(self):
     eagle_designer = testing.create_fake_populated_eagle_designer(
         x_values=[1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1],
-        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    )
     trial = testing.create_fake_trial(
-        parent_fly_id=2, x_value=3.3, obj_value=80.0)
+        parent_fly_id=2, x_value=3.3, obj_value=80.0
+    )
     eagle_designer._update_one(trial)
     self.assertIs(eagle_designer._firefly_pool._pool[2].trial, trial)
 
   def test_update_capacitated_pool_with_parent_fly_trial_is_not_better(self):
     eagle_designer = testing.create_fake_populated_eagle_designer(
         x_values=[1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1],
-        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        obj_values=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    )
     trial = testing.create_fake_trial(
-        parent_fly_id=2, x_value=3.3, obj_value=-80.0)
+        parent_fly_id=2, x_value=3.3, obj_value=-80.0
+    )
     prev_trial = eagle_designer._firefly_pool._pool[2].trial
     eagle_designer._update_one(trial)
     self.assertIs(eagle_designer._firefly_pool._pool[2].trial, prev_trial)
@@ -181,9 +192,17 @@ class EagleStrategyTest(parameterized.TestCase):
   def test_update_empty_pool(self):
     eagle_designer = testing.create_fake_empty_eagle_designer()
     trial = testing.create_fake_trial(
-        parent_fly_id=0, x_value=3.3, obj_value=0.0)
+        parent_fly_id=0, x_value=3.3, obj_value=0.0
+    )
     eagle_designer._update_one(trial)
     self.assertIs(eagle_designer._firefly_pool._pool[0].trial, trial)
+
+  def test_seeded_random_samples(self):
+    problem = testing.create_fake_problem_statement()
+    suggestions1 = EagleStrategyDesigner(problem, seed=1).suggest(count=3)
+    suggestions2 = EagleStrategyDesigner(problem, seed=1).suggest(count=3)
+    for suggestions1, suggest2 in zip(suggestions1, suggestions2):
+      self.assertEqual(suggestions1.parameters, suggest2.parameters)
 
   @parameterized.parameters(1, 3, 5)
   def test_suggest_update(self, batch_size):

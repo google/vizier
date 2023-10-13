@@ -79,9 +79,10 @@ import attr
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
+from vizier._src.algorithms.core import abstractions
+from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 from vizier._src.algorithms.designers.eagle_strategy import serialization
-from vizier._src.algorithms.random import random_sample
 from vizier.interfaces import serializable
 from vizier.pyvizier import converters
 
@@ -101,13 +102,16 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       *,
       config: Optional[FireflyAlgorithmConfig] = None,
       seed: Optional[int] = None,
+      initial_designer_factory: Optional[abstractions.DesignerFactory] = None,
   ):
-    """Initializes the Eagle Strategy desiger.
+    """Initializes the Eagle Strategy designer.
 
     Args:
       problem_statement: A problem description including the search space.
       config: The Firefly algorithm hyperparameters.
       seed: A seed to deterministically generate samples from random variables.
+      initial_designer_factory: A partially serializable designer factory to
+        generate the initial suggestions.
 
     Raises:
       Exception: if the problem statement includes condional search space,
@@ -144,6 +148,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     self._firefly_pool = FireflyPool(
         utils=self._utils, capacity=self._utils.compute_pool_capacity())
 
+    if initial_designer_factory is None:
+      initial_designer_factory = quasi_random.QuasiRandomDesigner.from_problem
+    self._initial_designer = initial_designer_factory(self._problem, seed=seed)
+
     logging.info(
         (
             'Eagle Strategy designer initialized. Pool capacity: %s. '
@@ -166,6 +174,9 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         serialization.partially_serialize_firefly_pool(self._firefly_pool))
     metadata.ns('eagle')['serialization_version'] = 'v1'
     metadata.ns('eagle')['dump_timestamp'] = str(time.time())
+    metadata.ns('eagle').ns('random_designer').attach(
+        self._initial_designer.dump()
+    )
     logging.info('Dump metadata:\n%s', metadata.ns('eagle'))
     return metadata
 
@@ -178,6 +189,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
 
     1. Set EagleStrategy, EagleStrategyUtils with the recovered random generator
     2. Recover the FireflyPool and populate it with the Fireflies.
+    3. Recover the random designer state.
 
     Args:
       metadata: Metadata
@@ -187,14 +199,14 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       logging.info('Eagle designer was called for the first time. No state was'
                    ' recovered.')
     else:
+      logging.info('Load metadata:\n%s', metadata.ns('eagle'))
       try:
-        logging.info('Load metadata:\n%s', metadata.ns('eagle'))
         self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])
       except Exception as e:
         raise serializable.FatalDecodeError(
             "Couldn't load random generator from metadata.") from e
       self._utils.rng = self._rng
-      logging.info('Restored rng:\n%s', self._rng)
+
       try:
         firefly_pool = metadata.ns('eagle')['firefly_pool']
         self._firefly_pool = serialization.restore_firefly_pool(
@@ -203,6 +215,17 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       except Exception as e:
         raise serializable.HarmlessDecodeError(
             "Couldn't load firefly pool from metadata.") from e
+
+      try:
+        self._initial_designer = quasi_random.QuasiRandomDesigner(
+            self._problem.search_space
+        )
+        self._initial_designer.load(metadata.ns('eagle').ns('random_designer'))
+      except Exception as e:
+        raise serializable.HarmlessDecodeError(
+            "Couldn't load random designer from metadata."
+        ) from e
+
       logging.info(
           ('Eagle designer restored state from timestamp %s. Firefly pool'
            ' now contains %s fireflies.'),
@@ -224,22 +247,17 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     parameters inplace and assign them to the suggested trial.
 
     Returns:
-      The suggested trial
-      The parent fly Id
+      The suggested trial with the parent fly Id in the metadata.
     """
     suggested_trial = vz.TrialSuggestion()
     if self._firefly_pool.size < self._firefly_pool.capacity:
       # Pool is underpopulated. Generate a random trial parameters.
-      # (b/243518714): Use random policy/designer to generate parameters.
-      suggested_parameters = random_sample.sample_parameters(
-          self._rng, self._problem.search_space
-      )
+      suggested_parameters = self._initial_designer.suggest()[0].parameters
       # Create a new parent fly id and assign it to the trial, this will be
       # used during Update to match the trial to its parent fly in the pool.
       parent_fly_id = self._firefly_pool.generate_new_fly_id()
       logging.info('Pool is underpopulated. Generated random trial parameters.')
     else:
-      # The pool is full. Use a copy of the next fly in line to be moved.
       moving_fly = self._firefly_pool.get_next_moving_fly_copy()
       self._mutate_fly(moving_fly)
       self._perturb_fly(moving_fly)
@@ -264,7 +282,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     Args:
       moving_fly: the fire from the pool to mutate its trial parameters.
     """
-    # Access the moving fly's trial parameters to be modified.
     mutated_parameters = moving_fly.trial.parameters
     # Shuffle the ordering, so to apply the attracting and repelling forces
     # in random order every time. Creates a deep copy of the pool members.
