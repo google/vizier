@@ -328,6 +328,8 @@ class EagleStrategyUtils:
 
   def get_metric(self, trial: vz.Trial) -> float:
     """Returns the trial metric."""
+    if trial.infeasible:
+      return np.nan
     return trial.final_measurement.metrics[OBJECTIVE_NAME]  # pytype: disable=bad-return-type
 
   def is_better_than(
@@ -374,7 +376,7 @@ class EagleStrategyUtils:
   def standardize_trial_metric_name(self, trial: vz.Trial) -> vz.Trial:
     """Creates a new trial with canonical metric name."""
     if trial.infeasible:
-      raise ValueError(f'Trial must feasible. trial: {trial}')
+      return trial
     value = trial.final_measurement.metrics[self._original_metric_name].value
     new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)
     new_trial.complete(
