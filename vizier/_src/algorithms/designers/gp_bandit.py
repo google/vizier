@@ -49,7 +49,11 @@ from vizier.pyvizier.converters import padding
 from vizier.utils import profiler
 
 default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
-    strategy_factory=es.VectorizedEagleStrategyFactory(), max_evaluations=10
+    strategy_factory=es.VectorizedEagleStrategyFactory(
+        eagle_config=es.EagleStrategyConfig()
+    ),
+    max_evaluations=75_000,
+    suggestion_batch_size=25,
 )
 
 default_scoring_function_factory = (
