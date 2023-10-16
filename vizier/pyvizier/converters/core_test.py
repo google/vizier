@@ -1157,10 +1157,14 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     np.testing.assert_allclose(expected, actual)
     self.assertEqual(expected.dtype, actual.dtype)
 
-  def test_discretes_into_discretes(self):
+  @parameterized.parameters([
+      dict(max_discrete_indices=10),
+      dict(max_discrete_indices=np.inf),
+  ])
+  def test_discretes_into_discretes(self, max_discrete_indices):
     converter = core.DefaultModelInputConverter(
         pyvizier.ParameterConfig.factory('x1', feasible_values=(1.0, 2.0, 3.0)),
-        max_discrete_indices=10,
+        max_discrete_indices=max_discrete_indices,
     )
 
     actual = converter.convert([

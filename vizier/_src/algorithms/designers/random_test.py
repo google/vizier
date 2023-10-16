@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for random."""
 
+import collections
 import math
 
 from vizier import pyvizier as vz
@@ -77,6 +78,26 @@ class RandomTest(absltest.TestCase):
     self.assertAlmostEqual(
         avg_log_logdouble, 0.5 * (math.log(1e-4) + math.log(1e2)), delta=0.76
     )
+
+  def test_discrete_parameter(self):
+    """Confirm that DISCRETE parameters are sampled uniformally."""
+    n_samples = 10_000
+    search_space = vz.SearchSpace()
+    search_space.root.add_discrete_param(
+        'discrete1', feasible_values=[0, 70, 71, 72, 100]
+    )
+    search_space.root.add_discrete_param('discrete2', feasible_values=[0, 8, 9])
+    random_designer = random.RandomDesigner(search_space, seed=1)
+    values = [
+        (sg.parameters['discrete1'].value, sg.parameters['discrete2'].value)
+        for sg in random_designer.suggest(n_samples)
+    ]
+    counts = collections.defaultdict(int)
+    for value in values:
+      counts[str(value[0]) + str(value[1])] += 1
+    for count in counts.values():
+      # Check that there's no more than 1% deviation.
+      self.assertLess(abs(count / n_samples - 1 / 15), 0.01)
 
 
 if __name__ == '__main__':

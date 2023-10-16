@@ -48,8 +48,10 @@ class RandomDesigner(vza.Designer):
           f'This designer {self} does not support conditional search.')
 
     def create_input_converter(pc):
+      # Setting 'max_discrete_indices' to not continuify DISCRETE parameters.
       return converters.DefaultModelInputConverter(
-          pc, scale=True, max_discrete_indices=0, float_dtype=dtype)
+          pc, scale=True, max_discrete_indices=np.inf, float_dtype=dtype
+      )
 
     self._converter = converters.DefaultTrialConverter(
         [create_input_converter(pc) for pc in search_space.parameters])
