@@ -30,8 +30,7 @@ NOTE: assert_converges_faster is a generic method name that conveys the general
 use of the class.
 """
 
-import logging
-
+from absl import logging
 import attr
 from jax import random
 import numpy as np

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Simple4D convergence tests."""
 
-import logging
+from absl import logging
 import attrs
 from vizier import algorithms as vza
 from vizier._src.benchmarks.experimenters.synthetic import simple4d

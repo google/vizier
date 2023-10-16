@@ -71,10 +71,10 @@ of firefly id created, to ensure that each firefly has its own unique id.
 """
 
 import json
-import logging
 import time
 from typing import Optional, Sequence
 
+from absl import logging
 import attr
 import numpy as np
 from vizier import algorithms as vza
@@ -177,7 +177,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     metadata.ns('eagle').ns('random_designer').attach(
         self._initial_designer.dump()
     )
-    logging.info('Dump metadata:\n%s', metadata.ns('eagle'))
     return metadata
 
   def load(self, metadata: vz.Metadata) -> None:
@@ -199,7 +198,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       logging.info('Eagle designer was called for the first time. No state was'
                    ' recovered.')
     else:
-      logging.info('Load metadata:\n%s', metadata.ns('eagle'))
       try:
         self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])
       except Exception as e:
@@ -211,7 +209,6 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         firefly_pool = metadata.ns('eagle')['firefly_pool']
         self._firefly_pool = serialization.restore_firefly_pool(
             self._utils, firefly_pool)
-        logging.info('Restored firefly pool:\n%s', self._firefly_pool)
       except Exception as e:
         raise serializable.HarmlessDecodeError(
             "Couldn't load firefly pool from metadata.") from e
@@ -256,21 +253,15 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # Create a new parent fly id and assign it to the trial, this will be
       # used during Update to match the trial to its parent fly in the pool.
       parent_fly_id = self._firefly_pool.generate_new_fly_id()
-      logging.info('Pool is underpopulated. Generated random trial parameters.')
     else:
       moving_fly = self._firefly_pool.get_next_moving_fly_copy()
       self._mutate_fly(moving_fly)
       self._perturb_fly(moving_fly)
       suggested_parameters = moving_fly.trial.parameters
       parent_fly_id = moving_fly.id_
-      logging.info('Created a trial from parent fly ID: %s.', parent_fly_id)
 
     suggested_trial.parameters = suggested_parameters
     suggested_trial.metadata.ns('eagle')['parent_fly_id'] = str(parent_fly_id)
-    logging.info(
-        'Suggested trial: %s',
-        self._utils.display_trial(suggested_trial.to_trial(-1)),
-    )
     return suggested_trial
 
   def _mutate_fly(self, moving_fly: Firefly) -> None:
@@ -360,8 +351,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       if not trial.metadata.ns('eagle').get('parent_fly_id'):
         # Trial was not generated from Eagle Strategy. Set a new parent fly id.
         trial.metadata.ns('eagle')['parent_fly_id'] = str(
-            self._firefly_pool.generate_new_fly_id())
-        logging.info('Received a trial without parent_fly_id.')
+            self._firefly_pool.generate_new_fly_id()
+        )
       self._update_one(trial)
 
   def _update_one(self, trial: vz.Trial) -> None:
@@ -369,16 +360,11 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     parent_fly_id = int(trial.metadata.ns('eagle').get('parent_fly_id'))
     parent_fly = self._firefly_pool.find_parent_fly(parent_fly_id)
     if parent_fly is None:
-      logging.info('Parent fly ID: %s is not in pool.', parent_fly_id)
       if trial.infeasible:
         # Ignore infeasible trials without parent fly.
-        logging.info('Got infeasible trial without a parent fly in the pool.')
+        pass
       elif self._firefly_pool.size < self._firefly_pool.capacity:
         # Pool is below capacity. Create a new firefly or update existing one.
-        logging.info(
-            'Pool is below capacity (size=%s). Invoke create or update pool.',
-            self._firefly_pool.size,
-        )
         self._firefly_pool.create_or_update_fly(trial, parent_fly_id)
         return
       else:
@@ -387,31 +373,16 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
 
     if parent_fly is None:
       # Parent fly wasn't established. No need to continue.
-      logging.info('Parent fly was not established.')
       return
 
     elif not trial.infeasible and self._utils.is_better_than(
         trial, parent_fly.trial):
       # There's improvement. Update the parent with the new trial.
-      logging.info(
-          'Good step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',
-          self._utils.get_metric(parent_fly.trial),
-          self._utils.display_trial(parent_fly.trial),
-          self._utils.get_metric(trial),
-          self._utils.display_trial(trial),
-      )
       parent_fly.trial = trial
       parent_fly.generation += 1
     else:
       # There's no improvement. Penalize the parent by decreasing its
       # exploration capability and potenitally remove it from the pool.
-      logging.info(
-          'Bad step:\nParent trial (val=%s): %s\nChild trial (val=%s): %s\n',
-          self._utils.get_metric(parent_fly.trial),
-          self._utils.display_trial(parent_fly.trial),
-          self._utils.get_metric(trial),
-          self._utils.display_trial(trial),
-      )
       self._penalize_parent_fly(parent_fly, trial)
 
   def _assign_closest_parent(self, trial: vz.Trial) -> Optional[Firefly]:
@@ -458,21 +429,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       parent_fly.perturbation = min(
           parent_fly.perturbation * 10, self._config.max_perturbation
       )
-      logging.info(
-          ('Penalize Parent Id: %s. Parameters are stuck. '
-           'New perturbation factor: %s'),
-          parent_fly.id_,
-          parent_fly.perturbation,
-      )
     else:
       # Otherwise, penalize the parent by decreasing its perturbation factor.
       parent_fly.perturbation *= 0.9
-      logging.info(
-          ('Penalize Parent Id: %s. Decrease perturbation factor. '
-           'New perturbation factor: %s'),
-          parent_fly.id_,
-          parent_fly.perturbation,
-      )
+
     if parent_fly.perturbation < self._config.perturbation_lower_bound:
       # If the perturbation factor is too low we attempt to eliminate the
       # unsuccessful parent fly from the pool.
@@ -482,4 +442,3 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         if not self._firefly_pool.is_best_fly(parent_fly):
           # Check that the fly is not the best one we have thus far.
           self._firefly_pool.remove_fly(parent_fly)
-          logging.info('Removed fly ID: %s from pool.', parent_fly.id_)

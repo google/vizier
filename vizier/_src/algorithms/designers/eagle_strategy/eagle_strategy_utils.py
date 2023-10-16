@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import collections
 import copy
-import logging
 import math
-from typing import Optional, Dict, DefaultDict
+from typing import DefaultDict, Dict, Optional
+from absl import logging
 import attr
 import numpy as np
 from vizier import pyvizier as vz
@@ -104,7 +104,7 @@ class EagleStrategyUtils:
         self.problem_statement.single_objective_metric_name
     )
     self._goal = self.problem_statement.metric_information.item().goal
-    logging.info('EagleStrategyUtils was created.\n%s', str(self))
+    logging.info('EagleStrategyUtils instance was created.\n%s', str(self))
 
   def compute_pull_weight_by_type(
       self,
@@ -438,7 +438,6 @@ class FireflyPool:
   def generate_new_fly_id(self) -> int:
     """Generates a unique fly id (starts from 0) to identify a fly in the pool."""
     self._max_fly_id += 1
-    logging.info('New fly id generated (%s).', self._max_fly_id - 1)
     return self._max_fly_id - 1
 
   def get_next_moving_fly_copy(self) -> Firefly:
@@ -466,7 +465,6 @@ class FireflyPool:
         return copy.deepcopy(self._pool[current_fly_id])
       current_fly_id += 1
 
-    logging.info("Couldn't find another fly in the pool to move.")
     return copy.deepcopy(self._pool[self._last_id])
 
   def is_best_fly(self, fly: Firefly) -> bool:
@@ -530,7 +528,6 @@ class FireflyPool:
     """
     if parent_fly_id not in self._pool:
       # Create a new Firefly in pool.
-      logging.info('Create a fly in pool. Parent fly ID: %s.', parent_fly_id)
       new_fly = Firefly(
           id_=parent_fly_id,
           perturbation=self.utils.config.perturbation,
@@ -540,6 +537,5 @@ class FireflyPool:
       self._pool[parent_fly_id] = new_fly
     else:
       # Parent fly id already in pool. Update trial if there was improvement.
-      logging.info('Parent fly ID (%s) is already in the pool.', parent_fly_id)
       if self.utils.is_better_than(trial, self._pool[parent_fly_id].trial):
         self._pool[parent_fly_id].trial = trial
