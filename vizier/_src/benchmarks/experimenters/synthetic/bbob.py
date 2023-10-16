@@ -16,12 +16,11 @@ from __future__ import annotations
 
 """Experimenter function implementations for BBOB functions."""
 
-import functools
 import hashlib
 import math
-from typing import Any, Callable
-
+from typing import Any, Callable, Sequence
 import numpy as np
+from scipy import stats
 from vizier import pyvizier
 
 
@@ -158,13 +157,14 @@ def Fpen(vector: np.ndarray) -> float:
   return sum([max(0.0, (abs(x) - 5.0))**2 for x in vector.flat])
 
 
-def _Hash(*seeds: Any) -> int:
-  """Returns a stable hash that fits in a positive int64."""
-  message = hashlib.sha256()
-  for s in seeds:
-    message.update(bytes(s))
-  # Limit the size of the returned value to fit into a np.int64.
-  return int(message.hexdigest()[:15], 16)
+def _IntSeeds(any_seeds: Sequence[Any], *, byte_length: int = 4) -> list[int]:
+  """Array of integers that can be used as random state seed."""
+  int_seeds = []
+  for s in any_seeds:
+    # Encode into 4 byte_length worth of a hexadecimal string.
+    hashed = hashlib.shake_128(str(s).encode("utf-8")).hexdigest(byte_length)
+    int_seeds.append(int(hashed, 16))
+  return int_seeds
 
 
 def _ToFloat(a: int, b: np.ndarray) -> np.ndarray:
@@ -172,32 +172,23 @@ def _ToFloat(a: int, b: np.ndarray) -> np.ndarray:
   return (np.int64(a) % b) / np.float64(b) - 0.5
 
 
-@functools.lru_cache(maxsize=128)
-def _R(dim: int, seed: int, *moreseeds: bytes) -> np.ndarray:
+def _R(dim: int, seed: int, *moreseeds: Any) -> np.ndarray:
   """Returns an orthonormal rotation matrix.
 
   Args:
     dim: size of the resulting matrix.
-    seed: int seed. 0 means identity.
-    *moreseeds: Additional parameters to include in the hash.  Arguments must be
-      interpretable as a buffer of bytes.
+    seed: int seed. If set to 0, this function returns an identity matrix
+      regardless of *moreseeds.
+    *moreseeds: Additional parameters to include in the hash. Arguments are
+      converted to strings first.
 
   Returns:
-    2-dimensional, dim x dim, ndarray, representing a rotation matrix.
+    Array of shape (dim, dim), representing a rotation matrix.
   """
   if seed == 0:
     return np.identity(dim)
-  h = 0 if seed == 0 else _Hash(*((seed, dim) + moreseeds))
-  a = np.arange(dim * dim, dtype=np.int64)
-  # We make a vector of (loosely speaking) random entries.
-  b = (
-      _ToFloat(h + 17, a + 127) + _ToFloat(h + 61031, a + 197) +
-      _ToFloat(h + 503, a + 293))
-
-  # The "Q" part of a Q-R decomposition is orthonormal, so $result is a pure
-  # rotation matrix.  If elements of $b are independent normal, then the
-  # distribution of rotations is uniform over the hypersphere.
-  return np.linalg.qr(b.reshape(dim, dim))[0]
+  rng = np.random.default_rng(_IntSeeds(((seed, dim) + moreseeds)))
+  return stats.special_ortho_group.rvs(dim, random_state=rng)
 
 
 ## BBOB Functions.

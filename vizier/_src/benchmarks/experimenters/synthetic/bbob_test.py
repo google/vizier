@@ -16,8 +16,12 @@ from __future__ import annotations
 
 """Tests for bbob."""
 
+import sys
+
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -31,6 +35,12 @@ class BbobTest(parameterized.TestCase):
     problem = bbob.DefaultBBOBProblemStatement(10, scale_type=scale_type)
     for p in problem.search_space.parameters:
       self.assertEqual(p.scale_type, scale_type)
+
+  def test_rotation(self):
+    rotation = bbob._R(5, sys.maxsize, 'A', b'XAFDAF', 3)
+    rotation2 = bbob._R(5, sys.maxsize, 'A', b'XAFDAF', 3)
+    np.testing.assert_allclose(rotation.T @ rotation, np.eye(5), atol=1e-5)
+    np.testing.assert_array_equal(rotation, rotation2)
 
 
 if __name__ == '__main__':
