@@ -674,15 +674,6 @@ class DefaultModelInputConverter(ModelInputConverter):
       closest_number = pyvizier.ParameterValue(
           self.parameter_config.feasible_values[idx]
       )
-
-      if diffs[idx] > 1e-16 + abs(diffs[idx]) * 1e-14:
-        logging.error(
-            'Detected a potential out-of-range value %s while converting'
-            ' parameter %s. Please note that to_trial method always clips to'
-            ' the nearest value.',
-            value,
-            self.parameter_config,
-        )
       return pyvizier.ParameterValue(
           closest_number.cast_as_internal(self.parameter_config.type)
       )
