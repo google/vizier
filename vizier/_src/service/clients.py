@@ -216,7 +216,7 @@ class Study(client_abc.StudyInterface):
   def from_owner_and_id(
       cls: Type['Study'], owner: str, study_id: str
   ) -> 'Study':
-    """Create study from StudyConfig.
+    """Create study from `owner` and `study_id`.
 
     Args:
       owner: Owner of the study.
