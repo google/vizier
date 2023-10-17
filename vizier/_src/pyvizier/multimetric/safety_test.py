@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 from vizier import pyvizier
 from vizier._src.pyvizier.multimetric import safety
 from absl.testing import absltest
@@ -100,6 +101,48 @@ class SafeAcquisitionTest(absltest.TestCase):
     self.assertListEqual(
         checker.are_trials_safe([safe_trial, unsafe_trial,
                                  pyvizier.Trial()]), [True, True, True])
+
+  def testWarpUnsafeTrials(self):
+    info1 = pyvizier.MetricInformation(
+        name='obj', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+    )
+    info2 = pyvizier.MetricInformation(
+        name='safety',
+        goal=pyvizier.ObjectiveMetricGoal.MINIMIZE,
+        safety_threshold=0.5,
+    )
+    checker = safety.SafetyChecker(pyvizier.MetricsConfig([info1, info2]))
+
+    safe_trial = pyvizier.Trial(
+        final_measurement=pyvizier.Measurement(
+            metrics={'obj': 0.2, 'safety': 0.3}
+        )
+    )
+    unsafe_trial = pyvizier.Trial(
+        final_measurement=pyvizier.Measurement(
+            metrics={'obj': 0.2, 'safety': 0.7, 'extra': 0.3}
+        )
+    )
+    no_safety_trial = pyvizier.Trial(
+        final_measurement=pyvizier.Measurement(metrics={'obj': 0.2})
+    )
+
+    # Empty safety measurement is assumed to be safe.
+    warped_trials = checker.warp_unsafe_trials(
+        [safe_trial, unsafe_trial, no_safety_trial]
+    )
+
+    self.assertEqual(warped_trials[0], safe_trial)
+    self.assertEqual(warped_trials[2], no_safety_trial)
+
+    # Unsafe Trial is warped.
+    self.assertEqual(
+        warped_trials[1].final_measurement.metrics['obj'].value, -np.inf
+    )
+    # Extra metrics should be untouched.
+    self.assertEqual(
+        warped_trials[1].final_measurement.metrics['extra'].value, 0.3
+    )
 
 
 if __name__ == '__main__':

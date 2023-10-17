@@ -198,7 +198,7 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_equal(curve.ys, np.float_(expected))
 
 
-class HyperConvergenceCurveConverterTest(parameterized.TestCase):
+class HypervolumeCurveConverterTest(parameterized.TestCase):
 
   def test_convert_with_origin_reference(self):
     generator = convergence.HypervolumeCurveConverter(
@@ -295,6 +295,84 @@ class HyperConvergenceCurveConverterTest(parameterized.TestCase):
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 4.0]], decimal=1)
+
+
+class MultiMetricCurveConverterTest(parameterized.TestCase):
+
+  def test_convert_single_objective(self):
+    generator = convergence.MultiMetricCurveConverter.from_metrics_config(
+        metrics_config=pyvizier.MetricsConfig([
+            pyvizier.MetricInformation(
+                name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+            ),
+            pyvizier.MetricInformation(
+                name='safe',
+                goal=pyvizier.ObjectiveMetricGoal.MINIMIZE,
+                safety_threshold=0.1,
+            ),
+        ]),
+        flip_signs_for_min=True,
+    )
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'min': 4.0, 'safe': -2.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'min': 3.0, 'safe': 1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'min': 2.0, 'safe': -1.0})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[-4.0, -4.0, -2.0]])
+
+  def test_convert_multiobjective(self):
+    generator = convergence.MultiMetricCurveConverter.from_metrics_config(
+        metrics_config=pyvizier.MetricsConfig([
+            pyvizier.MetricInformation(
+                name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+            ),
+            pyvizier.MetricInformation(
+                name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+            ),
+            pyvizier.MetricInformation(
+                name='safe',
+                goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+                safety_threshold=-0.2,
+            ),
+        ]),
+        reference_value=np.array([0.0]),
+    )
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -1.0, 'safe': 1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(
+                metrics={'max': 5.0, 'min': -1.0, 'safe': -1.0}
+            )
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0, 'safe': 2.1})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[4.0, 4.0, 8.0]], decimal=1)
 
 
 class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):

@@ -16,7 +16,8 @@ from __future__ import annotations
 
 """Multimetric utility classes for Studies/Trials."""
 
-from typing import Iterable
+from typing import Iterable, Sequence
+import numpy as np
 from vizier import pyvizier
 
 
@@ -35,6 +36,9 @@ class SafetyChecker:
     Args:
       metrics_config: MetricsConfig for a Study.
     """
+    self._objective_metrics = list(
+        metrics_config.of_type(pyvizier.MetricType.OBJECTIVE)
+    )
     self._safety_metrics = list(
         metrics_config.of_type(pyvizier.MetricType.SAFETY))
 
@@ -80,3 +84,36 @@ class SafetyChecker:
           is_safe = is_safe and metric_value <= safety_metric.safety_threshold
       safety_results.append(is_safe)
     return safety_results
+
+  def warp_unsafe_trials(
+      self, trials: Sequence[pyvizier.Trial]
+  ) -> Sequence[pyvizier.Trial]:
+    """Sets the final measurements of unsafe Trials to worst values in place.
+
+    Args:
+      trials: Sequence of pyvizier Trials.
+
+    Returns:
+      Trials whose final measurements are warped to the worst value (inf/-inf)
+      for all OBJECTIVE metrics in unsafe Trials.
+    """
+    are_safe = self.are_trials_safe(trials)
+    objective_goals = {m.name: m.goal for m in self._objective_metrics}
+    for is_safe, trial in zip(are_safe, trials):
+      if is_safe:
+        continue
+      if trial.final_measurement is None:
+        continue
+
+      for name in trial.final_measurement.metrics.keys():
+        if name in objective_goals:
+          worst_value = (
+              np.inf
+              if objective_goals[name] == pyvizier.ObjectiveMetricGoal.MINIMIZE
+              else -np.inf
+          )
+          trial.final_measurement.metrics[name] = pyvizier.Metric(
+              value=worst_value
+          )
+
+    return trials

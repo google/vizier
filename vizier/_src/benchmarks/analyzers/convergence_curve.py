@@ -18,9 +18,10 @@ from __future__ import annotations
 
 import abc
 import bisect
+import copy
 import enum
 import logging
-from typing import Callable, List, Optional, Protocol, Sequence
+from typing import Callable, List, Optional, Protocol, Sequence, Union
 
 import attr
 import numpy as np
@@ -384,6 +385,58 @@ class HypervolumeCurveConverter:
         trend=ConvergenceCurve.YTrend.INCREASING,
         ylabel='hypervolume',
     )
+
+
+@attr.define(init=True)
+class MultiMetricCurveConverter:
+  """Converts Trials to cumulative convergence curve for all multimetric studies.
+
+  Attributes:
+      metrics_config: Metrics config of the whole study.
+      converter: Wrapped curve converter.
+  """
+
+  metrics_config: pyvizier.MetricsConfig = attr.field(
+      validator=attr.validators.instance_of(pyvizier.MetricsConfig)
+  )
+  converter: Union[ConvergenceCurveConverter, HypervolumeCurveConverter] = (
+      attr.field()
+  )
+
+  @classmethod
+  def from_metrics_config(
+      cls, metrics_config: pyvizier.MetricsConfig, **kwargs
+  ) -> 'MultiMetricCurveConverter':
+    """Builds MultiMetricConverter from config.
+
+    Args:
+      metrics_config:
+      **kwargs: Kwargs forwarded to Converter.
+
+    Returns:
+    """
+    if metrics_config.is_single_objective:
+      single_metric_info = metrics_config.of_type(
+          pyvizier.MetricType.OBJECTIVE
+      ).item()
+      converter = ConvergenceCurveConverter(single_metric_info, **kwargs)
+      return cls(metrics_config, converter)
+    else:
+      converter = HypervolumeCurveConverter(
+          list(metrics_config.of_type(pyvizier.MetricType.OBJECTIVE)), **kwargs
+      )
+    return cls(metrics_config, converter)
+
+  def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
+    """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
+    if not trials:
+      raise ValueError(f'No trials provided {trials}')
+
+    # Add safety understanding by setting unsafe Trials to inf/-inf.
+    safety_checker = multimetric.SafetyChecker(self.metrics_config)
+    warped_trials = safety_checker.warp_unsafe_trials(copy.deepcopy(trials))
+
+    return self.converter.convert(warped_trials)
 
 
 @attr.define
