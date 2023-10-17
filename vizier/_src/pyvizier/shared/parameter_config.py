@@ -977,8 +977,13 @@ class SearchSpaceSelector:
       ParameterConfigSelector for the newly added parameter(s).
 
     Raises:
-      ValueError: If `index` is invalid (e.g. negative).
+      ValueError: If `index` is invalid (e.g. negative), or `feasible_values`
+        are invalid (not strings).
     """
+    for value in feasible_values:
+      if not isinstance(value, str):
+        raise ValueError(f'feasible_values must be strings; got: {value}')
+
     param_names = self._get_parameter_names_to_create(name=name, index=index)
 
     new_params = []

@@ -541,6 +541,12 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
         name)
     self.assertEqual(base_name_index, expected)
 
+  def testValidateCategoricalInput(self):
+    space = pc.SearchSpace()
+    root = space.select_root()
+    with self.assertRaises(ValueError):
+      root.add_categorical_param('categorical', ['3.2', '2', 5])
+
 
 class SearchSpaceContainsTest(absltest.TestCase):
 
