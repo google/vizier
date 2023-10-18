@@ -454,7 +454,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     best_candidates = dataclasses.replace(
         best_candidates, features=optimal_features
     )
-
+    logging.info(
+        f'acquisition values of best candidates: {best_candidates.rewards}'
+    )
     # Convert best_candidates (in scaled space) into suggestions (in unscaled
     # space); also append debug information like model predictions.
     logging.info('Converting the optimization result into suggestions...')

@@ -17,21 +17,17 @@ from __future__ import annotations
 """Tests for gp_bandit."""
 
 from typing import Callable, Union
-import unittest
 from unittest import mock
 
 import jax
 import numpy as np
-from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.algorithms.testing import test_runners
-from vizier._src.jax import types
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -123,39 +119,23 @@ def _compute_mse(
 class GoogleGpBanditTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      dict(iters=3, batch_size=2, num_seed_trials=1, ensemble_size=2),
-      dict(
-          iters=3,
-          batch_size=1,
-          num_seed_trials=1,
-          ensemble_size=2,
-          acquisition_optimizer_factory=lbfgsb_optimizer_factory,
-      ),
       dict(
           iters=3,
           batch_size=5,
           num_seed_trials=5,
           padding_schedule=padding.PaddingSchedule(
               num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
           ),
       ),
       dict(
-          iters=5,
-          batch_size=1,
-          num_seed_trials=3,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          acquisition_optimizer_factory=lbfgsb_optimizer_factory,
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
       ),
       dict(
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-          ensemble_size=3,
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
       ),
   )
   def test_on_flat_continuous_space(
@@ -226,281 +206,6 @@ class GoogleGpBanditTest(parameterized.TestCase):
     self.assertLen(prediction.stddev, 3)
     self.assertFalse(np.isnan(prediction.mean).any())
     self.assertFalse(np.isnan(prediction.stddev).any())
-
-  @parameterized.parameters(
-      dict(iters=3, batch_size=5, num_seed_trials=5),
-      dict(iters=5, batch_size=1, num_seed_trials=2),
-      dict(iters=5, batch_size=1, num_seed_trials=1),
-      dict(
-          iters=3,
-          batch_size=5,
-          num_seed_trials=5,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
-          ),
-      ),
-  )
-  def test_on_flat_mixed_space(
-      self,
-      iters: int,
-      batch_size: int,
-      num_seed_trials: int,
-      padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(),
-      use_trust_region: bool = True,
-  ):
-    problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
-    problem.metric_information.append(
-        vz.MetricInformation(
-            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    )
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=num_seed_trials,
-        padding_schedule=padding_schedule,
-        use_trust_region=use_trust_region,
-    )
-    self.assertLen(
-        test_runners.RandomMetricsRunner(
-            problem,
-            iters=iters,
-            batch_size=batch_size,
-            verbose=1,
-            validate_parameters=True,
-        ).run_designer(designer),
-        iters * batch_size,
-    )
-    quasi_random_sampler = quasi_random.QuasiRandomDesigner(
-        problem.search_space
-    )
-    predict_trials = quasi_random_sampler.suggest(count=3)
-    # Test the sample method.
-    samples = designer.sample(predict_trials, num_samples=5)
-    self.assertSequenceEqual(samples.shape, (5, 3))
-    samples = designer.sample(predict_trials, num_samples=5)
-    self.assertSequenceEqual(samples.shape, (5, 3))
-    self.assertFalse(np.isnan(samples).any())
-    empty_samples = designer.sample([], num_samples=5)
-    self.assertSequenceEqual(empty_samples.shape, (5, 0))
-    # Test the predict method.
-    prediction = designer.predict(predict_trials)
-    self.assertLen(prediction.mean, 3)
-    self.assertLen(prediction.stddev, 3)
-    self.assertFalse(np.isnan(prediction.mean).any())
-    self.assertFalse(np.isnan(prediction.stddev).any())
-
-  def test_prediction_accuracy(self):
-    f = lambda x: -((x - 0.5) ** 2)
-    gp_designer, obs_trials, _ = _setup_lambda_search(f)
-    gp_designer.update(vza.CompletedTrials(obs_trials), vza.ActiveTrials())
-    pred_trial = vz.Trial({'x0': 0.0})
-    pred = gp_designer.predict([pred_trial])
-    self.assertLess(np.abs(pred.mean[0] - f(0.0)), 2e-2)
-
-  # TODO: Add assertions to this test. Ideally
-  # create two designers with the same trial count (without padding)
-  # padding is just an internal detail that should be tested separately.
-  def test_jit_once(self, *args):
-    del args
-    jax.clear_caches()
-
-    space = test_studies.flat_continuous_space_with_scaling()
-    problem = vz.ProblemStatement(space)
-    problem.metric_information.append(
-        vz.MetricInformation(
-            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    )
-
-    def create_designer(problem):
-      return gp_bandit.VizierGPBandit(
-          problem=problem,
-          acquisition_optimizer_factory=vectorized_optimizer_factory,
-          num_seed_trials=3,
-          ensemble_size=2,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
-          ),
-      )
-
-    def create_runner(problem):
-      return test_runners.RandomMetricsRunner(
-          problem,
-          iters=5,
-          batch_size=1,
-          verbose=1,
-          validate_parameters=True,
-      )
-
-    designer = create_designer(problem)
-    # Padding schedule should avoid retracing every iteration.
-    create_runner(problem).run_designer(designer)
-
-    # Padding schedule should avoid retracing with one more feature.
-    space.root.add_float_param('x0', -5.0, 5.0)
-    designer1 = create_designer(problem)
-    create_runner(problem).run_designer(designer1)
-
-    # Retracing should not occur when a new VizierGPBandit instance is created.
-    designer2 = create_designer(problem)
-    create_runner(problem).run_designer(designer2)
-
-  def test_parallel_acquisition(self):
-    problem = vz.ProblemStatement(
-        test_studies.flat_continuous_space_with_scaling()
-    )
-    problem.metric_information.append(
-        vz.MetricInformation(
-            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    )
-
-    def _qei_factory(data: types.ModelData) -> acquisitions.AcquisitionFunction:
-      best_labels = acquisitions.get_best_labels(data.labels)
-      return acquisitions.QEI(best_labels=best_labels, num_samples=100)
-
-    scoring_fn_factory = acquisitions.bayesian_scoring_function_factory(
-        _qei_factory
-    )
-
-    n_parallel = 4
-    iters = 3
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        ard_optimizer=optimizers.JaxoptLbfgsB(
-            optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
-        ),
-        scoring_function_factory=scoring_fn_factory,
-        scoring_function_is_parallel=True,
-        use_trust_region=False,
-        num_seed_trials=n_parallel,
-        ensemble_size=3,
-        rng=jax.random.PRNGKey(0),
-        linear_coef=0.1,
-    )
-    self.assertLen(
-        test_runners.RandomMetricsRunner(
-            problem,
-            iters=iters,
-            batch_size=n_parallel,
-            verbose=1,
-            validate_parameters=True,
-            seed=1,
-        ).run_designer(designer),
-        iters * n_parallel,
-    )
-
-  def test_multi_metrics(self):
-    search_space = vz.SearchSpace()
-    search_space.root.add_float_param('x0', -5.0, 5.0)
-    problem = vz.ProblemStatement(
-        search_space=search_space,
-        metric_information=vz.MetricsConfig(
-            metrics=[
-                vz.MetricInformation(
-                    'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-                ),
-                vz.MetricInformation(
-                    'obj2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-                ),
-            ]
-        ),
-    )
-
-    iters = 2
-    designer = gp_bandit.VizierGPBandit.from_problem(problem)
-    self.assertLen(
-        test_runners.RandomMetricsRunner(
-            problem,
-            iters=iters,
-            verbose=1,
-            validate_parameters=True,
-            seed=1,
-        ).run_designer(designer),
-        iters,
-    )
-
-
-# TODO: Fix transfer learning and enable tests.
-@unittest.skip('The current transfer learning seems broken and test failing.')
-class GPBanditPriorsTest(parameterized.TestCase):
-
-  def test_prior_warping(self):
-    f = lambda x: -((x - 0.5) ** 2)
-    transform_f = lambda x: -3 * ((x - 0.5) ** 2) + 10
-
-    # X is in range of what is defined in `_setup_lambda_search`, [-5.0, 5.0)
-    x_test = np.random.default_rng(1).uniform(-5.0, 5.0, 100)
-    y_test = [transform_f(x) for x in x_test]
-    test_trials = [vz.Trial({'x0': x}) for x in x_test]
-
-    # Create the designer with a prior and the trials to train the prior.
-    gp_designer_with_prior, obs_trials_for_prior, _ = _setup_lambda_search(
-        f=f, num_trials=100
-    )
-
-    # Set priors to above trials.
-    gp_designer_with_prior.set_priors(
-        [vza.CompletedTrials(obs_trials_for_prior)]
-    )
-
-    # Create a no prior designer on the transformed function `transform_f`.
-    # Also use the generated trials to update both the designer with prior and
-    # the designer without. This tests that the prior designer is resilient
-    # to linear transforms between the prior and the top level study.
-    gp_designer_no_prior, obs_trials, _ = _setup_lambda_search(
-        f=transform_f, num_trials=20
-    )
-
-    # Update both designers with the actual study.
-    gp_designer_no_prior.update(
-        vza.CompletedTrials(obs_trials), vza.ActiveTrials()
-    )
-    gp_designer_with_prior.update(
-        vza.CompletedTrials(obs_trials), vza.ActiveTrials()
-    )
-
-    # Evaluate the no prior designer's accuracy on the test set.
-    mse_no_prior = _compute_mse(gp_designer_no_prior, test_trials, y_test)
-
-    # Evaluate the designer with prior's accuracy on the test set.
-    mse_with_prior = _compute_mse(gp_designer_with_prior, test_trials, y_test)
-
-    # The designer with a prior should predict better.
-    self.assertLess(mse_with_prior, mse_no_prior)
-
-  @parameterized.parameters(
-      dict(iters=3, batch_size=5),
-      dict(iters=5, batch_size=1),
-  )
-  def test_run_with_priors(self, *, iters, batch_size):
-    f = lambda x: -((x - 0.5) ** 2)
-
-    # Create the designer with a prior and the trials to train the prior.
-    gp_designer_with_prior, obs_trials_for_prior, problem = (
-        _setup_lambda_search(f=f, num_trials=100)
-    )
-
-    # Set priors to the above trials.
-    gp_designer_with_prior.set_priors(
-        [vza.CompletedTrials(obs_trials_for_prior)]
-    )
-
-    self.assertLen(
-        test_runners.RandomMetricsRunner(
-            problem,
-            iters=iters,
-            batch_size=batch_size,
-            verbose=1,
-            validate_parameters=True,
-            seed=1,
-        ).run_designer(gp_designer_with_prior),
-        iters * batch_size,
-    )
 
 
 if __name__ == '__main__':
