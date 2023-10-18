@@ -29,7 +29,9 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.algorithms.testing import simple4d_runner
 from vizier._src.algorithms.testing import test_runners
+from vizier._src.benchmarks.experimenters.synthetic import simple4d
 from vizier._src.jax import types
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
@@ -422,6 +424,25 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ).run_designer(designer),
         iters,
     )
+
+
+class GPBanditSimple4DTest(parameterized.TestCase):
+  """Simple4d convergence tests for gp bandit designer."""
+
+  @parameterized.parameters(
+      dict(best_category='corner'),
+      dict(best_category='center'),
+      dict(best_category='mixed'),
+  )
+  def test_convergence(self, best_category: simple4d.Simple4DCategory) -> None:
+    simple4d_runner.Simple4DConvergenceTester(
+        best_category=best_category,
+        designer_factory=gp_bandit.VizierGPBandit.from_problem,
+        num_trials=100,
+        max_relative_error=0.05,
+        num_repeats=1,
+        target_num_convergence=1,
+    ).assert_convergence()
 
 
 class GPBanditPriorsTest(parameterized.TestCase):
