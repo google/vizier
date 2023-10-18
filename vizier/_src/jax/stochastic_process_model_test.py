@@ -25,9 +25,9 @@ from absl.testing import parameterized
 import equinox as eqx
 from flax import linen as nn
 import jax
+from jax import config
 from jax import numpy as jnp
 from jax import random
-from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 import tree

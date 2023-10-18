@@ -22,8 +22,8 @@ from typing import Any, Generator, Optional, Union
 
 from flax import struct
 import jax
+from jax import config
 from jax import numpy as jnp
-from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp

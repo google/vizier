@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from absl import logging
 import jax
+from jax import config
 from jax import numpy as jnp
-from jax.config import config
 import optax
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types

@@ -17,8 +17,8 @@ from __future__ import annotations
 """Tests for acquisitions."""
 
 import jax
+from jax import config
 from jax import numpy as jnp
-from jax.config import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers import scalarization
