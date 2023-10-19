@@ -523,9 +523,7 @@ class StochasticProcessModel(nn.Module):
     )
     kwargs = cached_intermediates
     if not y_observed._nopadding_done:  # pylint: disable=protected-access
-      kwargs = kwargs.copy(
-          {'observations_is_missing': y_observed.is_missing[0]}
-      )
+      kwargs = kwargs | {'observations_is_missing': y_observed.is_missing[0]}
 
     predictive_index_points = tfpke.ContinuousAndCategoricalValues(
         continuous=x_predictive.continuous.padded_array,
