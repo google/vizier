@@ -167,13 +167,13 @@ class SimpleRegretComparisonTester:
     candidate_optimizer = candidate_optimizer_factory(converter)
 
     for i in range(self.baseline_num_repeats):
-      res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))
+      res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
       trial = vb.best_candidates_to_trials(res, converter)
       baseline_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
 
     for i in range(self.candidate_num_repeats):
-      res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))
+      res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
       trial = vb.best_candidates_to_trials(res, converter)
       candidate_obj_values.append(
           trial[0].final_measurement.metrics['acquisition'].value)
