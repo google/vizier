@@ -19,7 +19,7 @@ from __future__ import annotations
 from absl import logging
 import equinox as eqx
 import jax
-from jax.config import config
+from jax import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp

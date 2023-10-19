@@ -19,7 +19,7 @@ from __future__ import annotations
 import functools
 
 import jax
-from jax.config import config
+from jax import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier import pyvizier as vz

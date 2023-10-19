@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from absl.testing import parameterized
 import jax
-from jax.config import config
+from jax import config
 import numpy as np
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
