@@ -59,17 +59,14 @@ class ObjectiveRewardGenerator:
   def __call__(self, trials: Sequence[vz.Trial]) -> list[float]:
     """Generate rewards from trials."""
     self.all_trials.extend(trials)
-    objectives = self.problem.metric_information.of_type(
-        vz.MetricType.OBJECTIVE
-    )
+    # Using MultiMetricConverter for safety understanding.
     if self.problem.is_single_objective:
-      metric_information = objectives.item()
-      curve_generator = analyzers.ConvergenceCurveConverter(
-          metric_information, flip_signs_for_min=True
+      curve_generator = analyzers.MultiMetricCurveConverter.from_metrics_config(
+          self.problem.metric_information, flip_signs_for_min=True
       )
     else:
-      curve_generator = analyzers.HypervolumeCurveConverter(
-          list(objectives),
+      curve_generator = analyzers.MultiMetricCurveConverter.from_metrics_config(
+          self.problem.metric_information,
           reference_value=self.reference_value,
           num_vectors=self.num_vectors,
       )
@@ -87,7 +84,10 @@ class ObjectiveRewardGenerator:
         regularized_reward = (
             obj_reward + self.reward_regularization * objective_curve.ys[:, idx]
         )
-        rewards.append(max(self.min_reward, np.squeeze(regularized_reward)))
+        if np.isfinite(regularized_reward):
+          rewards.append(max(self.min_reward, np.squeeze(regularized_reward)))
+        else:
+          rewards.append(self.min_reward)
       return rewards
 
 

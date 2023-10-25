@@ -360,7 +360,16 @@ class HypervolumeCurveConverter:
 
     metrics = self._converter.to_labels_array(trials)
     if self._origin_value is None:
-      origin = np.nanmin(metrics, axis=0)
+      # Set origin to the minimum of finite values.
+      origin = np.zeros(shape=(metrics.shape[1],))
+      for metric_idx, metric_is_finite in enumerate(
+          np.any(np.isfinite(metrics), axis=0)
+      ):
+        # If all metrics are infinite, leave origin unchanged at 0.
+        if metric_is_finite:
+          metric_arr = metrics[:, metric_idx]
+          origin[metric_idx] = np.min(metric_arr[np.isfinite(metric_arr)])
+
     else:
       if len(self._origin_value) == 1:
         origin = np.broadcast_to(self._origin_value, (metrics.shape[1],))

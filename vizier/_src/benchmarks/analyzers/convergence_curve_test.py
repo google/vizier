@@ -197,6 +197,20 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_equal(curve.xs, list(range(1, len(trials) + 1)))
     np.testing.assert_array_equal(curve.ys, np.float_(expected))
 
+  @parameterized.named_parameters(
+      ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[-np.inf, 2, 2]]),
+      ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[-np.inf, -2, -1]]),
+  )
+  def test_convert_flip_signs_inf(self, goal, expected):
+    sign = 1 if goal == pyvizier.ObjectiveMetricGoal.MINIMIZE else -1
+    trials = _gen_trials([sign * np.inf, 2, 1])
+    generator = convergence.ConvergenceCurveConverter(
+        pyvizier.MetricInformation(name='', goal=goal), flip_signs_for_min=True
+    )
+    curve = generator.convert(trials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_equal(curve.ys, expected)
+
 
 class HypervolumeCurveConverterTest(parameterized.TestCase):
 
@@ -278,7 +292,7 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
     pytrials = []
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': 2.0})
+            pyvizier.Measurement(metrics={'max': -np.inf, 'min': np.inf})
         )
     )
     pytrials.append(
@@ -294,7 +308,32 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 4.0]], decimal=1)
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 1.0]], decimal=1)
+
+  def test_convert_with_inf_none_reference(self):
+    generator = convergence.HypervolumeCurveConverter([
+        pyvizier.MetricInformation(
+            name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+        ),
+        pyvizier.MetricInformation(
+            name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+        ),
+    ])
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': -np.inf, 'min': np.inf})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': -np.inf, 'min': 2.0})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2])
+    np.testing.assert_array_equal(curve.ys, [[0.0, 0.0]])
 
 
 class MultiMetricCurveConverterTest(parameterized.TestCase):
