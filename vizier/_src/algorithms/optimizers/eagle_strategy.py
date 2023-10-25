@@ -290,6 +290,33 @@ def _compute_features_dist(
   return dist
 
 
+def _mask_flip(
+    prior_features: vb.VectorizedOptimizerInput, prior_rewards: types.Array
+) -> Tuple[vb.VectorizedOptimizerInput, types.Array]:
+  """Flips the ordering of the elements in `prior_rewards` and `prior_features`.
+
+  Args:
+    prior_features: Prior features to be flipped.
+    prior_rewards: Prior rewards to be flipped.
+
+  Returns:
+    A tuple of flipped prior features and prior rewards such that all elements
+    corresponding to -inf entries in `prior_rewards` are at the end, while all
+    other elements have the opposite order. For example, if `prior_rewards` is
+    [1, -jnp.inf, 3, -jnp.inf ,2],  `flipped_prior_rewards` will be
+    [2, 3, 1, -jnp.inf, -jnp.inf].
+  """
+  mask = jnp.invert(jnp.isneginf(prior_rewards))
+  indices = jnp.flip(
+      jnp.argsort(jnp.where(mask, jnp.arange(prior_rewards.shape[0]), -1))
+  )
+  flipped_prior_features = jax.tree_util.tree_map(
+      lambda x: x[indices], prior_features
+  )
+  flipped_prior_rewards = prior_rewards[indices]
+  return flipped_prior_features, flipped_prior_rewards
+
+
 @struct.dataclass
 class VectorizedEagleStrategy(
     vb.VectorizedStrategy[VectorizedEagleStrategyState]
@@ -440,93 +467,96 @@ class VectorizedEagleStrategy(
       raise ValueError("prior rewards is expected to be 1D array!")
 
     # Reverse the order of prior trials to assign more weight to recent trials.
-    flipped_prior_features = jax.tree_util.tree_map(
-        lambda x: jnp.flip(x, axis=0), prior_features
+    flipped_prior_features, flipped_prior_rewards = _mask_flip(
+        prior_features, prior_rewards
     )
-    flipped_prior_rewards = jnp.flip(prior_rewards, axis=0)
 
-    # Replace padding features with randomly-sampled ones.
-    seed1, seed2 = jax.random.split(seed)
     n_parallel = flipped_prior_features.continuous.shape[1]
-    random_features = self._sample_random_features(
-        flipped_prior_rewards.shape[0], n_parallel, seed2
-    )
-    flipped_prior_features = jax.tree_util.tree_map(
-        lambda x, y: jnp.where(
-            jnp.isneginf(flipped_prior_rewards)[:, jnp.newaxis, jnp.newaxis],
-            x,
-            y,
-        ),
-        random_features,
-        flipped_prior_features,
-    )
 
-    # Fill pool with random features.
+    pool_random_features = self._sample_random_features(
+        self.pool_size, n_parallel, seed
+    )
     n_random_flies = int(
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
     )
-
-    init_features = self._sample_random_features(
-        n_random_flies, n_parallel, seed1
+    # The pool is configured to have at least this many random trials.
+    init_features = jax.tree_util.tree_map(
+        lambda x: x[:n_random_flies, :, :], pool_random_features
     )
     pool_left_space = self.pool_size - n_random_flies
+    # When the number of prior trials is smaller than configured, we fill in
+    # random trials.
+    random_features = jax.tree_util.tree_map(
+        lambda x: x[n_random_flies:, :, :], pool_random_features
+    )
 
-    if prior_rewards.shape[0] < pool_left_space:
-      # Less prior trials than left space. Take all prior trials for the pool.
-      init_features = jax.tree_util.tree_map(
-          lambda x, y: jnp.concatenate([x, y]),
-          init_features,
-          flipped_prior_features,
-      )
-      # Randomize the rest of the pool fireflies.
-      random_features = self._sample_random_features(
-          self.pool_size - init_features.continuous.shape[0], n_parallel, seed2
-      )
-      return jax.tree_util.tree_map(
-          lambda x, y: jnp.concatenate([x, y]), init_features, random_features
-      )
-    else:
-      # More prior trials than left space. Iteratively populate the pool.
-      tmp_features = jax.tree_util.tree_map(
-          lambda x: x[:pool_left_space], flipped_prior_features
-      )
-      tmp_rewards = flipped_prior_rewards[:pool_left_space]
+    # Starts with the most recent `pool_left_space` prior trials as the chosen
+    # set of trials, and loops through the remaining prior trials. At each
+    # iteration, if the remaining trial has a better reward than its closest
+    # neighbor in the chosen set, it replaces the closest neighbor. Note that
+    # `pool_left_space` can be larger than the number of prior trials, in which
+    # case the chosen set contains all prior trials.
+    features = jax.tree_util.tree_map(
+        lambda x: x[:pool_left_space], flipped_prior_features
+    )
+    rewards = flipped_prior_rewards[:pool_left_space]
 
-      def _loop_body(i, args):
-        features, rewards = args
-        ind = jnp.argmin(
-            _compute_features_dist(
-                jax.tree_util.tree_map(
-                    lambda x: x[i][jnp.newaxis], flipped_prior_features
-                ),
-                features,
-            ),
-            axis=-1,
-        )[0]
-        return jax.lax.cond(
-            rewards[ind] < flipped_prior_rewards[i],
-            lambda: (
-                jax.tree_util.tree_map(
-                    lambda f, pf: f.at[ind].set(pf[i]),
-                    features,
-                    flipped_prior_features,
-                ),
-                rewards.at[ind].set(flipped_prior_rewards[i]),
-            ),
-            lambda: (features, rewards),
-        )
+    def _loop_body(i, args):
+      features, rewards = args
+      ind = jnp.argmin(
+          _compute_features_dist(
+              jax.tree_util.tree_map(
+                  lambda x: x[i][jnp.newaxis],
+                  flipped_prior_features,
+              ),
+              features,
+          ),
+          axis=-1,
+      )[0]
+      return jax.lax.cond(
+          rewards[ind] < flipped_prior_rewards[i],
+          lambda: (
+              jax.tree_util.tree_map(
+                  lambda f, pf: f.at[ind].set(pf[i]),
+                  features,
+                  flipped_prior_features,
+              ),
+              rewards.at[ind].set(flipped_prior_rewards[i]),
+          ),
+          lambda: (features, rewards),
+      )
 
-      # TODO: Use a vectorized method to populate the pool and avoid
-      # the for-loop.
-      tmp_features, _ = jax.lax.fori_loop(
-          lower=pool_left_space,
-          upper=prior_rewards.shape[0],
-          body_fun=_loop_body,
-          init_val=(tmp_features, tmp_rewards),
-      )
-      return jax.tree_util.tree_map(
-          lambda x, y: jnp.concatenate([x, y]), init_features, tmp_features
-      )
+    # TODO: Use a vectorized method to populate the pool and avoid
+    # the for-loop.
+    features, _ = jax.lax.fori_loop(
+        lower=pool_left_space,
+        upper=prior_rewards.shape[0],
+        body_fun=_loop_body,
+        init_val=(features, rewards),
+    )
+
+    num_chosen_trials = rewards.shape[0]
+    # Replaces padded trials in the chosen trials with random trials.
+    features = jax.tree_util.tree_map(
+        lambda x, y: jnp.where(
+            jnp.isneginf(rewards)[:, jnp.newaxis, jnp.newaxis],
+            x[:num_chosen_trials, :, :],
+            y,
+        ),
+        random_features,
+        features,
+    )
+    # Then ensures the chosen set of trials has exactly `pool_left_space` trials
+    # by filling in random trials.
+    features = jax.tree_util.tree_map(
+        lambda x, y: jnp.concatenate([x, y[num_chosen_trials:, :, :]]),
+        features,
+        random_features,
+    )
+
+    return jax.tree_util.tree_map(
+        lambda x, y: jnp.concatenate([x, y]), init_features, features
+    )
 
   @property
   def suggestion_batch_size(self) -> int:

@@ -291,6 +291,75 @@ class GoogleGpBanditTest(parameterized.TestCase):
     self.assertFalse(np.isnan(prediction.mean).any())
     self.assertFalse(np.isnan(prediction.stddev).any())
 
+  def test_invariance_to_trials_padding_on_flat_mixed_space(
+      self,
+  ):
+    problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    iters = 5
+    num_seed_trials = 1
+    acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
+        strategy_factory=es.VectorizedEagleStrategyFactory(),
+        max_evaluations=100,
+    )
+    # TODO: The test fails with proper ARD. Fix that and then turn
+    # on ARD again.
+    noop_ard_optimizer = optimizers.default_optimizer(maxiter=0)
+    desinger_rng = jax.random.PRNGKey(0)
+    designer = gp_bandit.VizierGPBandit(
+        problem=problem,
+        acquisition_optimizer_factory=acquisition_optimizer_factory,
+        ard_optimizer=noop_ard_optimizer,
+        num_seed_trials=num_seed_trials,
+        rng=desinger_rng,
+    )
+    padding_designer = gp_bandit.VizierGPBandit(
+        problem=problem,
+        acquisition_optimizer_factory=acquisition_optimizer_factory,
+        ard_optimizer=noop_ard_optimizer,
+        num_seed_trials=num_seed_trials,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10,
+        ),
+        rng=desinger_rng,
+    )
+    metrics_runner_seed = 1
+    designer_suggestions = test_runners.RandomMetricsRunner(
+        problem,
+        iters=iters,
+        verbose=1,
+        seed=metrics_runner_seed,
+        validate_parameters=True,
+    ).run_designer(designer)
+
+    padding_designer_suggestions = test_runners.RandomMetricsRunner(
+        problem,
+        iters=iters,
+        verbose=1,
+        seed=metrics_runner_seed,
+        validate_parameters=True,
+    ).run_designer(padding_designer)
+
+    self.assertLen(designer_suggestions, iters)
+    self.assertLen(padding_designer_suggestions, iters)
+    for idx, (suggestion, padding_suggestion) in enumerate(
+        zip(designer_suggestions, padding_designer_suggestions)
+    ):
+      params1 = suggestion.parameters.as_dict()
+      params2 = padding_suggestion.parameters.as_dict()
+      self.assertSameElements(params1.keys(), params2.keys())
+      for key in params1.keys():
+        self.assertAlmostEqual(
+            params1[key],
+            params2[key],
+            places=5,
+            msg=f'Mismatch in parameter: {key}, suggestions {idx}',
+        )
+
   def test_prediction_accuracy(self):
     f = lambda x: -((x - 0.5) ** 2)
     gp_designer, obs_trials, _ = _setup_lambda_search(f)

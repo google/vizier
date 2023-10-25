@@ -24,6 +24,7 @@ from tensorflow_probability.substrates import jax as tfp
 from vizier import pyvizier as vz
 from vizier._src.algorithms.optimizers import eagle_strategy
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax import types
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
 
@@ -484,6 +485,85 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         results.features.continuous.shape, (1, n_parallel, 4)
     )
 
+  @parameterized.parameters(
+      {'num_prior_trials': 0},
+      {'num_prior_trials': 3},
+      {'num_prior_trials': 53},
+  )
+  def test_optimize_with_eagle_trials_padding(self, num_prior_trials):
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 1.0)
+    root.add_float_param('x2', 0.0, 1.0)
+    root.add_float_param('x3', 0.0, 1.0)
+    root.add_categorical_param('c1', ['a', 'b', 'c'])
+    root.add_categorical_param('c2', ['d', 'e', 'f', 'g'])
+
+    rng = np.random.default_rng(seed=1)
+    prior_features_continuous = rng.uniform(size=(num_prior_trials, 3))
+    prior_features_categorical = rng.integers(
+        low=0,
+        high=[[3, 4]],
+        size=(num_prior_trials, 2),
+    )
+
+    def score_fn(x, _):
+      return jnp.sum(
+          x.continuous.replace_fill_value(0).padded_array, axis=(1,)
+      ) + jnp.sum(x.categorical.replace_fill_value(0).padded_array, axis=(1,))
+
+    count = 3
+
+    converter = converters.TrialToModelInputConverter.from_problem(
+        problem,
+    )
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        converter
+    )
+    prior_features = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(prior_features_continuous),
+        categorical=types.PaddedArray.as_padded(prior_features_categorical),
+    )
+    results = optimizer(
+        score_fn=score_fn,
+        count=count,
+        prior_features=None if num_prior_trials == 0 else prior_features,
+    )
+
+    padding_schedule = padding.PaddingSchedule(
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,
+    )
+    padding_converter = converters.TrialToModelInputConverter.from_problem(
+        problem,
+        padding_schedule=padding_schedule,
+    )
+    padding_optimizer = vb.VectorizedOptimizerFactory(
+        strategy_factory=eagle_factory
+    )(padding_converter)
+    padded_prior_features = types.ModelInput(
+        continuous=padding_schedule.pad_features(prior_features_continuous),
+        categorical=padding_schedule.pad_features(prior_features_categorical),
+    )
+    padding_results = padding_optimizer(
+        score_fn=score_fn,
+        count=count,
+        prior_features=None if num_prior_trials == 0 else padded_prior_features,
+    )
+
+    self.assertSequenceEqual(results.features.continuous.shape, (count, 1, 3))
+    self.assertSequenceEqual(results.features.categorical.shape, (count, 1, 2))
+    np.testing.assert_array_almost_equal(
+        results.features.continuous,
+        padding_results.features.continuous,
+        decimal=5,
+    )
+    np.testing.assert_array_almost_equal(
+        results.features.categorical,
+        padding_results.features.categorical,
+        decimal=5,
+    )
+
   def test_factory(self):
     self.assertEqual(self.eagle.n_feature_dimensions.continuous, 2)
     self.assertEqual(self.eagle.n_feature_dimensions.categorical, 2)
@@ -521,7 +601,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(problem)
 
     prior_features_continuous = jnp.array(
-        [[[1, -1]], [[2, 1]], [[3, 2]], [[4, 5]]]
+        [[[1, -1]], [[2, 1]], [[3, 2]], [[4, 5]]], dtype=jnp.float32
     )
     prior_features = vb.VectorizedOptimizerInput(
         continuous=prior_features_continuous,
@@ -558,10 +638,12 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
 
     n_parallel = 3
     prior_features = vb.VectorizedOptimizerInput(
-        continuous=np.random.randn(n_prior_trials, n_parallel, 2),
-        categorical=np.random.randint(3, size=(n_prior_trials, n_parallel, 1)),
+        continuous=jnp.asarray(np.random.randn(n_prior_trials, n_parallel, 2)),
+        categorical=jnp.asarray(
+            np.random.randint(3, size=(n_prior_trials, n_parallel, 1))
+        ),
     )
-    prior_rewards = np.random.randn(n_prior_trials)
+    prior_rewards = jnp.asarray(np.random.randn(n_prior_trials))
 
     eagle = eagle_strategy.VectorizedEagleStrategyFactory(
         eagle_config=config,
