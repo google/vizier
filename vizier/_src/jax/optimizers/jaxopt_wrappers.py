@@ -168,7 +168,10 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
       losses.append(opt_state.fun_val)
       params.append(position)
       logging.info(
-          'Loss: %s, last step time: %s', opt_state.fun_val, train_times[-1]
+          'Loss: %s, last step time: %s, ScipyMinimizeInfo: %s',
+          opt_state.fun_val,
+          train_times[-1],
+          opt_state,
       )
     losses = jnp.asarray(losses)
     all_params = jax.tree_util.tree_map(lambda *x: jnp.stack(x), *params)
