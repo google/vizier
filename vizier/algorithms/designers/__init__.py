@@ -31,3 +31,8 @@ from vizier._src.algorithms.ensemble.ensemble_design import EXP3IXEnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import EXP3UniformEnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import RandomEnsembleDesign
 from vizier._src.algorithms.evolution.nsga2 import NSGA2Designer
+from vizier._src.algorithms.evolution.numpy_populations import Offspring
+from vizier._src.algorithms.evolution.numpy_populations import Population
+from vizier._src.algorithms.evolution.templates import _OffspringsType
+from vizier._src.algorithms.evolution.templates import _PopulationType
+from vizier._src.algorithms.evolution.templates import Mutation
