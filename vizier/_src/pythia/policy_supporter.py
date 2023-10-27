@@ -70,31 +70,32 @@ class PolicySupporter(abc.ABC):
     Args:
       study_guid: The GUID of the study to get Trials from. If None, uses the
         current Study.
-      trial_ids: a list of Trial id numbers to acquire.
-      min_trial_id: Trials in [min_trial_id, max_trial_id] are selected, if at
-        least one of the two is not None.
-      max_trial_id: Trials in [min_trial_id, max_trial_id] are selected, if at
-        least one of the two is not None.
+      trial_ids: a list of Trial id numbers to acquire (if None, allows all
+        Trials.)
+      min_trial_id: Trials with Trial.id >= min_trial ID are selected, if not
+        None.
+      max_trial_id: Trials with Trial.id <= min_trial ID are selected, if not
+        None.
       status_matches: If not None, filters for Trials where
-        Trial.status==status_matches.  The default passes all types of Trial.
+        Trial.status==status_matches.  Selects all Trials by default.
       include_intermediate_measurements: If True (default), the returned Trials
-        should include all available intermediate measurements.  If False,
-        PolicySupporter _may_ leave the `measurements` field empty in the
-        returned Trials (e.g. to optimize speed).  (Note that the
-        final_measurement field should always be included when available, i.e.
-        for COMPLETED Trials.)
+        will include all intermediate measurements.  If False, PolicySupporter
+        _may_ leave the `measurements` field empty in the returned Trials (e.g.
+        to optimize speed).
+
+    Note that the $final_measurement field will always be included when
+      available, i.e. for COMPLETED Trials.
 
     Returns:
-      Trials obtained from Vizier.
+      Trials obtained from Vizier, in order of increasing Trial ID.
+      Each argument selects a subset of the Study's Trials, and the result is
+      the intersection of the subsets.
 
     Raises:
       CancelComputeError: (Do not catch.)
       PythiaProtocolError: (Do not catch.)
       VizierDatabaseError: If the database operation raises an error, e.g. if
         $study_guid refers to a nonexistent or inaccessible study.
-
-    NOTE: if $trial_ids is set, $min_trial_id, $max_trial_id, and
-      $status_matches will be ignored.
     """
 
   @property
