@@ -31,8 +31,12 @@ from vizier._src.algorithms.ensemble.ensemble_design import EXP3IXEnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import EXP3UniformEnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import RandomEnsembleDesign
 from vizier._src.algorithms.evolution.nsga2 import NSGA2Designer
-from vizier._src.algorithms.evolution.numpy_populations import Offspring
-from vizier._src.algorithms.evolution.numpy_populations import Population
+from vizier._src.algorithms.evolution.nsga2 import NSGA2Survival
+from vizier._src.algorithms.evolution.numpy_populations import Offspring as NumpyOffspring
+from vizier._src.algorithms.evolution.numpy_populations import Population as NumpyPopulation
+from vizier._src.algorithms.evolution.numpy_populations import PopulationConverter as NumpyPopulationConverter
 from vizier._src.algorithms.evolution.templates import _OffspringsType
 from vizier._src.algorithms.evolution.templates import _PopulationType
+from vizier._src.algorithms.evolution.templates import CanonicalEvolutionDesigner
 from vizier._src.algorithms.evolution.templates import Mutation
+from vizier._src.algorithms.evolution.templates import Sampler

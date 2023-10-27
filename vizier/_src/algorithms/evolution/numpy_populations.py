@@ -17,8 +17,7 @@ from __future__ import annotations
 """Core population utilities."""
 import collections
 import json
-from typing import Any, Collection, Callable, List, Optional, Tuple, Type, Sequence
-
+from typing import Any, Callable, Collection, List, Optional, Sequence, Tuple, Type
 import attr
 import numpy as np
 from vizier import pyvizier as vz
@@ -26,7 +25,6 @@ from vizier._src.algorithms.evolution import templates
 from vizier.interfaces import serializable
 from vizier.pyvizier import converters
 from vizier.utils import json_utils
-
 
 # TODO: Use a byte encoding instead of JSON.
 
@@ -311,6 +309,7 @@ class PopulationConverter(templates.PopulationConverter):
       metrics: Collection[vz.MetricInformation],
       *,
       metadata_ns: str = 'population',
+      trial_converter: Optional[converters.DefaultTrialConverter] = None,
   ):
     self._objective_metrics, self._safe_metrics = _filter_and_split(metrics)
     self._num_objective_metrics = len(self._objective_metrics)
@@ -318,7 +317,7 @@ class PopulationConverter(templates.PopulationConverter):
     self._metrics = self._objective_metrics + self._safe_metrics
     self._metadata_ns = metadata_ns
 
-    self._trial_converter = converters.DefaultTrialConverter(
+    self._trial_converter = trial_converter or converters.DefaultTrialConverter(
         _create_parameter_converters(search_space),
         [_create_metric_converter(mc) for mc in self._metrics],
     )

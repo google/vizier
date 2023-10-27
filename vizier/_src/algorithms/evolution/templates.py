@@ -121,14 +121,17 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
                                  Generic[_PopulationType, _OffspringsType]):
   """Evolution algorithm template."""
 
-  def __init__(self,
-               converter: PopulationConverter[_PopulationType, _OffspringsType],
-               sampler: Sampler[_OffspringsType],
-               survival: Survival[_PopulationType],
-               adaptation: Mutation[_PopulationType, _OffspringsType],
-               *,
-               first_survival_after: Optional[int] = None,
-               population_size: int = 50):
+  def __init__(
+      self,
+      converter: PopulationConverter[_PopulationType, _OffspringsType],
+      sampler: Sampler[_OffspringsType],
+      survival: Survival[_PopulationType],
+      adaptation: Mutation[_PopulationType, _OffspringsType],
+      *,
+      initial_population: Optional[_PopulationType] = None,
+      first_survival_after: Optional[int] = None,
+      population_size: int = 50,
+  ):
     """Init.
 
     Args:
@@ -136,6 +139,7 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
       sampler:
       survival:
       adaptation:
+      initial_population: The initial population to seed the evolution.
       first_survival_after: Apply the survival step after observing this many
         trials. If unset or set to a number less than `population_size`, it
         defaults to twice the `population_size`.
@@ -149,8 +153,7 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     self._first_survival_after = max(self._population_size * 2,
                                      first_survival_after or 0)
     self._num_trials_seen = 0
-
-    self._population = converter.to_population([])
+    self._population = initial_population or converter.to_population([])
 
   @property
   def converter(self) -> PopulationConverter[_PopulationType, _OffspringsType]:
