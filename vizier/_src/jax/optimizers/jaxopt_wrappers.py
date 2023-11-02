@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """High-level wrappers for stochastic process hyperparameter optimizers."""
 
+import datetime
 import time
 from typing import Any, Optional
 
@@ -114,6 +115,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
 
   _options: LbfgsBOptions = attr.field(default=LbfgsBOptions())
   _speed_test: bool = attr.field(kw_only=True, default=False)
+  _max_duration: Optional[datetime.timedelta] = None
 
   def __call__(
       self,
@@ -162,6 +164,17 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
         init_params,
     )
     for p in init_params:
+      if self._max_duration is not None and train_times:
+        expected_worst_case_duration = max(train_times) + sum(train_times)
+        if expected_worst_case_duration >= self._max_duration.total_seconds():
+          logging.warn(
+              'Maximum duration of %s is expected to be surpassed.'
+              ' Completed only %s initializations out of %s.',
+              self._max_duration,
+              len(params),
+              len(init_params),
+          )
+          break
       start_time = time.time()
       position, opt_state = lbfgsb.run(init_params=p, bounds=bounds)
       train_times.append(time.time() - start_time)

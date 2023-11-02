@@ -16,13 +16,15 @@ from __future__ import annotations
 
 """Tests for optimizers."""
 
+import datetime
+
 from absl.testing import parameterized
+import jax
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax.optimizers import jaxopt_wrappers as jw
 from vizier._src.jax.optimizers.testing import sinusoidal
 
 from absl.testing import absltest
-
 
 tfb = tfp.bijectors
 
@@ -48,6 +50,21 @@ class JaxoptWrappersTest(
         threshold=1.0,
         random_restarts=20,
     )
+
+  def test_max_duration(self):
+    optimizer = jw.JaxoptScipyLbfgsB(
+        max_duration=datetime.timedelta(seconds=0),
+        speed_test=True,
+    )
+    random_restarts = 3
+    rngs = jax.random.split(jax.random.PRNGKey(1), random_restarts + 1)
+    _, metrics = optimizer(
+        init_params=jax.vmap(sinusoidal.setup)(rngs[1:]),
+        loss_fn=jax.jit(sinusoidal.loss_fn),
+        rng=rngs[0],
+    )
+    # Check that there's only one training instead of 3.
+    self.assertLen(metrics['train_time'], 1)
 
 
 if __name__ == '__main__':
