@@ -22,7 +22,6 @@ from vizier._src.pythia import local_policy_supporters
 from absl.testing import absltest
 from absl.testing import parameterized
 
-
 InRamPolicySupporter = local_policy_supporters.InRamPolicySupporter
 _GUID = '31'
 
@@ -204,6 +203,51 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
     ])
     self.assertEqual(rs.size, 5)
     np.testing.assert_array_equal(rs, np.ones_like(rs) * best_r)
+
+  @parameterized.parameters(
+      dict(
+          sin_goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+          cos_goal=vz.ObjectiveMetricGoal.MAXIMIZE,
+      ),
+      dict(
+          sin_goal=vz.ObjectiveMetricGoal.MINIMIZE,
+          cos_goal=vz.ObjectiveMetricGoal.MINIMIZE,
+      ),
+  )
+  def test_get_best_trials_safe(self, sin_goal, cos_goal):
+    runner = InRamPolicySupporter(
+        vz.ProblemStatement(
+            vz.SearchSpace(),
+            metric_information=vz.MetricsConfig([
+                vz.MetricInformation(name='sin', goal=sin_goal),
+                vz.MetricInformation(
+                    name='cos', goal=cos_goal, safety_threshold=0.51
+                ),
+            ]),
+        )
+    )
+
+    def build_measurement(r, theta):
+      return vz.Measurement({
+          'r': r,
+          'theta': theta,
+          'cos': float(r * np.cos(theta)),
+          'sin': float(r * np.sin(theta)),
+      })
+
+    # Generate many trials for each radius.
+    for r in range(1, 6):
+      for theta in np.linspace(0, np.pi / 2, 5):
+        runner.AddTrials([vz.Trial().complete(build_measurement(r, theta))])
+
+    # Check the radius.
+    best_trials = runner.GetBestTrials()
+    self.assertLen(best_trials, 1)
+    cosine = best_trials[0].final_measurement.metrics['cos'].value
+    if cos_goal == vz.ObjectiveMetricGoal.MAXIMIZE:
+      self.assertGreaterEqual(cosine, 0.51)
+    else:
+      self.assertLessEqual(cosine, 0.51)
 
 
 if __name__ == '__main__':

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Policy supporters that keep data in RAM."""
 
+import copy
 import datetime
 from typing import Iterable, List, Optional, Sequence
 import uuid
@@ -184,24 +185,34 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     if not self.study_config.metric_information.of_type(
         vz.MetricType.OBJECTIVE):
       raise ValueError('Requires at least one objective metric.')
-    if self.study_config.metric_information.of_type(vz.MetricType.SAFETY):
-      raise ValueError('Cannot work with safe metrics.')
 
+    # Add safety warping and remove safety metrics from conversion.
+    safety_checker = multimetric.SafetyChecker(
+        self.study_config.metric_information
+    )
+    warped_trials = safety_checker.warp_unsafe_trials(
+        copy.deepcopy(self.trials)
+    )
+    config_without_safe = copy.deepcopy(self.study_config)
+    config_without_safe.metric_information = (
+        self.study_config.metric_information.exclude_type(vz.MetricType.SAFETY)
+    )
     converter = converters.TrialToArrayConverter.from_study_config(
-        self.study_config,
+        config_without_safe,
         flip_sign_for_minimization_metrics=True,
-        dtype=np.float32)
+        dtype=np.float32,
+    )
 
-    if len(self.study_config.metric_information) == 1:
+    if self.study_config.is_single_objective:
       # Single metric: Sort and take top N.
       count = count or 1  # Defaults to 1.
-      labels = converter.to_labels(self.trials).squeeze()
+      labels = converter.to_labels(warped_trials).squeeze()
       sorted_idx = np.argsort(-labels)  # np.argsort sorts in ascending order.
       return list(np.asarray(self.trials)[sorted_idx[:count]])
     else:
       algorithm = multimetric.FastParetoOptimalAlgorithm()
       is_optimal = algorithm.is_pareto_optimal(
-          points=converter.to_labels(self.trials)
+          points=converter.to_labels(warped_trials)
       )
       return list(np.asarray(self.trials)[is_optimal][:count])
 
