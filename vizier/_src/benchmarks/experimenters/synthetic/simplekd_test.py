@@ -15,22 +15,23 @@
 from __future__ import annotations
 
 from absl.testing import parameterized
+import numpy as np
 from vizier._src.algorithms.designers import grid
-from vizier._src.benchmarks.experimenters.synthetic import simple4d
+from vizier._src.benchmarks.experimenters.synthetic import simplekd
 from vizier._src.benchmarks.runners import benchmark_runner
 from vizier._src.benchmarks.runners import benchmark_state
 from absl.testing import absltest
 
 
-class Simple4DTest(parameterized.TestCase):
+class SimpleKDTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(best_category='corner'),
       dict(best_category='center'),
       dict(best_category='mixed'),
   )
-  def test_sweep(self, best_category: simple4d.Simple4DCategory) -> None:
-    experimenter = simple4d.Simple4D(best_category)
+  def test_sweep(self, best_category: simplekd.SimpleKDCategory) -> None:
+    experimenter = simplekd.SimpleKD(best_category)
     runner = benchmark_runner.BenchmarkRunner(
         benchmark_subroutines=[
             benchmark_runner.GenerateSuggestions(),
@@ -52,12 +53,29 @@ class Simple4DTest(parameterized.TestCase):
       dict(best_category='center'),
       dict(best_category='mixed'),
   )
-  def test_compute_simple4d_optimal_objective(
-      self, best_category: simple4d.Simple4DCategory
+  def test_compute_optimal_objective(
+      self, best_category: simplekd.SimpleKDCategory
   ) -> None:
-    exptr = simple4d.Simple4D(best_category)
-    opt_value = exptr.compute_simple4d_optimal_objective(50)
-    self.assertIsInstance(opt_value, float)
+    exptr_simple4d = simplekd.SimpleKD(best_category)
+    categorical_values = ['corner', 'center', 'mixed']
+    discrete_values = (1, 2, 5, 6, 8)
+    integer_values = [1, 2, 3]
+    continuous_values = np.linspace(-1, 1, 1001)
+
+    opt_value = np.nan
+    for cat_value in categorical_values:
+      for disc_value in discrete_values:
+        for cont_value in continuous_values:
+          for int_value in integer_values:
+            values = {
+                'categorical': [cat_value],
+                'discrete': [disc_value],
+                'int': [int_value],
+                'float': [cont_value],
+            }
+            opt_value = np.nanmax([exptr_simple4d._compute(values), opt_value])
+
+    self.assertAlmostEqual(opt_value, exptr_simple4d.optimal_objective)
 
 
 if __name__ == '__main__':
