@@ -108,8 +108,7 @@ class MetricInformation:
   )
 
   # The following should be used to configure this as a safety metric.
-  # safety_threshold must always be set to a float (default 0.0), for safety
-  # metrics.
+  # safety_threshold must always be set (to a float) for safety metrics.
   safety_threshold: Optional[float] = attr.field(
       init=True,
       default=None,
