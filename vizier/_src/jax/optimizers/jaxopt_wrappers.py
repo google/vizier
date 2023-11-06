@@ -262,11 +262,7 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
       best_n: Optional[int] = None,
   ) -> tuple[core.Params, chex.ArrayTree]:
     metrics = {}
-    logging.info(
-        'Using JAX L-BFGS-B w/ %d restarts. RNG: %s',
-        self._options.random_restarts,
-        rng,
-    )
+    logging.info('Using JAX L-BFGS-B w/ RNG: %s', rng)
     start_time = time.time()
     bounds = _get_bounds(_unbatch_params(init_params)[0], constraints)
     lbfgsb = jaxopt.LBFGSB(
