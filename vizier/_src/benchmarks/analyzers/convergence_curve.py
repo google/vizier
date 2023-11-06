@@ -865,6 +865,25 @@ class PercentageBetterConvergenceCurveComparatorFactory(
     )
 
 
+class SimpleConvergenceCurveComparatorFactory(ConvergenceComparatorFactory):
+  """Factory class for SimpleConvergenceCurveCompartor."""
+
+  def __call__(
+      self,
+      baseline_curve: ConvergenceCurve,
+      compared_curve: ConvergenceCurve,
+      baseline_quantile: float = 0.5,
+      compared_quantile: float = 0.5,
+  ) -> ConvergenceComparator:
+    return SimpleConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='simple',
+    )
+
+
 def build_convergence_curve(
     baseline_curve: Sequence[float], compared_curve: Sequence[float]
 ) -> List[float]:
