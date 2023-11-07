@@ -224,6 +224,9 @@ def _run_parallel_lbfgs(
     )
     return lbfgsb.run(init_params=init_params, bounds=bounds)
 
+  # We chose map over vmap because some of the lbfgs runs may terminate early.
+  # pmap is also not fit for our use case, because we typically have a single
+  # processor.
   return jax.lax.map(_run_one_lbfgs, init_params_batch)
 
 
