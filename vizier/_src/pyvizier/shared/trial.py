@@ -43,6 +43,7 @@ class ParameterType(enum.Enum):
   INTEGER = 'INTEGER'
   CATEGORICAL = 'CATEGORICAL'
   DISCRETE = 'DISCRETE'
+  CUSTOM = 'CUSTOM'
 
   def is_numeric(self) -> bool:
     return self in [self.DOUBLE, self.INTEGER, self.DISCRETE]

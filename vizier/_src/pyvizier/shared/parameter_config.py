@@ -296,9 +296,9 @@ class ParameterConfig:
     if not name:
       raise ValueError('Parameter name cannot be empty.')
 
-    if bool(feasible_values) == bool(bounds):
+    if bool(feasible_values) and bool(bounds):
       raise ValueError(
-          'While creating Parameter with name={}: exactly one of '
+          'While creating Parameter with name={}: one or none of '
           '"feasible_values" or "bounds" must be provided, but given '
           'feasible_values={} and bounds={}.'.format(
               name, feasible_values, bounds
@@ -325,7 +325,7 @@ class ParameterConfig:
                 feasible_values
             )
         )
-    else:  # bounds were specified.
+    elif bounds:  # bounds were specified.
       if isinstance(bounds[0], int) and isinstance(bounds[1], int):
         inferred_type = ParameterType.INTEGER
         _validate_bounds(bounds)
@@ -336,6 +336,8 @@ class ParameterConfig:
         raise ValueError(
             'Bounds must both be integers or doubles. Given: {}'.format(bounds)
         )
+    else:
+      inferred_type = ParameterType.CUSTOM
 
     if default_value is not None:
       default_value = _get_default_value(inferred_type, default_value)
@@ -633,6 +635,8 @@ class ParameterConfig:
       return float('inf')
     elif self.type == ParameterType.INTEGER:
       return self.bounds[1] - self.bounds[0] + 1
+    elif self.type == ParameterType.CUSTOM:
+      return float('inf')
     else:
       return len(self.feasible_values)
 
