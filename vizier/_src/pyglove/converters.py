@@ -497,11 +497,13 @@ class VizierConverter:
                 tzinfo=datetime.timezone.utc
             ).timestamp()
         ),
-        completed_time=int(
+        completed_time=int(  # pylint: disable=g-long-ternary
             vizier_trial.completion_time.replace(
                 tzinfo=datetime.timezone.utc
             ).timestamp()
-        ),
+        )
+        if vizier_trial.completion_time
+        else None,
         infeasible=vizier_trial.infeasible,
     )
 
