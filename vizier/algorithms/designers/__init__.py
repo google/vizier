@@ -25,6 +25,7 @@ from vizier._src.algorithms.designers.grid import GridSearchDesigner
 from vizier._src.algorithms.designers.harmonica import HarmonicaDesigner
 from vizier._src.algorithms.designers.quasi_random import QuasiRandomDesigner
 from vizier._src.algorithms.designers.random import RandomDesigner
+from vizier._src.algorithms.designers.unsafe_as_infeasible_designer import UnsafeAsInfeasibleDesigner
 from vizier._src.algorithms.ensemble.ensemble_design import AdaptiveEnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import EnsembleDesign
 from vizier._src.algorithms.ensemble.ensemble_design import EXP3IXEnsembleDesign
