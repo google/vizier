@@ -431,6 +431,15 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
     self.assertLen(space.parameters, 1)
     self.assertEqual(space.parameters[0].default_value, 'False')
 
+  def testAddCustomParam(self):
+    """Test a Boolean parameter."""
+    space = pc.SearchSpace()
+    self.assertEmpty(space.parameters)
+    _ = space.select_root().add_custom_param('c1', default_value='default')
+    self.assertLen(space.parameters, 1)
+    self.assertEqual(space.parameters[0].name, 'c1')
+    self.assertEqual(space.parameters[0].default_value, 'default')
+
   def testConditionalParameters(self):
     space = pc.SearchSpace()
     self.assertEmpty(space.parameters)

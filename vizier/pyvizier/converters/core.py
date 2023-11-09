@@ -40,11 +40,13 @@ class NumpyArraySpecType(enum.Enum):
   CONTINUOUS: Continuous parameter
   DISCRETE: Discrete/integer/categorical parameter
   ONEHOT_EMBEDDING: One-hot embedding of DISCRETE.
+  OBJECT: Object type that can hold any value.
   """
 
   CONTINUOUS = 'CONTINUOUS'
   DISCRETE = 'DISCRETE'
   ONEHOT_EMBEDDING = 'ONEHOT_EMBEDDING'
+  OBJECT = 'OBJECT'
 
   @classmethod
   def default_factory(
@@ -59,6 +61,8 @@ class NumpyArraySpecType(enum.Enum):
         pyvizier.ParameterType.INTEGER,
     ):
       return NumpyArraySpecType.DISCRETE
+    elif pc.type == pyvizier.ParameterType.CUSTOM:
+      return NumpyArraySpecType.OBJECT
     raise ValueError(f'Unknown type {pc.type}')
 
   @classmethod
@@ -120,7 +124,7 @@ class NumpyArraySpec:
   dtype: np.dtype = attr.field(
       converter=np.dtype,
       validator=attr.validators.in_(
-          [np.float32, np.int32, np.float64, np.int64]
+          [np.float32, np.int32, np.float64, np.int64, np.object_]
       ),
   )
   bounds: Union[Tuple[float, float], Tuple[int, int]]
@@ -194,6 +198,15 @@ class NumpyArraySpec:
           num_dimensions=len(pc.feasible_values) + 1,
           name=pc.name,
           num_oovs=1 if pad_oovs else 0,
+      )
+    elif the_type == NumpyArraySpecType.OBJECT:
+      return NumpyArraySpec(
+          the_type,
+          dtype=np.object_,
+          bounds=(0, 0),
+          num_dimensions=0,
+          name=pc.name,
+          num_oovs=0,
       )
     raise ValueError(f'Unknown type {type}')
 

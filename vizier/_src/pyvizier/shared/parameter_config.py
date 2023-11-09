@@ -47,7 +47,7 @@ class ScaleType(enum.Enum):
 
 
 # A sequence of possible internal parameter values.
-ParameterValueTypes = Union[str, int, float, bool]
+ParameterValueTypes = trial.ParameterValueTypes
 MonotypeParameterSequence = Union[Sequence[Union[int, float]], Sequence[str]]
 MonotypeParameterList = Union[List[Union[int, float]], List[str]]
 
@@ -112,6 +112,8 @@ def _get_default_value(
   elif param_type == ParameterType.CATEGORICAL and isinstance(
       default_value, str
   ):
+    return default_value
+  elif param_type == ParameterType.CUSTOM:
     return default_value
   raise ValueError(
       'default_value has an incorrect type. '
@@ -1000,6 +1002,30 @@ class SearchSpaceSelector:
       )
       new_params.append(new_pc)
     return self._add_parameters(new_params)
+
+  def add_custom_param(
+      self,
+      name: str,
+      *,
+      default_value: Optional[ParameterValueTypes] = None,
+  ) -> 'ParameterConfigSelector':
+    """Adds custom parameter config(s) to the selected search space(s).
+
+    Args:
+      name: The parameter's name. Cannot be empty.
+      default_value: A default value for the Parameter. Generally should be set.
+
+    Returns:
+      ParameterConfigSelector for the newly added parameter(s).
+
+    Raises:
+      ValueError: If `index` is invalid (e.g. negative)
+    """
+    new_pc = ParameterConfig.factory(
+        name=name,
+        default_value=default_value,
+    )
+    return self._add_parameters([new_pc])
 
   def add_bool_param(
       self,
