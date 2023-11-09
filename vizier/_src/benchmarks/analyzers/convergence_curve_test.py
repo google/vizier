@@ -414,6 +414,71 @@ class MultiMetricCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_almost_equal(curve.ys, [[4.0, 4.0, 8.0]], decimal=1)
 
 
+class WinRateComparatorTest(absltest.TestCase):
+
+  def setUp(self):
+    super(WinRateComparatorTest, self).setUp()
+    xs = np.array(range(0, 20))
+    xs_t = xs.reshape(1, len(xs))
+    self._baseline_curve = convergence.ConvergenceCurve(
+        xs=xs,
+        ys=np.exp(np.array([-0.9, -1.0, -1.1]).reshape(3, 1) * xs_t),
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
+
+    self._worse_curves = convergence.ConvergenceCurve(
+        xs=xs,
+        ys=np.exp(-0.5 * xs_t),
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
+    self._better_curves = convergence.ConvergenceCurve(
+        xs=xs,
+        ys=np.exp(np.array([-1.5, -1.8, -2.0]).reshape(3, 1) * xs_t),
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
+
+  def test_higher_quantile_curve(self):
+    baseline_length = len(self._baseline_curve.xs)
+    median_score = convergence.WinRateComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    ).curve()
+    higher_quantile_score = convergence.WinRateComparator(
+        baseline_curve=self._baseline_curve,
+        compared_curve=self._better_curves,
+        compared_quantile=0.9,
+    ).curve()
+
+    self.assertEqual(median_score.ys.shape, (1, baseline_length))
+    self.assertEqual(higher_quantile_score.ys.shape, (1, baseline_length))
+    # Better curves should have positive efficiency.
+    self.assertTrue((median_score.ys >= 0.0).all())
+    # Higher quantile means better efficiency which means more positive scores.
+    self.assertTrue((higher_quantile_score.ys >= median_score.ys).all())
+
+  def test_get_winrate_score(self):
+    # Higher compared quantile should increase score. Higher baseline
+    # quantile should decrease score.
+    median_score = convergence.WinRateComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    ).score()
+    self.assertGreaterEqual(
+        convergence.WinRateComparator(
+            baseline_curve=self._baseline_curve,
+            compared_curve=self._better_curves,
+            compared_quantile=0.9,
+        ).score(),
+        median_score,
+    )
+    self.assertLessEqual(
+        convergence.WinRateComparator(
+            baseline_curve=self._baseline_curve,
+            compared_curve=self._better_curves,
+            baseline_quantile=0.9,
+        ).score(),
+        median_score,
+    )
+
+
 class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
 
   def setUp(self):

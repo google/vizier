@@ -823,6 +823,50 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
     raise NotImplementedError('Curve not yet implemented.')
 
 
+class WinRateComparator(ConvergenceComparator):
+  """Comparator method based on simple win rate comparison."""
+
+  def score(self) -> float:
+    return np.nanmedian(self.curve().ys)
+
+  def curve(self) -> ConvergenceCurve:
+    """Computes the curve that represents the average win rate."""
+    baseline_ys = (
+        self._sign * self._baseline_curve.ys
+    )  # [N x T] array where N is the number of curves.
+    compared_ys = self._sign * self._compared_curve.ys
+
+    # Compares all pairs of compared to baseline curve.
+    all_comparisons = np.apply_along_axis(
+        lambda base: np.mean(compared_ys > base, axis=0),
+        axis=1,
+        arr=baseline_ys,
+    )
+    return ConvergenceCurve(
+        xs=self._baseline_curve.xs,
+        ys=np.mean(all_comparisons, axis=0, keepdims=True),
+    )
+
+
+class WinRateComparatorFactory(ConvergenceComparatorFactory):
+  """Factory class for WinRateComparatorFactory."""
+
+  def __call__(
+      self,
+      baseline_curve: ConvergenceCurve,
+      compared_curve: ConvergenceCurve,
+      baseline_quantile: float = 0.5,
+      compared_quantile: float = 0.5,
+  ) -> ConvergenceComparator:
+    return WinRateComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='win_rate',
+    )
+
+
 class LogEfficiencyConvergenceCurveComparatorFactory(
     ConvergenceComparatorFactory
 ):
