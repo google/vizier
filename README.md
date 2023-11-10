@@ -5,7 +5,7 @@
 # Open Source Vizier: Reliable and Flexible Black-Box Optimization.
 [![PyPI version](https://badge.fury.io/py/google-vizier.svg)](https://badge.fury.io/py/google-vizier)
 ![Continuous Integration](https://github.com/google/vizier/workflows/ci/badge.svg)
-![Docs](https://github.com/google/vizier/workflows/docs/badge.svg)
+![Docs](https://github.com/google/vizier/workflows/docs_test/badge.svg)
 
   [**Google AI Blog**](https://ai.googleblog.com/2023/02/open-source-vizier-towards-reliable-and.html)
 | [**Getting Started**](#getting_started)
