@@ -142,10 +142,6 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
       for elem in spec.elements:
         _add_dna_spec(root, path + elem.location, elem)
     elif isinstance(spec, pg.geno.Choices):
-      # TODO: Both numeric and string choices are currently
-      # converted to CATEGORICALs.
-      if isinstance(spec, pg.hyper.ManyOf):
-        raise NotImplementedError('Manyof is not supported in vizier.')
       is_discrete = all(
           isinstance(v, numbers.Number) for v in spec.literal_values
       ) and len(set(spec.literal_values)) == len(spec.literal_values)
@@ -157,14 +153,15 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
 
         if is_discrete:
           unique_feasible_points = sorted(set(spec.literal_values))
-          new_parameter: vz.SearchSpaceSelector = root.add_discrete_param(
+          root.add_discrete_param(
               name=_parameter_name(choice_path),
               # We sort the literal values since Vizier requires the feasible
               # points of a discrete parameter to be in increasing order.
               # The sorting has no impact to the trial parameter -> DNA
               # conversion since for numeric literal value, the conversion
               # is value based.
-              feasible_values=unique_feasible_points)
+              feasible_values=unique_feasible_points,
+          )
           if unique_feasible_points != spec.literal_values:
             logging.warning(
                 'Candidates for parameter %r have been reordered/deduped from '
@@ -178,11 +175,9 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
               name=_parameter_name(choice_path),
               feasible_values=_categories(spec))
           for candidate_idx, candidate in enumerate(spec.candidates):
-            if len(spec.candidates) == 1:
-              candidate_path = choice_path
-            else:
-              candidate_path = choice_path + pg.geno.ConditionalKey(
-                  candidate_idx, len(spec.candidates))
+            candidate_path = choice_path + pg.geno.ConditionalKey(
+                candidate_idx, len(spec.candidates)
+            )
             child: vz.SearchSpaceSelector = new_parameter.select_values(
                 [_category_value(spec, candidate_idx)])
             _add_dna_spec(child, candidate_path, candidate)
@@ -193,7 +188,14 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
           min_value=spec.min_value,
           max_value=spec.max_value)
     elif isinstance(spec, pg.geno.CustomDecisionPoint):
-      logging.info('Encountered custom-type decision point %s', spec)
+      # For CustomDecisionPoint, there is not a corresponding parameter type
+      # in Vizier since its value is a variable string. In such case the
+      # parameter value will be put into metadata.
+      logging.info(
+          'Encountered custom decision point %s, which will not be shown '
+          'in Vizier dashboard.',
+          _parameter_name(path),
+      )
     else:
       raise NotImplementedError(
           f'Spec has unknown type. This Should never happen. Spec: {spec}')
@@ -264,6 +266,8 @@ class VizierConverter:
 
   _dna_spec: pg.DNASpec = attr.field()
   _problem: vz.ProblemStatement = attr.field()
+  _uses_external_dna_spec: bool = attr.field()
+
   vizier_conversion_error: Optional[Exception] = attr.field(
       default=None, kw_only=True)
 
@@ -272,6 +276,9 @@ class VizierConverter:
     self._problem.metadata.ns(constants.METADATA_NAMESPACE)[
         constants.STUDY_METADATA_KEY_DNA_SPEC] = _to_json_str_compressed(
             self._dna_spec)
+    self._problem.metadata.ns(constants.METADATA_NAMESPACE)[
+        constants.STUDY_METADATA_KEY_USES_EXTERNAL_DNA_SPEC
+    ] = pg.to_json_str(self._uses_external_dna_spec)
 
   @property
   def metrics_to_optimize(self) -> Sequence[str]:
@@ -289,6 +296,7 @@ class VizierConverter:
     # TODO: Check this implementation
     json_str_compressed = problem.metadata.ns(constants.METADATA_NAMESPACE).get(
         constants.STUDY_METADATA_KEY_DNA_SPEC, None)
+
     if json_str_compressed is not None:
       dna_spec = restore_dna_spec(json_str_compressed)
     else:
@@ -304,7 +312,16 @@ class VizierConverter:
                problem.metric_information)):
       logging.warning('All goals must be OBJECTIVE. Offending metrics: %s',
                       bad_metrics)
-    return cls(dna_spec, problem)
+
+    uses_external_dna_spec = (
+        json_str_compressed is not None
+        and pg.from_json_str(
+            problem.metadata.ns(constants.METADATA_NAMESPACE).get(
+                constants.STUDY_METADATA_KEY_USES_EXTERNAL_DNA_SPEC, 'true'
+            )
+        )
+    )
+    return cls(dna_spec, problem, uses_external_dna_spec)
 
   @classmethod
   def from_dna_spec(
@@ -320,7 +337,7 @@ class VizierConverter:
 
     try:
       problem.search_space = _to_search_space(dna_spec)
-      return cls(dna_spec, problem)
+      return cls(dna_spec, problem, True)
     except NotImplementedError as e:
       # Add a dummy parameter.
       problem.search_space.root.add_categorical_param(
@@ -330,7 +347,7 @@ class VizierConverter:
           'The provided DNA spec cannot be converted to a '
           'Vizier search space. Vizier algorithms cannot be used. '
           'Error was: %s', e)
-      return cls(dna_spec, problem, vizier_conversion_error=e)
+      return cls(dna_spec, problem, True, vizier_conversion_error=e)
 
   @property
   def dna_spec(self) -> pg.DNASpec:
@@ -342,6 +359,11 @@ class VizierConverter:
     if self.vizier_conversion_error:
       raise self.vizier_conversion_error
     return self._problem
+
+  @property
+  def uses_external_dna_spec(self) -> bool:
+    """Returns True if the dna spec is provided from external."""
+    return self._uses_external_dna_spec
 
   @property
   def problem_or_dummy(self) -> vz.ProblemStatement:
@@ -424,8 +446,10 @@ class VizierConverter:
             dna.metadata)
 
     # Custom decision.
-    custom_decisions = dna.to_dict(
-        filter_fn=lambda x: isinstance(x, pg.geno.CustomDecisionPoint))
+    def is_custom(x):
+      return isinstance(x, pg.geno.CustomDecisionPoint)
+
+    custom_decisions = dna.to_dict(filter_fn=is_custom)
     if custom_decisions:
       trial.metadata.ns(constants.METADATA_NAMESPACE)[
           constants.TRIAL_METADATA_KEY_CUSTOM_TYPE_DECISIONS] = pg.to_json_str(
@@ -437,25 +461,50 @@ class VizierConverter:
             constants.DUMMY_PARAMETER_NAME] = constants.DUMMY_PARAMETER_VALUE
       else:
         raise self.vizier_conversion_error
-    elif self.search_space.is_conditional:
-      raise NotImplementedError('Conditional spaces are not supported.')
     else:
-      parameter_index = 0
-      decisions = dna.to_dict(
-          key_type='dna_spec', value_type='value',
-          multi_choice_key='subchoice',
-          filter_fn=lambda x: not isinstance(x, pg.geno.CustomDecisionPoint))
-      for spec, decision in decisions.items():
-        assert isinstance(decision, numbers.Number)
-        pc = self.search_space.parameters[parameter_index]
-        if pc.type == vz.ParameterType.DOUBLE:
-          value = decision
-        elif pc.type == vz.ParameterType.DISCRETE:
-          value = float(spec.literal_values[decision])
-        else:
-          value = pc.feasible_values[decision]
-        trial.parameters[pc.name] = vz.ParameterValue(value)
-        parameter_index += 1
+
+      def is_discrete(x):
+        return (
+            isinstance(x, pg.geno.Choices)
+            and all(isinstance(v, numbers.Number) for v in x.literal_values)
+            and len(set(x.literal_values)) == len(x.literal_values)
+        )
+
+      if self._uses_external_dna_spec:
+        key_type, value_type = 'id', 'choice_and_literal'
+      else:
+        key_type, value_type = 'name_or_id', 'literal'
+
+      # Update (non-discrete) configured parameters from DNA.
+      # We still write discrete parameter values in 'choice_and_literal' format
+      # though their values will be overriden later, to preserve the order
+      # of parameters.
+      configured_parameters = dna.to_dict(
+          key_type=key_type,
+          value_type=value_type,
+          filter_fn=lambda x: not is_custom(x),
+      )
+
+      # Update (discrete) configured parameters from DNA.
+      # Force converting literal values to float to match DISCRETE parameter
+      # expectation.
+      discrete_parameters = {
+          k: float(v)
+          for k, v in dna.to_dict(
+              key_type=key_type, value_type='literal', filter_fn=is_discrete
+          ).items()
+      }
+      configured_parameters.update(discrete_parameters)
+
+      if not configured_parameters:
+        configured_parameters[constants.DUMMY_PARAMETER_NAME] = (
+            constants.DUMMY_PARAMETER_VALUE
+        )
+
+      for name, value in configured_parameters.items():
+        trial.parameters[name or constants.PARAMETER_NAME_ROOT] = (
+            vz.ParameterValue(value)
+        )
     return trial
 
   def to_tuner_measurement(

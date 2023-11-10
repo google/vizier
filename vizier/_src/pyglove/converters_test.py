@@ -44,6 +44,12 @@ class VizierCreatedSearchSpaceTest(parameterized.TestCase):
     self.assertNotEmpty(
         vc.problem.metadata.ns(constants.METADATA_NAMESPACE)[
             constants.STUDY_METADATA_KEY_DNA_SPEC])
+    self.assertEqual(
+        vc.problem.metadata.ns(constants.METADATA_NAMESPACE)[
+            constants.STUDY_METADATA_KEY_USES_EXTERNAL_DNA_SPEC
+        ],
+        'false',
+    )
 
   def test_dna_to_trial(self):
     vc = converters.VizierConverter.from_problem(
@@ -98,6 +104,12 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
     self.assertNotEmpty(
         vc.problem.metadata.ns(constants.METADATA_NAMESPACE)[
             constants.STUDY_METADATA_KEY_DNA_SPEC])
+    self.assertEqual(
+        vc.problem.metadata.ns(constants.METADATA_NAMESPACE)[
+            constants.STUDY_METADATA_KEY_USES_EXTERNAL_DNA_SPEC
+        ],
+        'true',
+    )
 
   def test_dna_to_trial(self):
     dna_spec = self._dna_spec()
@@ -127,6 +139,47 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
         constants.TRIAL_METADATA_KEY_CUSTOM_TYPE_DECISIONS] = pg.to_json_str(
             {'a': 'abc'})
     self.assertEqual(vc.to_dna(trial), pg.DNA(['abc', [1, 2], 1, 0.5, 1]))
+
+  def test_dna_trial_conversion(self):
+    dna_spec_str = (
+        '/Td6WFoAAATm1rRGAgAhARYAAAB0L+Wj4DRRAd1dAD2Ih+dECUOcj7RXvfBPYS0OyzAc2w'
+        '+PsBIJ1+EKYkDTqQ48R4Lre1bjAsSR5xLCA3KFq2tR8zHqH2SfrVoBUCrdm1gXQLM7PnGC'
+        'z52uZFScSqVSvmJfgDEysdKpt//4+0S1c3hId0yS85IVlpXp68vfx+7pUOGCrns7aqQMnQ'
+        'lU6+71UcejsPe7GyuCOnl1hRUMWBJ4TlvES+DZG5v9bDPB84v3vtEMuj3e6qGl67y1Un6F'
+        '/P2g9qXeBt7DO2zcGdFjdJbkhdQBAFM/+5YsTXP7N5hy6Ih0FYlLUh0SoALlEwGfqyzR1D'
+        'QSyZWoCYilaf67UqdgusN6+RSJ8CXOgNPcMZEUwCd1gvzqOKlqTKu4tELJWh/vhO4pWGmQ'
+        'T/DC6xlS9/6s0o1nzYO5hOQwOXmZ7G+VTuxi7k267ALMIsn197fMQVnSjNCVCCr1vkheyV'
+        'p9wLygytvhWS0lXtlzNGFQMB3z/62OC6A3dz4hM52CACxaHyjS3WtYOGNUDHoMGew0wiSj'
+        '/OIAlJ7aQXaz5kXtH8OsfqXTOWecW0DnhtWtKg8nolR0rqU7y6uoPWX+7HQYnzdZDOeoSK'
+        'ZtDCKMRUam52iceU9o+1o4SB6XtWsO3JkOQ+5ZTwZ6zgqQAAAAAAB4E+94/gOmcgAB+QPS'
+        'aAAAVg3xfLHEZ/sCAAAAAARZWg=='
+    )
+    dna_spec = converters.restore_dna_spec(dna_spec_str)
+    converter = converters.VizierConverter.from_dna_spec(dna_spec)
+    dna = pg.DNA(
+        [
+            2,
+            1,
+            [3, 4],
+            1,
+            0,
+            [4, 5],
+            1,
+            [1, 2],
+            0,
+            [2, 3],
+            0,
+            [0, 4],
+            0,
+            [1, 9],
+            0,
+            [2, 5],
+            [4, 1, 3, 2, 0],
+        ],
+        spec=dna_spec,
+    )
+    trial = converter.to_trial(dna, fallback='raise_error')
+    self.assertTrue(pg.eq(converter.to_dna(trial), dna))
 
 
 class MakeParameterConfigTest(absltest.TestCase):
