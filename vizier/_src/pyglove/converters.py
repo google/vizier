@@ -526,11 +526,10 @@ class VizierConverter:
 
   def to_tuner_trial(self, vizier_trial: vz.Trial) -> pg.tuning.Trial:
     return pg.tuning.Trial(
-        dna_spec=self.dna_spec,
         id=vizier_trial.id,
         description=vizier_trial.description,
-        parameters=vizier_trial.parameters,
-        metadata=vizier_trial.metadata.ns(constants.METADATA_NAMESPACE),
+        dna=self.to_dna(vizier_trial),
+        metadata=dict(vizier_trial.metadata.ns(constants.METADATA_NAMESPACE)),
         related_links=dict(
             vizier_trial.metadata.ns(constants.METADATA_NAMESPACE).ns(
                 constants.RELATED_LINKS_SUBNAMESPACE
@@ -540,7 +539,7 @@ class VizierConverter:
         final_measurement=self.to_tuner_measurement(
             vizier_trial.final_measurement
         ),
-        status=vizier_trial.status.name,
+        status=self._to_tuner_trial_status(vizier_trial.status),
         created_time=int(
             vizier_trial.creation_time.replace(
                 tzinfo=datetime.timezone.utc
@@ -555,6 +554,10 @@ class VizierConverter:
         else None,
         infeasible=vizier_trial.infeasible,
     )
+
+  def _to_tuner_trial_status(self, status: vz.TrialStatus) -> str:
+    """Convert Vizier trial status to tuner trial status."""
+    return 'PENDING' if status == vz.TrialStatus.ACTIVE else status.name
 
 
 def restore_dna_spec(json_str_compressed: str) -> pg.DNASpec:

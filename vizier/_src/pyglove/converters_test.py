@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for converters."""
 
+import datetime
 import pyglove as pg
 from vizier import pyvizier as vz
 from vizier._src.pyglove import constants
@@ -63,6 +64,39 @@ class VizierCreatedSearchSpaceTest(parameterized.TestCase):
                         'discrete_double': -2.1,
                         'categorical': 'a'
                     })
+
+  def test_vizier_trial_to_tuner_trial(self):
+    vc = converters.VizierConverter.from_problem(
+        vz.ProblemStatement(self._search_space())
+    )
+    trial = vz.Trial()
+    trial.id = 1
+    trial.description = 'A test trial'
+    trial.parameters['double'] = -0.5
+    trial.parameters['int'] = 3
+    trial.parameters['discrete_int'] = 7
+    trial.parameters['discrete_double'] = 4.1
+    trial.parameters['categorical'] = 'a'
+    self.assertEqual(
+        vc.to_tuner_trial(trial),
+        pg.tuning.Trial(
+            id=1,
+            description=trial.description,
+            dna=pg.DNA([-0.5, 1, 2, 1, 0]),
+            related_links={},
+            measurements=[],
+            final_measurement=None,
+            status='PENDING',
+            created_time=int(  # pylint: disable=g-long-ternary
+                trial.creation_time.replace(
+                    tzinfo=datetime.timezone.utc
+                ).timestamp()
+            )
+            if trial.creation_time
+            else None,
+            completed_time=None,
+        ),
+    )
 
   @parameterized.parameters((7,), (7.,))
   def test_trial_to_dna(self, discrete_int_value):
