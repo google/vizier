@@ -137,18 +137,6 @@ class BaseRunnerTest(parameterized.TestCase):
     )
 
   def test_benchmark_run_from_exptr_factory(self):
-    dim = 10
-    exptr_factory = experimenter_factory.BBOBExperimenterFactory('Sphere', dim)
-
-    def _designer_factory(config: vz.ProblemStatement, seed: int):
-      return random.RandomDesigner(config.search_space, seed=seed)
-
-    benchmark_state_factory = (
-        benchmark_state.ExperimenterDesignerBenchmarkStateFactory(
-            designer_factory=_designer_factory,
-            experimenter_factory=exptr_factory,
-        )
-    )
     benchmark_state_factory = _get_designer_benchmark_state_factory()
     bench_state = benchmark_state_factory(seed=5)
     runner = benchmark_runner.BenchmarkRunner(
@@ -164,6 +152,42 @@ class BaseRunnerTest(parameterized.TestCase):
     all_trials = bench_state.algorithm.supporter.GetTrials()
     self.assertLen(all_trials, 50)
     for trial in all_trials:
+      self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
+
+  def test_add_prior(self):
+    dim = 10
+    exptr_factory = experimenter_factory.BBOBExperimenterFactory('Discus', dim)
+
+    def _designer_factory(config: vz.ProblemStatement, seed: int):
+      return random.RandomDesigner(config.search_space, seed=seed)
+
+    prior_benchmark_state_factory = (
+        benchmark_state.ExperimenterDesignerBenchmarkStateFactory(
+            designer_factory=_designer_factory,
+            experimenter_factory=exptr_factory,
+        )
+    )
+    prior_runner = benchmark_runner.BenchmarkRunner(
+        benchmark_subroutines=[benchmark_runner.GenerateAndEvaluate(10)],
+        num_repeats=5,
+    )
+    prior_study_guid = 'prior'
+    runner = benchmark_runner.EvaluateAndAddPriorStudy(
+        benchmark_runner=prior_runner,
+        benchmark_state_factory=prior_benchmark_state_factory,
+        study_guid=prior_study_guid,
+    )
+
+    benchmark_state_factory = _get_designer_benchmark_state_factory()
+    bench_state = benchmark_state_factory(seed=5)
+    runner.run(bench_state)
+    self.assertEmpty(bench_state.algorithm.supporter.GetTrials())
+
+    prior_trials = bench_state.algorithm.supporter.GetTrials(
+        study_guid=prior_study_guid
+    )
+    self.assertLen(prior_trials, 50)
+    for trial in prior_trials:
       self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
 
 

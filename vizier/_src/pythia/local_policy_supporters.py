@@ -92,15 +92,15 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
         max_trial_id=max(self._trials.keys()) if self._trials else 0,
     )
 
-  def _check_study_guid(self, study_guid: Optional[str]) -> None:
-    if study_guid is not None and self.study_guid != study_guid:
-      raise ValueError('InRamPolicySupporter does not support accessing '
-                       'other studies than the current one, which has '
-                       f'guid="{self.study_guid}": guid="{study_guid}"')
-
-  def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
-    self._check_study_guid(study_guid)
-    return self.study_config
+  def GetStudyConfig(
+      self, study_guid: Optional[str] = None
+  ) -> vz.ProblemStatement:
+    if study_guid is None or study_guid == self.study_guid:
+      return self.study_config
+    elif study_guid in self.prior_studies:
+      return self.prior_studies[study_guid].problem
+    else:
+      raise KeyError(f'Study does not exist in InRamSupporter: {study_guid}')
 
   def GetTrials(
       self,

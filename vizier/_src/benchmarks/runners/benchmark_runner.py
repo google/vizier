@@ -168,6 +168,47 @@ class EvaluateActiveTrials(BenchmarkSubroutine):
 
 
 @attr.define
+class EvaluateAndAddPriorStudy(BenchmarkSubroutine):
+  """Evaluate a fixed number of Active Trials as Completed Trials."""
+
+  # Runner to use to mutate study.
+  benchmark_runner: BenchmarkSubroutine = attr.field(
+      kw_only=True,
+      validator=attr.validators.instance_of(BenchmarkSubroutine),
+  )
+  # State factory.
+  benchmark_state_factory: benchmark_state.BenchmarkStateFactory = attr.field(
+      kw_only=True,
+      validator=attr.validators.instance_of(
+          benchmark_state.BenchmarkStateFactory
+      ),
+  )
+  study_guid: Optional[str] = attr.field(
+      kw_only=True,
+      default=None,
+      validator=attr.validators.optional(attr.validators.instance_of(str)),
+  )
+  seed: Optional[int] = attr.field(
+      kw_only=True,
+      default=None,
+      validator=attr.validators.optional(attr.validators.instance_of(int)),
+  )
+
+  def run(self, state: benchmark_state.BenchmarkState) -> None:
+    prior_state = self.benchmark_state_factory(seed=self.seed)
+    self.benchmark_runner.run(prior_state)
+    prior_problem = prior_state.algorithm.supporter.GetStudyConfig()
+    prior_trials = prior_state.algorithm.supporter.GetTrials()
+    prior_study = vz.ProblemAndTrials(
+        problem=prior_problem, trials=prior_trials
+    )
+
+    state.algorithm.supporter.SetPriorStudy(
+        study=prior_study, study_guid=self.study_guid
+    )
+
+
+@attr.define
 class BenchmarkRunner(BenchmarkSubroutine):
   """Run a sequence of subroutines, all repeated for a few iterations."""
 
