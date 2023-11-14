@@ -139,7 +139,10 @@ message Trial {
   // Arbitrary metadata associated with the Trial.  This is not processed by
   // the Vizier server, but is readable/writeable by Pythia policies and user
   // code.
-  // FYI, the "" namespace may be read and written by the user.
+  // FYI, each algorithm has one or more namespaces; users may read any
+  //   namespace.   Users may write arbitrary data to the empty ("") namespace,
+  //   and should only write to other namespaces when the algorithm's
+  //   documentation specifically allows.
   // NOTE: Each KeyValue item is limited to 10 megabytes.
   // NOTE: Keys should be unique within their namespaces.
   repeated KeyValue metadata = 11;
