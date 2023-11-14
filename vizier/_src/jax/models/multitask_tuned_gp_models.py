@@ -22,7 +22,6 @@ from typing import Any, Generator, Optional, Union
 
 from flax import struct
 import jax
-from jax import config
 from jax import numpy as jnp
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
@@ -31,9 +30,6 @@ from vizier._src.jax import types
 from vizier._src.jax.models import continuous_only_kernel
 from vizier._src.jax.models import mask_features
 
-# Jax disables float64 computations by default and will silently convert
-# float64s to float32s. We must explicitly enable float64.
-config.update('jax_enable_x64', True)
 
 tfb = tfp.bijectors
 tfd = tfp.distributions
