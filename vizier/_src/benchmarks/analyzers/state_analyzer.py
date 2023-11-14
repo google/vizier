@@ -106,13 +106,7 @@ class BenchmarkStateAnalyzer:
       raise ValueError('Empty States.')
 
     problem_statement = states[0].experimenter.problem_statement()
-    if not problem_statement.is_single_objective:
-      raise ValueError('Multiobjective Conversion not supported yet.')
 
-    converter = convergence_curve.ConvergenceCurveConverter(
-        problem_statement.metric_information.item(),
-        flip_signs_for_min=flip_signs_for_min,
-    )
     curves = []
     for state in states:
       if problem_statement != state.experimenter.problem_statement():
@@ -120,8 +114,14 @@ class BenchmarkStateAnalyzer:
             f'States must have same problem {problem_statement}'
             f' and {state.experimenter.problem_statement()}'
         )
-
       state_trials = state.algorithm.supporter.GetTrials()
+
+      converter = (
+          convergence_curve.MultiMetricCurveConverter.from_metrics_config(
+              problem_statement.metric_information,
+              flip_signs_for_min=flip_signs_for_min,
+          )
+      )
       curve = converter.convert(state_trials)
       curves.append(curve)
     return convergence_curve.ConvergenceCurve.align_xs(curves)[0]

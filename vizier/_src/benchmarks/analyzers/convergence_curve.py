@@ -231,7 +231,21 @@ class ConvergenceCurve:
 
 
 @attr.define
-class ConvergenceCurveConverter:
+class StatefulCurveConverter(abc.ABC):
+  """Converter that updates its state upon each curve conversion.
+
+  This is to ensure that distributive property holds:
+  converter.convert(trials1 + trials2) = converter.convert(trials1) +
+  converter.convert(trials2)
+  """
+
+  @abc.abstractmethod
+  def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
+    """Returns a ConvergenceCurve corresponding to trials and updates state."""
+
+
+@attr.define
+class ConvergenceCurveConverter(StatefulCurveConverter):
   """Converter for Trial sequence to ConvergenceCurve.
 
   Attributes:
@@ -242,6 +256,8 @@ class ConvergenceCurveConverter:
       measurements_type: ['final', 'intermediate', 'all']
       batch_size: Number of trials in each batch. In each batch, the order of
         trials is ignored and the best trial is used.
+      _best_yval: Best y-value seen. Updated in convert.
+      _cumulative_cost: Cumulative cost of trials. Updated in convert.
   """
 
   metric_information: pyvizier.MetricInformation
@@ -252,13 +268,17 @@ class ConvergenceCurveConverter:
   measurements_type: str = attr.field(default='final', kw_only=True)
   batch_size: int = attr.field(default=1, kw_only=True)
 
+  # Private attributes for stateful converts.
+  _best_yval: float = attr.field(default=np.nan, kw_only=True)
+  _cumulative_cost: float = attr.field(default=0.0, kw_only=True)
+
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a single curve."""
     if not trials:
       raise ValueError(f'No trials provided {trials}')
 
-    yvals = [np.nan]
-    xvals = [0]
+    yvals = [self._best_yval]
+    xvals = [self._cumulative_cost]
     candidates = []
 
     for i in range(0, len(trials), self.batch_size):
@@ -286,6 +306,8 @@ class ConvergenceCurveConverter:
       candidates = []
 
     yvals = np.asarray(yvals[1:])
+    self._best_yval = self.comparator(yvals)
+    self._cumulative_cost = xvals[-1]
     if self.metric_information.goal == pyvizier.ObjectiveMetricGoal.MAXIMIZE:
       trend = ConvergenceCurve.YTrend.INCREASING
       flipped = False
@@ -310,7 +332,7 @@ class ConvergenceCurveConverter:
         == pyvizier.ObjectiveMetricGoal.MAXIMIZE) else np.nanmin
 
 
-class HypervolumeCurveConverter:
+class HypervolumeCurveConverter(StatefulCurveConverter):
   """Converts Trials to cumulative hypervolume curve for multiobjective."""
 
   def __init__(
@@ -351,6 +373,9 @@ class HypervolumeCurveConverter:
         ],
     )
     self._origin_value = reference_value
+    # TODO: Speed this up with hypervolume vector tracking.
+    self._min_trial_idx = 1
+    self._pareto_frontier = np.empty(shape=(0, len(metric_informations)))
 
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
@@ -381,15 +406,32 @@ class HypervolumeCurveConverter:
           )
         origin = self._origin_value
 
+    # Calculate cumulative hypervolume with the Pareto frontier.
+    all_metrics = np.vstack(
+        [self._pareto_frontier, metrics]
+    )  # shape is [num_pareto_points + num_points, feature dimension]
     front = multimetric.ParetoFrontier(
-        points=metrics,
+        points=all_metrics,
         origin=origin,
         num_vectors=self._num_vectors,
         cum_hypervolume_base=xla_pareto.jax_cum_hypervolume_origin,
     )
-    hv_curve = front.hypervolume(is_cumulative=True)
+    all_hv_curve = front.hypervolume(is_cumulative=True)
+
+    # Remove the Pareto frontier add-in and update state.
+    hv_curve = all_hv_curve[len(self._pareto_frontier) :]
+    xs = np.asarray(
+        range(self._min_trial_idx, len(hv_curve) + self._min_trial_idx)
+    )
+    self._min_trial_idx += len(hv_curve)
+    algo = multimetric.FastParetoOptimalAlgorithm(
+        xla_pareto.JaxParetoOptimalAlgorithm()
+    )
+    pareto_points = algo.is_pareto_optimal(points=all_metrics)
+    self._pareto_frontier = all_metrics[pareto_points]
+
     return ConvergenceCurve(
-        xs=np.asarray(range(1, len(hv_curve) + 1)),
+        xs=xs,
         ys=np.asarray(hv_curve).reshape([1, -1]),
         trend=ConvergenceCurve.YTrend.INCREASING,
         ylabel='hypervolume',
