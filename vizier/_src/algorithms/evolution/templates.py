@@ -141,8 +141,7 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
       adaptation:
       initial_population: The initial population to seed the evolution.
       first_survival_after: Apply the survival step after observing this many
-        trials. If unset or set to a number less than `population_size`, it
-        defaults to twice the `population_size`.
+        trials. If unset, it defaults to twice the `population_size`.
       population_size: Survival steps reduce the population to this size.
     """
     self._survival = survival
@@ -150,8 +149,9 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     self._converter = converter
     self._sampler = sampler
     self._population_size = population_size
-    self._first_survival_after = max(self._population_size * 2,
-                                     first_survival_after or 0)
+    self._first_survival_after = (
+        first_survival_after or self._population_size * 2
+    )
     self._num_trials_seen = 0
     self._population = initial_population or converter.to_population([])
 
