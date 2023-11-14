@@ -552,7 +552,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       self,
       trials: Sequence[vz.TrialSuggestion],
       rng: Optional[jax.Array] = None,
-      num_samples: Optional[int] = None,
+      num_samples: Optional[int] = 1000,
   ) -> vza.Prediction:
     """Returns the mean and stddev for any given trials.
 
