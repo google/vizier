@@ -226,15 +226,66 @@ def create_warp_outliers_warper(
 
 
 @attr.define
+class _HalfRankUnwarper:
+  """Inverse mapping for HalfRankComponent.
+
+  Attributes:
+    _original_labels: Array of shape [N,]. Must be finite, unique, and sorted.
+    _warped_labels: Array of shape [N,]. _warped_labels[i] is the result of
+      applying the halfrank warper on `_original_labels[i]`.
+  """
+
+  # Labels must be unique and sorted.
+  _original_labels: np.ndarray
+  _warped_labels: np.ndarray
+  _original_label_median: float
+
+  def unwarp(self, label: float) -> float:
+    """Unwarps the label."""
+    # Anything above median is a no-op.
+    if label >= self._original_label_median:
+      return label
+
+    # Try looking up the value
+    # Use searchsorted and pull out three numbers.
+    idx = np.searchsorted(self._warped_labels, label)
+    candidates = self._warped_labels[
+        max(0, idx - 1) : min(len(self._warped_labels), idx + 1)
+    ]
+    best_idx = np.argmin(np.abs(candidates - label))
+    if np.isclose(self._warped_labels[best_idx], label):
+      return self._original_labels[best_idx]
+
+    # Label is smaller than the image of the warper.
+    # Extrapolate.
+    if label < np.min(self._warped_labels):
+      return self._original_labels[0] - (
+          np.abs(label - self._warped_labels[0])
+          / (self._warped_labels[-1] - self._warped_labels[0])
+      ) * (self._original_labels[-1] - self._original_labels[0])
+
+    # All other cases: reverse the forward mapping.
+    # Largest number less than `label`.
+    # (which must exist because label >= min(warped_labels).)
+    lower = np.searchsorted(self._warped_labels, label) - 1
+    # Smallest number greater than `label`.
+    # (which must exist because label < median.)
+    upper = np.searchsorted(self._warped_labels, label)
+
+    return self._original_labels[lower] + (
+        (label - self._warped_labels[lower])
+        / (self._warped_labels[upper] - self._warped_labels[lower])
+    ) * (self._original_labels[upper] - self._original_labels[lower])
+
+
+@attr.define
 class HalfRankComponent(OutputWarper):
   """Warps half of an array of labels to fit into a Gaussian distribution.
 
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
-  _median: Optional[float] = attr.field(default=None)
-  _unique_labels: Optional[types.Array] = attr.field(default=None)
-  _warped_labels: Optional[types.Array] = attr.field(default=None)
+  _unwarper: Optional[_HalfRankUnwarper] = attr.field(default=None)
 
   def _estimate_std_of_good_half(
       self, unique_labels: np.ndarray, threshold: float
@@ -272,14 +323,14 @@ class HalfRankComponent(OutputWarper):
     labels_arr = labels_arr.flatten()
     # Compute median, unique labels, and ranks.
     median = np.nanmedian(labels_arr)
-    self._median = median
-    unique_labels, idx = np.unique(
-        labels_arr[np.isfinite(labels_arr)], return_index=True
+    is_finite = np.isfinite(labels_arr)
+    # np.unique also sorts the array.
+    unique_labels, unique_idx = np.unique(
+        labels_arr[is_finite], return_index=True
     )
-    # we keep the order of input labels_arr in self._unique_labels.
-    self._unique_labels = labels_arr[np.isfinite(labels_arr)][np.sort(idx)]
-    ranks = stats.rankdata(labels_arr, method='dense')  # nans ranked last.
 
+    # Rank sort.
+    ranks = stats.rankdata(labels_arr, method='dense')  # nans ranked last.
     dedup_median_index = unique_labels.searchsorted(median, 'left')
     denominator = (
         dedup_median_index + (unique_labels[dedup_median_index] == median) * 0.5
@@ -296,46 +347,25 @@ class HalfRankComponent(OutputWarper):
         # rank_ppf is always less than 0
         rank_ppf = stats.norm.ppf(rank_quantile)
         labels_arr[i] = rank_ppf * estimated_std + median
-    # we keep the order of input labels_arr in self._warped_labels.
-    self._warped_labels = labels_arr
+
+    # Save information needed for unwarping.
+    self._unwarper = _HalfRankUnwarper(
+        original_labels=unique_labels,
+        warped_labels=labels_arr[is_finite][unique_idx],
+        original_label_median=unique_labels[len(unique_labels) // 2],
+    )
     return labels_arr[:, np.newaxis]
 
   def unwarp(self, labels_arr: types.Array) -> types.Array:
-    if (
-        self._median is None
-        or self._unique_labels is None
-        or self._warped_labels is None
-    ):
+    if self._unwarper is None:
       raise ValueError(' warp() needs to be called before unwarp() is called.')
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
-
     if np.isnan(labels_arr).any():
       raise ValueError('unwarp does not support nan values.')
 
     for i in range(len(labels_arr)):
-      label = labels_arr[i]
-      if label < self._median:
-        idx = np.isclose(self._warped_labels, label)
-        if idx.any():
-          labels_arr[i] = self._unique_labels[idx][:1]
-        else:
-          if label < np.min(self._warped_labels):
-            min_unique_labels = np.min(self._unique_labels)
-            labels_arr[i] = min_unique_labels - (
-                np.abs(label - np.min(self._warped_labels))
-                / (np.max(self._warped_labels) - np.min(self._warped_labels))
-            ) * (np.max(self._unique_labels) - min_unique_labels)
-          else:
-            i_lb = self._warped_labels < label
-            i_ub = self._warped_labels > label
-            lb_warped = np.max(self._warped_labels[i_lb])
-            ub_warped = np.min(self._warped_labels[i_ub])
-            lb_unwarped = np.max(self._unique_labels[i_lb])
-            ub_unwarped = np.min(self._unique_labels[i_ub])
-            labels_arr[i] = lb_unwarped + (
-                (label - lb_warped) / (ub_warped - lb_warped)
-            ) * (ub_unwarped - lb_unwarped)
+      labels_arr[i] = self._unwarper.unwarp(labels_arr[i])
     return labels_arr[:, np.newaxis]
 
 

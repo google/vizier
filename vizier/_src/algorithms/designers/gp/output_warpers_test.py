@@ -213,9 +213,9 @@ class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.labels_arr = np.array(
-        [[-100.0], [-200.0], [1.0], [2.0], [3.0], [10.0], [15.0]]
-    )
+    self.labels_arr = np.asarray(
+        [10.0, -100.0, -200.0, 4.0, 0.0, 1.0, 2.0, -200.0, 3.0, 10.0, 15.0]
+    )[:, np.newaxis]
 
   @property
   def warper(self) -> output_warpers.HalfRankComponent:
@@ -224,19 +224,31 @@ class HalfRankComponentTest(_OutputWarperTestCase, parameterized.TestCase):
   @parameterized.named_parameters([
       dict(
           testcase_name='case1',
-          unwarped=np.array([[np.nan, 1, 2, 3, 4, 5, 6, 2, 10, 12, -np.inf]]).T,
+          unwarped=np.array([[
+              np.nan,
+              1,
+              4,
+              2,
+              10,
+              12,
+              -np.inf,
+              2,
+              3,
+              5,
+              6,
+          ]]).T,
           expected=np.array([
               [np.nan],
               [-2.7145447657886415],
-              [0.3722561569665319],
-              [2.322289907556879],
               [4.0],
-              [5.0],
-              [6.0],
               [0.3722561569665319],
               [10.0],
               [12.0],
               [np.nan],
+              [0.3722561569665319],
+              [2.322289907556879],
+              [5.0],
+              [6.0],
           ]),
       ),
       dict(
