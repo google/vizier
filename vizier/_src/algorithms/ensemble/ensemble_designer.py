@@ -32,7 +32,7 @@ EXPERT_KEY = 'expert'
 
 @attrs.define
 class ObjectiveRewardGenerator:
-  """Generates rewards using the objective curves of Trials."""
+  """Stateful rewards generator using the objective curves of Trials."""
 
   problem: vz.ProblemStatement = attrs.field()
   all_trials: list[vz.Trial] = attrs.field(factory=list)
@@ -56,39 +56,54 @@ class ObjectiveRewardGenerator:
       default=100, kw_only=True, validator=[attrs.validators.ge(0)]
   )
 
-  def __call__(self, trials: Sequence[vz.Trial]) -> list[float]:
+  def __call__(self, trials: list[vz.Trial]) -> list[float]:
     """Generate rewards from trials."""
-    self.all_trials.extend(trials)
     # Using MultiMetricConverter for safety understanding.
     if self.problem.is_single_objective:
-      curve_generator = analyzers.MultiMetricCurveConverter.from_metrics_config(
-          self.problem.metric_information, flip_signs_for_min=True
-      )
-    else:
-      curve_generator = analyzers.MultiMetricCurveConverter.from_metrics_config(
-          self.problem.metric_information,
-          reference_value=self.reference_value,
-          num_vectors=self.num_vectors,
-      )
 
-    # Objective curve is a 1 x len(all_trials) array.
-    objective_curve = curve_generator.convert(self.all_trials)
+      def curve_generator() -> analyzers.StatefulCurveConverter:
+        return analyzers.MultiMetricCurveConverter.from_metrics_config(
+            self.problem.metric_information, flip_signs_for_min=True
+        )
+
+    else:
+
+      def curve_generator() -> analyzers.StatefulCurveConverter:
+        return analyzers.MultiMetricCurveConverter.from_metrics_config(
+            self.problem.metric_information,
+            reference_value=self.reference_value,
+            num_vectors=self.num_vectors,
+        )
+
+    stateful_curve_generator = analyzers.RestartingCurveConverter(
+        curve_generator
+    )
+
     original_num_trials = len(self.all_trials) - len(trials)
     if original_num_trials <= 0:
       # First round so there is no reward signal.
-      return [self.min_reward] * len(trials)
+      rewards = [self.min_reward] * len(trials)
     else:
+      # Objective curve is a 1 x (1+len(trials)) array.
+      objective_curve = stateful_curve_generator.convert(
+          self.all_trials[-1:] + trials
+      )
       rewards = []
-      for idx in range(original_num_trials, len(self.all_trials)):
-        obj_reward = objective_curve.ys[:, idx] - objective_curve.ys[:, idx - 1]
+      for idx in range(len(trials)):
+        obj_reward = objective_curve.ys[:, idx + 1] - objective_curve.ys[:, idx]
         regularized_reward = (
-            obj_reward + self.reward_regularization * objective_curve.ys[:, idx]
+            obj_reward
+            + self.reward_regularization * objective_curve.ys[:, idx + 1]
         )
         if np.isfinite(regularized_reward):
-          rewards.append(max(self.min_reward, np.squeeze(regularized_reward)))
+          rewards.append(
+              max(self.min_reward, float(np.squeeze(regularized_reward)))
+          )
         else:
           rewards.append(self.min_reward)
-      return rewards
+
+    self.all_trials.extend(trials)
+    return rewards
 
 
 class EnsembleDesigner(vza.Designer):
@@ -176,7 +191,7 @@ class EnsembleDesigner(vza.Designer):
           first_key = list(metrics.keys())[0]
           rewards.append(metrics.get_value(first_key, default=0.0))
     else:
-      rewards = self._reward_generator(completed.trials)
+      rewards = self._reward_generator(list(completed.trials))
 
     # Update the EnsembleDesign strategy.
     for trial, reward in zip(completed.trials, rewards):

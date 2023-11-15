@@ -27,6 +27,8 @@ from vizier._src.benchmarks.analyzers.convergence_curve import LogEfficiencyConv
 from vizier._src.benchmarks.analyzers.convergence_curve import MultiMetricCurveConverter
 from vizier._src.benchmarks.analyzers.convergence_curve import PercentageBetterConvergenceCurveComparator
 from vizier._src.benchmarks.analyzers.convergence_curve import PercentageBetterConvergenceCurveComparatorFactory
+from vizier._src.benchmarks.analyzers.convergence_curve import RestartingCurveConverter
+from vizier._src.benchmarks.analyzers.convergence_curve import StatefulCurveConverter
 from vizier._src.benchmarks.analyzers.plot_utils import plot_from_records
 from vizier._src.benchmarks.analyzers.plot_utils import plot_mean_convergence
 from vizier._src.benchmarks.analyzers.plot_utils import plot_median_convergence

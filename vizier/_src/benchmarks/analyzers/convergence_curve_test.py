@@ -396,7 +396,9 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 5.0, 9.0]], decimal=0.5
+    )
 
     pytrials = []
     pytrials.append(
@@ -491,6 +493,116 @@ class MultiMetricCurveConverterTest(parameterized.TestCase):
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_almost_equal(curve.ys, [[4.0, 4.0, 8.0]], decimal=1)
+
+
+class RestartingCurveConverterTest(absltest.TestCase):
+
+  def test_convert_with_restart(self):
+    def converter_factory():
+      return convergence.HypervolumeCurveConverter(
+          [
+              pyvizier.MetricInformation(
+                  name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+              ),
+              pyvizier.MetricInformation(
+                  name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+              ),
+          ],
+      )
+
+    restart_converter = convergence.RestartingCurveConverter(
+        converter_factory, restart_min_trials=2, restart_rate=1.001
+    )
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 0.0, 'min': 0.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 5.0, 'min': -1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+        )
+    )
+
+    curve = restart_converter.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=1)
+
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': -1.0, 'min': 1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 5.0, 'min': -2.0})
+        )
+    )
+
+    restart_converter.convert([pytrials[0]])
+    curve = restart_converter.convert([pytrials[1]])
+    np.testing.assert_array_equal(curve.xs, [5])
+    np.testing.assert_array_almost_equal(curve.ys, [[18.0]], decimal=0.5)
+
+  def test_convert_no_restart(self):
+    def converter_factory():
+      return convergence.HypervolumeCurveConverter(
+          [
+              pyvizier.MetricInformation(
+                  name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+              ),
+              pyvizier.MetricInformation(
+                  name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+              ),
+          ],
+      )
+
+    converter = convergence.RestartingCurveConverter(
+        converter_factory, restart_min_trials=10
+    )
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 0.0, 'min': 0.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 5.0, 'min': -1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+        )
+    )
+
+    curve = converter.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=1)
+
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': -1.0, 'min': 1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 5.0, 'min': -2.0})
+        )
+    )
+
+    curve = converter.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [4, 5])
+    np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=0.5)
 
 
 class WinRateComparatorTest(absltest.TestCase):

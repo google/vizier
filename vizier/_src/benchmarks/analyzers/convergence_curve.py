@@ -34,6 +34,7 @@ from vizier.pyvizier.multimetric import xla_pareto
 @attr.s(auto_attribs=True)
 class ConvergenceCurve:
   """Represents multiple convergence curves on the same task."""
+
   xs: np.ndarray  # [T] array. All curves share the x axis.
   ys: np.ndarray  # [N x T] array where N is the number of curves.
   ylabel: str = ''  # Optional for plotting.
@@ -43,6 +44,7 @@ class ConvergenceCurve:
   @enum.unique
   class YTrend(enum.Enum):
     """Trend of ys across t."""
+
     UNKNOWN = 'unknown'
     INCREASING = 'increasing'
     DECREASING = 'decreasing'
@@ -193,9 +195,9 @@ class ConvergenceCurve:
       )
 
   @classmethod
-  def extrapolate_ys(cls,
-                     curve: 'ConvergenceCurve',
-                     steps: int = 0) -> 'ConvergenceCurve':
+  def extrapolate_ys(
+      cls, curve: 'ConvergenceCurve', steps: int = 0
+  ) -> 'ConvergenceCurve':
     """Extrapolates the future ys using a variant of linear extrapolation.
 
     Args:
@@ -212,22 +214,27 @@ class ConvergenceCurve:
     all_extra_ys = []
     for ys in curve.ys:
       # Use average slope in the last half of the curve as slope extrapolate.
-      ys_later_half = ys[int(len(ys) / 2):]
-      slope = np.mean([
-          ys_later_half[idx] - ys_later_half[idx - 1]
-          for idx in range(1, len(ys_later_half))
-      ])
+      ys_later_half = ys[int(len(ys) / 2) :]
+      slope = np.mean(
+          [
+              ys_later_half[idx] - ys_later_half[idx - 1]
+              for idx in range(1, len(ys_later_half))
+          ]
+      )
 
       extra_ys = np.append(
-          ys, [ys[-1] + slope * (1 + step) for step in range(steps)])
+          ys, [ys[-1] + slope * (1 + step) for step in range(steps)]
+      )
       all_extra_ys.append(extra_ys)
 
     return cls(
-        xs=np.append(curve.xs,
-                     [curve.xs[-1] + 1 + step for step in range(steps)]),
+        xs=np.append(
+            curve.xs, [curve.xs[-1] + 1 + step for step in range(steps)]
+        ),
         ys=np.stack(all_extra_ys),
         ylabel=curve.ylabel,
-        trend=curve.trend)
+        trend=curve.trend,
+    )
 
 
 @attr.define
@@ -394,7 +401,12 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
         if metric_is_finite:
           metric_arr = metrics[:, metric_idx]
           origin[metric_idx] = np.min(metric_arr[np.isfinite(metric_arr)])
-
+      self._origin_value = origin
+      logging.info(
+          'Inferring origin_value as %s with metrics %s',
+          self._origin_value,
+          metrics,
+      )
     else:
       if len(self._origin_value) == 1:
         origin = np.broadcast_to(self._origin_value, (metrics.shape[1],))
@@ -439,7 +451,7 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
 
 
 @attr.define(init=True)
-class MultiMetricCurveConverter:
+class MultiMetricCurveConverter(StatefulCurveConverter):
   """Converts Trials to cumulative convergence curve for all multimetric studies.
 
   Attributes:
@@ -488,6 +500,50 @@ class MultiMetricCurveConverter:
     warped_trials = safety_checker.warp_unsafe_trials(copy.deepcopy(trials))
 
     return self.converter.convert(warped_trials)
+
+
+@attr.define(init=True)
+class RestartingCurveConverter(StatefulCurveConverter):
+  """StatefulConverter that restarts the underlying stateful converters."""
+
+  converter_factory: Callable[[], StatefulCurveConverter] = attr.field()
+  # The minimum number of Trials needed before restarts occur.
+  restart_min_trials: int = attr.field(
+      default=100000,
+      validator=[attr.validators.instance_of(int), attr.validators.ge(0)],
+      kw_only=True,
+  )
+  # The exponential rate at which restarts occur.
+  restart_rate: float = attr.field(
+      default=2,
+      validator=attr.validators.ge(1),
+      kw_only=True,
+  )
+  _all_trials: List[pyvizier.Trial] = attr.field(factory=list)
+  _converter: Optional[StatefulCurveConverter] = attr.field(default=None)
+
+  def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
+    if self._converter is None:
+      self._converter = self.converter_factory()
+      if self._all_trials:
+        self._converter.convert(self._all_trials)
+
+    curve = self._converter.convert(trials)
+    self._all_trials.extend(trials)
+    if len(self._all_trials) < self.restart_min_trials:
+      return curve
+
+    # Reset converter when refresh rate is crossed.
+    log_previous_num_trials = np.log(
+        1 + len(self._all_trials) - len(trials)
+    ) / np.log(self.restart_rate)
+    log_num_trials = np.log(1 + len(self._all_trials)) / np.log(
+        self.restart_rate
+    )
+    if int(log_num_trials) > int(log_previous_num_trials):
+      self._converter = None
+
+    return curve
 
 
 @attr.define
@@ -649,6 +705,7 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
     comparator = LogEfficiencyConvergenceCurveComparator(baseline_curve)
     comparator.curve(compared_curve)
   """
+
   max_score: float = attr.field(
       default=1.0, validator=[attr.validators.ge(0)], kw_only=True
   )
@@ -681,8 +738,9 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
         self._sign * self._baseline_curve.ys, self._baseline_quantile, axis=0
     )
     # This may not be [1,2,...] due to repeats.
-    baseline_index_curve = build_convergence_curve(baseline_quantile,
-                                                   baseline_quantile)
+    baseline_index_curve = build_convergence_curve(
+        baseline_quantile, baseline_quantile
+    )
 
     other_index_curve = build_convergence_curve(
         baseline_quantile,
@@ -700,7 +758,8 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
         a_max=self.max_score,
     )
     return ConvergenceCurve(
-        xs=self._baseline_curve.xs, ys=ys.reshape(1, len(ys)))
+        xs=self._baseline_curve.xs, ys=ys.reshape(1, len(ys))
+    )
 
   def score(self) -> float:
     """Gets a finalized log efficiency score.
