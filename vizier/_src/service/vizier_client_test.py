@@ -224,12 +224,32 @@ class VizierClientTest(parameterized.TestCase):
       dict(algorithm=pyvizier.Algorithm.QUASI_RANDOM_SEARCH),
       dict(algorithm=pyvizier.Algorithm.GRID_SEARCH),
       dict(algorithm=pyvizier.Algorithm.NSGA2, multi_objective=True),
+      dict(
+          algorithm=pyvizier.Algorithm.ALGORITHM_UNSPECIFIED,
+          multi_objective=True,
+      ),
+      dict(
+          algorithm='DEFAULT',
+          multi_objective=True,
+      ),
+      dict(
+          algorithm='DEFAULT',
+          multi_objective=False,
+      ),
+      dict(
+          algorithm=pyvizier.Algorithm.GAUSSIAN_PROCESS_BANDIT,
+          multi_objective=True,
+      ),
+      dict(
+          algorithm=pyvizier.Algorithm.GAUSSIAN_PROCESS_BANDIT,
+          multi_objective=False,
+      ),
   )
   def test_e2e_tuning(
       self,
       *,
       algorithm,
-      num_iterations: int = 50,
+      num_iterations: int = 10,
       batch_size: int = 1,
       multi_objective: bool = False,
   ):

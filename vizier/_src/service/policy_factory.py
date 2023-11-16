@@ -35,6 +35,7 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
       study_name: str,
   ) -> pythia.Policy:
     del study_name
+    # TODO: Compare string to Algorithm enums.
     if algorithm in (
         'DEFAULT',
         'ALGORITHM_UNSPECIFIED',
@@ -42,7 +43,9 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
     ):
       from vizier._src.algorithms.designers import gp_bandit
 
-      return dp.DesignerPolicy(policy_supporter, gp_bandit.VizierGPBandit)
+      return dp.DesignerPolicy(
+          policy_supporter, gp_bandit.VizierGPBandit.from_problem
+      )
     elif algorithm == 'RANDOM_SEARCH':
       from vizier._src.algorithms.policies import random_policy
 
