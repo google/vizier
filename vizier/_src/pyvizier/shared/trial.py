@@ -267,6 +267,9 @@ class _MetricDict(collections.UserDict, Mapping[str, Metric]):
     else:
       self.data.__setitem__(key, Metric(value=value))
 
+  def as_float_dict(self) -> dict[str, float]:
+    return {k: m.value for k, m in self.data.items()}
+
 
 @attr.s(auto_attribs=True, frozen=False, init=True, slots=True)
 class Measurement:
