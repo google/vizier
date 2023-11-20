@@ -348,6 +348,7 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
       *,
       reference_value: Optional[np.ndarray] = None,
       num_vectors: int = 10000,
+      infer_origin_factor: float = 0.0,
   ):
     """Init.
 
@@ -357,6 +358,8 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
         with shape that is broadcastable with (dim,). If None, this computes the
         minimum of each objective as the reference point.
       num_vectors: Number of vectors from which hypervolume is computed.
+      infer_origin_factor: When inferring the reference point, set origin to be
+        minimum value - factor * (range).
     """
     if len(metric_informations) < 2:
       raise ValueError(
@@ -383,6 +386,7 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
     # TODO: Speed this up with hypervolume vector tracking.
     self._min_trial_idx = 1
     self._pareto_frontier = np.empty(shape=(0, len(metric_informations)))
+    self._infer_origin_factor = infer_origin_factor
 
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
@@ -400,7 +404,12 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
         # If all metrics are infinite, leave origin unchanged at 0.
         if metric_is_finite:
           metric_arr = metrics[:, metric_idx]
-          origin[metric_idx] = np.min(metric_arr[np.isfinite(metric_arr)])
+          all_finite = metric_arr[np.isfinite(metric_arr)]
+          min_finite = np.min(all_finite)
+          max_finite = np.max(all_finite)
+          origin[metric_idx] = min_finite - self._infer_origin_factor * (
+              max_finite - min_finite
+          )
       self._origin_value = origin
       logging.info(
           'Inferring origin_value as %s with metrics %s',
@@ -509,7 +518,7 @@ class RestartingCurveConverter(StatefulCurveConverter):
   converter_factory: Callable[[], StatefulCurveConverter] = attr.field()
   # The minimum number of Trials needed before restarts occur.
   restart_min_trials: int = attr.field(
-      default=100000,
+      default=10,
       validator=[attr.validators.instance_of(int), attr.validators.ge(0)],
       kw_only=True,
   )
