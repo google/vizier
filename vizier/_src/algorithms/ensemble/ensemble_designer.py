@@ -76,7 +76,7 @@ class ObjectiveRewardGenerator:
         )
 
     stateful_curve_generator = analyzers.RestartingCurveConverter(
-        curve_generator
+        curve_generator, restart_min_trials=10, restart_rate=1.5
     )
 
     original_num_trials = len(self.all_trials) - len(trials)

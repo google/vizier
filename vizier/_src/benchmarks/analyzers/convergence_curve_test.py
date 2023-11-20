@@ -416,6 +416,39 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
     np.testing.assert_array_equal(curve.xs, [4, 5])
     np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=1)
 
+  def test_convert_factor_with_inf(self):
+    generator = convergence.HypervolumeCurveConverter(
+        [
+            pyvizier.MetricInformation(
+                name='max', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+            ),
+            pyvizier.MetricInformation(
+                name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+            ),
+        ],
+        infer_origin_factor=1.0,
+    )
+    pytrials = []
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': -np.inf, 'min': np.inf})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 3.0, 'min': -1.0})
+        )
+    )
+    pytrials.append(
+        pyvizier.Trial().complete(
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+        )
+    )
+
+    curve = generator.convert(pytrials)
+    np.testing.assert_array_equal(curve.xs, [1, 2, 3])
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 1.0, 4.0]], decimal=1)
+
 
 class MultiMetricCurveConverterTest(parameterized.TestCase):
 
