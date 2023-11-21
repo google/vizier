@@ -114,7 +114,7 @@ class Mutation(abc.ABC, Generic[_PopulationType, _OffspringsType]):
 
   @abc.abstractmethod
   def mutate(self, population: _PopulationType, count: int) -> _OffspringsType:
-    """Generate offsprings."""
+    """Generate offsprings, whose contain count many offsprings."""
 
 
 class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
