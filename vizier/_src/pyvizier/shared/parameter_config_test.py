@@ -18,8 +18,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from absl import logging
 from vizier._src.pyvizier.shared import parameter_config as pc
 from vizier._src.pyvizier.shared import trial
+from vizier.testing import test_studies
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -555,6 +557,24 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
     root = space.select_root()
     with self.assertRaises(ValueError):
       root.add_categorical_param('categorical', ['3.2', '2', 5])
+
+
+class FlattenAndMergeTest(absltest.TestCase):
+
+  def testFlattenAndMerge(self):
+    space = test_studies.conditional_automl_space()
+    parameters = space.root.select_all().merge()
+    logging.info('Merged: %s', parameters)
+    self.assertCountEqual(
+        [p.name for p in parameters],
+        [
+            'model_type',
+            'learning_rate',
+            'optimizer_type',
+            'use_special_logic',
+            'special_logic_parameter',
+        ],
+    )
 
 
 class SearchSpaceContainsTest(absltest.TestCase):

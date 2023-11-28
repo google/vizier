@@ -31,6 +31,22 @@ from absl.testing import parameterized
 Trial = pyvizier.Trial
 
 
+class TrialToArrayConverterConditionalSpaceTest(parameterized.TestCase):
+
+  def test_automl_study(self):
+    space = test_studies.conditional_automl_space()
+    converter = core.TrialToArrayConverter.from_study_config(
+        pyvizier.ProblemStatement(search_space=space)
+    )
+    features = converter.to_features([pyvizier.Trial()])
+    np.testing.assert_equal(
+        features,
+        np.array(
+            [[0.0, 0.0, 1.0, np.nan, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, np.nan]]
+        ),
+    )
+
+
 class TrialToArrayConverterTest(parameterized.TestCase):
   """Test TrialToArrayConverter class."""
 

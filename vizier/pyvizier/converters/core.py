@@ -20,7 +20,6 @@ import abc
 import copy
 import dataclasses
 import enum
-import itertools
 from typing import Any, Callable, Collection, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
@@ -1147,29 +1146,17 @@ class DefaultTrialConverter(TrialToNumpyDict):
     Returns:
       `DefaultTrialConverter`.
     """
-    # Cache ParameterConfigs.
-    # Traverse through all parameter configs and merge the same-named ones.
-    parameter_configs: Dict[str, pyvizier.ParameterConfig] = dict()
-    for study_config in study_configs:
-      all_parameter_configs = itertools.chain.from_iterable(
-          [
-              top_level_config.traverse()
-              for top_level_config in study_config.search_space.parameters
-          ]
-      )
-      for parameter_config in all_parameter_configs:
-        name = parameter_config.name  # Alias
-        existing_config = parameter_configs.get(name, None)
-        if existing_config is None:
-          parameter_configs[name] = parameter_config
-        else:
-          parameter_configs[name] = pyvizier.ParameterConfig.merge(
-              existing_config, parameter_config
-          )
+    # Merge parameter configs by name.
+    merged_configs = list(
+        pyvizier.SearchSpaceSelector([sc.search_space for sc in study_configs])
+        .select_all()
+        .merge()
+    )
 
-    parameter_converters = []
-    for pc in parameter_configs.values():
-      parameter_converters.append(DefaultModelInputConverter(pc))
+    merged_configs = {pc.name: pc for pc in merged_configs}
+    parameter_converters = [
+        DefaultModelInputConverter(pc) for pc in merged_configs.values()
+    ]
 
     # Append study id feature if configured to do so.
     if use_study_id_feature:
@@ -1188,17 +1175,17 @@ class DefaultTrialConverter(TrialToNumpyDict):
             'had study id configured.'
         )
         use_study_id_feature = False
-      elif STUDY_ID_FIELD in parameter_configs:
+      elif STUDY_ID_FIELD in merged_configs:
         raise ValueError(
             'Dataset name conflicts with a ParameterConfig '
-            'that already exists: {}'.format(parameter_configs[STUDY_ID_FIELD])
+            'that already exists: {}'.format(merged_configs[STUDY_ID_FIELD])
         )
 
       # Create new parameter config.
       parameter_config = pyvizier.ParameterConfig.factory(
           STUDY_ID_FIELD, feasible_values=list(study_ids)
       )
-      parameter_configs[STUDY_ID_FIELD] = parameter_config
+      merged_configs[STUDY_ID_FIELD] = parameter_config
       logging.info('Created a new ParameterConfig %s', parameter_config)
 
       # Create converter.
@@ -1309,7 +1296,10 @@ class TrialToArrayConverter:
 
     sc = study_config  # alias, to keep pylint quiet in the next line.
     converter = DefaultTrialConverter(
-        [create_input_converter(p) for p in sc.search_space.parameters],
+        [
+            create_input_converter(p)
+            for p in sc.search_space.root.select_all().merge()
+        ],
         [create_output_converter(m) for m in sc.metric_information],
     )
     return cls(converter)

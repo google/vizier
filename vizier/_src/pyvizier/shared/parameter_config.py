@@ -17,7 +17,7 @@ from __future__ import annotations
 """ParameterConfig wraps ParameterConfig and ParameterSpec protos."""
 
 import collections
-from typing import Collection, Set as AbstractSet, Sized
+from typing import Iterable, Set as AbstractSet, Sized
 import copy
 import enum
 import json
@@ -410,7 +410,7 @@ class ParameterConfig:
 
   def subspaces(
       self,
-  ) -> Collection[Tuple[ParameterValueTypes, 'SearchSpace']]:
+  ) -> Iterable[Tuple[ParameterValueTypes, 'SearchSpace']]:
     return self._children.items()
 
   # TODO: TO BE DEPRECATED.
@@ -724,24 +724,26 @@ class ParameterConfig:
     return self._children[value]
 
 
-ParameterConfigOrConfigs = Union[ParameterConfig, Collection[ParameterConfig]]
-
-
 @attr.define(init=False)
-class ParameterConfigSelector(Sized):
+class ParameterConfigSelector(Iterable[ParameterConfig], Sized):
   """Holds a reference to ParameterConfigs."""
 
   # Selected configs.
-  _selected: tuple[ParameterConfig] = attr.field(init=True)
+  _selected: tuple[ParameterConfig] = attr.field(init=True, converter=tuple)
+
+  def __iter__(self) -> Iterator[ParameterConfig]:
+    return iter(self._selected)
 
   def __len__(self) -> int:
     return len(self._selected)
 
-  def __init__(self, selected: ParameterConfigOrConfigs):
-    if isinstance(selected, Collection):
-      self.__attrs_init__(tuple(selected))
-    else:
+  def __init__(
+      self, selected: Union[ParameterConfig, Iterable[ParameterConfig]], /
+  ):
+    if isinstance(selected, ParameterConfig):
       self.__attrs_init__(tuple([selected]))
+    else:
+      self.__attrs_init__(tuple(selected))
 
   def select_values(
       self, values: MonotypeParameterSequence
@@ -762,13 +764,29 @@ class ParameterConfigSelector(Sized):
         spaces.append(config.subspace(value))
     return SearchSpaceSelector(spaces)
 
+  def merge(self) -> 'ParameterConfigSelector':
+    """Merge by taking the union of the parameter configs with the same name.
+
+    Returns:
+      The returned ParameterConfigSelector does not contain parameters with
+      duplicate names. Their feasible set (either as a range or discrete set) is
+      the union of all feasible sets under the same parameter name.
+    """
+    merged_configs = {}
+    for parameter_config in self:
+      name = parameter_config.name  # Alias
+      existing_config = merged_configs.setdefault(name, parameter_config)
+      merged_configs[name] = ParameterConfig.merge(
+          existing_config, parameter_config
+      )
+    return ParameterConfigSelector(merged_configs.values())
+
 
 class InvalidParameterError(ValueError):
   """Error thrown when parameter values are invalid."""
 
 
 ################### Main Classes ###################
-SearchSpaceOrSpaces = Union['SearchSpace', Collection['SearchSpace']]
 
 
 @attr.define(init=False)
@@ -783,11 +801,13 @@ class SearchSpaceSelector:
   def __len__(self) -> int:
     return len(self._selected)
 
-  def __init__(self, selected: SearchSpaceOrSpaces):
-    if isinstance(selected, Collection):
-      self.__attrs_init__(tuple(selected))
-    else:
+  def __init__(
+      self, selected: Union['SearchSpace', Iterable['SearchSpace']], /
+  ):
+    if isinstance(selected, SearchSpace):
       self.__attrs_init__(tuple([selected]))
+    else:
+      self.__attrs_init__(tuple(selected))
 
   def add_float_param(
       self,
@@ -1239,7 +1259,7 @@ class SearchSpaceSelector:
 
   # TODO: Add def extend(space: SearchSpace)
   def _add_parameters(
-      self, parameters: List[ParameterConfig]
+      self, parameters: Iterable[ParameterConfig]
   ) -> ParameterConfigSelector:
     """Adds deepcopy of the ParameterConfigs.
 
@@ -1249,6 +1269,7 @@ class SearchSpaceSelector:
     Returns:
       A list of SearchSpaceSelectors, one for each parameters added.
     """
+    parameters = list(parameters)
     logging.info(
         'Adding child parameters %s to %s subspaces ',
         set(p.name for p in parameters),
@@ -1261,6 +1282,15 @@ class SearchSpaceSelector:
         added.append(selected.add(copy.deepcopy(parameter)))
 
     return ParameterConfigSelector(added)
+
+  def select_all(self) -> ParameterConfigSelector:
+    """Select all parameters at all levels."""
+    all_parameter_configs = []
+    for space in self._selected:
+      for top_level_config in space.parameters:
+        all_parameter_configs.extend(list(top_level_config.traverse()))
+
+    return ParameterConfigSelector(all_parameter_configs)
 
 
 @attr.define(frozen=False, init=True, slots=True, kw_only=True)
