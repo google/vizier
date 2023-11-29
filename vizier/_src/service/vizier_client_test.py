@@ -30,7 +30,7 @@ from vizier._src.service import study_pb2
 from vizier._src.service import vizier_client
 from vizier._src.service import vizier_server
 from vizier._src.service import vizier_service_pb2_grpc
-from vizier.service import pyvizier
+from vizier.service import pyvizier as vz
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -88,7 +88,7 @@ class VizierClientTest(parameterized.TestCase):
     self.servicer.datastore.create_trial(self.active_trial)
 
   def test_create_or_load_study(self):
-    study_config = pyvizier.StudyConfig()
+    study_config = vz.StudyConfig()
     study_id = 'example_display_name'
 
     client = vizier_client.create_or_load_study(
@@ -116,8 +116,8 @@ class VizierClientTest(parameterized.TestCase):
     self.assertLen(study_list_json, 1)
 
   @parameterized.parameters(
-      (pyvizier.StudyState.ABORTED,),
-      (pyvizier.StudyState.ACTIVE,),
+      (vz.StudyState.ABORTED,),
+      (vz.StudyState.ACTIVE,),
   )
   def test_set_and_get_study_state(self, state):
     self.client.set_study_state(state)
@@ -134,17 +134,14 @@ class VizierClientTest(parameterized.TestCase):
 
   def test_list_optimal_trials(self):
     for i in range(2, 10):
+      metric = study_pb2.Measurement.Metric(
+          metric_id='example_metric', value=0.2 * i
+      )
       completed_trial = study_pb2.Trial(
           name=resources.TrialResource(self.owner_id, self.study_id, i).name,
           id=str(i),
           state=study_pb2.Trial.State.SUCCEEDED,
-          final_measurement=study_pb2.Measurement(
-              metrics=[
-                  study_pb2.Measurement.Metric(
-                      metric_id='example_metric', value=0.2 * i
-                  )
-              ]
-          ),
+          final_measurement=study_pb2.Measurement(metrics=[metric]),
       )
 
       self.servicer.datastore.create_trial(completed_trial)
@@ -155,27 +152,25 @@ class VizierClientTest(parameterized.TestCase):
   def test_get_trial(self):
     active_trial = self.client.get_trial(trial_id=1)
     self.assertEqual(
-        active_trial, pyvizier.TrialConverter.from_proto(self.active_trial)
+        active_trial, vz.TrialConverter.from_proto(self.active_trial)
     )
 
   @parameterized.named_parameters(
       ('Infeasible', 'infeasible_reason'), ('Complete', None)
   )
   def test_complete_trial(self, infeasibility_reason):
-    final_measurement = pyvizier.Measurement(
-        metrics={'metric': pyvizier.Metric(value=0.1)}
-    )
+    final_measurement = vz.Measurement(metrics={'metric': vz.Metric(value=0.1)})
     output_trial = self.client.complete_trial(
         trial_id=1,
         final_measurement=final_measurement,
         infeasibility_reason=infeasibility_reason,
     )
 
-    self.assertEqual(output_trial.status, pyvizier.TrialStatus.COMPLETED)
+    self.assertEqual(output_trial.status, vz.TrialStatus.COMPLETED)
     self.assertEqual(output_trial.infeasibility_reason, infeasibility_reason)
 
     # See if the rest of the contents were maintained.
-    completed_trial = pyvizier.TrialConverter.from_proto(
+    completed_trial = vz.TrialConverter.from_proto(
         self.servicer.datastore.get_trial(self.active_trial.name)
     )
     self.assertEqual(output_trial, completed_trial)
@@ -205,7 +200,7 @@ class VizierClientTest(parameterized.TestCase):
     self.assertEqual(updated_trial.measurements[0].elapsed_secs, 3.0)
     self.assertEqual(
         updated_trial.measurements[0].metrics['example_metric'],
-        pyvizier.Metric(value=5.0),
+        vz.Metric(value=5.0),
     )
     self.assertEqual(updated_trial.id, 1)
 
@@ -220,30 +215,15 @@ class VizierClientTest(parameterized.TestCase):
   # Only test algorithms which don't depend on external libraries (except for
   # numpy).
   @parameterized.parameters(
-      dict(algorithm=pyvizier.Algorithm.RANDOM_SEARCH),
-      dict(algorithm=pyvizier.Algorithm.QUASI_RANDOM_SEARCH),
-      dict(algorithm=pyvizier.Algorithm.GRID_SEARCH),
-      dict(algorithm=pyvizier.Algorithm.NSGA2, multi_objective=True),
-      dict(
-          algorithm=pyvizier.Algorithm.ALGORITHM_UNSPECIFIED,
-          multi_objective=True,
-      ),
-      dict(
-          algorithm='DEFAULT',
-          multi_objective=True,
-      ),
-      dict(
-          algorithm='DEFAULT',
-          multi_objective=False,
-      ),
-      dict(
-          algorithm=pyvizier.Algorithm.GAUSSIAN_PROCESS_BANDIT,
-          multi_objective=True,
-      ),
-      dict(
-          algorithm=pyvizier.Algorithm.GAUSSIAN_PROCESS_BANDIT,
-          multi_objective=False,
-      ),
+      dict(algorithm=vz.Algorithm.RANDOM_SEARCH),
+      dict(algorithm=vz.Algorithm.QUASI_RANDOM_SEARCH),
+      dict(algorithm=vz.Algorithm.GRID_SEARCH),
+      dict(algorithm=vz.Algorithm.NSGA2, multiobj=True),
+      dict(algorithm=vz.Algorithm.ALGORITHM_UNSPECIFIED, multiobj=True),
+      dict(algorithm='DEFAULT', multiobj=True),
+      dict(algorithm='DEFAULT', multiobj=False),
+      dict(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT, multiobj=True),
+      dict(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT, multiobj=False),
   )
   def test_e2e_tuning(
       self,
@@ -251,13 +231,13 @@ class VizierClientTest(parameterized.TestCase):
       algorithm,
       num_iterations: int = 10,
       batch_size: int = 1,
-      multi_objective: bool = False,
+      multiobj: bool = False,
   ):
     # Runs end-to-end tuning via back-and-forth communication to server.
     def learning_curve_generator(learning_rate: float) -> List[float]:
       return [learning_rate * step for step in range(10)]
 
-    study_config = pyvizier.StudyConfig()
+    study_config = vz.StudyConfig()
     study_config.search_space.root.add_float_param(
         'learning_rate', min_value=0.0, max_value=1.0, default_value=0.5
     )
@@ -265,14 +245,14 @@ class VizierClientTest(parameterized.TestCase):
         'num_layers', min_value=1, max_value=5
     )
     study_config.metric_information = [
-        pyvizier.MetricInformation(
-            name='accuracy', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
+        vz.MetricInformation(
+            name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     ]
-    if multi_objective:
+    if multiobj:
       study_config.metric_information.append(
-          pyvizier.MetricInformation(
-              name='latency', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
+          vz.MetricInformation(
+              name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE
           )
       )
     study_config.algorithm = algorithm
@@ -318,18 +298,18 @@ class VizierClientTest(parameterized.TestCase):
 
   def test_update_metadata(self):
     # Only a smoke test, same as in `service_policy_supporter_test.py`.
-    on_study_metadata = pyvizier.Metadata()
+    on_study_metadata = vz.Metadata()
     on_study_metadata.ns('bar')['foo'] = '.bar.foo.1'
-    on_trial1_metadata = pyvizier.Metadata()
+    on_trial1_metadata = vz.Metadata()
     on_trial1_metadata.ns('bax')['nerf'] = '1.bar.nerf.2'
-    metadata_delta = pyvizier.MetadataDelta(
+    metadata_delta = vz.MetadataDelta(
         on_study=on_study_metadata, on_trials={1: on_trial1_metadata}
     )
     self.client.update_metadata(metadata_delta)
 
   def test_unset_endpoint_client(self):
     study_id = 'dummy_study'
-    study_config = pyvizier.StudyConfig()
+    study_config = vz.StudyConfig()
     study_resource_name = resources.StudyResource(self.owner_id, study_id).name
 
     vizier_client.environment_variables.server_endpoint = constants.NO_ENDPOINT
