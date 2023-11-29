@@ -1203,7 +1203,9 @@ class DefaultTrialConverter(TrialToNumpyDict):
     )
 
   @classmethod
-  def from_study_config(cls, study_config: pyvizier.ProblemStatement):
+  def from_study_config(
+      cls, study_config: pyvizier.ProblemStatement
+  ) -> 'DefaultTrialConverter':
     return cls.from_study_configs(
         [study_config],
         study_config.metric_information,
@@ -1234,7 +1236,7 @@ class TrialToArrayConverter:
     return dict_to_array(self._impl.to_features(trials))
 
   def to_labels(self, trials) -> np.ndarray:
-    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    """Returns the labels array with dimension: (n_trials, n_metrics)."""
     # Pad up the labels.
     return dict_to_array(self._impl.to_labels(trials))
 
@@ -1243,7 +1245,7 @@ class TrialToArrayConverter:
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
-    # TODO: Add a boolean flag to diable automatic clipping.
+    # TODO: Add a boolean flag to disable automatic clipping.
     arrformat = DictOf2DArrays(self._impl.to_features([]))
     return self._impl.to_parameters(arrformat.dict_like(arr))
 
