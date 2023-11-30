@@ -26,6 +26,7 @@ from vizier._src.algorithms.evolution import templates
 
 Population = numpy_populations.Population
 Offspring = numpy_populations.Offspring
+Mutation = templates.Mutation
 
 
 def _pareto_rank(ys: np.ndarray) -> np.ndarray:
@@ -214,6 +215,7 @@ class NSGA2Designer(
       *,
       ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
       eviction_limit: Optional[int] = None,
+      adaptation: Optional[Mutation[Population, Offspring]] = None,
       metadata_namespace: str = 'nsga2',
       seed: Optional[int] = None
   ):
@@ -232,6 +234,7 @@ class NSGA2Designer(
         injected.
       eviction_limit: Evict a gene that has been alive for this many
         generations.
+      adaptation:
       metadata_namespace: Metadata namespace to use.
       seed: Random seed.
 
@@ -250,6 +253,6 @@ class NSGA2Designer(
             ranking_fn=ranking_fn,
             eviction_limit=eviction_limit,
         ),
-        adaptation=numpy_populations.LinfMutation(seed=seed),
+        adaptation=adaptation or numpy_populations.LinfMutation(seed=seed),
         first_survival_after=first_survival_after,
     )
