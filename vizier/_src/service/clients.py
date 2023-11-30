@@ -182,8 +182,11 @@ class Study(client_abc.StudyInterface):
           f'Study f{self.resource_name} does not have Trial {trial_id}.'
       ) from err
 
-  def optimal_trials(self) -> TrialIterable:
-    trials = self._client.list_optimal_trials()
+  def optimal_trials(self, count: Optional[int] = None) -> TrialIterable:
+    if count is None:
+      trials = self._client.list_optimal_trials()
+    else:
+      raise ValueError('Count not supported.')
     return TrialIterable(lambda: trials, self._client)
 
   def materialize_problem_statement(self) -> vz.ProblemStatement:

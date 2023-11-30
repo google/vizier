@@ -273,8 +273,13 @@ class StudyInterface(abc.ABC):
     """
 
   @abc.abstractmethod
-  def optimal_trials(self) -> TrialIterable:
-    """Returns optimal trial(s)."""
+  def optimal_trials(self, *, count: Optional[int] = None) -> TrialIterable:
+    """Returns (pareto) optimal trial(s). Can be multiple Trial(s).
+
+    Args:
+      count: If provided, returns that many best Trials, breaking ties by
+        earlier Trial id.
+    """
 
   @abc.abstractmethod
   def materialize_problem_statement(self) -> vz.ProblemStatement:
