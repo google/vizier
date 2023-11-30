@@ -73,6 +73,7 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
       if value is None:
         search_space.pop(parameter_config.name)
         continue
+      # Note: get_subspace also validates the value.
       subspace = search_space.get(parameter_config.name).get_subspace_deepcopy(
           value
       )
