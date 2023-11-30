@@ -16,10 +16,12 @@ Codebases
 -  `Architecture Gym (ArchGym) <https://github.com/srivatsankrishnan/oss-arch-gym>`__
 -  `OpenML (Converter) <https://github.com/josvandervelde/OpenML-Vizier-Converter>`__
 
-Guides
+Guides + Courses
 ------
 
 -  `Deep Learning Tuning Playbook <https://github.com/google-research/tuning_playbook>`__
+-  `Stanford STATS 285 (Fall 2023): Massive Computational Experiments, Painlessly <https://sites.google.com/corp/stanford.edu/stats285>`__
+-  `Stanford XCS224U (Spring 2023): Natural Language Understanding <https://youtu.be/7zZRaoHr-8g?si=w2nKlMzudtuqy0_j>`__
 
 Papers
 ------
