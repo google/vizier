@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import collections
 import threading
-from typing import Callable, DefaultDict, Iterable, List, Optional
+from typing import Callable, Iterable, List, Optional
 
 from absl import logging
 import sqlalchemy as sqla
@@ -124,7 +124,7 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     if not row:
       raise NotFoundError('Failed to find study name: %s' % study_name)
-    return study_pb2.Study.FromString(row['serialized_study'])
+    return study_pb2.Study.FromString(row.serialized_study)
 
   def update_study(self, study: study_pb2.Study) -> resources.StudyResource:
     study_resource = resources.StudyResource.from_name(study.name)
@@ -190,9 +190,7 @@ class SQLDataStore(datastore.DataStore):
         raise NotFoundError('Owner name %s does not exist.' % owner_name)
       result = self._connection.execute(lq).fetchall()
 
-    return [
-        study_pb2.Study.FromString(row['serialized_study']) for row in result
-    ]
+    return [study_pb2.Study.FromString(row.serialized_study) for row in result]
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     trial_resource = resources.TrialResource.from_name(trial.name)
@@ -223,7 +221,7 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     if not row:
       raise NotFoundError('Failed to find trial name: %s' % trial_name)
-    return study_pb2.Trial.FromString(row['serialized_trial'])
+    return study_pb2.Trial.FromString(row.serialized_trial)
 
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     trial_resource = resources.TrialResource.from_name(trial.name)
@@ -269,9 +267,7 @@ class SQLDataStore(datastore.DataStore):
         raise NotFoundError('Study name %s does not exist.' % study_name)
       result = self._connection.execute(lq)
 
-    return [
-        study_pb2.Trial.FromString(row['serialized_trial']) for row in result
-    ]
+    return [study_pb2.Trial.FromString(row.serialized_trial) for row in result]
 
   def delete_trial(self, trial_name: str) -> None:
     # Exist query
@@ -347,7 +343,7 @@ class SQLDataStore(datastore.DataStore):
     row = result.fetchone()
     if not row:
       raise NotFoundError('Failed to find suggest op name: %s' % operation_name)
-    return operations_pb2.Operation.FromString(row['serialized_op'])
+    return operations_pb2.Operation.FromString(row.serialized_op)
 
   def update_suggestion_operation(
       self, operation: operations_pb2.Operation
@@ -407,8 +403,7 @@ class SQLDataStore(datastore.DataStore):
       result = self._connection.execute(q)
 
     all_ops = [
-        operations_pb2.Operation.FromString(row['serialized_op'])
-        for row in result
+        operations_pb2.Operation.FromString(row.serialized_op) for row in result
     ]
     if filter_fn is not None:
       output_list = []
@@ -495,9 +490,7 @@ class SQLDataStore(datastore.DataStore):
       raise NotFoundError(
           'Failed to find early stopping op name: %s' % operation_name
       )
-    return vizier_oss_pb2.EarlyStoppingOperation.FromString(
-        row['serialized_op']
-    )
+    return vizier_oss_pb2.EarlyStoppingOperation.FromString(row.serialized_op)
 
   def update_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
@@ -552,7 +545,7 @@ class SQLDataStore(datastore.DataStore):
       row = study_result.fetchone()
       if not row:
         raise NotFoundError('No such study:', s_resource.name)
-      original_study = study_pb2.Study.FromString(row['serialized_study'])
+      original_study = study_pb2.Study.FromString(row.serialized_study)
 
       # Store Study-related metadata into the database.
       vz.metadata_util.merge_study_metadata(
@@ -565,9 +558,7 @@ class SQLDataStore(datastore.DataStore):
       self._connection.execute(usq)
 
       # Split the trial-related metadata by Trial.
-      split_metadata: DefaultDict[str, List[datastore.UnitMetadataUpdate]] = (
-          collections.defaultdict(list)
-      )
+      split_metadata = collections.defaultdict(list)
       for md in trial_metadata:
         split_metadata[md.trial_id].append(md)
 
@@ -583,7 +574,7 @@ class SQLDataStore(datastore.DataStore):
         row = trial_result.fetchone()
         if not row:
           raise NotFoundError('No such trial:', trial_name)
-        original_trial = study_pb2.Trial.FromString(row['serialized_trial'])
+        original_trial = study_pb2.Trial.FromString(row.serialized_trial)
 
         # Update Trial.
         vz.metadata_util.merge_trial_metadata(original_trial, md_list)
