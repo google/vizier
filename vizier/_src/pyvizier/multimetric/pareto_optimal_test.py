@@ -85,6 +85,19 @@ class ParetoOptimalTest(absltest.TestCase):
     # Results should not be affected by changing recursive threshold.
     self.assertTrue(np.all(simple_check == fast_check))
 
+  def test_update_pareto(self):
+    points = np.array([[1, 2, 3], [1, 2, 3], [2, 4, 1], [1, 2, -1]])
+    np.testing.assert_array_equal(
+        self.algo.is_pareto_optimal(points), [True, True, True, False]
+    )
+
+    # Adding a point that dominates the first two values.
+    point = np.array([[2, 3, 4]])
+    np.testing.assert_array_equal(
+        self.algo.update_pareto_optimal(points, point),
+        [2, 4],
+    )
+
 
 if __name__ == '__main__':
   absltest.main()

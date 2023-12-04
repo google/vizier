@@ -63,6 +63,26 @@ class BaseParetoOptimalAlgorithm(metaclass=abc.ABCMeta):
     """
     pass
 
+  def update_pareto_optimal(
+      self, current_pareto_optimal: np.ndarray, incremental_points: np.ndarray
+  ) -> np.ndarray:
+    """An algorithm to update the Pareto frontier.
+
+    Args:
+      current_pareto_optimal: M-by-D 2D array of current pareto optimal points.
+        M = number of points, D = dimension.
+      incremental_points: N-by-D 2D array of incremental points. N = number of
+        points, D = dimension.
+
+    Returns:
+      List of point indices of which are in the pareto frontier.
+      Example: returns [2, 4] when only ckpt_2 and ckpt_4 are on pareto.
+    """
+    is_optimal = self.is_pareto_optimal(
+        np.append(current_pareto_optimal, incremental_points, axis=0)
+    )
+    return np.asarray(is_optimal).nonzero()[0]
+
 
 class NaiveParetoOptimalAlgorithm(BaseParetoOptimalAlgorithm):
   """Naive implementation of Pareto frontier calculation."""
