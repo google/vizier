@@ -21,6 +21,7 @@ import json
 from typing import Any
 
 import numpy as np
+from vizier import pyvizier as vz
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -60,3 +61,16 @@ class NumpyDecoder(json.JSONDecoder):
 
   def __init__(self, *args, **kargs):
     super(NumpyDecoder, self).__init__(object_hook=numpy_hook, *args, **kargs)
+
+
+class MetadataEncoder(json.JSONEncoder):
+
+  def default(self, o: Any) -> Any:
+    if isinstance(o, vz.Metadata):
+      d = dict(o)
+      d |= {ns.encode(): o.ns(ns) for ns in o.subnamespaces()}
+      return d
+    elif not isinstance(o, dict) and isinstance(o, Mapping):
+      # Handles FrozenDict and any dict-like structures.
+      return dict(o)
+    return o
