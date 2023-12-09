@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 """Experimenter function implementations for BBOB functions."""
-
+# pyformat: disable
 import hashlib
 import math
 from typing import Any, Callable, Sequence
@@ -457,7 +457,7 @@ def Katsuura(arr: np.ndarray, seed: int = 0) -> float:
     s = 0.0
     for j in range(1, 33):
       s += abs(2**j * z_vec[i, 0] - round(2**j * z_vec[i, 0])) / 2**j
-    prod *= (1 + (i + 1) * s)**(10.0 / dim**1.2)
+    prod *= (1 + i * s)**(10.0 / dim**1.2)
 
   return (10.0 / dim**2) * prod - 10.0 / dim**2 + Fpen(arr)
 
