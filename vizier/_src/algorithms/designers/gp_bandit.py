@@ -577,8 +577,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       cls, problem: vz.ProblemStatement, seed: Optional[int] = None
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
+    # Linear coef is set to 1.0 as prior and uses VizierLinearGaussianProcess
+    # which uses a sum of Matern and linear but ARD still tunes its amplitude.
     if problem.is_single_objective:
-      return cls(problem, rng=rng)
+      return cls(problem, rng=rng, linear_coef=1.0)
     else:
       num_objectives = len(
           problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
@@ -600,6 +602,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       )
       return cls(
           problem,
+          linear_coef=1.0,
           scoring_function_factory=scoring_fn_factory,
           scoring_function_is_parallel=True,
           use_trust_region=False,
