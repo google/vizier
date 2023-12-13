@@ -35,8 +35,7 @@ class Scalarization(abc.ABC, eqx.Module):
   # Weights shape should be broadcastable with objectives when called.
   weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
 
-  @jt.jaxtyped
-  @typeguard.typechecked
+  @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
   ) -> jt.Float[jax.Array, '*Batch']:
