@@ -155,8 +155,8 @@ class NSGA2Survival(templates.Survival):
     Sorted all points by 3-tuple
     1. Descending order of safety constraint violation score. Zero
       means no violations.
-    2. Descending order of crowding distance.
-    3. Ascending order of how many points it's dominated by.
+    2. Ascending order of how many points it's dominated by.
+    3. Descending order of crowding distance.
 
     Args:
       population:
