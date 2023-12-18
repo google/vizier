@@ -451,20 +451,20 @@ class ModelInputArrayBijector:
       denom = (high - low) or 1.0
       if denom < 1e-6:
         logging.warning('Unusually small range detected for %s', spec)
-      scale_fn = lambda x, high=high, low=low: (np.log(x) - low) / (high - low)
-      unscale_fn = lambda x, high=high, low=low: np.exp(x * (high - low) + low)
+      scale_fn = lambda x, low=low, denom=denom: (np.log(x) - low) / denom
+      unscale_fn = lambda x, low=low, denom=denom: np.exp(x * denom + low)
     elif spec.scale == pyvizier.ScaleType.REVERSE_LOG:
-      original_sum = low + high
+      raw_sum = low + high
       low, high = np.log(low), np.log(high)
       denom = (high - low) or 1.0
       if denom < 1e-6:
         logging.warning('Unusually small range detected for %s', spec)
 
-      def scale_fn(x, high=high, low=low, original_sum=original_sum):
-        return 1.0 - (np.log(original_sum - x) - low) / (high - low)
+      def scale_fn(x, low=low, raw_sum=raw_sum, denom=denom):
+        return 1.0 - (np.log(raw_sum - x) - low) / denom
 
-      def unscale_fn(x, high=high, low=low, original_sum=original_sum):
-        return original_sum - np.exp(high - (high - low) * x)
+      def unscale_fn(x, high=high, raw_sum=raw_sum):
+        return raw_sum - np.exp(high - denom * x)
 
     else:
       if not (spec.scale == pyvizier.ScaleType.LINEAR or spec.scale is None):
