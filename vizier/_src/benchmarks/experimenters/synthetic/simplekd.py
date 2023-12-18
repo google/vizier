@@ -93,20 +93,39 @@ class SimpleKD(experimenter.Experimenter):
   hillclimb algorithm to local optima. It is parameterized by "best_category",
   which optimization algorithm must get right in order to reach the optimum.
 
-  Note that CATEGORICAL type only has one parameter as order doesn't exist.
+  Note that CATEGORICAL type has only a single parameter as there's no notion
+  of hillclimb or direction for categorical parameter.
 
-  "best_category" value refers to where the optimum occurs.
+  When 'output_relative_error' is True (default case) the objective value is
+  the relative error compared to the optimal objective value (which could be
+  negative) and the objective goal is MINIMIZE. This option allows for using the
+  experiementer results directly without needing for further processing.
+  When 'output_relative_error' is False, the objecitve is the SimpleKd function
+  value and the objective goal is MAXIMIZE.
+
+  The "best_category" value refers to where the optimum occurs.
   """
 
   best_category: SimpleKDCategory = attrs.field()  # type: ignore
   num_float_param: int = 1
   num_discrete_param: int = 1
   num_int_param: int = 1
+  output_relative_error: bool = True
+
+  def __attrs_post_init__(self):
+    if self.output_relative_error and abs(self.optimal_objective) < 1e-6:
+      raise ValueError(
+          f"Optimal objective is too small {self.optimal_objective}, can't"
+          ' compute relative error.'
+      )
 
   def evaluate(self, suggestions: Sequence[vz.Trial]) -> None:
     for suggestion in suggestions:
-      values = self._get_param_values(suggestion)
-      suggestion.complete(vz.Measurement({'value': self._compute(values)}))
+      param_values = self._get_param_values(suggestion)
+      value = self._compute(param_values)
+      if self.output_relative_error:
+        value = abs((value - self.optimal_objective) / self.optimal_objective)
+      suggestion.complete(vz.Measurement({'value': value}))
 
   def problem_statement(self) -> vz.ProblemStatement:
     problem = vz.ProblemStatement()
@@ -121,9 +140,18 @@ class SimpleKD(experimenter.Experimenter):
     problem.search_space.root.add_categorical_param(
         'categorical', ('corner', 'center', 'mixed')
     )
-    problem.metric_information.append(
-        vz.MetricInformation(name='value', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
-    )
+    if self.output_relative_error:
+      problem.metric_information.append(
+          vz.MetricInformation(
+              name='value', goal=vz.ObjectiveMetricGoal.MINIMIZE
+          )
+      )
+    else:
+      problem.metric_information.append(
+          vz.MetricInformation(
+              name='value', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+          )
+      )
     return problem
 
   def _get_param_values(

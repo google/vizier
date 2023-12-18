@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from absl.testing import parameterized
 import numpy as np
+from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import grid
 from vizier._src.benchmarks.experimenters.synthetic import simplekd
 from vizier._src.benchmarks.runners import benchmark_runner
@@ -25,13 +26,18 @@ from absl.testing import absltest
 
 class SimpleKDTest(parameterized.TestCase):
 
-  @parameterized.parameters(
-      dict(best_category='corner'),
-      dict(best_category='center'),
-      dict(best_category='mixed'),
+  @parameterized.product(
+      best_category=['corner', 'center', 'mixed'],
+      output_relative_error=[True, False],
   )
-  def test_sweep(self, best_category: simplekd.SimpleKDCategory) -> None:
-    experimenter = simplekd.SimpleKD(best_category)
+  def test_sweep(
+      self,
+      best_category: simplekd.SimpleKDCategory,
+      output_relative_error: bool,
+  ) -> None:
+    experimenter = simplekd.SimpleKD(
+        best_category, output_relative_error=output_relative_error
+    )
     runner = benchmark_runner.BenchmarkRunner(
         benchmark_subroutines=[
             benchmark_runner.GenerateSuggestions(),
@@ -76,6 +82,41 @@ class SimpleKDTest(parameterized.TestCase):
             opt_value = np.nanmax([exptr_simple4d._compute(values), opt_value])
 
     self.assertAlmostEqual(opt_value, exptr_simple4d.optimal_objective)
+
+  @parameterized.parameters(
+      dict(best_category='corner'),
+      dict(best_category='center'),
+      dict(best_category='mixed'),
+  )
+  def test_optimal_relative_error(
+      self, best_category: simplekd.SimpleKDCategory
+  ) -> None:
+    exptr_simple4d = simplekd.SimpleKD(
+        best_category, output_relative_error=True
+    )
+    categorical_values = ['corner', 'center', 'mixed']
+    discrete_values = (1, 2, 5, 6, 8)
+    integer_values = [1, 2, 3]
+    continuous_values = np.linspace(-1, 1, 1001)
+
+    opt_rel_error = np.nan
+    for cat_value in categorical_values:
+      for disc_value in discrete_values:
+        for cont_value in continuous_values:
+          for int_value in integer_values:
+            trial = vz.Trial({
+                'categorical': cat_value,
+                'discrete_0': disc_value,
+                'int_0': int_value,
+                'float_0': cont_value,
+            })
+            exptr_simple4d.evaluate([trial])
+            if trial.final_measurement is None:
+              raise ValueError('Final measurement is None.')
+            rel_err = trial.final_measurement.metrics['value'].value
+            opt_rel_error = np.nanmin([rel_err, opt_rel_error])
+
+    self.assertAlmostEqual(opt_rel_error, 0.0)
 
 
 if __name__ == '__main__':

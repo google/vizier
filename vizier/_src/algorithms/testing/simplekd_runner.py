@@ -72,8 +72,8 @@ class SimpleKDConvergenceTester:
         num_float_param=self.num_float_param,
         num_discrete_param=self.num_discrete_param,
         num_int_param=self.num_int_param,
+        output_relative_error=True,
     )
-    optimal_obj = exptr.optimal_objective
     runner = benchmark_runner.BenchmarkRunner(
         benchmark_subroutines=[
             benchmark_runner.GenerateAndEvaluate(batch_size=self.batch_size),
@@ -93,16 +93,9 @@ class SimpleKDConvergenceTester:
       runner.run(state)
       best_trial = state.algorithm.supporter.GetBestTrials(count=1)[0]
       metric_name = exptr.problem_statement().metric_information.item().name
-      best_obj = best_trial.final_measurement_or_die.metrics[metric_name].value
-      if abs(best_obj - optimal_obj) / optimal_obj <= self.max_relative_error:
+      best_err = best_trial.final_measurement_or_die.metrics[metric_name].value
+      if best_err <= self.max_relative_error:
         num_success += 1
-      if best_obj > optimal_obj:
-        logging.warning(
-            'Best trial objective (%s) is higher than the approximated'
-            ' optimal objective (%s).',
-            best_obj,
-            optimal_obj,
-        )
     if num_success < self.target_num_convergence:
       raise FailedSimpleKDConvergenceTestError(
           'The simplekd convergence test failed. The number of converged runs'
