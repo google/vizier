@@ -37,3 +37,9 @@ STUDY_METADATA_KEYS = frozenset([
     STUDY_METADATA_KEY_DNA_SPEC,
     STUDY_METADATA_KEY_USES_EXTERNAL_DNA_SPEC,
 ])
+
+# This is to make V2 pipeline compatible with trials from V1 pipeline
+# when performing transfer learning.
+TRIAL_METADATA_KEYS_TO_CARRY_FROM_GLOBAL_NS = frozenset([
+    'log_prob',
+])

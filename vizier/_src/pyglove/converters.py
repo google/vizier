@@ -224,8 +224,15 @@ def get_scale_type(scale: Optional[str]) -> Optional[vz.ScaleType]:
 def get_pyglove_metadata(trial: vz.Trial) -> dict[str, Any]:
   """Extracts only the pyglove-related metadata into a simple dict."""
   metadata = dict()
-  pg_metadata = trial.metadata.ns(constants.METADATA_NAMESPACE)
-  for key, value in pg_metadata.items():
+
+  # NOTE(daiyip): This is to keep backward compatibility for Cloud NAS service,
+  # which might loads trials from studies created in the old NAS pipeline for
+  # transfer learning.
+  for key, value in trial.metadata.items():
+    if key in constants.TRIAL_METADATA_KEYS_TO_CARRY_FROM_GLOBAL_NS:
+      metadata[key] = pg.from_json_str(value)
+
+  for key, value in trial.metadata.ns(constants.METADATA_NAMESPACE).items():
     if key not in constants.TRIAL_METADATA_KEYS and value is not None:
       metadata[key] = pg.from_json_str(value)
   return metadata
