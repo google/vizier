@@ -62,7 +62,16 @@ default_scoring_function_factory = (
 
 
 def _experimental_override_allowed(fun):
-  """No-op. Marks functions that can be easily overriden for experimentation."""
+  """No-op.
+
+  Marks functions that can be easily overridden for experimentation.
+
+  Args:
+    fun:
+
+  Returns:
+    fun:
+  """
   return fun
 
 
@@ -152,6 +161,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Extra validations
     if self._problem.search_space.is_conditional:
       raise ValueError(f'{type(self)} does not support conditional search.')
+    if self._problem.search_space.num_parameters() == 0:
+      raise ValueError(
+          'SearchSpace should contain at least one parameter config.'
+      )
+
     # Extra initializations.
     # Discrete parameters are continuified to account for their actual values.
     self._converter = converters.TrialToModelInputConverter.from_problem(
@@ -557,7 +571,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     """Returns the mean and stddev for any given trials.
 
     The method performs sampling of the warped GP model, unwarp the samples and
-    compute the empirical mean and stadard deviation as an apprixmation.
+    compute the empirical mean and standard deviation as an apprixmation.
 
     Arguments:
       trials: The trials where the predictions will be made.

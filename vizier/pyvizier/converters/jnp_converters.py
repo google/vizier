@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Converters that use JAX."""
 
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Union
 
 import attr
 import attrs
@@ -61,7 +61,7 @@ class PaddedTrialToArrayConverter:
     return self._padding_schedule.pad_features(features)
 
   def to_labels(self, trials: Sequence[vz.Trial]) -> vt.PaddedArray:
-    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    """Returns the labels array with dimension: (n_trials, n_metrics)."""
     # Pad up the labels.
     labels = self._impl.to_labels(trials)
     return self._padding_schedule.pad_labels(labels)
@@ -204,14 +204,16 @@ class TrialToModelInputConverter:
         padding_schedule=padding_schedule,
     )
 
-  def to_features(self, trials: Sequence[vz.Trial]) -> vt.ModelInput:
+  def to_features(
+      self, trials: Sequence[Union[vz.Trial, vz.TrialSuggestion]]
+  ) -> vt.ModelInput:
     """Returns the features array with dimension: (n_trials, n_features)."""
     # Pad up the features.
     features = self._impl.to_features(trials)
     return jax.tree_util.tree_map(self._padding_schedule.pad_features, features)
 
   def to_labels(self, trials: Sequence[vz.Trial]) -> vt.PaddedArray:
-    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    """Returns the labels array with dimension: (n_trials, n_metrics)."""
     # Pad up the labels.
     labels = self._impl.to_labels(trials)
     return self._padding_schedule.pad_labels(labels)
@@ -300,7 +302,7 @@ class TrialToContinuousAndCategoricalConverter:
     )
 
   def to_labels(self, trials: Sequence[vz.Trial]) -> np.ndarray:
-    """Returns the labels array with dimenion: (n_trials, n_metrics)."""
+    """Returns the labels array with dimension: (n_trials, n_metrics)."""
     return core.dict_to_array(self._impl.to_labels(trials))
 
   def to_xy(
