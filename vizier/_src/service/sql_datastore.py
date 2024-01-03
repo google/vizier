@@ -206,10 +206,10 @@ class SQLDataStore(datastore.DataStore):
       try:
         self._connection.execute(query)
         return trial_resource
-      except sqla.exc.IntegrityError as integrity_error:
-        raise custom_errors.AlreadyExistsError(
+      except sqla.exc.IntegrityError as e:
+        raise AlreadyExistsError(
             'Trial with name %s already exists.' % trial.name
-        ) from integrity_error
+        ) from e
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     query = sqla.select(self._trials_table)
@@ -405,14 +405,10 @@ class SQLDataStore(datastore.DataStore):
     all_ops = [
         operations_pb2.Operation.FromString(row.serialized_op) for row in result
     ]
-    if filter_fn is not None:
-      output_list = []
-      for op in all_ops:
-        if filter_fn(op):
-          output_list.append(op)
-      return output_list
-    else:
+
+    if filter_fn is None:
       return all_ops
+    return [op for op in all_ops if filter_fn(op)]
 
   def max_suggestion_operation_number(
       self, study_name: str, client_id: str
