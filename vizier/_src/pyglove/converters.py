@@ -229,7 +229,7 @@ def get_pyglove_metadata(trial: vz.Trial) -> dict[str, Any]:
   # which might loads trials from studies created in the old NAS pipeline for
   # transfer learning.
   for key, value in trial.metadata.items():
-    if key in constants.TRIAL_METADATA_KEYS_TO_CARRY_FROM_GLOBAL_NS:
+    if key in constants.TRIAL_METADATA_KEYS:
       metadata[key] = pg.from_json_str(value)
 
   for key, value in trial.metadata.ns(constants.METADATA_NAMESPACE).items():
