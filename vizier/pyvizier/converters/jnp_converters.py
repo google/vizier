@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Converters that use JAX."""
 
-from typing import Sequence, Tuple, Union
+from typing import Sequence, Tuple
 
 import attr
 import attrs
@@ -204,9 +204,7 @@ class TrialToModelInputConverter:
         padding_schedule=padding_schedule,
     )
 
-  def to_features(
-      self, trials: Sequence[Union[vz.Trial, vz.TrialSuggestion]]
-  ) -> vt.ModelInput:
+  def to_features(self, trials: Sequence[vz.TrialSuggestion]) -> vt.ModelInput:
     """Returns the features array with dimension: (n_trials, n_features)."""
     # Pad up the features.
     features = self._impl.to_features(trials)
@@ -265,7 +263,7 @@ class TrialToContinuousAndCategoricalConverter:
   _impl: core.DefaultTrialConverter
 
   def to_features(
-      self, trials: Sequence[vz.Trial]
+      self, trials: Sequence[vz.TrialSuggestion]
   ) -> vt.ContinuousAndCategoricalArray:
     """Returns a structure of arrays with first dimension `n_trials`."""
     features = self._impl.to_features(trials)
