@@ -221,15 +221,17 @@ class GetPyGloveMetadataTest(absltest.TestCase):
   def test_metadata_from_pyglove_namespace(self):
     """Tests getting metadata from PyGlove namespace."""
     t = vz.Trial()
-    t.metadata.ns(constants.METADATA_NAMESPACE)['log_prob'] = '1.0'
-    self.assertEqual(converters.get_pyglove_metadata(t), {'log_prob': 1.0})
+    t.metadata.ns(constants.METADATA_NAMESPACE)['foo'] = '1.0'
+    self.assertEqual(converters.get_pyglove_metadata(t), {'foo': 1.0})
 
   def test_metadata_from_empty_namespace(self):
     """Tests getting metadata from empty namespace."""
     t = vz.Trial()
-    t.metadata['log_prob'] = '1.0'
+    t.metadata['DNA_METADATA'] = '{"log_prob": 1.0}'
     t.metadata['should_exclude'] = 'abc'
-    self.assertEqual(converters.get_pyglove_metadata(t), {'log_prob': 1.0})
+    self.assertEqual(
+        converters.get_pyglove_metadata(t), {'DNA_METADATA': {'log_prob': 1.0}}
+    )
 
 
 class MakeParameterConfigTest(absltest.TestCase):
