@@ -98,8 +98,8 @@ class VizierCreatedSearchSpaceTest(parameterized.TestCase):
         ),
     )
 
-  @parameterized.parameters((7,), (7.,))
-  def test_trial_to_dna(self, discrete_int_value):
+  @parameterized.parameters((7, None), (7.0, 'pyglove'))
+  def test_trial_to_dna(self, discrete_int_value, metadata_ns):
     vc = converters.VizierConverter.from_problem(
         vz.ProblemStatement(search_space=self._search_space()))
     trial = vz.Trial()
@@ -108,7 +108,12 @@ class VizierCreatedSearchSpaceTest(parameterized.TestCase):
     trial.parameters['discrete_int'] = discrete_int_value
     trial.parameters['discrete_double'] = 4.1
     trial.parameters['categorical'] = 'a'
-    self.assertEqual(vc.to_dna(trial), pg.DNA([-.5, 1, 2, 1, 0]))
+
+    metadata = trial.metadata.ns(metadata_ns) if metadata_ns else trial.metadata
+    metadata[constants.TRIAL_METADATA_KEY_DNA_METADATA] = '{"log_prob": 1.0}'
+    dna = vc.to_dna(trial)
+    self.assertEqual(dna, pg.DNA([-0.5, 1, 2, 1, 0]))
+    self.assertEqual(dna.metadata, dict(log_prob=1.0))
 
 
 class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):

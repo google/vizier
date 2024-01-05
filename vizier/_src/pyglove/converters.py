@@ -420,14 +420,26 @@ class VizierConverter:
         decision_dict, self.dna_spec, use_ints_as_literals=True)
 
     # Restore DNA metadata if present
-    dna_metada = trial.metadata.ns(constants.METADATA_NAMESPACE).get(
-        constants.TRIAL_METADATA_KEY_DNA_METADATA, None)
+    dna_metadata = trial.metadata.ns(constants.METADATA_NAMESPACE).get(
+        constants.TRIAL_METADATA_KEY_DNA_METADATA, None
+    )
 
-    if dna_metada is not None:
+    if dna_metadata is None:
+      # NOTE(daiyip): To be compatible with V1 pipeline for transfer learning,
+      # we also try to read DNA_METADATA stored under the global (empty)
+      # namespace.
+      dna_metadata = trial.metadata.get(
+          constants.TRIAL_METADATA_KEY_DNA_METADATA, None
+      )
+
+    if dna_metadata is not None:
       dna.rebind(
-          metadata=pg.from_json_str(dna_metada),
+          metadata=pg.from_json_str(dna_metadata),
           skip_notification=True,
-          raise_on_no_change=False)
+          raise_on_no_change=False,
+      )
+    else:
+      logging.warn('DNA metadata is None for trial: %s', trial)
     return dna
 
   def to_trial(self, dna: pg.DNA, *,
