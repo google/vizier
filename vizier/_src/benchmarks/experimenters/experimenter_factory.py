@@ -142,7 +142,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
     exptr = self.base_factory()
     if self.shift is not None:
       exptr = shifting_experimenter.ShiftingExperimenter(
-          exptr, shift=self.shift
+          exptr, shift=self.shift, should_restrict=self.should_restrict
       )
     if self.num_normalization_samples:
       exptr = normalizing_experimenter.NormalizingExperimenter(

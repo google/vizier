@@ -107,13 +107,16 @@ class ShiftingExperimenter(experimenter.Experimenter):
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
     """Evaluate the trials after shifting their parameters by +shift."""
+    previous_parameters = [suggestion.parameters for suggestion in suggestions]
     self._offset(suggestions, self._shift)
     self._exptr.evaluate(suggestions)
-    self._offset(suggestions, -self._shift)
+    # Must replace stored previous parameters since offsetting may clip.
+    for parameters, suggestion in zip(previous_parameters, suggestions):
+      suggestion.parameters = parameters
 
   def _offset(self, suggestions: Sequence[pyvizier.Trial],
               shift: np.ndarray) -> None:
-    """Offsets the suggestions parameter values in place."""
+    """Offsets parameter values (OOB values are clipped)."""
     for suggestion in suggestions:
       features = self._converter.to_features([suggestion])
       new_parameters = self._converter.to_parameters(features + shift)[0]

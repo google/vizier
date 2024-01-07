@@ -148,6 +148,27 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     shifted_exptr._offset([trial], shift=shift)
     self.assertEqual(trial.parameters.as_dict(), {'x0': 5.0, 'x1': -5.0})
 
+  @parameterized.parameters((True,), (False,))
+  def test_shift_forward_oob(self, should_restrict):
+    dim = 2
+    shift = np.array([2.2, -2.3])
+    func = bbob.Sphere
+    exptr = numpy_experimenter.NumpyExperimenter(
+        func, bbob.DefaultBBOBProblemStatement(dim)
+    )
+    shifted_exptr = shifting_experimenter.ShiftingExperimenter(
+        exptr=exptr, shift=np.asarray(shift), should_restrict=should_restrict
+    )
+    # Test OOB shifts does not change parameter values.
+    trial = pyvizier.Trial(parameters={'x0': 3.0, 'x1': 1.0})
+    shifted_exptr.evaluate([trial])
+    self.assertEqual(trial.parameters.as_dict(), {'x0': 3.0, 'x1': 1.0})
+
+    # Test OOB shifts stay within bounds.
+    shifted_exptr._offset([trial], shift=shift)
+    # x0 is shifted OOB, so clip at 5.0.
+    self.assertEqual(trial.parameters.as_dict(), {'x0': 5.0, 'x1': 1.0 - 2.3})
+
   def test_large_shift(self):
     dim = 2
     shift = np.array([10.2, 20.3])
