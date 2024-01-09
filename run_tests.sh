@@ -44,10 +44,9 @@ case $1 in
     python vizier/service/clients/__init__.py
     ;;
   "pyglove")
-    echo "This test is skipped!"
     pip install -r requirements-jax.txt
     pip install pyglove
-    # pytest -n auto vizier/_src/pyglove/
+    pytest -n auto vizier/_src/pyglove/
     ;;
   "raytune")
     pip install -U ray[tune]

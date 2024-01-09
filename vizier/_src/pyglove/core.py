@@ -29,7 +29,6 @@ from vizier import pyvizier as vz
 from vizier._src.pyglove import constants
 from vizier._src.pyglove import converters
 from vizier.client import client_abc
-from vizier.google import metadata_to_user
 
 
 def _trial_status_legacy_value(status: vz.TrialStatus) -> str:
@@ -54,28 +53,34 @@ class VizierTrial(pg.tuning.Trial):
   # for we want to pass in `converter` and `trial` which are not managed by
   # PyGlove.
   @pg.explicit_method_override
-  def __init__(self, converter: converters.VizierConverter, trial: vz.Trial,
-               **kwargs):
+  def __init__(
+      self, converter: converters.VizierConverter, trial: vz.Trial, **kwargs
+  ):
     super().__init__(
         dna=pg.DNA(None),
         id=trial.id,
         description=trial.description,
         final_measurement=converter.to_tuner_measurement(
-            trial.final_measurement),
+            trial.final_measurement
+        ),
         status=_trial_status_legacy_value(trial.status),
         created_time=int(trial.creation_time.timestamp()),
-        completed_time=int((trial.completion_time or
-                            datetime.datetime.fromtimestamp(0)).timestamp()),
+        completed_time=int(
+            (
+                trial.completion_time or datetime.datetime.fromtimestamp(0)
+            ).timestamp()
+        ),
         infeasible=trial.infeasible,
-        **kwargs)
+        **kwargs,
+    )
     self._converter = converter
     self._trial = trial
 
   @property
   def dna(self) -> pg.DNA:
     """Returns lazy loaded DNA."""
-    if (self.sym_init_args.dna.value is None and
-        not self.sym_init_args.dna.children):
+    temp_dna = self.sym_init_args.dna
+    if temp_dna.value is None and not temp_dna.children:
       self.sym_init_args.dna = self._converter.to_dna(self._trial)
     return self.sym_init_args.dna
 
@@ -136,8 +141,11 @@ def _parse_namespace_from_key(
 class Feedback(pg.tuning.Feedback):
   """Tuning feedback for a vizier trial."""
 
-  def __init__(self, vizier_trial: client_abc.TrialInterface,
-               converter: converters.VizierConverter):
+  def __init__(
+      self,
+      vizier_trial: client_abc.TrialInterface,
+      converter: converters.VizierConverter,
+  ):
     """Constructor.
 
     Args:
@@ -169,9 +177,7 @@ class Feedback(pg.tuning.Feedback):
   @property
   def checkpoint_to_warm_start_from(self) -> Optional[str]:
     """Gets checkpoint path to warm start from. Refreshes `_trial`."""
-    # TODO: Add official support.
-    self._trial = self._trial_client.materialize()
-    return metadata_to_user.get_warmstart_checkpoint_path(self._trial)
+    return None
 
   @contextlib.contextmanager
   def _maybe_race_condition(self, message: str):
@@ -186,21 +192,21 @@ class Feedback(pg.tuning.Feedback):
       else:
         raise
 
-  def _add_measurement(self, reward: Optional[float], metrics: dict[str, float],
-                       step: int, checkpoint_path: Optional[str],
-                       elapse_secs: float) -> None:
+  def _add_measurement(
+      self,
+      reward: Optional[float],
+      metrics: dict[str, float],
+      step: int,
+      checkpoint_path: Optional[str],
+      elapse_secs: float,
+  ) -> None:
     """Reports tuning measurement to the pg.tuning."""
-    if checkpoint_path:
-      # TODO: Add official support.
-      mu = vz.Metadata()
-      metadata_to_user.set_warmstart_checkpoint_path(mu, checkpoint_path)
-      self._trial_client.update_metadata(mu)
     if reward is not None and not self._discard_reward:
       metrics |= {'reward': reward}
-    with self._maybe_race_condition(
-        'Measurements can only be added to'):
+    with self._maybe_race_condition('Measurements can only be added to'):
       self._trial_client.add_measurement(
-          vz.Measurement(metrics, elapsed_secs=elapse_secs, steps=step))
+          vz.Measurement(metrics, elapsed_secs=elapse_secs, steps=step)
+      )
 
   def set_metadata(self, key: str, value: Any, per_trial: bool = True) -> None:
     """Sets metadata for current trial or current sampling."""
@@ -248,9 +254,11 @@ class Feedback(pg.tuning.Feedback):
     )[name] = url
     self._trial_client.update_metadata(md)
 
-  def done(self,
-           metadata: Optional[dict[str, Any]] = None,
-           related_links: Optional[dict[str, str]] = None) -> None:
+  def done(
+      self,
+      metadata: Optional[dict[str, Any]] = None,
+      related_links: Optional[dict[str, str]] = None,
+  ) -> None:
     """Marks current tuning trial as done, and export final object."""
     metadata = metadata or {}
     related_links = related_links or {}
@@ -277,6 +285,7 @@ class Feedback(pg.tuning.Feedback):
 @attr.define(repr=False)
 class Result(pg.tuning.Result):
   """Vizier tuner progress."""
+
   _converter: converters.VizierConverter = attr.field()
   _problem: vz.ProblemStatement = attr.field()
   _study: client_abc.StudyInterface = attr.field()
@@ -285,7 +294,8 @@ class Result(pg.tuning.Result):
   _trials: Sequence[pg.tuning.Trial] = attr.field()
   _num_trials_by_status: dict[str, int] = attr.field()
   _last_update_time: datetime.datetime = attr.field(
-      factory=datetime.datetime.now)
+      factory=datetime.datetime.now
+  )
 
   @classmethod
   def from_study(cls, study: client_abc.StudyInterface):
@@ -301,10 +311,18 @@ class Result(pg.tuning.Result):
     tuner_trials = [VizierTrial(converter, t) for t in study.trials().get()]
     logging.info('Got trials...')
     num_trials_by_status = dict(
-        collections.Counter(t.status for t in tuner_trials))
+        collections.Counter(t.status for t in tuner_trials)
+    )
 
-    return cls(converter, problem, study, metadata, best_trial, tuner_trials,
-               num_trials_by_status)
+    return cls(
+        converter,
+        problem,
+        study,
+        metadata,
+        best_trial,
+        tuner_trials,
+        num_trials_by_status,
+    )
 
   @property
   def last_updated(self) -> datetime.datetime:
@@ -334,25 +352,27 @@ class Result(pg.tuning.Result):
     """Returns trials."""
     return self._trials
 
-  def format(self,
-             compact: bool = False,
-             verbose: bool = True,
-             root_indent: int = 0,
-             **kwargs):
+  def format(
+      self,
+      compact: bool = False,
+      verbose: bool = True,
+      root_indent: int = 0,
+      **kwargs,
+  ):
     # Return summary.
     status_field = pg.tuning.Trial.schema.get_field('status')
     assert status_field is not None
     possible_status = set(
-        typing.cast(pg.typing.Enum, status_field.value).values)
+        typing.cast(pg.typing.Enum, status_field.value).values
+    )
     study = f'{self._study.resource_name}'
-    json_repr = dict(
-        study=study,
-        # TODO: Add link to the study.
-        status={
-            s: f'{self._num_trials_by_status[s]}/{len(self._trials)}'
-            for s in possible_status
-            if s in self._num_trials_by_status
-        })
+    # TODO: Add link to the study.
+    status = {
+        s: f'{self._num_trials_by_status[s]}/{len(self._trials)}'
+        for s in possible_status
+        if s in self._num_trials_by_status
+    }
+    json_repr = dict(study=study, status=status)
     if self._best_trial:
       json_repr['best_trial'] = dict(
           id=self._best_trial.id,
