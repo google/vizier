@@ -419,7 +419,7 @@ class VizierBackend(pg.tuning.Backend):
           f'in study: {self._study.resource_name}.'
       ) from e
 
-  @functools.lru_cache(maxsize=None)d_property
+  @functools.lru_cache(maxsize=None)
   def _tuner_id(self) -> str:
     """Returns the tuner id of current ."""
     return self._tuner.get_tuner_id(self._algorithm)
