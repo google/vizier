@@ -41,7 +41,7 @@ To use the provided template, one should implement a subclass of `Offsprings`,
 """
 
 import abc
-from typing import Generic, Optional, Sequence, TypeVar, Union
+from typing import Callable, Generic, Optional, Sequence, TypeVar, Union
 
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
@@ -126,8 +126,11 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
       converter: PopulationConverter[_PopulationType, _OffspringsType],
       sampler: Sampler[_OffspringsType],
       survival: Survival[_PopulationType],
-      adaptation: Mutation[_PopulationType, _OffspringsType],
       *,
+      adaptation: Mutation[_PopulationType, _OffspringsType],
+      adaptation_callable: Optional[
+          Callable[[int], Mutation[_PopulationType, _OffspringsType]]
+      ] = None,
       initial_population: Optional[_PopulationType] = None,
       first_survival_after: Optional[int] = None,
       population_size: int = 50,
@@ -138,7 +141,9 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
       converter:
       sampler:
       survival:
-      adaptation:
+      adaptation: Default adaptation. Will be overwrote if adaptation_callable
+        is specified.
+      adaptation_callable: Adapation as a function of number of Trials seen.
       initial_population: The initial population to seed the evolution.
       first_survival_after: Apply the survival step after observing this many
         trials. If unset, it defaults to twice the `population_size`.
@@ -149,6 +154,7 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     self._converter = converter
     self._sampler = sampler
     self._population_size = population_size
+    self._adaptation_callable = adaptation_callable
     self._first_survival_after = (
         first_survival_after or self._population_size * 2
     )
@@ -168,8 +174,16 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
     count = count or self._population_size
     if self._num_trials_seen < self._first_survival_after:
       return self._converter.to_suggestions(self._sampler.sample(count))
-    return self._converter.to_suggestions(
-        self._adaptation.mutate(self._population, count))
+
+    if self._adaptation_callable is not None:
+      adaptation = self._adaptation_callable(self._num_trials_seen)
+    else:
+      adaptation = self._adaptation
+
+    suggestions = self._converter.to_suggestions(
+        adaptation.mutate(self._population, count)
+    )
+    return suggestions
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials

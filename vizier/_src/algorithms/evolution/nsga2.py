@@ -216,6 +216,9 @@ class NSGA2Designer(
       ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
       eviction_limit: Optional[int] = None,
       adaptation: Optional[Mutation[Population, Offspring]] = None,
+      adaptation_callable: Optional[
+          Callable[[int], Mutation[Population, Offspring]]
+      ] = None,
       metadata_namespace: str = 'nsga2',
       seed: Optional[int] = None
   ):
@@ -234,7 +237,9 @@ class NSGA2Designer(
         injected.
       eviction_limit: Evict a gene that has been alive for this many
         generations.
-      adaptation:
+      adaptation: Fixed mutation used to evolve population.
+      adaptation_callable: If specified, adaptation callable is a function of
+        num_trials that returns the trial-dependent adaptation.
       metadata_namespace: Metadata namespace to use.
       seed: Random seed.
 
@@ -253,6 +258,9 @@ class NSGA2Designer(
             ranking_fn=ranking_fn,
             eviction_limit=eviction_limit,
         ),
-        adaptation=adaptation or numpy_populations.LinfMutation(seed=seed),
+        adaptation=adaptation
+        or numpy_populations.LinfMutation(seed=seed, norm=0.001),
         first_survival_after=first_survival_after,
+        adaptation_callable=adaptation_callable,
+        population_size=population_size,
     )
