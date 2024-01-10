@@ -443,7 +443,7 @@ class VizierConverter:
     return dna
 
   def to_trial(self, dna: pg.DNA, *,
-               fallback: str) -> vz.Trial:
+               fallback: Literal['raise_error', 'return_dummy']) -> vz.Trial:
     """Converts DNA to vizier Trial.
 
     Args:

@@ -17,7 +17,7 @@ from __future__ import annotations
 """Tests for parameter iterators."""
 
 from typing import Sequence
-
+from typing import Literal
 
 from vizier import pyvizier as vz
 from vizier._src.pyvizier.shared import parameter_iterators as pi
@@ -39,7 +39,7 @@ class ParameterIteratorsTest(parameterized.TestCase):
           expected_order=[
               'model', 'num_layers', 'apply_preprocessing', 'preprocessor'
           ]))
-  def test_e2e(self, traverse_order: str,
+  def test_e2e(self, traverse_order: Literal['bfs', 'dfs'],
                expected_order: Sequence[str]):
     valid_params = {
         'model': 'dnn',

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Utility functions for handling vizier metadata."""
 
-from typing import Dict, Iterable, Optional, Tuple, Type, TypeVar, Union
+from typing import Dict, Iterable, Literal, Optional, Tuple, Type, TypeVar, Union
 from absl import logging
 
 from vizier._src.pyvizier.shared import common
@@ -51,7 +51,7 @@ def assign(
     key: str,
     ns: str,
     value: Union[str, any_pb2.Any, Message],
-    mode: str = 'insert',
+    mode: Literal['insert_or_assign', 'insert_or_error', 'insert'] = 'insert',
 ) -> Tuple[key_value_pb2.KeyValue, bool]:
   """Insert and/or assign (key, value) to container.metadata.
 

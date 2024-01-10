@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Temporary file for finding the optimal Yeo-Johnson transformation."""
 
-
+from typing import Literal
 
 from absl import logging
 import numpy as np
@@ -32,7 +32,7 @@ tfd = tfp.distributions
 # dependency on sklearn.
 def optimal_transformation(
     data: np.ndarray,
-    method: str = 'yeo-johnson',
+    method: Literal['yeo-johnson', 'box-cox'] = 'yeo-johnson',
     *,
     standardize: bool = True) -> tfb.AutoCompositeTensorBijector:
   """Returns the power transformation with optimal parameterization.

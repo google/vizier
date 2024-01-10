@@ -22,7 +22,7 @@ values, and the objective function depends on the value of the categorical
 parameter which make it harder to optimize.
 """
 
-, Sequence, Union
+from typing import Literal, Sequence, Union
 import attrs
 import numpy as np
 from vizier import pyvizier as vz
@@ -48,7 +48,7 @@ def _float_term(x_list: list[float]) -> float:
   return float_term
 
 
-SimpleKDCategory = str
+SimpleKDCategory = Literal['corner', 'center', 'mixed']
 
 
 def _categorical_term(x: str, best_category: SimpleKDCategory) -> float:

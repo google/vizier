@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Iterator
 import copy
-from typing import Generator, Union
+from typing import Generator, Literal, Union
 
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
 from vizier._src.pyvizier.shared.parameter_config import SearchSpace
@@ -48,7 +48,7 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
                search_space: SearchSpace,
               
                *,
-               traverse_order: str = 'dfs'):
+               traverse_order: Literal['dfs', 'bfs'] = 'dfs'):
     """Init.
 
     See the class pydoc for more details.
