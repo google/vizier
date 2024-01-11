@@ -136,12 +136,12 @@ class ExplorationScoreUtilsTest(parameterized.TestCase):
     min_ent_study, max_ent_study = _generate_min_and_max_ent_studies()
     max_ent = (
         exploration_score_utils.compute_average_marginal_parameter_entropy(
-            {'hash_': {0: max_ent_study}}
+            {'spec_gen': {'hash_': {0: max_ent_study}}}
         )
     )
     min_ent = (
         exploration_score_utils.compute_average_marginal_parameter_entropy(
-            {'hash_': {0: min_ent_study}}
+            {'spec_gen': {'hash_': {0: min_ent_study}}}
         )
     )
     self.assertAlmostEqual(min_ent, 0)

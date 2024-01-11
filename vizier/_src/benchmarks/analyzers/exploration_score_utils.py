@@ -22,6 +22,8 @@ import numpy as np
 import scipy
 from vizier import pyvizier as vz
 
+BenchmarkResults = dict[str, dict[str, dict[int, vz.ProblemAndTrials]]]
+
 
 def compute_parameter_entropy(
     parameter_config: vz.ParameterConfig,
@@ -86,7 +88,7 @@ def compute_parameter_entropy(
 
 
 def compute_average_marginal_parameter_entropy(
-    results: dict[str, dict[int, vz.ProblemAndTrials]],
+    results: BenchmarkResults,
 ) -> float:
   """Computes the average marginal parameter entropy across results.
 
@@ -100,16 +102,17 @@ def compute_average_marginal_parameter_entropy(
     Average marginal parameter entropy.
   """
   marginal_param_entropies = []
-  for _, spec_results in results.items():
-    for _, study in spec_results.items():
-      for param_config in study.problem.search_space.parameters:
-        param_values = [
-            trial.parameters.get(param_config.name) for trial in study.trials
-        ]
-        marginal_param_entropies.append(
-            compute_parameter_entropy(
-                parameter_config=param_config, parameter_values=param_values
-            )
-        )
+  for _, spec_gen_results in results.items():
+    for _, spec_results in spec_gen_results.items():
+      for _, study in spec_results.items():
+        for param_config in study.problem.search_space.parameters:
+          param_values = [
+              trial.parameters.get(param_config.name) for trial in study.trials
+          ]
+          marginal_param_entropies.append(
+              compute_parameter_entropy(
+                  parameter_config=param_config, parameter_values=param_values
+              )
+          )
 
   return np.mean(marginal_param_entropies)
