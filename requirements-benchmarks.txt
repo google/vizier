@@ -1,4 +1,5 @@
 # Optional imports for benchmarks.
+matplotlib
 
 # For Atari100K Experimenters.
 ale-py

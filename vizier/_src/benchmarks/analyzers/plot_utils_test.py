@@ -18,9 +18,10 @@ import itertools
 from matplotlib.pylab import plt
 import numpy as np
 from vizier import benchmarks as vzb
+from vizier._src.algorithms.designers import grid
+from vizier._src.algorithms.designers import random
 from vizier._src.benchmarks.analyzers import plot_utils
 from vizier._src.benchmarks.analyzers import state_analyzer
-from vizier.algorithms import designers
 from vizier.benchmarks import experimenters
 from absl.testing import absltest
 
@@ -75,8 +76,8 @@ class PlotUtilsTest(absltest.TestCase):
         num_repeats=num_iterations,
     )
     algorithms = {
-        'grid': designers.GridSearchDesigner.from_problem,
-        'random': designers.RandomDesigner.from_problem,
+        'grid': grid.GridSearchDesigner.from_problem,
+        'random': random.RandomDesigner.from_problem,
     }
 
     records = []

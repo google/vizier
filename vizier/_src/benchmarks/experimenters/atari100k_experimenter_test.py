@@ -19,7 +19,6 @@ from absl import logging
 
 from vizier import pyvizier
 from vizier._src.algorithms.designers import random
-from vizier._src.benchmarks.experimenters import atari100k_experimenter
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -29,7 +28,10 @@ class Atari100KTest(parameterized.TestCase):
 
   @absltest.skip("ALE ROMS must be installed manually.")
   @parameterized.parameters('DER', 'DrQ', 'DrQ_eps', 'OTRainbow')
+  @absltest.skip('Jax versioning not updated in Dopamine.')
   def test_e2e_evaluation(self, agent_name):
+    from vizier._src.benchmarks.experimenters import atari100k_experimenter  # pylint: disable=g-import-not-at-top
+
     initial_gin_bindings = {
         'Runner.training_steps': 2,
         'MaxEpisodeEvalRunner.num_eval_episodes': 2,
