@@ -43,6 +43,14 @@ class InactivateStudyError(PythiaError):
   """
 
 
+class PythiaFallbackError(PythiaError):
+  """The algorithm could not handle a StudyConfig corner case: fall back.
+
+  This is typically raised by a special-purpose algorithm.  When raised,
+  Vizier should re-try once with a more generic algorithm.
+  """
+
+
 class LoadTooLargeError(PythiaError):
   """Raised when the Pythia server is overly busy.
 
