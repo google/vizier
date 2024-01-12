@@ -31,6 +31,7 @@ from vizier._src.pythia.pythia_errors import CancelComputeError
 from vizier._src.pythia.pythia_errors import InactivateStudyError
 from vizier._src.pythia.pythia_errors import LoadTooLargeError
 from vizier._src.pythia.pythia_errors import PythiaError
+from vizier._src.pythia.pythia_errors import PythiaFallbackError
 from vizier._src.pythia.pythia_errors import PythiaProtocolError
 from vizier._src.pythia.pythia_errors import TemporaryPythiaError
 from vizier._src.pythia.pythia_errors import VizierDatabaseError
