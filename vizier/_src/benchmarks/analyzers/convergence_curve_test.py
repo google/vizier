@@ -41,57 +41,67 @@ class ConvergenceCurveTest(absltest.TestCase):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 2, 3]),
         ys=np.array([[2, 1, 1]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     c2 = convergence.ConvergenceCurve(
         xs=np.array([1]),
         ys=np.array([[3]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     aligned = convergence.ConvergenceCurve.align_xs([c1, c2])[0]
 
     np.testing.assert_array_equal(aligned.xs, [1, 2, 3])
-    np.testing.assert_array_equal(aligned.ys,
-                                  np.array([[2, 1, 1], [3, np.nan, np.nan]]))
+    np.testing.assert_array_equal(
+        aligned.ys, np.array([[2, 1, 1], [3, np.nan, np.nan]])
+    )
 
   def test_align_xs_merge_ys_on_distinct_xvalues(self):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 3, 4]),
         ys=np.array([[2, 1, 1]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     c2 = convergence.ConvergenceCurve(
         xs=np.array([2]),
         ys=np.array([[3]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     aligned = convergence.ConvergenceCurve.align_xs([c1, c2])[0]
 
     np.testing.assert_array_equal(aligned.xs.shape, (3,))
-    np.testing.assert_array_equal(aligned.ys,
-                                  np.array([[2, 1.25, 1], [3, np.nan, np.nan]]))
+    np.testing.assert_array_equal(
+        aligned.ys, np.array([[2, 1.25, 1], [3, np.nan, np.nan]])
+    )
 
   def test_align_xs_merge_ys_with_interpolation(self):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 2, 3, 4, 5]),
         ys=np.array([[2, 2, 1, 0.5, 0.5], [1, 1, 1, 1, 1]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     aligned = convergence.ConvergenceCurve.align_xs(
         [c1], interpolate_repeats=True
     )[0]
 
     np.testing.assert_array_equal(aligned.xs, np.array([1, 2, 3, 4, 5]))
     np.testing.assert_array_equal(
-        aligned.ys, np.array([[2, 1.5, 1.0, 0.5, 0.5], [1, 1, 1, 1, 1]]))
+        aligned.ys, np.array([[2, 1.5, 1.0, 0.5, 0.5], [1, 1, 1, 1, 1]])
+    )
 
   def test_extrapolate_ys_with_steps(self):
     c1 = convergence.ConvergenceCurve(
         xs=np.array([1, 2, 3, 4]),
         ys=np.array([[2, 1.5, 1, 0.5], [1, 1, 1, 1]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
 
     extra_c1 = convergence.ConvergenceCurve.extrapolate_ys(c1, steps=2)
 
     np.testing.assert_array_equal(extra_c1.xs.shape, (6,))
     np.testing.assert_array_equal(
         extra_c1.ys,
-        np.array([[2, 1.5, 1.0, 0.5, 0.0, -0.5], [1, 1, 1, 1, 1, 1]]))
+        np.array([[2, 1.5, 1.0, 0.5, 0.0, -0.5], [1, 1, 1, 1, 1, 1]]),
+    )
 
   def test_align_xs_merge_ys_on_increasing_and_dicreasing_fails(self):
     c1 = convergence.ConvergenceCurve(
@@ -102,7 +112,8 @@ class ConvergenceCurveTest(absltest.TestCase):
     c2 = convergence.ConvergenceCurve(
         xs=np.array([2]),
         ys=np.array([[3]]),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     with self.assertRaisesRegex(ValueError, 'increasing'):
       # pylint: disable=[expression-not-assigned]
       convergence.ConvergenceCurve.align_xs([c1, c2])[0]
@@ -138,11 +149,13 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[2, 2, 3]]),
-      ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[2, 1, 1]]))
+      ('minimize', pyvizier.ObjectiveMetricGoal.MINIMIZE, [[2, 1, 1]]),
+  )
   def test_convert_basic(self, goal, expected):
     trials = _gen_trials([2, 1, 3])
     generator = convergence.ConvergenceCurveConverter(
-        pyvizier.MetricInformation(name='', goal=goal))
+        pyvizier.MetricInformation(name='', goal=goal)
+    )
     curve = generator.convert(trials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
     np.testing.assert_array_equal(curve.ys, expected)
@@ -166,6 +179,12 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
           2,
           [2, 1, 4, 5],
           [[2, 2, 5, 5]],
+      ),
+      (
+          pyvizier.ObjectiveMetricGoal.MAXIMIZE,
+          2,
+          [4, 5, 2, 1],
+          [[5, 5, 5, 5]],
       ),
       (
           pyvizier.ObjectiveMetricGoal.MAXIMIZE,
@@ -712,16 +731,19 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     self._baseline_curve = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(np.array([-0.9, -1.0, -1.1]).reshape(3, 1) * xs_t),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
 
     self._worse_curves = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(-0.5 * xs_t),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     self._better_curves = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(np.array([-1.5, -1.8, -2.0]).reshape(3, 1) * xs_t),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
 
   def test_get_relative_efficiency_curve(self):
     baseline_length = len(self._baseline_curve.xs)
@@ -745,7 +767,8 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     flat_curve = convergence.ConvergenceCurve(
         xs=np.array(range(0, 20)),
         ys=np.array([4.0, 3.0, 2.0] + [1.5] * 17).reshape(1, 20),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     self_eff = convergence.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=flat_curve, compared_curve=flat_curve
     ).curve()
@@ -758,7 +781,8 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     short_curve = convergence.ConvergenceCurve(
         xs=self._baseline_curve.xs[:short_length],
         ys=self._baseline_curve.ys[:, :short_length],
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     max_score = 10.3
     short_efficiency = convergence.LogEfficiencyConvergenceCurveComparator(
         baseline_curve=self._baseline_curve,
@@ -807,11 +831,13 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     worse_curves = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(-0.5 * xs_t),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     better_curves = convergence.ConvergenceCurve(
         xs=xs,
         ys=np.exp(np.array([-1.5, -1.8, -2.0]).reshape(3, 1) * xs_t),
-        trend=convergence.ConvergenceCurve.YTrend.DECREASING)
+        trend=convergence.ConvergenceCurve.YTrend.DECREASING,
+    )
     # Efficiency score for exponential curves can be approximated.
 
     self.assertGreater(
@@ -829,14 +855,15 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
 
   def test_comparator_failure(self):
     unknown_curve = convergence.ConvergenceCurve(
-        xs=self._baseline_curve.xs, ys=self._baseline_curve.ys)
+        xs=self._baseline_curve.xs, ys=self._baseline_curve.ys
+    )
     with self.assertRaisesRegex(ValueError, 'increasing or decreasing'):
       convergence.LogEfficiencyConvergenceCurveComparator(
           baseline_curve=unknown_curve, compared_curve=self._baseline_curve
       )
 
 
-class SimpleConvergenceComparatorTest(parameterized.TestCase):
+class StandardizedWinRateConvergenceComparatorTest(parameterized.TestCase):
 
   @parameterized.parameters(
       {
@@ -885,7 +912,7 @@ class SimpleConvergenceComparatorTest(parameterized.TestCase):
     curve2 = convergence.ConvergenceCurve(
         xs=xs2, ys=ys2, trend=convergence.ConvergenceCurve.YTrend.INCREASING
     )
-    comparator = convergence.SimpleConvergenceCurveComparator(
+    comparator = convergence.StandardizedWinRateConvergenceCurveComparator(
         curve1, curve2, xs_cutoff=cutoff
     )
     self.assertEqual(comparator.score(), res)
@@ -922,6 +949,80 @@ class PercentageBetterConvergenceComparatorTest(parameterized.TestCase):
     comparator = convergence.PercentageBetterConvergenceCurveComparator(
         curve1, curve2
     )
+    self.assertEqual(comparator.score(), res)
+
+
+class NormalizedSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      {
+          'ys1': np.array([[1, 4, 8, 10, 12]]),
+          'ys2': np.array([[2, 5, 6, 8, 10]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': (10 - 12) / 12,
+      },
+      {
+          'ys1': np.array([[1, 4, 8, 10, 12]]),
+          'ys2': np.array([[2, 5, 6, 8, 1000]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': 1.0,
+      },
+      {
+          'ys1': np.array([[1, 4, 8, 10, 1000]]),
+          'ys2': np.array([[2, 5, 6, 8, 10]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': -0.5,
+      },
+      {
+          'ys1': np.array([[11, 5, 3, 1]]),
+          'ys2': np.array([[130, 4, 2, 0.5]]),
+          'trend': convergence.ConvergenceCurve.YTrend.DECREASING,
+          'res': (-0.5 - (-1)) / 1,
+      },
+  )
+  def test_score(self, ys1, ys2, trend, res):
+    xs1 = np.arange(ys1.shape[1])
+    xs2 = np.arange(ys2.shape[1])
+    curve1 = convergence.ConvergenceCurve(xs=xs1, ys=ys1, trend=trend)
+    curve2 = convergence.ConvergenceCurve(xs=xs2, ys=ys2, trend=trend)
+    comparator = convergence.NormalizedSimpleRegretComparator(curve1, curve2)
+    self.assertAlmostEqual(comparator.score(), res, delta=0.0001)
+
+
+class WinRateSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      {
+          'ys1': np.array([[1, 4, 8, 10, 12]]),
+          'ys2': np.array([[2, 5, 6, 8, 10]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': 0.0,
+      },
+      {
+          'ys1': np.array([[1, 4, 8, 10, 12]]),
+          'ys2': np.array([[2, 5, 6, 8, 1000]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': 1.0,
+      },
+      {
+          'ys1': np.array([[1, 4, 8, 10, 1000]]),
+          'ys2': np.array([[2, 5, 6, 8, 10]]),
+          'trend': convergence.ConvergenceCurve.YTrend.INCREASING,
+          'res': 0.0,
+      },
+      {
+          'ys1': np.array([[11, 5, 3, 1]]),
+          'ys2': np.array([[130, 4, 2, 0.5]]),
+          'trend': convergence.ConvergenceCurve.YTrend.DECREASING,
+          'res': 1.0,
+      },
+  )
+  def test_score(self, ys1, ys2, trend, res):
+    xs1 = np.arange(ys1.shape[1])
+    xs2 = np.arange(ys2.shape[1])
+    curve1 = convergence.ConvergenceCurve(xs=xs1, ys=ys1, trend=trend)
+    curve2 = convergence.ConvergenceCurve(xs=xs2, ys=ys2, trend=trend)
+    comparator = convergence.WinRateSimpleRegretComparator(curve1, curve2)
     self.assertEqual(comparator.score(), res)
 
 
