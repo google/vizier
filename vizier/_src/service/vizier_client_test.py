@@ -215,15 +215,15 @@ class VizierClientTest(parameterized.TestCase):
   # Only test algorithms which don't depend on external libraries (except for
   # numpy).
   @parameterized.parameters(
+      dict(algorithm='DEFAULT'),
+      dict(algorithm=vz.Algorithm.ALGORITHM_UNSPECIFIED),
       dict(algorithm=vz.Algorithm.RANDOM_SEARCH),
       dict(algorithm=vz.Algorithm.QUASI_RANDOM_SEARCH),
       dict(algorithm=vz.Algorithm.GRID_SEARCH),
       dict(algorithm=vz.Algorithm.NSGA2, multiobj=True),
-      dict(algorithm=vz.Algorithm.ALGORITHM_UNSPECIFIED, multiobj=True),
-      dict(algorithm='DEFAULT', multiobj=True),
-      dict(algorithm='DEFAULT', multiobj=False),
       dict(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT, multiobj=True),
       dict(algorithm=vz.Algorithm.GAUSSIAN_PROCESS_BANDIT, multiobj=False),
+      dict(algorithm=vz.Algorithm.GP_UCB_PE),
   )
   def test_e2e_tuning(
       self,

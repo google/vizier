@@ -81,7 +81,7 @@ class PaddingSchedule:
         array, padded_shape, fill_value=fill_value
     )
 
-  def pad_features(self, features: np.ndarray) -> types.PaddedArray:
+  def pad_features(self, features: types.Array) -> types.PaddedArray:
     """Pads features in to a `PaddedArray`."""
     return self._pad_trailing_dims(
         features, [self._num_trials, self._num_features]
@@ -89,7 +89,7 @@ class PaddingSchedule:
 
   def pad_labels(
       self,
-      labels: np.ndarray,
+      labels: types.Array,
   ) -> types.PaddedArray:
     """Pads labels in to a `PaddedArray`."""
     return self._pad_trailing_dims(

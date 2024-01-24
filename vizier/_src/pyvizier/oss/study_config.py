@@ -62,8 +62,10 @@ ParameterValueSequence = Union[
 
 class Algorithm(enum.Enum):
   """Valid Values for StudyConfig.Algorithm."""
-  # Let Vizier choose algorithm. Currently defaults to GAUSSIAN_PROCESS_BANDIT.
+  # Let Vizier choose algorithm. Currently defaults to GP_UCB_PE.
   ALGORITHM_UNSPECIFIED = 'ALGORITHM_UNSPECIFIED'
+  # Gaussian Process UCB with Pure Exploration.
+  GP_UCB_PE = 'GP_UCB_PE'
   # Gaussian Process Bandit.
   GAUSSIAN_PROCESS_BANDIT = 'GAUSSIAN_PROCESS_BANDIT'
   # Grid search within the feasible space.

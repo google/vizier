@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Service-related policy factories."""
+
 # pylint:disable=g-import-not-at-top
 import functools
 import time
@@ -39,8 +40,12 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
     if algorithm in (
         'DEFAULT',
         'ALGORITHM_UNSPECIFIED',
-        'GAUSSIAN_PROCESS_BANDIT',
+        'GP_UCB_PE',
     ):
+      from vizier._src.algorithms.designers import gp_ucb_pe
+
+      return dp.DesignerPolicy(policy_supporter, gp_ucb_pe.VizierGPUCBPEBandit)
+    elif algorithm == 'GAUSSIAN_PROCESS_BANDIT':
       from vizier._src.algorithms.designers import gp_bandit
 
       return dp.DesignerPolicy(

@@ -36,7 +36,7 @@ def evaluate(w: float, x: int, y: float, z: str) -> float:
   return w**2 - y**2 + x * ord(z)
 
 # Algorithm, search space, and metrics.
-study_config = vz.StudyConfig(algorithm='GAUSSIAN_PROCESS_BANDIT')
+study_config = vz.StudyConfig(algorithm='DEFAULT')
 study_config.search_space.root.add_float_param('w', 0.0, 5.0)
 study_config.search_space.root.add_int_param('x', -2, 2)
 study_config.search_space.root.add_discrete_param('y', [0.3, 7.2])
@@ -46,7 +46,7 @@ study_config.metric_information.append(vz.MetricInformation('metric_name', goal=
 # Setup client and begin optimization. Vizier Service will be implicitly created.
 study = clients.Study.from_study_config(study_config, owner='my_name', study_id='example')
 for i in range(10):
-  suggestions = study.suggest(count=1)
+  suggestions = study.suggest(count=2)
   for suggestion in suggestions:
     params = suggestion.parameters
     objective = evaluate(params['w'], params['x'], params['y'], params['z'])
