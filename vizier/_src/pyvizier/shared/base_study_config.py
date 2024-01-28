@@ -323,7 +323,7 @@ class ProblemStatement:
       validator=attr.validators.instance_of(parameter_config.SearchSpace),
       on_setattr=[attr.setters.convert, attr.setters.validate],
   )
-
+  # TODO: This name/type combo is confusing.
   metric_information: MetricsConfig = attr.ib(
       init=True,
       factory=MetricsConfig,

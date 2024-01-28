@@ -136,13 +136,6 @@ class ObservationNoise(enum.Enum):
 class StudyConfig(base_study_config.ProblemStatement):
   """A builder and wrapper for study_pb2.StudySpec proto."""
 
-  search_space: parameter_config.SearchSpace = attr.field(
-      init=True,
-      factory=parameter_config.SearchSpace,
-      validator=attr.validators.instance_of(parameter_config.SearchSpace),
-      on_setattr=attr.setters.validate,
-  )
-
   algorithm: str = attr.field(
       init=True,
       validator=attr.validators.instance_of((Algorithm, str)),
@@ -157,15 +150,6 @@ class StudyConfig(base_study_config.ProblemStatement):
       on_setattr=[attr.setters.convert, attr.setters.validate],
       default=None,
       kw_only=True)
-
-  # TODO: This name/type combo is confusing.
-  metric_information: base_study_config.MetricsConfig = attr.field(
-      init=True,
-      factory=base_study_config.MetricsConfig,
-      converter=base_study_config.MetricsConfig,
-      validator=attr.validators.instance_of(base_study_config.MetricsConfig),
-      kw_only=True,
-  )
 
   observation_noise: ObservationNoise = attr.field(
       init=True,
@@ -183,14 +167,6 @@ class StudyConfig(base_study_config.ProblemStatement):
                   automated_stopping.AutomatedStoppingConfig)),
           on_setattr=attr.setters.validate,
           kw_only=True)
-
-  metadata: common.Metadata = attr.field(
-      init=True,
-      kw_only=True,
-      factory=common.Metadata,
-      validator=attr.validators.instance_of(common.Metadata),
-      on_setattr=[attr.setters.convert, attr.setters.validate],
-  )
 
   # An internal representation as a StudyConfig proto.
   # If this object was created from a StudyConfig proto, a copy of the original
