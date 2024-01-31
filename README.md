@@ -68,31 +68,32 @@ Additionally, it contains [advanced API](https://oss-vizier.readthedocs.io/en/la
 Please see OSS Vizier's [ReadTheDocs documentation](https://oss-vizier.readthedocs.io/) for detailed information.
 
 ## Installation <a name="installation"></a>
-**Most common:** To tune objectives using our default state-of-the-art JAX-based Bayesian Optimizer, run:
+**Quick start:** For tuning objectives using our state-of-the-art JAX-based Bayesian Optimizer, run:
 
 ```bash
 pip install google-vizier[jax]
 ```
 
-To install a **minimal version** that consists of only the core service and client API from `requirements.txt`, run:
+### Advanced Installation
+**Minimal version:** To install only the core service and client APIs from `requirements.txt`, run:
 
 ```bash
 pip install google-vizier
 ```
 
-For **full installation** to support all algorithms and benchmarks, run:
+**Full installation:** To support all algorithms and benchmarks, run:
 
 ```bash
 pip install google-vizier[all]
 ```
 
-For **specific installations**, you can run:
+**Specific installation:** If you only need a specific part "X" of OSS Vizier, run:
 
 ```bash
 pip install google-vizier[X]
 ```
 
-which will install additional packages from `requirements-X.txt`, such as:
+which installs add-ons from `requirements-X.txt`. Possible options:
 
 * `requirements-jax.txt`: Jax libraries shared by both algorithms and benchmarks.
 * `requirements-tf.txt`: Tensorflow libraries used by benchmarks.
