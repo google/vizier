@@ -195,7 +195,9 @@ def plot_from_records(
   for experimenter_key, group_by_experimenter in df.groupby('experimenter'):
     for metric_idx, metric in enumerate(metrics):
       ax = axes[fig_idx, metric_idx]
-      subplot_title = str(experimenter_key)[:title_maxlen]
+      subplot_title = (
+          str(experimenter_key)[:title_maxlen] if experimenter_key else metric
+      )
       ax.set_title(subplot_title)
       ax.set_ylabel(metric)
       for algorithm_name, group in group_by_experimenter.groupby('algorithm'):
