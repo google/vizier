@@ -18,6 +18,7 @@ from __future__ import annotations
 
 A Python implementation of Google Vizier's GP-Bandit algorithm.
 """
+
 # pylint: disable=logging-fstring-interpolation, g-long-lambda
 
 import copy
@@ -35,7 +36,7 @@ from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers import scalarization
-from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.algorithms.designers.gp import acquisitions as acq_lib
 from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
@@ -56,8 +57,8 @@ default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
     suggestion_batch_size=25,
 )
 
-default_scoring_function_factory = (
-    acquisitions.bayesian_scoring_function_factory(lambda _: acquisitions.UCB())
+default_scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
+    lambda _: acq_lib.UCB()
 )
 
 
@@ -118,7 +119,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _linear_coef: float = attr.field(default=0.0, kw_only=True)
-  _scoring_function_factory: acquisitions.ScoringFunctionFactory = attr.field(
+  _scoring_function_factory: acq_lib.ScoringFunctionFactory = attr.field(
       factory=lambda: default_scoring_function_factory,
       kw_only=True,
   )
@@ -183,7 +184,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     self._acquisition_optimizer = self._acquisition_optimizer_factory(
         self._converter
     )
-    acquisition_problem = copy.deepcopy(self._problem)
+    self._acquisition_problem = copy.deepcopy(self._problem)
     empty_data = types.ModelData(
         features=self._converter.to_features([]),
         labels=types.PaddedArray.as_padded(
@@ -201,34 +202,25 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         empty_data, predictive, self._use_trust_region
     )
     if (
-        isinstance(scoring_fn, acquisitions.MaxValueEntropySearch)
+        isinstance(scoring_fn, acq_lib.MaxValueEntropySearch)
         and self._ensemble_size > 1
     ):
       raise ValueError(
           'MaxValueEntropySearch is not supported with ensemble '
           'size greater than one.'
       )
-    acquisition_function = getattr(scoring_fn, 'acquisition_fn', None)
-    if isinstance(acquisition_function, acquisitions.MultiAcquisitionFunction):
-      acquisition_config = vz.MetricsConfig()
-      for k in acquisition_function.acquisition_fns.keys():
-        acquisition_config.append(
-            vz.MetricInformation(
-                name=k,
-                goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-            )
-        )
-    else:
-      acquisition_config = vz.MetricsConfig(
-          metrics=[
-              vz.MetricInformation(
-                  name='acquisition', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-              )
-          ]
-      )
 
-    acquisition_problem.metric_information = acquisition_config
-    self._acquisition_problem = acquisition_problem
+    acquisition_function = getattr(scoring_fn, 'acquisition_fn', None)
+    self._acquisition_problem.metric_information = vz.MetricsConfig()
+    if isinstance(acquisition_function, acq_lib.MultiAcquisitionFunction):
+      for k in acquisition_function.acquisition_fns.keys():
+        metric = vz.MetricInformation(k, goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+        self._acquisition_problem.metric_information.append(metric)
+    else:
+      metric = vz.MetricInformation(
+          'acquisition', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+      )
+      self._acquisition_problem.metric_information.append(metric)
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -295,23 +287,18 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       # NOTE: The code below assumes that a scaled value of 0.5 corresponds
       #   to the center of the feasible range.  This is true, but only by
       #   accident; ideally, we should get the center from the converters.
-      parameters = self._converter.to_parameters(
-          types.ModelInput(
-              continuous=self._padding_schedule.pad_features(
-                  0.5 * np.ones([1, features.continuous.shape[1]])
-              ),
-              categorical=self._padding_schedule.pad_features(
-                  np.zeros(
-                      [1, features.categorical.shape[1]], dtype=types.INT_DTYPE
-                  )
-              ),
-          )
-      )[0]
-      seed_suggestions.append(
-          vz.TrialSuggestion(
-              parameters, metadata=vz.Metadata({'seeded': 'center'})
-          )
+      continuous = self._padding_schedule.pad_features(
+          0.5 * np.ones([1, features.continuous.shape[1]])
       )
+      categorical = self._padding_schedule.pad_features(
+          np.zeros([1, features.categorical.shape[1]], dtype=types.INT_DTYPE)
+      )
+      model_input = types.ModelInput(continuous, categorical)
+      parameters = self._converter.to_parameters(model_input)[0]
+      suggestion = vz.TrialSuggestion(
+          parameters, metadata=vz.Metadata({'seeded': 'center'})
+      )
+      seed_suggestions.append(suggestion)
     with profiler.timeit('quasi_random_sampler_seed_trials'):
       if (remaining_counts := count - len(seed_suggestions)) > 0:
         seed_suggestions.extend(
@@ -435,7 +422,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   @_experimental_override_allowed
   @profiler.record_runtime
   def _optimize_acquisition(
-      self, scoring_fn: acquisitions.BayesianScoringFunction, count: int
+      self, scoring_fn: acq_lib.BayesianScoringFunction, count: int
   ) -> list[vz.Trial]:
     jax.monitoring.record_event(
         '/vizier/jax/gp_bandit/optimize_acquisition/called'
@@ -464,17 +451,15 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         n_parallel=n_parallel,
     )
 
-    optimal_features = best_candidates.features
     best_candidates = dataclasses.replace(
-        best_candidates, features=optimal_features
+        best_candidates, features=best_candidates.features
     )
 
     # Convert best_candidates (in scaled space) into suggestions (in unscaled
-    # space); also append debug information like model predictions.
+    # space); also append debug information like model predictions. Output shape
+    # [N, D].
     logging.info('Converting the optimization result into suggestions...')
-    return vb.best_candidates_to_trials(
-        best_candidates, self._converter
-    )  # [N, D]
+    return vb.best_candidates_to_trials(best_candidates, self._converter)
 
   @profiler.record_runtime
   def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
@@ -541,7 +526,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         continuous=xs.continuous.replace_fill_value(0.0),
         categorical=xs.categorical.replace_fill_value(0),
     )
-    samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
+    samples = eqx.filter_jit(acq_lib.sample_from_predictive)(
         gp, xs, num_samples, key=rng
     )  # (num_samples, num_trials)
     # Scope the samples to non-padded only (there's a single padded dimension).
@@ -596,28 +581,21 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if problem.is_single_objective:
       return cls(problem, rng=rng, linear_coef=1.0)
     else:
-      num_objectives = len(
-          problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
-      )
-      random_weights = np.abs(np.random.normal(size=num_objectives))
+      objectives = problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
+      random_weights = np.abs(np.random.normal(size=len(objectives)))
 
-      def _scalarized_ucb(
-          data: types.ModelData,
-      ) -> acquisitions.AcquisitionFunction:
+      def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         del data
-        ucb = acquisitions.UCB()
-        scalarizer = scalarization.HyperVolumeScalarization(
-            weights=random_weights
-        )
-        return acquisitions.ScalarizedAcquisition(ucb, scalarizer)
+        scalarizer = scalarization.HyperVolumeScalarization(random_weights)
+        return acq_lib.ScalarizedAcquisition(acq_lib.UCB(), scalarizer)
 
-      scoring_fn_factory = acquisitions.bayesian_scoring_function_factory(
+      scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
           _scalarized_ucb
       )
       return cls(
           problem,
           linear_coef=1.0,
-          scoring_function_factory=scoring_fn_factory,
+          scoring_function_factory=scoring_function_factory,
           scoring_function_is_parallel=True,
           use_trust_region=False,
       )

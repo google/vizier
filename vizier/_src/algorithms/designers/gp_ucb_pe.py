@@ -433,27 +433,21 @@ class VizierGPUCBPEBandit(vza.Designer):
       # NOTE: The code below assumes that a scaled value of 0.5 corresponds
       # to the center of the feasible range. This is true, but only by accident;
       # ideally, we should get the center from the converters.
-      parameters = self._converter.to_parameters(
-          types.ModelInput(
-              continuous=self._padding_schedule.pad_features(
-                  0.5 * np.ones([1, features.continuous.shape[1]])
-              ),
-              categorical=self._padding_schedule.pad_features(
-                  np.zeros(
-                      [1, features.categorical.shape[1]], dtype=types.INT_DTYPE
-                  )
-              ),
-          )
-      )[0]
-      seed_suggestions.append(
-          vz.TrialSuggestion(
-              parameters, metadata=vz.Metadata({'seeded': 'center'})
-          )
+      continuous = self._padding_schedule.pad_features(
+          0.5 * np.ones([1, features.continuous.shape[1]])
       )
+      categorical = self._padding_schedule.pad_features(
+          np.zeros([1, features.categorical.shape[1]], dtype=types.INT_DTYPE)
+      )
+      model_input = types.ModelInput(continuous, categorical)
+      parameters = self._converter.to_parameters(model_input)[0]
+      suggestion = vz.TrialSuggestion(
+          parameters, metadata=vz.Metadata({'seeded': 'center'})
+      )
+      seed_suggestions.append(suggestion)
     if (remaining_counts := count - len(seed_suggestions)) > 0:
-      seed_suggestions.extend(
-          self._quasi_random_sampler.suggest(remaining_counts)
-      )
+      quasi_suggestions = self._quasi_random_sampler.suggest(remaining_counts)
+      seed_suggestions.extend(quasi_suggestions)
     return seed_suggestions
 
   @profiler.record_runtime(
@@ -539,9 +533,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       )
 
     logging.info('Optimal parameters: %s', optimal_params)
-    return sp.StochasticProcessWithCoroutine(
-        coroutine=coroutine, params=optimal_params
-    )
+    return sp.StochasticProcessWithCoroutine(coroutine, optimal_params)
 
   def get_score_fn_on_trials(
       self, score_fn: Callable[[types.ModelInput], jax.Array]
@@ -643,10 +635,8 @@ class VizierGPUCBPEBandit(vza.Designer):
       self, count: Optional[int] = None
   ) -> Sequence[vz.TrialSuggestion]:
     count = count or 1
-    if (
-        len(self._all_completed_trials) + len(self._all_active_trials)
-        < self._num_seed_trials
-    ):
+    num_total = len(self._all_completed_trials) + len(self._all_active_trials)
+    if num_total < self._num_seed_trials:
       return self._generate_seed_trials(count)
 
     if self._clear_jax_cache:
