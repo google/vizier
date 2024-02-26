@@ -19,6 +19,8 @@ from __future__ import annotations
 Lines with 'ATTENTION' mean that code was modified from original Github, in
 order to fix bugs with the original code.
 """
+
+# pyformat: disable
 from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
@@ -33,7 +35,7 @@ class IsingExperimenter(experimenter.Experimenter):
   """Ising Sparisification Problem."""
 
   def __init__(self,
-               lamda: float,
+               lamda: float = 1e-2,
                ising_grid_h: int = 4,
                ising_grid_w: int = 4,
                ising_n_edges: int = 24,
@@ -99,7 +101,7 @@ class ContaminationExperimenter(experimenter.Experimenter):
   """Contamination Control Problem."""
 
   def __init__(self,
-               lamda: float,
+               lamda: float = 1e-2,
                contamination_n_stages: int = 25,
                random_seed: Optional[int] = None):
     self._lamda = lamda
