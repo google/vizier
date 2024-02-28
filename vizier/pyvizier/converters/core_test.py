@@ -893,7 +893,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         float_dtype=dtype,
     )
 
-    scaled = np.asarray([[0.0], [0.5], [1.0]], dtype)
+    scaled = np.asarray([[0.0], [0.5], [1.1]], dtype)
     # Pytype still thinks `actual` entries might be None, hence we specify type.
     actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
         scaled
@@ -903,6 +903,31 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)
     self.assertAlmostEqual(actual[2].value, 100.0, delta=1e-2)
     self.assertLessEqual(actual[2].value, 100.0)
+
+  @parameterized.parameters([
+      dict(dtype=np.float32),
+      dict(dtype=np.float64),
+      dict(dtype='float32'),
+      dict(dtype='float64'),
+  ])
+  def test_double_into_double_log_inverse_noclipping(self, dtype):
+    converter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(
+            'x1', bounds=(1e-4, 1e2), scale_type=pyvizier.ScaleType.LOG
+        ),
+        scale=True,
+        float_dtype=dtype,
+        should_clip=False,
+    )
+
+    scaled = np.asarray([[0.0], [0.5], [1.1]], dtype)
+    # Pytype still thinks `actual` entries might be None, hence we specify type.
+    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
+        scaled
+    )
+    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)
+    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)
+    self.assertAlmostEqual(actual[2].value, 398, delta=1)
 
   @parameterized.parameters([
       dict(dtype=np.float32),

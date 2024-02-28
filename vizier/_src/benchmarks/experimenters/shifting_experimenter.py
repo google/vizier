@@ -69,7 +69,10 @@ class ShiftingExperimenter(experimenter.Experimenter):
 
     # Converter should be in the underlying extpr space.
     self._converter = converters.TrialToArrayConverter.from_study_config(
-        study_config=exptr_problem_statement, scale=False)
+        study_config=exptr_problem_statement,
+        scale=False,
+        should_clip=should_restrict,
+    )
 
     self._problem_statement = copy.deepcopy(exptr_problem_statement)
     if should_restrict:
@@ -88,10 +91,9 @@ class ShiftingExperimenter(experimenter.Experimenter):
             )
           # Shift the bounds to maintain valid bounds.
           if shift >= 0:
-            new_bounds = (bounds[0], bounds[1] - shift)
+            new_bounds = (bounds[0] + shift, bounds[1])
           else:
-            # Shift is negative so this restricts the bounds.
-            new_bounds = (bounds[0] - shift, bounds[1])
+            new_bounds = (bounds[0], bounds[1] + shift)
           self._problem_statement.search_space.add(
               pyvizier.ParameterConfig.factory(
                   name=parameter.name,
@@ -106,7 +108,7 @@ class ShiftingExperimenter(experimenter.Experimenter):
     return copy.deepcopy(self._problem_statement)
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
-    """Evaluate the trials after shifting their parameters by +shift."""
+    """Evaluate the trials after shifting their parameters by -shift."""
     previous_parameters = [suggestion.parameters for suggestion in suggestions]
     self._offset(suggestions, self._shift)
     self._exptr.evaluate(suggestions)
@@ -119,7 +121,7 @@ class ShiftingExperimenter(experimenter.Experimenter):
     """Offsets parameter values (OOB values are clipped)."""
     for suggestion in suggestions:
       features = self._converter.to_features([suggestion])
-      new_parameters = self._converter.to_parameters(features + shift)[0]
+      new_parameters = self._converter.to_parameters(features - shift)[0]
       suggestion.parameters = new_parameters
 
   def __repr__(self):

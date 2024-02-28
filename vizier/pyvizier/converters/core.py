@@ -556,6 +556,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       onehot_embed: bool = False,
       converts_to_parameter: bool = True,
       pad_oovs: bool = True,
+      should_clip: bool = True,
   ):
     """Init.
 
@@ -577,6 +578,7 @@ class DefaultModelInputConverter(ModelInputConverter):
         returns None
       pad_oovs: If True, pad the out-of-vocabulary dimensions to onehot
         embedding.
+      should_clip: If True, clipping should be applied to parameter values.
     """
     self._converts_to_parameter = converts_to_parameter
     self._parameter_config = copy.deepcopy(parameter_config)
@@ -614,6 +616,7 @@ class DefaultModelInputConverter(ModelInputConverter):
 
     spec = self.onehot_encoder.output_spec
     self._output_spec = spec
+    self._should_clip = should_clip
 
   def convert(self, trials: Sequence[pyvizier.TrialSuggestion]) -> np.ndarray:
     """Returns an array of shape [len(trials), output_spec.num_dimensions].
@@ -665,15 +668,13 @@ class DefaultModelInputConverter(ModelInputConverter):
       return None
     elif self.parameter_config.type == pyvizier.ParameterType.DOUBLE:
       # Input parameter was DOUBLE. Output is also DOUBLE.
-      return pyvizier.ParameterValue(
-          float(
-              np.clip(
-                  value,
-                  self._parameter_config.bounds[0],
-                  self._parameter_config.bounds[1],
-              )
-          )
-      )
+      if self._should_clip:
+        value = np.clip(
+            value,
+            self._parameter_config.bounds[0],
+            self._parameter_config.bounds[1],
+        )
+      return pyvizier.ParameterValue(float(value))
     elif self.output_spec.type == NumpyArraySpecType.CONTINUOUS:
       # The parameter config is originally discrete, but continuified.
       # Round to the closest number.
@@ -1050,7 +1051,6 @@ class DefaultTrialConverter(TrialToNumpyDict):
   ) -> List[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs trigger errors."""
     # TODO: NaNs should be ignored instead of triggering errors.
-    # TODO: Add a boolean flag to disable automatic clipping.
 
     # Validate features's shape, and create empty ParameterDicts.
     parameters = [
@@ -1245,7 +1245,6 @@ class TrialToArrayConverter:
 
   def to_parameters(self, arr: np.ndarray) -> Sequence[pyvizier.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
-    # TODO: Add a boolean flag to disable automatic clipping.
     arrformat = DictOf2DArrays(self._impl.to_features([]))
     return self._impl.to_parameters(arrformat.dict_like(arr))
 
@@ -1258,6 +1257,7 @@ class TrialToArrayConverter:
       pad_oovs: bool = True,
       max_discrete_indices: int = 0,
       flip_sign_for_minimization_metrics: bool = True,
+      should_clip=True,
       dtype=np.float64,
   ) -> 'TrialToArrayConverter':
     """From study config.
@@ -1273,6 +1273,7 @@ class TrialToArrayConverter:
         default is different from the default in DefaultModelInputConverter.
       flip_sign_for_minimization_metrics: If True, flips the metric signs so
         that every metric maximizes.
+      should_clip: Whether or not clipping should be done.
       dtype: dtype
 
     Returns:
@@ -1287,6 +1288,7 @@ class TrialToArrayConverter:
           onehot_embed=True,
           float_dtype=dtype,
           pad_oovs=pad_oovs,
+          should_clip=should_clip,
       )
 
     def create_output_converter(metric):
