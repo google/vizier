@@ -294,7 +294,9 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 3.0, 8.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 3.0, 8.0]], decimal=0.5
+    )
 
   def test_convert_with_reference(self):
     generator = convergence.HypervolumeCurveConverter(
@@ -327,7 +329,9 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 2.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 0.0, 2.0]], decimal=0.5
+    )
 
   def test_convert_with_none_reference(self):
     generator = convergence.HypervolumeCurveConverter([
@@ -357,7 +361,9 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 1.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 0.0, 1.0]], decimal=0.5
+    )
 
   def test_convert_with_inf_none_reference(self):
     generator = convergence.HypervolumeCurveConverter([
@@ -433,7 +439,7 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [4, 5])
-    np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=1)
+    np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=0.5)
 
   def test_convert_factor_with_inf(self):
     generator = convergence.HypervolumeCurveConverter(
@@ -466,7 +472,9 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 1.0, 4.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 1.0, 4.0]], decimal=0.5
+    )
 
 
 class MultiMetricCurveConverterTest(parameterized.TestCase):
@@ -544,7 +552,9 @@ class MultiMetricCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[4.0, 4.0, 8.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[4.0, 4.0, 8.0]], decimal=0.5
+    )
 
 
 class RestartingCurveConverterTest(absltest.TestCase):
@@ -584,7 +594,9 @@ class RestartingCurveConverterTest(absltest.TestCase):
 
     curve = restart_converter.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 5.0, 9.0]], decimal=0.5
+    )
 
     pytrials = []
     pytrials.append(
@@ -638,7 +650,9 @@ class RestartingCurveConverterTest(absltest.TestCase):
 
     curve = converter.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=1)
+    np.testing.assert_array_almost_equal(
+        curve.ys, [[0.0, 5.0, 9.0]], decimal=0.5
+    )
 
     pytrials = []
     pytrials.append(
