@@ -703,7 +703,9 @@ class VizierGPUCBPEBandit(vza.Designer):
       use_ucb = _has_new_completed_trials(
           completed_trials=self._all_completed_trials,
           active_trials=active_trials,
-      ) or (ucb_overwrite and self._all_completed_trials)
+      ) or (
+          ucb_overwrite and (len(self._all_completed_trials) > 0)  # pylint:disable=g-explicit-length-test
+      )
       # TODO: Feed the eagle strategy with completed trials.
       # TODO: Change budget based on requested suggestion count.
       acquisition_optimizer = self._acquisition_optimizer_factory(
