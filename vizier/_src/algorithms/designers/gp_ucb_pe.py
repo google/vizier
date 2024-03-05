@@ -299,11 +299,12 @@ class PEScoreFunction(eqx.Module):
 
 def default_ard_optimizer() -> optimizers.Optimizer[types.ParameterDict]:
   return optimizers.JaxoptScipyLbfgsB(
-      optimizers.LbfgsBOptions(
+      options=optimizers.LbfgsBOptions(
           num_line_search_steps=20,
           tol=1e-5,
           maxiter=500,
-      )
+      ),
+      max_duration=datetime.timedelta(minutes=40),
   )
 
 
