@@ -20,6 +20,7 @@ import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
+from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 from vizier._src.algorithms.designers.eagle_strategy import testing
 
 from absl.testing import absltest
@@ -27,6 +28,7 @@ from absl.testing import parameterized
 
 
 EagleStrategyDesigner = eagle_strategy.EagleStrategyDesigner
+FireflyAlgorithmConfig = eagle_strategy_utils.FireflyAlgorithmConfig
 
 
 class EagleStrategyTest(parameterized.TestCase):
@@ -241,6 +243,90 @@ class EagleStrategyTest(parameterized.TestCase):
         )
         tid += 1
       eagle_designer.update(vza.CompletedTrials(completed), vza.ActiveTrials())
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='Less suggestions than pool capacity',
+          num_feasible_suggestions=3,
+          num_infeasible_suggestions=2,
+      ),
+      dict(
+          testcase_name='More suggestions than pool capacity',
+          num_feasible_suggestions=50,
+          num_infeasible_suggestions=5,
+      ),
+  )
+  def test_infeasible_trials(
+      self, num_feasible_suggestions, num_infeasible_suggestions
+  ):
+    """Tests that Eagle works with infeasible trials."""
+    problem = vz.ProblemStatement()
+    problem.search_space.select_root().add_float_param(
+        'float1', 1e-2, 1e3, scale_type=vz.ScaleType.LOG
+    )
+    problem.search_space.select_root().add_float_param(
+        'float2', -2.0, 5.0, scale_type=vz.ScaleType.LINEAR
+    )
+    problem.search_space.select_root().add_int_param(
+        'int', min_value=0, max_value=10
+    )
+    problem.search_space.select_root().add_discrete_param(
+        'discrete', feasible_values=[0.0, 0.6]
+    )
+    problem.search_space.select_root().add_categorical_param(
+        'categorical', feasible_values=['a', 'b', 'c']
+    )
+    problem.metric_information.append(
+        vz.MetricInformation(goal=vz.ObjectiveMetricGoal.MINIMIZE, name='')
+    )
+    config = FireflyAlgorithmConfig(infeasible_force_factor=0.1)
+    eagle_designer = EagleStrategyDesigner(problem, config=config)
+
+    def _suggest_and_update(
+        eagle_designer: EagleStrategyDesigner, tid: int, infeasible: bool
+    ):
+      suggestion = eagle_designer.suggest(count=1)[0]
+      completed = suggestion.to_trial(tid).complete(
+          vz.Measurement(metrics={'': np.random.uniform()}),
+          infeasibility_reason='infeasible' if infeasible else None,
+      )
+      eagle_designer.update(
+          vza.CompletedTrials([completed]), vza.ActiveTrials()
+      )
+
+    # Suggest trials and update designer for less than pool capacity.
+    tid = 1
+    for _ in range(num_feasible_suggestions):
+      _suggest_and_update(eagle_designer, tid, infeasible=False)
+      tid += 1
+
+    # Suggest another trial and return it as infeasible.
+    for _ in range(num_infeasible_suggestions):
+      _suggest_and_update(eagle_designer, tid, infeasible=True)
+      tid += 1
+
+    # Test that the pool size is not affected by infeasible trials..
+    self.assertEqual(
+        eagle_designer._firefly_pool.size,
+        min(eagle_designer._firefly_pool.capacity, num_feasible_suggestions),
+    )
+    # Test that the pool contains infeasible trials.
+    self.assertEqual(
+        eagle_designer._firefly_pool._infeasible_count,
+        num_infeasible_suggestions,
+    )
+    self.assertEqual(
+        sum([
+            1
+            for firefly in eagle_designer._firefly_pool._pool.values()
+            if firefly.trial.infeasible
+        ]),
+        num_infeasible_suggestions,
+    )
+    # Suggest more trials while having infeasible trials in the pool.
+    for _ in range(3):
+      _suggest_and_update(eagle_designer, tid, infeasible=False)
+      tid += 1
 
 
 if __name__ == '__main__':

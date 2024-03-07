@@ -146,7 +146,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     self._config = config or FireflyAlgorithmConfig()
     self._utils = EagleStrategyUtils(self._problem, self._config, self._rng)
     self._firefly_pool = FireflyPool(
-        utils=self._utils, capacity=self._utils.compute_pool_capacity())
+        utils=self._utils, capacity=self._utils.compute_pool_capacity()
+    )
 
     if initial_designer_factory is None:
       initial_designer_factory = quasi_random.QuasiRandomDesigner.from_problem
@@ -287,6 +288,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # Apply the pulls from 'other_fly' on the moving fly's parameters.
       for param_config in self._problem.search_space.parameters:
         pull_weight = pull_weights[param_config.type]
+        if other_fly.trial.infeasible:
+          pull_weight *= self._config.infeasible_force_factor
         # Accentuate 'other_fly' pull using 'exploration_rate'.
         if pull_weight > 0.5:
           explore_pull_weight = (
@@ -357,6 +360,11 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
 
   def _update_one(self, trial: vz.Trial) -> None:
     """Update the pool using a single trial."""
+    if trial.infeasible and self._config.infeasible_force_factor > 0:
+      # Add the infeasible firefly to the pool.
+      infeasible_firefly_id = self._firefly_pool.generate_new_fly_id()
+      self._firefly_pool.create_or_update_fly(trial, infeasible_firefly_id)
+
     parent_fly_id = int(trial.metadata.ns('eagle').get('parent_fly_id'))
     parent_fly = self._firefly_pool.find_parent_fly(parent_fly_id)
     if parent_fly is None:

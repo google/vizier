@@ -33,15 +33,23 @@ Firefly = eagle_strategy_utils.Firefly
 def create_fake_trial(
     parent_fly_id: int,
     x_value: float,
-    obj_value: float,
+    obj_value: Optional[float],
 ) -> vz.Trial:
-  """Create a fake completed trial."""
+  """Create a fake completed trial ('obj_value' = None means infeasible trial)."""
   trial = vz.Trial()
   measurement = vz.Measurement(
-      metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(value=obj_value)}
+      metrics={
+          eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(
+              value=obj_value or float('inf')
+          )
+      }
   )
   trial.parameters['x'] = x_value
-  trial.complete(measurement, inplace=True)
+  trial.complete(
+      measurement,
+      inplace=True,
+      infeasibility_reason='infeasible' if obj_value is None else None,
+  )
   trial.metadata.ns('eagle')['parent_fly_id'] = str(parent_fly_id)
   return trial
 
@@ -62,7 +70,7 @@ def create_fake_problem_statement() -> vz.ProblemStatement:
 def create_fake_fly(
     parent_fly_id: int,
     x_value: float,
-    obj_value: float,
+    obj_value: Optional[float],
 ) -> Firefly:
   """Create a fake firefly with a fake completed trial."""
   trial = create_fake_trial(parent_fly_id, x_value, obj_value)
@@ -72,7 +80,8 @@ def create_fake_fly(
 def create_fake_empty_firefly_pool(capacity: int = 10) -> FireflyPool:
   """Create a fake empty Firefly pool."""
   problem = create_fake_problem_statement()
-  config = FireflyAlgorithmConfig()
+  # By default incorporating infeasible trials is disabled; setting it manually.
+  config = FireflyAlgorithmConfig(infeasible_force_factor=0.1)
   rng = np.random.default_rng(0)
   utils = EagleStrategyUtils(problem_statement=problem, config=config, rng=rng)
   return FireflyPool(utils, capacity)
@@ -82,7 +91,7 @@ def create_fake_populated_firefly_pool(
     *,
     capacity: int,
     x_values: Optional[list[float]] = None,
-    obj_values: Optional[list[float]] = None,
+    obj_values: Optional[list[Optional[float]]] = None,
     parent_fly_ids: Optional[list[int]] = None,
 ) -> FireflyPool:
   """Create a fake populated Firefly pool with a given capacity."""
@@ -96,15 +105,19 @@ def create_fake_populated_firefly_pool(
     ]
   if not parent_fly_ids:
     parent_fly_ids = list(range(len(obj_values)))
+
   if not len(obj_values) == len(x_values) == len(parent_fly_ids):
     raise ValueError('Length of obj_values, ')
-  for obj_val, x_val, parent_fly_id in zip(
-      obj_values, x_values, parent_fly_ids
+
+  for parent_fly_id, x_value, obj_value in zip(
+      parent_fly_ids, x_values, obj_values
   ):
-    # pylint: disable=protected-access
-    firefly_pool._pool[parent_fly_id] = create_fake_fly(
-        parent_fly_id=parent_fly_id, x_value=x_val, obj_value=obj_val
+    firefly = create_fake_fly(
+        parent_fly_id=parent_fly_id, x_value=x_value, obj_value=obj_value
     )
+    # pylint: disable=protected-access
+    firefly_pool._pool[parent_fly_id] = firefly
+
   # pylint: disable=protected-access
   firefly_pool._max_fly_id = capacity
   return firefly_pool
@@ -119,14 +132,14 @@ def create_fake_empty_eagle_designer() -> EagleStrategyDesiger:
 def create_fake_populated_eagle_designer(
     *,
     x_values: Optional[list[float]] = None,
-    obj_values: Optional[list[float]] = None,
+    obj_values: Optional[list[Optional[float]]] = None,
     parent_fly_ids: Optional[list[int]] = None,
 ) -> EagleStrategyDesiger:
   """Create a fake populated eagle designer."""
   problem = create_fake_problem_statement()
   eagle_designer = EagleStrategyDesiger(problem_statement=problem)
   # pylint: disable=protected-access
-  pool_capacity = eagle_designer._firefly_pool.capacity
+  pool_capacity = eagle_designer._firefly_pool._capacity
   # Override the eagle designer's firefly pool with a populated firefly pool.
   eagle_designer._firefly_pool = create_fake_populated_firefly_pool(
       capacity=pool_capacity,

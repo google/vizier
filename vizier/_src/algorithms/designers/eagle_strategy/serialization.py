@@ -43,11 +43,10 @@ class PartialFireflyPoolEncoder(json.JSONEncoder):
   def default(self, o: Any) -> Any:
     if isinstance(o, FireflyPool):
       return {
-          'capacity': o.capacity,
-          # pylint: disable=protected-access
-          '_last_id': o._last_id,
-          '_max_fly_id': o._max_fly_id,
-          '_pool': o._pool,
+          'capacity': o._capacity,  # pylint: disable=protected-access
+          '_last_id': o._last_id,  # pylint: disable=protected-access
+          '_max_fly_id': o._max_fly_id,  # pylint: disable=protected-access
+          '_pool': o._pool,  # pylint: disable=protected-access
       }
     elif isinstance(o, Firefly):
       return {
@@ -58,11 +57,11 @@ class PartialFireflyPoolEncoder(json.JSONEncoder):
       }
     elif isinstance(o, vz.Trial):
       return {
-          'parameters':
-              o.parameters.as_dict(),
-          'objective':
-              o.final_measurement.metrics[eagle_strategy_utils.OBJECTIVE_NAME
-                                         ].value,
+          'parameters': o.parameters.as_dict(),
+          'objective': o.final_measurement.metrics[
+              eagle_strategy_utils.OBJECTIVE_NAME
+          ].value,
+          'infeasibility_reason': o.infeasibility_reason,
       }
     else:
       return json.JSONEncoder.default(self, o)
@@ -98,7 +97,10 @@ class FireflyPoolDecoder:
       trial = vz.Trial(parameters=fly['trial']['parameters'])
       trial.complete(
           measurement=vz.Measurement(
-              metrics={'objective': fly['trial'][OBJECTIVE_NAME]}))
+              metrics={'objective': fly['trial'][OBJECTIVE_NAME]}
+          ),
+          infeasibility_reason=fly['trial']['infeasibility_reason'],
+      )
       restored_pool[int(id_)] = Firefly(
           id_=fly['id_'],
           perturbation=fly['perturbation'],
@@ -108,7 +110,8 @@ class FireflyPoolDecoder:
 
     restored_capacity = int(obj_dict['capacity'])
     restored_firefly_pool = FireflyPool(
-        capacity=restored_capacity, utils=self._utils)
+        capacity=restored_capacity, utils=self._utils
+    )
     # pylint: disable=protected-access
     restored_firefly_pool._pool = restored_pool
     restored_firefly_pool._last_id = int(obj_dict['_last_id'])

@@ -21,18 +21,25 @@ from vizier._src.algorithms.designers.eagle_strategy import serialization
 from vizier._src.algorithms.designers.eagle_strategy import testing
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 
-class SerializationTest(absltest.TestCase):
+class SerializationTest(parameterized.TestCase):
 
-  def test_restore_pool(self):
-    firefly_pool = testing.create_fake_populated_firefly_pool(capacity=20)
+  @parameterized.parameters(
+      {'x_values': [1, 2, 5, -2], 'obj_values': [2, 10, -2, 5]},
+      {'x_values': [1, 2, 5, -2], 'obj_values': [None, 10, -2, None]},
+  )
+  def test_restore_pool(self, x_values, obj_values):
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        capacity=20, x_values=x_values, obj_values=obj_values
+    )
     encoded = serialization.partially_serialize_firefly_pool(firefly_pool)
     # Restore the firefly pool.
-    utils = firefly_pool.utils
+    utils = firefly_pool._utils
     restored_firefly_pool = serialization.restore_firefly_pool(utils, encoded)
     # Check that the restored and original firefly_pool are the same.
-    self.assertEqual(restored_firefly_pool.capacity, firefly_pool.capacity)
+    self.assertEqual(restored_firefly_pool._capacity, firefly_pool._capacity)
     self.assertEqual(restored_firefly_pool._last_id, firefly_pool._last_id)
     self.assertEqual(restored_firefly_pool._max_fly_id,
                      firefly_pool._max_fly_id)
@@ -46,8 +53,16 @@ class SerializationTest(absltest.TestCase):
       self.assertEqual(restored_firefly.trial.parameters,
                        firefly.trial.parameters)
       self.assertEqual(
+          restored_firefly.trial.infeasible, firefly.trial.infeasible
+      )
+      self.assertEqual(
+          restored_firefly.trial.infeasibility_reason,
+          firefly.trial._infeasibility_reason,
+      )
+      self.assertEqual(
           restored_firefly.trial.final_measurement.metrics['objective'].value,
-          firefly.trial.final_measurement.metrics['objective'].value)
+          firefly.trial.final_measurement.metrics['objective'].value,
+      )
 
   def test_restore_rng(self):
     rng = np.random.default_rng(0)

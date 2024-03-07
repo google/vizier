@@ -93,33 +93,38 @@ class UtilsTest(parameterized.TestCase):
     self.assertEqual(self.utils.compute_pool_capacity(), expected_capacity)
 
   def test_compute_cononical_distance(self):
-    dist = self.utils.compute_cononical_distance(self.param_dict1,
-                                                 self.param_dict2)
+    dist = self.utils.compute_cononical_distance(
+        self.param_dict1, self.param_dict2
+    )
     self.assertIsInstance(dist, float)
     self.assertAlmostEqual(dist, 2.57)
 
   def test_compute_canonical_distance_squared_by_type(self):
     dists = self.utils._compute_canonical_distance_squared_by_type(
-        self.param_dict1, self.param_dict2)
+        self.param_dict1, self.param_dict2
+    )
     self.assertEqual(dists[vz.ParameterType.CATEGORICAL], 1.0 + 0.0)
-    self.assertEqual(dists[vz.ParameterType.INTEGER], ((3 - 1) / 10)**2)
-    self.assertEqual(dists[vz.ParameterType.DOUBLE],
-                     (3.0 / 15)**2 + (7.0 / 10)**2)
-    self.assertEqual(dists[vz.ParameterType.DISCRETE], (9.0 / 9.0)**2)
+    self.assertEqual(dists[vz.ParameterType.INTEGER], ((3 - 1) / 10) ** 2)
+    self.assertEqual(
+        dists[vz.ParameterType.DOUBLE], (3.0 / 15) ** 2 + (7.0 / 10) ** 2
+    )
+    self.assertEqual(dists[vz.ParameterType.DISCRETE], (9.0 / 9.0) ** 2)
 
   def test_is_better_than(self):
     trial1 = vz.Trial(parameters=self.param_dict1)
     trial1.complete(
         vz.Measurement(
-            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(
-                value=2.0)}),
-        inplace=True)
+            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(value=2.0)}
+        ),
+        inplace=True,
+    )
     trial2 = vz.Trial(parameters=self.param_dict2)
     trial2.complete(
         vz.Measurement(
-            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(
-                value=1.5)}),
-        inplace=True)
+            metrics={eagle_strategy_utils.OBJECTIVE_NAME: vz.Metric(value=1.5)}
+        ),
+        inplace=True,
+    )
     # Test for maximization problem
     self.assertTrue(self.utils.is_better_than(trial1, trial2))
     self.assertFalse(self.utils.is_better_than(trial2, trial1))
@@ -133,13 +138,16 @@ class UtilsTest(parameterized.TestCase):
   def test_is_better_than_infeasible(self):
     trial1 = vz.Trial(parameters=self.param_dict1)
     trial1.complete(
-        vz.Measurement(metrics={'obj': vz.Metric(value=2.0)}), inplace=True)
-    trial1._infeasibility_reason = 'infeasible reason'
+        vz.Measurement(metrics={'obj': vz.Metric(value=2.0)}),
+        inplace=True,
+        infeasibility_reason='infeasible reason',
+    )
     trial2 = vz.Trial(parameters=self.param_dict2)
     trial2.complete(
-        vz.Measurement(metrics={'obj': vz.Metric(value=1.5)}), inplace=True)
+        vz.Measurement(metrics={'obj': vz.Metric(value=1.5)}), inplace=True
+    )
     self.assertFalse(self.utils.is_better_than(trial1, trial2))
-    self.assertFalse(self.utils.is_better_than(trial2, trial1))
+    self.assertTrue(self.utils.is_better_than(trial2, trial1))
 
   def test_is_pure_categorical(self):
     pure_categorical_space = vz.SearchSpace()
@@ -154,23 +162,23 @@ class UtilsTest(parameterized.TestCase):
 
   def test_combine_two_parameters_integer(self):
     int_param_config = _get_parameter_config(self.search_space, 'i1')
-    new_value = self.utils.combine_two_parameters(int_param_config,
-                                                  self.param_dict1,
-                                                  self.param_dict2, 0.1)
+    new_value = self.utils.combine_two_parameters(
+        int_param_config, self.param_dict1, self.param_dict2, 0.1
+    )
     self.assertEqual(new_value, round(3 * 0.1 + 1 * 0.9))
 
   def test_combine_two_parameters_float(self):
     float_param_config = _get_parameter_config(self.search_space, 'f1')
-    new_value = self.utils.combine_two_parameters(float_param_config,
-                                                  self.param_dict1,
-                                                  self.param_dict2, 0.1)
+    new_value = self.utils.combine_two_parameters(
+        float_param_config, self.param_dict1, self.param_dict2, 0.1
+    )
     self.assertEqual(new_value, 5.0 * 0.1 + 2.0 * 0.9)
 
   def test_combine_two_parameters_discrete(self):
     float_param_config = _get_parameter_config(self.search_space, 'd1')
-    new_value = self.utils.combine_two_parameters(float_param_config,
-                                                  self.param_dict1,
-                                                  self.param_dict2, 0.1)
+    new_value = self.utils.combine_two_parameters(
+        float_param_config, self.param_dict1, self.param_dict2, 0.1
+    )
     self.assertEqual(new_value, 2.0)
 
   @parameterized.named_parameters(
@@ -181,16 +189,16 @@ class UtilsTest(parameterized.TestCase):
   )
   def test_combine_two_parameters_categorical1(self, prob, target):
     categorical_param_config = _get_parameter_config(self.search_space, 'c1')
-    new_value = self.utils.combine_two_parameters(categorical_param_config,
-                                                  self.param_dict1,
-                                                  self.param_dict2, prob)
+    new_value = self.utils.combine_two_parameters(
+        categorical_param_config, self.param_dict1, self.param_dict2, prob
+    )
     self.assertEqual(new_value, target)
 
   def test_combine_two_parameters_categorical2(self):
     categorical_param_config = _get_parameter_config(self.search_space, 'c1')
-    new_value = self.utils.combine_two_parameters(categorical_param_config,
-                                                  self.param_dict1,
-                                                  self.param_dict2, 0.5)
+    new_value = self.utils.combine_two_parameters(
+        categorical_param_config, self.param_dict1, self.param_dict2, 0.5
+    )
     self.assertIn(new_value, ['a', 'b'])
 
   @parameterized.named_parameters(
@@ -210,7 +218,8 @@ class UtilsTest(parameterized.TestCase):
 
   def test_perturb_parameter_categorical(self):
     categorical = vz.ParameterConfig.factory(
-        'c1', feasible_values=['a', 'b', 'c'])
+        'c1', feasible_values=['a', 'b', 'c']
+    )
     new_value1 = self.utils.perturb_parameter(categorical, 'b', 0.2)
     self.assertIn(new_value1, ['a', 'b', 'c'])
     new_value2 = self.utils.perturb_parameter(categorical, 'b', 0.0)
@@ -241,7 +250,8 @@ class UtilsTest(parameterized.TestCase):
   )
   def test_perturb_parameter_discrete(self, value, prob, target):
     discrete = vz.ParameterConfig.factory(
-        'd1', feasible_values=[1.0, 2.0, 9.0, 10.0])
+        'd1', feasible_values=[1.0, 2.0, 9.0, 10.0]
+    )
     new_value = self.utils.perturb_parameter(discrete, value, prob)
     self.assertIsInstance(new_value, float)
     self.assertEqual(new_value, target)
@@ -258,9 +268,11 @@ class UtilsTest(parameterized.TestCase):
     root = search_space.root
     root.add_float_param('f1', 0.0, 15.0, scale_type=vz.ScaleType.LINEAR)
     metric_information = vz.MetricInformation(
-        name='obj123', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+        name='obj123', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+    )
     problem = vz.ProblemStatement(
-        search_space=search_space, metric_information=[metric_information])
+        search_space=search_space, metric_information=[metric_information]
+    )
 
     utils = EagleStrategyUtils(problem, FireflyAlgorithmConfig(), self.rng)
     metadata = vz.Metadata()
@@ -268,13 +280,14 @@ class UtilsTest(parameterized.TestCase):
     trial = vz.Trial(parameters={'f1': 0.0}, metadata=metadata)
     trial.complete(measurement=vz.Measurement(metrics={'obj123': 1123.3}))
     new_trial = utils.standardize_trial_metric_name(trial)
-    self.assertEqual(new_trial.final_measurement.metrics['objective'].value,
-                     1123.3)
+    self.assertEqual(
+        new_trial.final_measurement.metrics['objective'].value, 1123.3
+    )
     self.assertEqual(new_trial.parameters['f1'].value, 0.0)
     self.assertEqual(new_trial.metadata.ns('eagle')['parent_fly_id'], '123')
 
 
-class FireflyPoolTest(absltest.TestCase):
+class FireflyPoolTest(parameterized.TestCase):
   """Tests for the FireflyPool class."""
 
   def test_generate_new_fly_id(self):
@@ -288,37 +301,53 @@ class FireflyPoolTest(absltest.TestCase):
     # Test creating a new fly in the pool.
     firefly_pool = testing.create_fake_empty_firefly_pool()
     trial = testing.create_fake_trial(
-        parent_fly_id=112, x_value=0, obj_value=0.8)
+        parent_fly_id=112, x_value=0, obj_value=0.8
+    )
     firefly_pool.create_or_update_fly(trial, 112)
     self.assertEqual(firefly_pool.size, 1)
     self.assertLen(firefly_pool._pool, 1)
     self.assertIs(firefly_pool._pool[112].trial, trial)
     # Test that another trial with the same parent id updates the fly.
     trial2 = testing.create_fake_trial(
-        parent_fly_id=112, x_value=1, obj_value=1.5)
+        parent_fly_id=112, x_value=1, obj_value=1.5
+    )
     firefly_pool.create_or_update_fly(trial2, 112)
     self.assertEqual(firefly_pool.size, 1)
     self.assertLen(firefly_pool._pool, 1)
     self.assertIs(firefly_pool._pool[112].trial, trial2)
 
-  def test_find_closest_parent(self):
+  @parameterized.parameters(
+      {'x_values': [1, 2, 5], 'obj_values': [2, 10, -2]},
+      {'x_values': [1, 2, 5], 'obj_values': [None, 10, -2]},
+  )
+  def test_find_closest_parent(self, x_values, obj_values):
+    """Tests that the find_closest_parent method returns the closest fly (with infeasible trials)."""
     firefly_pool = testing.create_fake_populated_firefly_pool(
-        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=4)
+        x_values=x_values, obj_values=obj_values, capacity=4
+    )
     trial = testing.create_fake_trial(
-        parent_fly_id=123, x_value=4.2, obj_value=8)
+        parent_fly_id=123, x_value=4.2, obj_value=8
+    )
     parent_fly = firefly_pool.find_closest_parent(trial)
     self.assertEqual(parent_fly.id_, 2)
 
-  def test_is_best_fly(self):
+  @parameterized.parameters(
+      {'x_values': [1, 2, 5], 'obj_values': [2, 10, -2]},
+      {'x_values': [1, 2, 5], 'obj_values': [None, 10, -2]},
+  )
+  def test_is_best_fly(self, x_values, obj_values):
+    """Tests that the is_best_fly method returns true if the fly is the best fly (with infeasible trials)."""
     firefly_pool = testing.create_fake_populated_firefly_pool(
-        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=4)
+        x_values=x_values, obj_values=obj_values, capacity=4
+    )
     self.assertTrue(firefly_pool.is_best_fly(firefly_pool._pool[1]))
     self.assertFalse(firefly_pool.is_best_fly(firefly_pool._pool[0]))
     self.assertFalse(firefly_pool.is_best_fly(firefly_pool._pool[2]))
 
   def test_get_next_moving_fly_copy(self):
     firefly_pool = testing.create_fake_populated_firefly_pool(
-        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5)
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5
+    )
     firefly_pool._last_id = 1
     moving_fly1 = firefly_pool.get_next_moving_fly_copy()
     self.assertEqual(moving_fly1.id_, 2)
@@ -327,9 +356,34 @@ class FireflyPoolTest(absltest.TestCase):
     moving_fly3 = firefly_pool.get_next_moving_fly_copy()
     self.assertEqual(moving_fly3.id_, 1)
 
+  @parameterized.parameters(
+      {
+          'x_values': [1, 2, 5, 3],
+          'obj_values': [2, 10, None, None],
+          'next_fly_indices': [0, 1, 0],
+      },
+      {
+          'x_values': [1, 2, 5, 3, 0, 4],
+          'obj_values': [2, 10, None, None, 3, None],
+          'next_fly_indices': [4, 0, 1, 4],
+      },
+  )
+  def test_get_next_moving_fly_copy_with_infeasible(
+      self, x_values, obj_values, next_fly_indices
+  ):
+    """Tests that the get_next_moving_fly_copy method doesn't return infeasible fly."""
+    firefly_pool = testing.create_fake_populated_firefly_pool(
+        x_values=x_values, obj_values=obj_values, capacity=5
+    )
+    firefly_pool._last_id = 1
+    for index in next_fly_indices:
+      moving_fly = firefly_pool.get_next_moving_fly_copy()
+      self.assertEqual(moving_fly.id_, index)
+
   def test_get_next_moving_fly_copy_after_removing_last_id_fly(self):
     firefly_pool = testing.create_fake_populated_firefly_pool(
-        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5)
+        x_values=[1, 2, 5], obj_values=[2, 10, -2], capacity=5
+    )
     firefly_pool._last_id = 1
     # Remove the fly associated with `_last_id` from the pool.
     del firefly_pool._pool[1]
@@ -342,7 +396,8 @@ class FireflyPoolTest(absltest.TestCase):
 
   def test_get_next_moving_fly_copy_after_removing_multiple_flies(self):
     firefly_pool = testing.create_fake_populated_firefly_pool(
-        x_values=[1, 2, 5, -1], obj_values=[2, 10, -2, 8], capacity=5)
+        x_values=[1, 2, 5, -1], obj_values=[2, 10, -2, 8], capacity=5
+    )
     firefly_pool._last_id = 3
     # Remove the several flies
     del firefly_pool._pool[0]
@@ -353,6 +408,25 @@ class FireflyPoolTest(absltest.TestCase):
     self.assertEqual(moving_fly2.id_, 3)
     moving_fly3 = firefly_pool.get_next_moving_fly_copy()
     self.assertEqual(moving_fly3.id_, 1)
+
+
+def test_pool_size_with_infeasible(self):
+  """Tests that the pool size doesn't change when adding an infeasible fly."""
+  firefly_pool = testing.create_fake_populated_firefly_pool(
+      x_values=[1, 2, 5, -1], obj_values=[2, 10, -2, 8], capacity=5
+  )
+  infeasible_firefly_id = firefly_pool.generate_new_fly_id()
+  infeasible_trial = testing.create_fake_trial(
+      parent_fly_id=infeasible_firefly_id, x_value=-1, obj_value=None
+  )
+  self.assertEqual(firefly_pool.size, 4)
+  firefly_pool.create_or_update_fly(
+      infeasible_trial, parent_fly_id=infeasible_firefly_id
+  )
+  self.assertEqual(firefly_pool.capacity, 5)
+  # Test that adding the infeasible trial doesn't change the pool size.
+  self.assertEqual(firefly_pool.size, 4)
+  self.assertEqual(firefly_pool._infeasible_count, 1)
 
 
 if __name__ == '__main__':

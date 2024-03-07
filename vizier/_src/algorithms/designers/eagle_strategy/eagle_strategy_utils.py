@@ -52,6 +52,8 @@ class FireflyAlgorithmConfig:
   pool_size_factor: float = 1.2
   # Exploration rate (value > 1.0 encourages more exploration)
   explore_rate: float = 1.0
+  # The factor to apply on infeasible trial repel force.
+  infeasible_force_factor: float = 0.0
 
 
 @attr.define
@@ -70,10 +72,10 @@ class Firefly:
       suggested from the firefly.
     trial: The best trial associated with the firefly.
   """
-  id_: int = attr.field(validator=attr.validators.instance_of(int))
-  perturbation: float = attr.field(validator=attr.validators.instance_of(float))
-  generation: int = attr.field(validator=attr.validators.instance_of(int))
-  trial: vz.Trial = attr.field(validator=attr.validators.instance_of(vz.Trial))
+  id_: int
+  perturbation: float
+  generation: int
+  trial: vz.Trial
 
 
 @attr.define
@@ -337,7 +339,7 @@ class EagleStrategyUtils:
       trial1: vz.Trial,
       trial2: vz.Trial,
   ) -> bool:
-    """Checks whether the current trial is better than another trial.
+    """Checks whether the 'trial1' is better than 'trial2'.
 
     The comparison is based on the value of final measurement and whether it
     goal is MAXIMIZATION or MINIMIZATON.
@@ -354,8 +356,10 @@ class EagleStrategyUtils:
     """
     if not trial1.is_completed or not trial2.is_completed:
       return False
-    if trial1.infeasible or trial2.infeasible:
+    if trial1.infeasible and not trial2.infeasible:
       return False
+    if not trial1.infeasible and trial2.infeasible:
+      return True
     if trial1.final_measurement is None or trial2.final_measurement is None:
       return False
 
@@ -404,31 +408,35 @@ class FireflyPool:
 
   Attributes:
     utils: Eagle Strategy utils class.
-    capacity: The maximum number of flies that the pool could store.
-    size: The current number of flies in the pool.
+    capacity: The maximum number of non-feasible fireflies in the pool.
+    size: The current number of non-feasible fireflies in the pool.
     _pool: A dictionary of Firefly objects organized by firefly id.
     _last_id: The last firefly id used to generate a suggestion. It's persistent
       across calls to ensure we don't use the same fly repeatedly.
     _max_fly_id: The maximum value of any fly id ever created. It's persistent
       persistent accross calls to ensure unique ids even if trails were deleted.
+    _infeasible_count: The number of infeasible fireflies in the pool.
   """
-  utils: EagleStrategyUtils = attr.field(
-      validator=attr.validators.instance_of(EagleStrategyUtils))
-
-  capacity: int = attr.field(validator=attr.validators.instance_of(int))
-
+  _utils: EagleStrategyUtils
+  _capacity: int
   _pool: Dict[int, Firefly] = attr.field(init=False, default=attr.Factory(dict))
-
   _last_id: int = attr.field(init=False, default=0)
-
   _max_fly_id: int = attr.field(init=False, default=0)
+  _infeasible_count: int = attr.field(init=False, default=0)
+
+  @property
+  def capacity(self) -> int:
+    return self._capacity
 
   @property
   def size(self) -> int:
-    return len(self._pool)
+    """Returns the number of feasible fireflies in the pool."""
+    return len(self._pool) - self._infeasible_count
 
   def remove_fly(self, fly: Firefly):
     """Removes a fly from the pool."""
+    if fly.trial.infeasible:
+      raise ValueError('Infeasible firefly should not be removed from pool.')
     del self._pool[fly.id_]
 
   def get_shuffled_flies(self, rng: np.random.Generator) -> list[Firefly]:
@@ -455,23 +463,24 @@ class FireflyPool:
     Returns:
       A copy of the next moving fly.
     """
-    current_fly_id = self._last_id + 1
-    while current_fly_id != self._last_id:
-      if current_fly_id > self._max_fly_id:
+    curr_id = self._last_id + 1
+    while curr_id != self._last_id:
+      if curr_id > self._max_fly_id:
         # Passed the maximum id. Start from the first one as ids are monotonic.
-        current_fly_id = next(iter(self._pool))
-      if current_fly_id in self._pool:
-        self._last_id = current_fly_id
-        return copy.deepcopy(self._pool[current_fly_id])
-      current_fly_id += 1
+        curr_id = next(iter(self._pool))
+      if curr_id in self._pool and not self._pool[curr_id].trial.infeasible:
+        self._last_id = curr_id
+        return copy.deepcopy(self._pool[curr_id])
+      curr_id += 1
 
     return copy.deepcopy(self._pool[self._last_id])
 
   def is_best_fly(self, fly: Firefly) -> bool:
     """Checks if the 'fly' has the best final measurement in the pool."""
     for other_fly_id, other_fly in self._pool.items():
-      if other_fly_id != fly.id_ and self.utils.is_better_than(
-          other_fly.trial, fly.trial):
+      if other_fly_id != fly.id_ and self._utils.is_better_than(
+          other_fly.trial, fly.trial
+      ):
         return False
     return True
 
@@ -497,8 +506,11 @@ class FireflyPool:
 
     min_dist, closest_parent = float('inf'), next(iter(self._pool.values()))
     for other_fly in self._pool.values():
-      curr_dist = self.utils.compute_cononical_distance(
-          other_fly.trial.parameters, trial.parameters)
+      if other_fly.trial.infeasible:
+        continue
+      curr_dist = self._utils.compute_cononical_distance(
+          other_fly.trial.parameters, trial.parameters
+      )
       if curr_dist < min_dist:
         min_dist = curr_dist
         closest_parent = other_fly
@@ -530,12 +542,14 @@ class FireflyPool:
       # Create a new Firefly in pool.
       new_fly = Firefly(
           id_=parent_fly_id,
-          perturbation=self.utils.config.perturbation,
+          perturbation=self._utils.config.perturbation,
           generation=1,
           trial=trial,
       )
       self._pool[parent_fly_id] = new_fly
+      if trial.infeasible:
+        self._infeasible_count += 1
     else:
       # Parent fly id already in pool. Update trial if there was improvement.
-      if self.utils.is_better_than(trial, self._pool[parent_fly_id].trial):
+      if self._utils.is_better_than(trial, self._pool[parent_fly_id].trial):
         self._pool[parent_fly_id].trial = trial
