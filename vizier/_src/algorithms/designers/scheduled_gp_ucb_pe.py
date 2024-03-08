@@ -14,22 +14,25 @@
 
 from __future__ import annotations
 
-"""Scheduled GP-Bandit for budget-aware optimization.
+"""Scheduled GP-UCB-PE for budget-aware optimization.
 """
 
+import dataclasses as dc
 from typing import Callable
 import attrs
 from vizier import pyvizier as vz
-from vizier._src.algorithms.designers import gp_bandit
+from vizier._src.algorithms.designers import gp_ucb_pe
 from vizier._src.algorithms.designers import scheduled_designer
-from vizier._src.algorithms.designers.gp import acquisitions
 
 
+# TODO: Add scheduling to more params.
 @attrs.define(kw_only=True)
-class ScheduledGPBanditFactory:
-  """Scheduled GP-Bandit factory."""
+class ScheduledGPUCBPEFactory:
+  """Scheduled GP-UCB-PE factory."""
 
-  _gp_bandit_factory: Callable[[vz.ProblemStatement], gp_bandit.VizierGPBandit]
+  _gp_ucb_pe_factory: Callable[
+      [vz.ProblemStatement], gp_ucb_pe.VizierGPUCBPEBandit
+  ]
   _init_ucb_coef: float
   _final_ucb_coef: float
   _ucb_coef_decay_rate: float
@@ -42,12 +45,14 @@ class ScheduledGPBanditFactory:
   ) -> scheduled_designer.ScheduledDesigner:
     """Creates a scheduled GP-Bandit designer."""
 
-    def _gp_bandit_state_updater(designer, params):
-      designer._scoring_function_factory = (  # pylint: disable=protected-access
-          acquisitions.bayesian_scoring_function_factory(
-              lambda _: acquisitions.UCB(params[self._ucb_coef_param_name])
-          )
+    def _gp_ucb_pe_state_updater(designer, params):
+      # Create a new copy of the config and replace the ucb coefficient value.
+      updated_config = dc.replace(
+          designer._config, ucb_coefficient=params[self._ucb_coef_param_name]  # pylint: disable=protected-access
       )
+      # Update the designer config. As the GP_UCB_PE state is recomputed every
+      # suggest() call based on the config, this effectively updates the state.
+      designer._config = updated_config  # pylint: disable=protected-access
 
     ucb_coef_param = scheduled_designer.ExponentialScheduledParam(
         init_value=self._init_ucb_coef,
@@ -57,8 +62,8 @@ class ScheduledGPBanditFactory:
 
     return scheduled_designer.ScheduledDesigner(
         problem,
-        designer_factory=self._gp_bandit_factory,
-        designer_state_updater=_gp_bandit_state_updater,
+        designer_factory=self._gp_ucb_pe_factory,
+        designer_state_updater=_gp_ucb_pe_state_updater,
         scheduled_params={self._ucb_coef_param_name: ucb_coef_param},
         expected_total_num_trials=self._expected_total_num_trials,
     )
