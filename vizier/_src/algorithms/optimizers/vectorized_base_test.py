@@ -224,7 +224,9 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(best_candidates[0].parameters['f1'].value, 0.5)
     self.assertEqual(best_candidates[0].parameters['f2'].value, 0.5)
     self.assertAlmostEqual(
-        best_candidates[0].final_measurement.metrics['acquisition'].value,
+        best_candidates[0]
+        .final_measurement_or_die.metrics['acquisition']
+        .value,
         -((0.5 - 0.52) ** 2),
     )
 
@@ -251,21 +253,27 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertAlmostEqual(best_candidates[0].parameters['f1'].value, 0.5)
     self.assertAlmostEqual(best_candidates[0].parameters['f2'].value, 0.5)
     self.assertAlmostEqual(
-        best_candidates[0].final_measurement.metrics['acquisition'].value,
+        best_candidates[0]
+        .final_measurement_or_die.metrics['acquisition']
+        .value,
         -((0.5 - 0.52) ** 2),
     )
     # check 2nd best candidate
     self.assertAlmostEqual(best_candidates[1].parameters['f1'].value, 0.6)
     self.assertAlmostEqual(best_candidates[1].parameters['f2'].value, 0.6)
     self.assertAlmostEqual(
-        best_candidates[1].final_measurement.metrics['acquisition'].value,
+        best_candidates[1]
+        .final_measurement_or_die.metrics['acquisition']
+        .value,
         -((0.6 - 0.52) ** 2),
     )
     # check 3rd best candidate
     self.assertAlmostEqual(best_candidates[2].parameters['f1'].value, 0.4)
     self.assertAlmostEqual(best_candidates[2].parameters['f2'].value, 0.4)
     self.assertAlmostEqual(
-        best_candidates[2].final_measurement.metrics['acquisition'].value,
+        best_candidates[2]
+        .final_measurement_or_die.metrics['acquisition']
+        .value,
         -((0.4 - 0.52) ** 2),
     )
 

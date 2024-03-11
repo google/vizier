@@ -50,11 +50,11 @@ class MultiobjectiveExperimenterTest(absltest.TestCase):
     exptr.evaluate([t])
     self.assertAlmostEqual(
         func1(np.array([0.0, 1.0])),
-        t.final_measurement.metrics['m1'].value,
+        t.final_measurement_or_die.metrics['m1'].value,
     )
     self.assertAlmostEqual(
         func2(np.array([0.0, 1.0])),
-        t.final_measurement.metrics['m2'].value,
+        t.final_measurement_or_die.metrics['m2'].value,
     )
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 

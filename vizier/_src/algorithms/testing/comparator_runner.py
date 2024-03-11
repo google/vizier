@@ -170,13 +170,15 @@ class SimpleRegretComparisonTester:
       res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
       trial = vb.best_candidates_to_trials(res, converter)
       baseline_obj_values.append(
-          trial[0].final_measurement.metrics['acquisition'].value)
+          trial[0].final_measurement_or_die.metrics['acquisition'].value
+      )
 
     for i in range(self.candidate_num_repeats):
       res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
       trial = vb.best_candidates_to_trials(res, converter)
       candidate_obj_values.append(
-          trial[0].final_measurement.metrics['acquisition'].value)
+          trial[0].final_measurement_or_die.metrics['acquisition'].value
+      )
 
     self._conclude_test(baseline_obj_values, candidate_obj_values)
 
@@ -199,7 +201,7 @@ class SimpleRegretComparisonTester:
       best_trial = benchmark_state.algorithm.supporter.GetBestTrials(count=1)[0]
       metric_name = benchmark_state.experimenter.problem_statement(
       ).single_objective_metric_name
-      return best_trial.final_measurement.metrics[metric_name].value
+      return best_trial.final_measurement_or_die.metrics[metric_name].value
 
     baseline_obj_values = []
     candidate_obj_values = []

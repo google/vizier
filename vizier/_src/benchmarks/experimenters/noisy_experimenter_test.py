@@ -59,14 +59,15 @@ class NoisyExperimenterTest(parameterized.TestCase):
 
     exptr.evaluate([t])
     metric_name = exptr.problem_statement().metric_information.item().name
-    unnoised_value = t.final_measurement.metrics[metric_name].value
+    unnoised_value = t.final_measurement_or_die.metrics[metric_name].value
 
     noisy_exptr.evaluate([t])
-    noised_value = t.final_measurement.metrics[metric_name].value
+    noised_value = t.final_measurement_or_die.metrics[metric_name].value
     self.assertEqual(unnoised_value - 1, noised_value)
     self.assertEqual(
         unnoised_value,
-        t.final_measurement.metrics[metric_name + '_before_noise'].value)
+        t.final_measurement_or_die.metrics[metric_name + '_before_noise'].value,
+    )
 
   @parameterized.named_parameters(
       ('NO_NOISE', 'NO_NOISE', 1e-5),
@@ -95,13 +96,13 @@ class NoisyExperimenterTest(parameterized.TestCase):
 
     exptr.evaluate([t])
     metric_name = exptr.problem_statement().metric_information.item().name
-    unnoised_value = t.final_measurement.metrics[metric_name].value
+    unnoised_value = t.final_measurement_or_die.metrics[metric_name].value
 
     noisy_exptr.evaluate([t])
-    noised_value1 = t.final_measurement.metrics[metric_name].value
+    noised_value1 = t.final_measurement_or_die.metrics[metric_name].value
 
     noisy_exptr.evaluate([t])
-    noised_value2 = t.final_measurement.metrics[metric_name].value
+    noised_value2 = t.final_measurement_or_die.metrics[metric_name].value
 
     # Seldom noise is only injected sporadically.
     if 'SELDOM' not in noise and noise != 'NO_NOISE':
@@ -131,7 +132,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
     for _ in range(10):
       noisy_exptr.evaluate([t])
       noise_value_sequence.append(
-          t.final_measurement.metrics[metric_name].value
+          t.final_measurement_or_die.metrics[metric_name].value
       )
 
     # Global NP seed should not affect randomness.
@@ -144,7 +145,7 @@ class NoisyExperimenterTest(parameterized.TestCase):
     for _ in range(10):
       noisy_exptr.evaluate([t])
       noise_value_sequence_after.append(
-          t.final_measurement.metrics[metric_name].value
+          t.final_measurement_or_die.metrics[metric_name].value
       )
     self.assertSequenceAlmostEqual(
         noise_value_sequence, noise_value_sequence_after

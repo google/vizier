@@ -65,7 +65,7 @@ class PredictorExperimenterTest(absltest.TestCase):
     for trial in trials:
       self.assertEqual(trial.status, vz.TrialStatus.COMPLETED)
       self.assertContainsSubset(
-          trial.final_measurement.metrics.keys(), ['metric']
+          trial.final_measurement_or_die.metrics.keys(), ['metric']
       )
 
 

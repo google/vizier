@@ -53,7 +53,9 @@ class SparseExperimenterTest(parameterized.TestCase):
       trial.parameters[pc.name] = 2.0
     # Test that the evaluation uses only the non-sparse parameters.
     experimenter.evaluate([trial])
-    self.assertEqual(trial.final_measurement.metrics['bbob_eval'].value, 8.0)
+    self.assertEqual(
+        trial.final_measurement_or_die.metrics['bbob_eval'].value, 8.0
+    )
     # Test that the evaluated trial parameters remained the same.
     self.assertLen(trial.parameters, 10)
     for trial_param_name, exptr_param_config in zip(
@@ -106,7 +108,9 @@ class SparseExperimenterTest(parameterized.TestCase):
       trial.parameters[pc.name] = 2.0
     # Test that the evaluation uses only the non-sparse parameters.
     experimenter.evaluate([trial])
-    self.assertEqual(trial.final_measurement.metrics['bbob_eval'].value, 8.0)
+    self.assertEqual(
+        trial.final_measurement_or_die.metrics['bbob_eval'].value, 8.0
+    )
     # Test that the evaluated trial parameters remained the same.
     total_param_count = 2 + int_count + cat_count + discrete_count + float_count
     self.assertLen(trial.parameters, total_param_count)

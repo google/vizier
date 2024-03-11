@@ -135,7 +135,7 @@ class ScalarizingDesignerTest(absltest.TestCase):
         all_active=vza.ActiveTrials(trials=[]),
     )
     self.assertTrue(
-        jnp.isnan(trial.final_measurement.metrics['scalarized'].value)
+        jnp.isnan(trial.final_measurement_or_die.metrics['scalarized'].value)
     )
 
 

@@ -57,7 +57,8 @@ class NumpyExperimenterTest(parameterized.TestCase):
     metric_name = exptr.problem_statement().metric_information.item().name
     self.assertAlmostEqual(
         func(np.array([0.0, 1.0])),
-        t.final_measurement.metrics[metric_name].value)
+        t.final_measurement_or_die.metrics[metric_name].value,
+    )
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 
   def testNonFinite(self):
@@ -79,7 +80,7 @@ class NumpyExperimenterTest(parameterized.TestCase):
     trials = [t1, t2]
     exptr.evaluate(trials)
     for trial in trials:
-      self.assertEmpty(trial.final_measurement.metrics)
+      self.assertEmpty(trial.final_measurement_or_die.metrics)
       self.assertTrue(trial.infeasible)
 
   def testNotInSearchSpace(self):

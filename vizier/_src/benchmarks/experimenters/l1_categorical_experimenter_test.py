@@ -32,7 +32,9 @@ class L1CategoricalExperimenterTest(parameterized.TestCase):
         num_categories=[2, 2], optimum=optimum)
     suggestion = vz.Trial(parameters={'c0': '0', 'c1': '1'})
     exptr.evaluate([suggestion])
-    self.assertEqual(suggestion.final_measurement.metrics['objective'].value, 0)
+    self.assertEqual(
+        suggestion.final_measurement_or_die.metrics['objective'].value, 0
+    )
 
   def test_evaluate_non_optimum(self):
     optimum = [0, 1]
@@ -40,7 +42,9 @@ class L1CategoricalExperimenterTest(parameterized.TestCase):
         num_categories=[2, 2], optimum=optimum)
     suggestion = vz.Trial(parameters={'c0': '1', 'c1': '0'})
     exptr.evaluate([suggestion])
-    self.assertEqual(suggestion.final_measurement.metrics['objective'].value, 2)
+    self.assertEqual(
+        suggestion.final_measurement_or_die.metrics['objective'].value, 2
+    )
 
   @parameterized.parameters({'num_categories': [10, 3, 2]},
                             {'num_categories': [10, 2, 10]},

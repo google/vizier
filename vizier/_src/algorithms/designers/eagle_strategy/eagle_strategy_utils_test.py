@@ -281,7 +281,7 @@ class UtilsTest(parameterized.TestCase):
     trial.complete(measurement=vz.Measurement(metrics={'obj123': 1123.3}))
     new_trial = utils.standardize_trial_metric_name(trial)
     self.assertEqual(
-        new_trial.final_measurement.metrics['objective'].value, 1123.3
+        new_trial.final_measurement_or_die.metrics['objective'].value, 1123.3
     )
     self.assertEqual(new_trial.parameters['f1'].value, 0.0)
     self.assertEqual(new_trial.metadata.ns('eagle')['parent_fly_id'], '123')

@@ -41,7 +41,7 @@ class Nasbench201ExperimenterTest(absltest.TestCase):
       logging.info('Evaluated Trial: %s', trial)
       self.assertEqual(trial.status, pyvizier.TrialStatus.COMPLETED)
       metric_name = problem_statement.metric_information.item().name
-      eval_objective = trial.final_measurement.metrics[metric_name].value
+      eval_objective = trial.final_measurement_or_die.metrics[metric_name].value
       self.assertGreaterEqual(eval_objective, 0.0)
       self.assertLessEqual(eval_objective, 100.0)
 

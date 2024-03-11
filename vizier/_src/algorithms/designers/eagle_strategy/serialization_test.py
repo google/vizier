@@ -60,8 +60,10 @@ class SerializationTest(parameterized.TestCase):
           firefly.trial._infeasibility_reason,
       )
       self.assertEqual(
-          restored_firefly.trial.final_measurement.metrics['objective'].value,
-          firefly.trial.final_measurement.metrics['objective'].value,
+          restored_firefly.trial.final_measurement_or_die.metrics[
+              'objective'
+          ].value,
+          firefly.trial.final_measurement_or_die.metrics['objective'].value,
       )
 
   def test_restore_rng(self):

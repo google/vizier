@@ -61,18 +61,25 @@ def generate_test_class():
 
         experimenter.evaluate([problem_and_trials.trials[0]])
 
-        logging.info('First five trial metrics: %s', [
-            t.final_measurement.metrics[hpob_experimenter.METRIC_NAME].value
-            for t in problem_and_trials.trials[:5]
-        ])
+        logging.info(
+            'First five trial metrics: %s',
+            [
+                t.final_measurement_or_die.metrics[
+                    hpob_experimenter.METRIC_NAME
+                ].value
+                for t in problem_and_trials.trials[:5]
+            ],
+        )
         logging.info('objective: %f', objective)
         logging.info('evaluated: %s', problem_and_trials.trials[0])
 
         self.assertAlmostEqual(
-            problem_and_trials.trials[0].final_measurement.metrics[
-                hpob_experimenter.METRIC_NAME].value,
+            problem_and_trials.trials[0]
+            .final_measurement_or_die.metrics[hpob_experimenter.METRIC_NAME]
+            .value,
             objective,
-            places=1)
+            places=1,
+        )
 
         break
 

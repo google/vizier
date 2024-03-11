@@ -68,8 +68,9 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     metric_name = exptr.problem_statement().metric_information.item().name
 
     self.assertAlmostEqual(
-        t_shifted.final_measurement.metrics[metric_name].value,
-        t.final_measurement.metrics[metric_name].value)
+        t_shifted.final_measurement_or_die.metrics[metric_name].value,
+        t.final_measurement_or_die.metrics[metric_name].value,
+    )
     self.assertEqual(t.status, t_shifted.status)
 
     # Check parameter bounds are shifted.
@@ -106,8 +107,9 @@ class ShiftingExperimenterTest(parameterized.TestCase):
     metric_name = exptr.problem_statement().metric_information.item().name
 
     self.assertAlmostEqual(
-        t_shifted.final_measurement.metrics[metric_name].value,
-        t.final_measurement.metrics[metric_name].value)
+        t_shifted.final_measurement_or_die.metrics[metric_name].value,
+        t.final_measurement_or_die.metrics[metric_name].value,
+    )
     self.assertEqual(t.status, t_shifted.status)
     self.assertNotEqual(t.parameters, t_shifted.parameters)
 

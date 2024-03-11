@@ -55,28 +55,32 @@ class SignFlipExperimenterTest(parameterized.TestCase):
     flipped_exptr.evaluate([suggestion_for_flipped])
 
     self.assertEqual(
-        suggestion_for_original.final_measurement.metrics[metric_name].value,
+        suggestion_for_original.final_measurement_or_die.metrics[
+            metric_name
+        ].value,
         -1.0
-        * suggestion_for_flipped.final_measurement.metrics[metric_name].value,
+        * suggestion_for_flipped.final_measurement_or_die.metrics[
+            metric_name
+        ].value,
     )
 
     aux_metric_name = metric_name + '_before_noise'
     if flip_objectives_only:
       self.assertEqual(
-          suggestion_for_original.final_measurement.metrics[
+          suggestion_for_original.final_measurement_or_die.metrics[
               aux_metric_name
           ].value,
-          suggestion_for_flipped.final_measurement.metrics[
+          suggestion_for_flipped.final_measurement_or_die.metrics[
               aux_metric_name
           ].value,
       )
     else:
       self.assertEqual(
-          suggestion_for_original.final_measurement.metrics[
+          suggestion_for_original.final_measurement_or_die.metrics[
               aux_metric_name
           ].value,
           -1.0
-          * suggestion_for_flipped.final_measurement.metrics[
+          * suggestion_for_flipped.final_measurement_or_die.metrics[
               aux_metric_name
           ].value,
       )

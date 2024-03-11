@@ -68,7 +68,7 @@ class NormalizingExperimenterTest(parameterized.TestCase):
     metric_name = exptr.problem_statement().metric_information.item().name
 
     normalizing_exptr.evaluate([t])
-    normalized_value = t.final_measurement.metrics[metric_name].value
+    normalized_value = t.final_measurement_or_die.metrics[metric_name].value
     self.assertBetween(normalized_value, -10, 10)
 
 

@@ -77,13 +77,13 @@ class ScalarizingDesigner(vza.Designer):
   ) -> None:
     for trial in completed.trials:
       objectives = [
-          trial.final_measurement.metrics.get_value(
+          trial.final_measurement_or_die.metrics.get_value(
               config.name, default=jnp.nan
           )
           for config in self._objectives
       ]
       # Simply append the scalarized value.
-      trial.final_measurement.metrics[self._scalarized_metric_name] = (
+      trial.final_measurement_or_die.metrics[self._scalarized_metric_name] = (
           self._scalarizer(jnp.array(objectives))
       )
 

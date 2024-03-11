@@ -76,7 +76,8 @@ class DiscretizingExperimenterTest(parameterized.TestCase):
     metric_name = exptr.problem_statement().metric_information.item().name
     self.assertAlmostEqual(
         func(np.array([0.0, 1.0, 1.5])),
-        t.final_measurement.metrics[metric_name].value)
+        t.final_measurement_or_die.metrics[metric_name].value,
+    )
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
     self.assertDictEqual(t.parameters.as_dict(), parameters)
 
