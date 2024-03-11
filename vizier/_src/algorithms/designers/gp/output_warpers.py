@@ -117,6 +117,7 @@ class BijectorWarper(OutputWarper):
 @attr.define
 class OutputWarperPipeline(OutputWarper):
   """Performs a sequence of warpings on an input labels array."""
+
   warpers: Sequence[OutputWarper] = attr.ib(factory=list)
 
   def warp(self, labels_arr: types.Array) -> types.Array:
@@ -136,8 +137,10 @@ class OutputWarperPipeline(OutputWarper):
     """
     labels_arr = copy.deepcopy(labels_arr)
     labels_arr = _validate_labels(labels_arr)
-    if np.isfinite(labels_arr).all() and len(
-        np.unique(labels_arr).flatten()) == 1:
+    if (
+        np.isfinite(labels_arr).all()
+        and len(np.unique(labels_arr).flatten()) == 1
+    ):
       return np.zeros(labels_arr.shape)
     if np.isnan(labels_arr).all():
       return -1 * np.ones(shape=labels_arr.shape)
@@ -183,7 +186,8 @@ def create_default_warper(
     *,
     half_rank_warp: bool = True,
     log_warp: bool = True,
-    infeasible_warp: bool = False) -> OutputWarperPipeline:
+    infeasible_warp: bool = False,
+) -> OutputWarperPipeline:
   """Creates an output warper pipeline.
 
   Args:
@@ -213,7 +217,8 @@ def create_warp_outliers_warper(
     *,
     warp_outliers: bool = True,
     infeasible_warp: bool = True,
-    transform_gaussian: bool = True) -> OutputWarperPipeline:
+    transform_gaussian: bool = True,
+) -> OutputWarperPipeline:
   """Creates an output warper outline which detects outliers and warps them."""
   warpers = []
   if warp_outliers:
@@ -272,10 +277,12 @@ class _HalfRankUnwarper:
     # (which must exist because label < median.)
     upper = np.searchsorted(self._warped_labels, label)
 
-    return self._original_labels[lower] + (
-        (label - self._warped_labels[lower])
-        / (self._warped_labels[upper] - self._warped_labels[lower])
-    ) * (self._original_labels[upper] - self._original_labels[lower])
+    original_gap = self._original_labels[upper] - self._original_labels[lower]
+    warped_gap = self._warped_labels[upper] - self._warped_labels[lower]
+    return (
+        self._original_labels[lower]
+        + (label - self._warped_labels[lower]) * original_gap / warped_gap
+    )
 
 
 @attr.define
@@ -285,6 +292,7 @@ class HalfRankComponent(OutputWarper):
   Note that this warping is performed on finite values of the array and NaNs are
   untouched.
   """
+
   _unwarper: Optional[_HalfRankUnwarper] = attr.field(default=None)
 
   def _estimate_std_of_good_half(
@@ -387,17 +395,13 @@ class LogWarperComponent(OutputWarper):
     self._labels_min = np.nanmin(labels_arr)
     self._labels_max = np.nanmax(labels_arr)
     labels_arr = labels_arr.flatten()
-    labels_arr[np.isfinite(labels_arr)] = 0.5 - (
-        (
-            np.log1p(
-                (
-                    (self._labels_max - labels_arr[np.isfinite(labels_arr)])
-                    / (self._labels_max - self._labels_min)
-                )
-                * (self.offset - 1)
-            )
-        )
-        / (np.log(self.offset))
+    finite_mask = np.isfinite(labels_arr)
+
+    norm_diff = (self._labels_max - labels_arr[finite_mask]) / (
+        self._labels_max - self._labels_min
+    )
+    labels_arr[finite_mask] = 0.5 - (
+        np.log1p(norm_diff * (self.offset - 1)) / np.log(self.offset)
     )
     return labels_arr[:, np.newaxis]
 
@@ -407,7 +411,7 @@ class LogWarperComponent(OutputWarper):
     labels_arr = labels_arr.flatten()
     labels_arr = self._labels_max - (
         np.exp(np.log(self.offset) * (0.5 - labels_arr)) - 1
-    ) * ((self._labels_max - self._labels_min) / (self.offset - 1))
+    ) * (self._labels_max - self._labels_min) / (self.offset - 1)
     return labels_arr[:, np.newaxis]
 
 
@@ -445,11 +449,12 @@ class ZScoreLabels(OutputWarper):
     labels_finite_ind = np.isfinite(labels_arr)
     labels_arr_finite = labels_arr[labels_finite_ind]
     if np.nanstd(labels_arr_finite) == 0 or not np.isfinite(
-        np.nanstd(labels_arr_finite)):
+        np.nanstd(labels_arr_finite)
+    ):
       return labels_arr
     labels_arr_finite_normalized = (
-        labels_arr_finite -
-        np.nanmean(labels_arr_finite)) / np.nanstd(labels_arr_finite)
+        labels_arr_finite - np.nanmean(labels_arr_finite)
+    ) / np.nanstd(labels_arr_finite)
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
@@ -479,8 +484,8 @@ class NormalizeLabels(OutputWarper):
     labels_finite_ind = np.isfinite(labels_arr)
     labels_arr_finite = labels_arr[labels_finite_ind]
     labels_arr_finite_normalized = (
-        labels_arr_finite - np.nanmin(labels_arr_finite)) / (
-            np.nanmax(labels_arr_finite) - np.nanmin(labels_arr_finite))
+        labels_arr_finite - np.nanmin(labels_arr_finite)
+    ) / (np.nanmax(labels_arr_finite) - np.nanmin(labels_arr_finite))
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 
@@ -507,7 +512,8 @@ class DetectOutliers(OutputWarper):
     min_zscore: number of stds below the median for variance estimation.
     max_zscore: number of stds above the median for outlier detection.
   """
-  min_zscore: float = attr.field(kw_only=True, default=6.)
+
+  min_zscore: float = attr.field(kw_only=True, default=6.0)
   max_zscore: float = attr.field(kw_only=True, default=None)
 
   def _estimate_variance(self, labels_arr: types.Array) -> float:
@@ -551,15 +557,15 @@ class DetectOutliers(OutputWarper):
         labels_min_hallucinated = 0
         labels_max -= labels_min_hallucinated
         labels_median -= labels_min_hallucinated
-      # eq. 12 in the paper mentioned above.
-      return 1 / (num_points - 1) * (
-          labels_min_hallucinated**2 + labels_median**2 + labels_max**2 +
-          ((num_points - 3) / 2) *
-          (((labels_min_hallucinated + labels_median)**2 +
-            (labels_max + labels_median)**2) / 4) - num_points *
-          ((labels_min_hallucinated + 2 * labels_median + labels_max) / 4 +
-           (labels_min_hallucinated - 2 * labels_median + labels_max) /
-           (4 * num_points))**2)
+
+      # Eq. 12 in the paper mentioned above.
+      a, m, b = labels_min_hallucinated, labels_median, labels_max
+      n = num_points
+
+      out = a**2 + m**2 + b**2
+      out += ((n - 3) / 2) * ((a + m) ** 2 + (b + m) ** 2) / 4
+      out -= n * ((a + 2 * m + b) / 4 + (a - 2 * m + b) / (4 * n)) ** 2
+      return out / (n - 1)
 
   def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
@@ -615,20 +621,23 @@ class TransformToGaussian(OutputWarper):
     else:
       base_for_transform = labels_arr_flattened
     base_for_transform_normalized = (
-        base_for_transform - np.min(base_for_transform)) / (
-            np.max(base_for_transform) - np.min(base_for_transform))
+        base_for_transform - np.min(base_for_transform)
+    ) / (np.max(base_for_transform) - np.min(base_for_transform))
     clip = tfp.bijectors.SoftClip(
         low=np.array(self.softclip_low, dtype=labels_arr.dtype),
         high=np.array(self.softclip_high, dtype=labels_arr.dtype),
         hinge_softness=self.softclip_hinge_softness,
     )
     base_for_transform_normalized_clipped = np.array(
-        clip.forward(base_for_transform_normalized))
-    normal_dist = tfp.distributions.Normal(0., 1)
+        clip.forward(base_for_transform_normalized)
+    )
+    normal_dist = tfp.distributions.Normal(0.0, 1)
     labels_arr_transformed = normal_dist.quantile(
-        base_for_transform_normalized_clipped)
-    labels_arr_transformed = np.reshape(labels_arr_transformed,
-                                        labels_arr.shape)
+        base_for_transform_normalized_clipped
+    )
+    labels_arr_transformed = np.reshape(
+        labels_arr_transformed, labels_arr.shape
+    )
     return labels_arr_transformed
 
   def unwarp(self, labels_arr: types.Array) -> types.Array:
