@@ -158,12 +158,15 @@ class EXP3UniformEnsembleDesign(EnsembleDesign):
     return self._history
 
 
+# Adaptive metalearner that minimizes adaptive regret by ensembling over history
+# lengths. See https://arxiv.org/abs/2401.09278 for more details on adaptive
+# regret and algorithmic details on time horizon ensembling.
 @attrs.define(kw_only=True)
 class AdaptiveEnsembleDesign(EnsembleDesign):
   """An EnsembleStrategy that minimizes adaptive regret."""
 
   indices: list[int] = attrs.field()
-  # List of max lengths
+  # List of max history lengths.
   max_lengths: list[int] = attrs.field()
   # Base stepsize and meta_stepsize should theoretically be 1/sqrt(n) where
   # n = # of indices (or underlying arms) when using a reward estimator.
@@ -171,6 +174,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
       default=1.0,
       validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
   )
+  # Stepsize of the meta-learner.
   meta_stepsize: float = attrs.field(
       default=1.0,
       validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
@@ -179,6 +183,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
       default=1.0,
       validator=[attrs.validators.instance_of(float), attrs.validators.gt(0)],
   )
+  # Whether to use naive sampling for loss estimate.
   naive_sampling: bool = attrs.field(default=False)
 
   def __attrs_post_init__(self):
