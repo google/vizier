@@ -99,7 +99,7 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
 
   @property
   def warper(self) -> OutputWarper:
-    return output_warpers.create_default_warper(infeasible_warp=True)
+    return output_warpers.create_default_warper()
 
   @property
   def always_maps_to_finite(self) -> bool:
@@ -126,9 +126,25 @@ class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
   @parameterized.named_parameters([
       dict(
           testcase_name='case1',
-          unwarped=np.array([[1.], [1.], [5.], [-1e80], [np.nan], [-np.inf]]),
-          expected=np.array([[-0.14118114], [-0.14118114], [0.5], [-0.5], [-2.],
-                             [-2.]]),
+          unwarped=np.array(
+              [[1.0], [1.0], [5.0], [-1e80], [np.nan], [-np.inf]]
+          ),
+          expected=np.array([
+              [0.61848423],
+              [0.61848423],
+              [1.25966537],
+              [0.25966537],
+              [-1.24033463],
+              [-1.24033463],
+          ]),
+      ),
+      dict(
+          testcase_name='case_all_NaNs',
+          unwarped=np.array([[np.nan], [np.nan]]),
+          expected=np.array([
+              [-1.0],
+              [-1.0],
+          ]),
       ),
   ])
   def test_known_arrays(self, unwarped: np.ndarray, expected: np.ndarray):

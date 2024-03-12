@@ -186,7 +186,7 @@ def create_default_warper(
     *,
     half_rank_warp: bool = True,
     log_warp: bool = True,
-    infeasible_warp: bool = False,
+    infeasible_warp: bool = True,
 ) -> OutputWarperPipeline:
   """Creates an output warper pipeline.
 
@@ -417,18 +417,73 @@ class LogWarperComponent(OutputWarper):
 
 @attr.define
 class InfeasibleWarperComponent(OutputWarper):
-  """Warps the infeasible/nan value to feasible/finite values."""
+  """Warps the infeasible/nan value to feasible/finite values.
+
+  This OutputWarper handles a mix of feasible and infeasible (NaN) labels, and
+  returns feasible labels.
+
+  Typically, it's the last element in an `OutputWarperPipeline`.
+  What it does:
+    * warp returns a feasible value.
+    * If we have a mix of feasible values and infeasible values, warp() applied
+      to any of the feasible values will be larger than warp() applied to an
+      infeasible value.
+    * The expected value of warp() over the set of feasible values will be zero.
+
+  Recall that we typically use this class with a Gaussian Process regressor
+  which has a prior mean of zero, and that the GP regressor's prediction
+  approaches zero when it's far away from any support points. So, a zero output
+  should correspond to the overall average of all label values.
+
+  In other words, the expected value of warp() should be zero, when feasible and
+  infeasible values are chosen with frequencies estimated from the set of all
+  available values. I.e.
+  0 = p_feasible * Expected(v_feasible) + (1 - p_feasible) * v_unfeasible,
+  where p_feasible is the probability of getting a feasible value,
+  Expected(v_feasible) is the expected value of warp() over feasible values,
+  and v_unfeasible is the value we assign to infeasible values.
+
+  This means that when we have mostly feasible values, we want
+  Expected(v_feasible) near zero; and when we have mostly infeasible values,
+  we want Expected(v_feasible) to be positive.
+
+  This is entirely reasonable: when feasible values are rare, they are
+  individually more surprising and should affect the regressor's model
+  more, and vice versa.  Or, equivalently, when feasible values are very
+  rare, and when the GP regressor is evaluated far away from any support
+  points, the GP regressor will predict a value (i.e. zero) that should be
+  nearly equal to v_infeasible.
+  """
+
+  _shift: float = attr.field(default=np.nan)
 
   def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
     warped_bad_value = np.nanmin(labels_arr) - (0.5 * labels_range + 1)
+    num_feasible = labels_arr.size - np.isnan(labels_arr).sum()
+    # With the data we have available, we can estimate the relative frequency
+    # of feasible (p_feasible) and unfeasible points (p_unfeasible).
+    # We use the Jeffrey's version of Laplace Smoothing: see
+    # https://en.wikipedia.org/wiki/Jeffreys_prior#N-sided_die_with_biased_probabilities
+    # and
+    # https://en.wikipedia.org/wiki/Additive_smoothing. The basic logic being
+    # that even though we may have no observations of (e.g.) a feasible point,
+    # we believe that feasible points are possible, and so we are reluctant to
+    # assign them a zero probability.
+    p_feasible = (0.5 + num_feasible) / (1 + labels_arr.size)
+    self._shift = -np.nanmean(labels_arr) * p_feasible - warped_bad_value * (
+        1 - p_feasible
+    )
     labels_arr[np.isnan(labels_arr)] = warped_bad_value
+    labels_arr[~np.isnan(labels_arr)] += self._shift
     return labels_arr[:, np.newaxis]
 
   def unwarp(self, labels_arr: types.Array) -> types.Array:
-    return labels_arr
+    if np.isnan(self._shift):
+      raise ValueError('warp() needs to be called before unwarp() is called.')
+    return labels_arr - self._shift
 
 
 class ZScoreLabels(OutputWarper):
