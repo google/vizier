@@ -51,7 +51,7 @@ def _hartmann6d(x: np.ndarray) -> float:
   return y
 
 
-class Hartmann6D(experimenter.Experimenter):
+class Hartmann6DExperimenter(experimenter.Experimenter):
   """6D minimization function. See https://www.sfu.ca/~ssurjano/hart6.html."""
 
   def __init__(self):
@@ -100,7 +100,7 @@ def _hartmann3d(x: np.ndarray) -> float:
   return y
 
 
-class Hartmann3D(experimenter.Experimenter):
+class Hartmann3DExperimenter(experimenter.Experimenter):
   """3D minimization function. See https://www.sfu.ca/~ssurjano/hart3.html."""
 
   def __init__(self):

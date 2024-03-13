@@ -22,7 +22,7 @@ from vizier._src.benchmarks.testing import experimenter_testing
 from absl.testing import absltest
 
 
-class BraninTest(absltest.TestCase):
+class Branin2DExperimenterTest(absltest.TestCase):
 
   def test_branin_impl(self):
     np.testing.assert_allclose(
@@ -35,7 +35,7 @@ class BraninTest(absltest.TestCase):
 
   def test_experimenter_argmin(self):
     trial = vz.Trial(parameters={'x1': -np.pi, 'x2': 12.275})
-    branin.Branin2D().evaluate([trial])
+    branin.Branin2DExperimenter().evaluate([trial])
     self.assertAlmostEqual(
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         0.397887,
@@ -44,7 +44,7 @@ class BraninTest(absltest.TestCase):
 
   def test_experimenter(self):
     experimenter_testing.assert_evaluates_random_suggestions(
-        self, branin.Branin2D()
+        self, branin.Branin2DExperimenter()
     )
 
 

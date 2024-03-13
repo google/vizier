@@ -48,7 +48,7 @@ def _branin(x: np.ndarray) -> float:
   return y
 
 
-class Branin2D(experimenter.Experimenter):
+class Branin2DExperimenter(experimenter.Experimenter):
   """2D minimization function. See https://www.sfu.ca/~ssurjano/branin.html."""
 
   def __init__(self):

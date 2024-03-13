@@ -39,3 +39,6 @@ from vizier._src.benchmarks.experimenters.sparse_experimenter import SparseExper
 from vizier._src.benchmarks.experimenters.surrogate_experimenter import PredictorExperimenter
 from vizier._src.benchmarks.experimenters.switch_experimenter import SwitchExperimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier._src.benchmarks.experimenters.synthetic.branin import Branin2DExperimenter
+from vizier._src.benchmarks.experimenters.synthetic.hartmann import Hartmann3DExperimenter
+from vizier._src.benchmarks.experimenters.synthetic.hartmann import Hartmann6DExperimenter
