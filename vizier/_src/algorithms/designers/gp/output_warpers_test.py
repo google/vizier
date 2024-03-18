@@ -16,11 +16,11 @@ from __future__ import annotations
 
 """Tests for outputwarpers."""
 
+from jax import numpy as jnp
 import numpy as np
 import scipy
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.algorithms.designers.gp import output_warpers
-
 from absl.testing import absltest
 from absl.testing import parameterized
 
@@ -42,23 +42,27 @@ class _OutputWarperTestCase(absltest.TestCase):
     return False
 
   def labels_with_outliers(self):
-    return np.array([[1.], [1.], [5.], [-1e80], [np.nan], [-np.inf]])
+    return np.array([[1.0], [1.0], [5.0], [-1e80], [np.nan], [-np.inf]])
 
   def test_always_maps_to_finite(self):
     if not self.always_maps_to_finite:
       self.skipTest('This class does not map every value to a finite value.')
 
-    labels = np.array([[1.], [1.], [5.], [-1e80], [np.nan], [-np.inf]])
+    labels = np.array([[1.0], [1.0], [5.0], [-1e80], [np.nan], [-np.inf]])
     labels_warped = self.warper.warp(labels)
     np.testing.assert_allclose(
-        np.isfinite(labels_warped), True, err_msg=f'warped: {labels_warped}')
+        np.isfinite(labels_warped), True, err_msg=f'warped: {labels_warped}'
+    )
 
   def test_input_is_not_mutated(self):
-    labels_input = np.array([[1.], [1.], [5.], [10.]])
+    labels_input = np.array([[1.0], [1.0], [5.0], [10.0]])
     _ = self.warper.warp(labels_input)
     self.assertTrue(
-        (labels_input.flatten() == np.array([[1.], [1.], [5.],
-                                             [10.]]).flatten()).all())
+        (
+            labels_input.flatten()
+            == np.array([[1.0], [1.0], [5.0], [10.0]]).flatten()
+        ).all()
+    )
 
   def test_shape_is_preserved(self):
     labels = self.labels_with_outliers()
@@ -72,8 +76,8 @@ class _OutputWarperTestCase(absltest.TestCase):
     np.testing.assert_array_equal(
         scipy.stats.rankdata(labels[finite_indices]),
         scipy.stats.rankdata(labels_warped[finite_indices]),
-        err_msg=(f'Unwarped: {labels}\n'
-                 f'Warped: {labels_warped}'))
+        err_msg=f'Unwarped: {labels}\nWarped: {labels_warped}',
+    )
 
   def test_preserve_rank_if_no_outliers(self):
     labels = np.array([[1.0], [1.0], [5.0], [-1], [-4], [np.nan], [np.nan]])
@@ -82,8 +86,8 @@ class _OutputWarperTestCase(absltest.TestCase):
     np.testing.assert_array_equal(
         scipy.stats.rankdata(labels[finite_indices]),
         scipy.stats.rankdata(labels_warped[finite_indices]),
-        err_msg=(f'Unwarped: {labels}\n'
-                 f'Warped: {labels_warped}'))
+        err_msg=f'Unwarped: {labels}\nWarped: {labels_warped}',
+    )
 
   def test_finite_maps_to_finite(self):
     labels = self.labels_with_outliers()
@@ -92,7 +96,8 @@ class _OutputWarperTestCase(absltest.TestCase):
     np.testing.assert_allclose(
         np.isfinite(labels_warped[finite_indices]),
         True,
-        err_msg=f'warped: {labels_warped}')
+        err_msg=f'warped: {labels_warped}',
+    )
 
 
 class DefaultOutputWarperTest(_OutputWarperTestCase, parameterized.TestCase):
@@ -471,7 +476,9 @@ class InfeasibleWarperTest(parameterized.TestCase):
 
   def test_warper_removes_nans(self):
     warper_infeasible = output_warpers.InfeasibleWarperComponent()
-    labels = np.array([[-200.], [np.nan], [-1000.], [np.nan], [1.], [2.], [3.]])
+    labels = np.array(
+        [[-200.0], [np.nan], [-1000.0], [np.nan], [1.0], [2.0], [3.0]]
+    )
 
     labels_warped_infeasible = warper_infeasible.warp(labels)
     self.assertEqual(np.isnan(labels_warped_infeasible).sum(), 0)
@@ -516,19 +523,26 @@ class LinearOutputWarperTest(parameterized.TestCase):
   """Tests for LinearOutputWarperTest."""
 
   @parameterized.parameters(
-      {'low': -2.0, 'high': 2.0},
-      {'low': -5.0, 'high': 7.0},
-      {'low': 0.0, 'high': 1.0},
-      {'low': 8.0, 'high': 10.0},
-      {'low': -10.0, 'high': -2.0},
+      {'low': -2.0, 'high': 2.0, 'dtype': 'numpy'},
+      {'low': -5.0, 'high': 7.0, 'dtype': 'numpy'},
+      {'low': 0.0, 'high': 1.0, 'dtype': 'jax'},
+      {'low': 8.0, 'high': 10.0, 'dtype': 'jax'},
+      {'low': -10.0, 'high': -2.0, 'dtype': 'jax'},
   )
-  def test_warp_unwarp_and_range(self, low, high):
+  def test_warp_unwarp_and_range(self, low, high, dtype):
     num_samples = 50
     num_metrics = 3
     y = np.random.randn(num_samples, num_metrics)
-    output_warper = output_warpers.LinearOutputWarper(low, high)
-    output_warper.fit(y)
-    np.testing.assert_allclose(output_warper.unwarp(output_warper.warp(y)), y)
+    if dtype == 'jax':
+      y = jnp.asarray(y, dtype=np.float64)
+    output_warper = output_warpers.LinearOutputWarper.from_obs(
+        y_obs=y, low_bound=low, high_bound=high
+    )
+    np.testing.assert_allclose(
+        output_warper.unwarp(output_warper.warp(y)),
+        y,
+        atol=1e-05,
+    )
     np.testing.assert_allclose(
         np.min(output_warper.warp(y), axis=0),
         np.array([low] * num_metrics),

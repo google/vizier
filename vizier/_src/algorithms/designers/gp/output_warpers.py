@@ -20,9 +20,9 @@ import abc
 import copy
 from typing import Callable, Optional, Sequence
 
-from absl import logging
 import attr
 import attrs
+import equinox
 import jax
 from jax import numpy as jnp
 import numpy as np
@@ -701,79 +701,62 @@ class TransformToGaussian(OutputWarper):
     )
 
 
-@attr.define
-class LinearOutputWarper:
+class LinearOutputWarper(equinox.Module):
   """Linear output warper.
 
   The LinearOutputWarper applies affine transformation to transform the labels
-  to fall between low_bound and high_bound.
+  to [low_bound, high_bound].
+
+  Note: low_bound, high_bound are scalars.
   """
 
-  low_bound: float = -2.0
-  high_bound: float = 2.0
-  _min_value: Optional[types.Array] = None
-  _max_value: Optional[types.Array] = None
-  _bijector: tfb.Bijector = attr.field(init=False)
-  _slope_bijector: tfb.Bijector = attr.field(init=False)
+  low_bound: types.Array  # shape: ()
+  high_bound: types.Array  # shape: ()
+  min_value: types.Array  # shape: (num_metrics,)
+  max_value: types.Array  # shape: (num_metrics,)
 
-  def __attrs_post_init__(self):
-    if self.low_bound >= self.high_bound:
-      raise ValueError('low_bound needs to be smaller than high_bound.')
-
-  def _validate(self, y: types.Array) -> None:
-    if self._min_value is None or self._max_value is None:
-      raise ValueError(
-          'Need to set min_value and max_value. Make sure to call `fit` first.'
-      )
-    if y.shape[-1] != self._min_value.shape[-1]:
-      raise ValueError(
-          f'The input array last dimension {y.shape[-1]} is not the same as'
-          f' expected {self._min_value.shape[-1]}. Input shape: {y.shape}.'
-      )
-
-  def fit(self, y: types.Array) -> None:
-    """Find min/max for each metric to be used in the linear transformation."""
+  @classmethod
+  def from_obs(
+      cls, y_obs: types.Array, low_bound: float = -2.0, high_bound: float = 2.0
+  ) -> 'LinearOutputWarper':
     # y shape: (num_samples, num_metrics)
-    logging.info(
-        'LinearOutputWarping fit is called with shape: %s', str(y.shape)
+    min_value = jnp.min(y_obs, axis=0)
+    max_value = jnp.max(y_obs, axis=0)
+
+    return cls(
+        low_bound=jnp.asarray(low_bound, dtype=jnp.float64),
+        high_bound=jnp.asarray(high_bound, dtype=jnp.float64),
+        min_value=min_value,
+        max_value=max_value,
     )
-    if len(y.shape) != 2:
-      raise ValueError('shape length is not 2!')
-    if np.any(np.isnan(y)):
-      raise ValueError('labels can not have any NaN entry.')
-    self._min_value = jnp.min(y, axis=0)
-    self._max_value = jnp.max(y, axis=0)
-    self.low_bound = jnp.array(self.low_bound)  # pytype: disable=annotation-type-mismatch  # jnp-type
-    self.high_bound = jnp.array(self.high_bound)  # pytype: disable=annotation-type-mismatch  # jnp-type
+
+  @property
+  def _bijector(self) -> tfb.Bijector:
     # The linear transformation is:
-    # norm_y = (y - self._min_value) / (self._max_value - self._min_value)
-    # return norm_y * (self.high_bound - self.low_bound) + self.low_bound
-    # Slope-only bijector used to transform the standard deviation.
-    self._slope_bijector = tfb.Scale(
-        (self.high_bound - self.low_bound) / (self._max_value - self._min_value)
-    )
-    self._bijector = tfb.Chain([
+    # norm_y = (y - min_value) / (max_value - min_value)
+    # y --> norm_y * (self.high_bound - self.low_bound) + self.low_bound
+    return tfb.Chain([
         tfb.Shift(self.low_bound),
         self._slope_bijector,
-        tfb.Shift(-self._min_value),
+        tfb.Shift(-self.min_value),
     ])
+
+  @property
+  def _slope_bijector(self) -> tfb.Bijector:
+    return tfb.Scale(
+        (self.high_bound - self.low_bound) / (self.max_value - self.min_value),
+    )
 
   def warp(self, y: types.Array) -> jax.Array:
     """Warp the y values into [low_bound, high_bound]."""
     # y shape: (num_samples, num_metrics)
-    self._validate(y)
     return self._bijector.forward(y)
 
   def unwarp(self, y: types.Array) -> jax.Array:
     """Un-warp the y values into [min_value, max_value]."""
     # y shape: (num_samples, num_metrics)
-    self._validate(y)
     return self._bijector.inverse(y)
 
   def unwarp_stddev(self, warped_stddev: types.Array) -> jax.Array:
     """Un-warp the standard deviation."""
     return self._slope_bijector.inverse(warped_stddev)
-
-  @property
-  def bijector(self) -> tfb.Bijector:
-    return self._bijector
