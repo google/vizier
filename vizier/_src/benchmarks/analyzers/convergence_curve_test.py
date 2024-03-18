@@ -699,6 +699,9 @@ class WinRateComparatorTest(absltest.TestCase):
     median_score = convergence.WinRateComparator(
         baseline_curve=self._baseline_curve, compared_curve=self._better_curves
     ).curve()
+    reverse_median_score = convergence.WinRateComparator(
+        baseline_curve=self._baseline_curve, compared_curve=self._worse_curves
+    ).curve()
     higher_quantile_score = convergence.WinRateComparator(
         baseline_curve=self._baseline_curve,
         compared_curve=self._better_curves,
@@ -709,6 +712,7 @@ class WinRateComparatorTest(absltest.TestCase):
     self.assertEqual(higher_quantile_score.ys.shape, (1, baseline_length))
     # Better curves should have positive efficiency.
     self.assertTrue((median_score.ys >= 0.0).all())
+    self.assertTrue((reverse_median_score.ys <= 0.0).all())
     # Higher quantile means better efficiency which means more positive scores.
     self.assertTrue((higher_quantile_score.ys >= median_score.ys).all())
 

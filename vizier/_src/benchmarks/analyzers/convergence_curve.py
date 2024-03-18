@@ -942,7 +942,7 @@ class WinRateComparator(ConvergenceComparator):
   """Comparator method based on simple win rate comparison."""
 
   def score(self) -> float:
-    return np.nanmedian(self.curve().ys)
+    return np.nanmean(self.curve().ys)
 
   def curve(self) -> ConvergenceCurve:
     """Computes the curve that represents the average win rate."""
@@ -953,13 +953,16 @@ class WinRateComparator(ConvergenceComparator):
 
     # Compares all pairs of compared to baseline curve.
     all_comparisons = np.apply_along_axis(
-        lambda base: np.mean(compared_ys > base, axis=0),
+        lambda base: np.mean(compared_ys > base, axis=0)
+        + 0.5 * np.mean(base == compared_ys, axis=0),
         axis=1,
         arr=baseline_ys,
     )
+    # Note that 0.5 is the natural average, so subtracting it to make
+    # positive/negative score imply better/worse comparison.
     return ConvergenceCurve(
         xs=self._baseline_curve.xs,
-        ys=np.mean(all_comparisons, axis=0, keepdims=True),
+        ys=np.mean(all_comparisons, axis=0, keepdims=True) - 0.5,
     )
 
 
