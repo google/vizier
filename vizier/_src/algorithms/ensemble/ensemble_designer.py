@@ -205,7 +205,22 @@ class EnsembleDesigner(vza.Designer):
         )
         continue
 
-      observation = (list(self._designers.keys()).index(designer_key), reward)
+      all_keys = list(self._designers.keys())
+      if designer_key not in all_keys:
+        logging.warning(
+            'Trial does not contain designer-specific metadata for designer key'
+            ' %s in all designer keys (skipping update as default): \n %s',
+            designer_key,
+            all_keys,
+        )
+        if self._use_separate_update:
+          raise ValueError(
+              'Separate update algorithms require designer-specific metadata'
+              f'{designer_key} in all designer keys: \n {all_keys}'
+          )
+        continue
+
+      observation = (all_keys.index(designer_key), reward)
       logging.info('Updating with expert, rewards: %s', observation)
       self._strategy.update(observation)
 
