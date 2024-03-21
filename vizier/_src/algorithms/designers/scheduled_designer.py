@@ -138,6 +138,10 @@ class ScheduledDesigner(vza.Designer):
     self._designer = self._designer_factory(self._problem)
     self._update_designer_state()
 
+  @property
+  def scheduled_params(self) -> dict[str, ScheduledParam]:
+    return self._scheduled_params
+
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:

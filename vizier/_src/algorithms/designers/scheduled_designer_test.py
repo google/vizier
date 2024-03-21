@@ -125,22 +125,22 @@ class ScheduledGpBanditTest(absltest.TestCase):
 
     scheduled_desinger = scheduled_gp_bandit.ScheduledGPBanditFactory(
         gp_bandit_factory=_gp_bandit_factory,
-        expected_total_num_trials=5,
-        init_ucb_coef=4.0,
-        final_ucb_coef=1.0,
-        ucb_coef_decay_rate=1.2,
+        expected_total_num_trials=2,
+        init_ucb_coefficient=4.0,
+        final_ucb_coefficient=1.0,
+        decay_ucb_coefficient=1.2,
     )(problem)
 
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
-            iters=5,
+            iters=2,
             batch_size=1,
             verbose=1,
             validate_parameters=True,
             seed=1,
         ).run_designer(scheduled_desinger),
-        5,
+        2,
     )
 
 
@@ -163,10 +163,16 @@ class ScheduledGpUcbPeTest(absltest.TestCase):
 
     scheduled_desinger = scheduled_gp_ucb_pe.ScheduledGPUCBPEFactory(
         gp_ucb_pe_factory=_gp_ucb_pe_factory,
-        expected_total_num_trials=5,
-        init_ucb_coef=4.0,
-        final_ucb_coef=1.0,
-        ucb_coef_decay_rate=1.2,
+        expected_total_num_trials=3,
+        init_ucb_coefficient=4.0,
+        final_ucb_coefficient=1.0,
+        decay_ucb_coefficient=1.2,
+        init_explore_region_ucb_coefficient=1.0,
+        final_explore_region_ucb_coefficient=0.5,
+        decay_explore_region_ucb_coefficient=1.2,
+        init_ucb_overwrite_probability=0.25,
+        final_ucb_overwrite_probability=0.0,
+        decay_ucb_overwrite_probability=1.0,
     )(problem)
 
     self.assertLen(

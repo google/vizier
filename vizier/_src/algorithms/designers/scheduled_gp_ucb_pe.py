@@ -25,7 +25,6 @@ from vizier._src.algorithms.designers import gp_ucb_pe
 from vizier._src.algorithms.designers import scheduled_designer
 
 
-# TODO: Add scheduling to more params.
 @attrs.define(kw_only=True)
 class ScheduledGPUCBPEFactory:
   """Scheduled GP-UCB-PE factory."""
@@ -33,11 +32,21 @@ class ScheduledGPUCBPEFactory:
   _gp_ucb_pe_factory: Callable[
       [vz.ProblemStatement], gp_ucb_pe.VizierGPUCBPEBandit
   ]
-  _init_ucb_coef: float
-  _final_ucb_coef: float
-  _ucb_coef_decay_rate: float
   _expected_total_num_trials: int
-  _ucb_coef_param_name: str = attrs.field(default='ucb_coef', init=False)
+  # ucb_coefficient
+  _init_ucb_coefficient: float
+  _final_ucb_coefficient: float
+  _decay_ucb_coefficient: float
+
+  # explore_region_ucb_coefficient
+  _init_explore_region_ucb_coefficient: float
+  _final_explore_region_ucb_coefficient: float
+  _decay_explore_region_ucb_coefficient: float
+
+  # ucb_overwrite_probability
+  _init_ucb_overwrite_probability: float
+  _final_ucb_overwrite_probability: float
+  _decay_ucb_overwrite_probability: float
 
   def __call__(
       self,
@@ -48,22 +57,50 @@ class ScheduledGPUCBPEFactory:
     def _gp_ucb_pe_state_updater(designer, params):
       # Create a new copy of the config and replace the ucb coefficient value.
       updated_config = dc.replace(
-          designer._config, ucb_coefficient=params[self._ucb_coef_param_name]  # pylint: disable=protected-access
+          designer._config,  # pylint: disable=protected-access
+          ucb_coefficient=params['ucb_coefficient'],
+          explore_region_ucb_coefficient=params[
+              'explore_region_ucb_coefficient'
+          ],
+          ucb_overwrite_probability=params['ucb_overwrite_probability'],
       )
       # Update the designer config. As the GP_UCB_PE state is recomputed every
       # suggest() call based on the config, this effectively updates the state.
+      # TODO: Instead of changing internal state, use public method.
       designer._config = updated_config  # pylint: disable=protected-access
 
-    ucb_coef_param = scheduled_designer.ExponentialScheduledParam(
-        init_value=self._init_ucb_coef,
-        final_value=self._final_ucb_coef,
-        rate=self._ucb_coef_decay_rate,
+    ucb_coefficient_param = scheduled_designer.ExponentialScheduledParam(
+        init_value=self._init_ucb_coefficient,
+        final_value=self._final_ucb_coefficient,
+        rate=self._decay_ucb_coefficient,
     )
+
+    explore_region_ucb_coefficient_param = (
+        scheduled_designer.ExponentialScheduledParam(
+            init_value=self._init_explore_region_ucb_coefficient,
+            final_value=self._final_explore_region_ucb_coefficient,
+            rate=self._decay_explore_region_ucb_coefficient,
+        )
+    )
+
+    ucb_overwrite_probability_param = (
+        scheduled_designer.ExponentialScheduledParam(
+            init_value=self._init_ucb_overwrite_probability,
+            final_value=self._final_ucb_overwrite_probability,
+            rate=self._decay_ucb_overwrite_probability,
+        )
+    )
+
+    scheduled_params = {
+        'ucb_coefficient': ucb_coefficient_param,
+        'explore_region_ucb_coefficient': explore_region_ucb_coefficient_param,
+        'ucb_overwrite_probability': ucb_overwrite_probability_param,
+    }
 
     return scheduled_designer.ScheduledDesigner(
         problem,
         designer_factory=self._gp_ucb_pe_factory,
         designer_state_updater=_gp_ucb_pe_state_updater,
-        scheduled_params={self._ucb_coef_param_name: ucb_coef_param},
+        scheduled_params=scheduled_params,
         expected_total_num_trials=self._expected_total_num_trials,
     )

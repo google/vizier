@@ -30,11 +30,10 @@ class ScheduledGPBanditFactory:
   """Scheduled GP-Bandit factory."""
 
   _gp_bandit_factory: Callable[[vz.ProblemStatement], gp_bandit.VizierGPBandit]
-  _init_ucb_coef: float
-  _final_ucb_coef: float
-  _ucb_coef_decay_rate: float
+  _init_ucb_coefficient: float
+  _final_ucb_coefficient: float
+  _decay_ucb_coefficient: float
   _expected_total_num_trials: int
-  _ucb_coef_param_name: str = attrs.field(default='ucb_coef', init=False)
 
   def __call__(
       self,
@@ -45,20 +44,20 @@ class ScheduledGPBanditFactory:
     def _gp_bandit_state_updater(designer, params):
       designer._scoring_function_factory = (  # pylint: disable=protected-access
           acquisitions.bayesian_scoring_function_factory(
-              lambda _: acquisitions.UCB(params[self._ucb_coef_param_name])
+              lambda _: acquisitions.UCB(params['ucb_coefficient'])
           )
       )
 
     ucb_coef_param = scheduled_designer.ExponentialScheduledParam(
-        init_value=self._init_ucb_coef,
-        final_value=self._final_ucb_coef,
-        rate=self._ucb_coef_decay_rate,
+        init_value=self._init_ucb_coefficient,
+        final_value=self._final_ucb_coefficient,
+        rate=self._decay_ucb_coefficient,
     )
 
     return scheduled_designer.ScheduledDesigner(
         problem,
         designer_factory=self._gp_bandit_factory,
         designer_state_updater=_gp_bandit_state_updater,
-        scheduled_params={self._ucb_coef_param_name: ucb_coef_param},
+        scheduled_params={'ucb_coefficient': ucb_coef_param},
         expected_total_num_trials=self._expected_total_num_trials,
     )
