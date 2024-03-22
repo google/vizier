@@ -644,7 +644,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       jax.clear_caches()
 
     self._rng, rng = jax.random.split(self._rng, 2)
-    begin = datetime.datetime.now()
+    next_suggestion_start_time = datetime.datetime.now()
     data = self._trials_to_data(self._all_completed_trials)
     model = self._build_gp_model_and_optimize_parameters(data, rng)
     predictive = sp.UniformEnsemblePredictive(
@@ -806,7 +806,7 @@ class VizierGPUCBPEBandit(vza.Designer):
           'params': f'{model.params}',
       })
       metadata.ns('timing').update(
-          {'time': f'{datetime.datetime.now() - begin}'}
+          {'time': f'{datetime.datetime.now() - next_suggestion_start_time}'}
       )
       suggestions.append(
           vz.TrialSuggestion(
@@ -814,5 +814,6 @@ class VizierGPUCBPEBandit(vza.Designer):
           )
       )
       active_trials.append(suggestions[-1].to_trial())
+      next_suggestion_start_time = datetime.datetime.now()
 
     return suggestions
