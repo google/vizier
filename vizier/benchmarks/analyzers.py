@@ -29,8 +29,8 @@ from vizier._src.benchmarks.analyzers.convergence_curve import PercentageBetterC
 from vizier._src.benchmarks.analyzers.convergence_curve import PercentageBetterConvergenceCurveComparatorFactory
 from vizier._src.benchmarks.analyzers.convergence_curve import RestartingCurveConverter
 from vizier._src.benchmarks.analyzers.convergence_curve import StatefulCurveConverter
-from vizier._src.benchmarks.analyzers.convergence_curve import WinRateComparator
-from vizier._src.benchmarks.analyzers.convergence_curve import WinRateComparatorFactory
+from vizier._src.benchmarks.analyzers.convergence_curve import WinRateConvergenceCurveComparator
+from vizier._src.benchmarks.analyzers.convergence_curve import WinRateConvergenceCurveComparatorFactory
 from vizier._src.benchmarks.analyzers.plot_utils import plot_from_records
 from vizier._src.benchmarks.analyzers.plot_utils import plot_mean_convergence
 from vizier._src.benchmarks.analyzers.plot_utils import plot_median_convergence

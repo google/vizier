@@ -671,10 +671,13 @@ class RestartingCurveConverterTest(absltest.TestCase):
     np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=0.5)
 
 
-class WinRateComparatorTest(absltest.TestCase):
+class WinRateConvergenceCurveComparatorAllComparisonsModeTest(
+    absltest.TestCase
+):
+  """Test the WinRateConvergenceCurveComparator with "all comparisons" mode."""
 
   def setUp(self):
-    super(WinRateComparatorTest, self).setUp()
+    super(WinRateConvergenceCurveComparatorAllComparisonsModeTest, self).setUp()
     xs = np.array(range(0, 20))
     xs_t = xs.reshape(1, len(xs))
     self._baseline_curve = convergence.ConvergenceCurve(
@@ -696,13 +699,13 @@ class WinRateComparatorTest(absltest.TestCase):
 
   def test_higher_quantile_curve(self):
     baseline_length = len(self._baseline_curve.xs)
-    median_score = convergence.WinRateComparator(
+    median_score = convergence.WinRateConvergenceCurveComparator(
         baseline_curve=self._baseline_curve, compared_curve=self._better_curves
     ).curve()
-    reverse_median_score = convergence.WinRateComparator(
+    reverse_median_score = convergence.WinRateConvergenceCurveComparator(
         baseline_curve=self._baseline_curve, compared_curve=self._worse_curves
     ).curve()
-    higher_quantile_score = convergence.WinRateComparator(
+    higher_quantile_score = convergence.WinRateConvergenceCurveComparator(
         baseline_curve=self._baseline_curve,
         compared_curve=self._better_curves,
         compared_quantile=0.9,
@@ -719,11 +722,11 @@ class WinRateComparatorTest(absltest.TestCase):
   def test_get_winrate_score(self):
     # Higher compared quantile should increase score. Higher baseline
     # quantile should decrease score.
-    median_score = convergence.WinRateComparator(
+    median_score = convergence.WinRateConvergenceCurveComparator(
         baseline_curve=self._baseline_curve, compared_curve=self._better_curves
     ).score()
     self.assertGreaterEqual(
-        convergence.WinRateComparator(
+        convergence.WinRateConvergenceCurveComparator(
             baseline_curve=self._baseline_curve,
             compared_curve=self._better_curves,
             compared_quantile=0.9,
@@ -731,7 +734,7 @@ class WinRateComparatorTest(absltest.TestCase):
         median_score,
     )
     self.assertLessEqual(
-        convergence.WinRateComparator(
+        convergence.WinRateConvergenceCurveComparator(
             baseline_curve=self._baseline_curve,
             compared_curve=self._better_curves,
             baseline_quantile=0.9,
@@ -881,47 +884,29 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
       )
 
 
-class StandardizedWinRateConvergenceComparatorTest(parameterized.TestCase):
+class WinRateConvergenceCurveComparatorQuantilesModeTest(
+    parameterized.TestCase
+):
+  """Tests for WinRateConvergenceCurveComparator with quantiles mode."""
 
   @parameterized.parameters(
       {
-          'ys1': np.array([[11, 12, 20, 50, 100, 300]]),
+          'ys1': np.array([[11, 12, 20]]),
           'ys2': np.array([[1, 2, 10]]),
-          'cutoff': None,
-          'res': 0.0,
+          'res': -0.5,
       },
       {
           'ys1': np.array([[1, 2, 10]]),
-          'ys2': np.array([[11, 12, 20, 50, 100, 300]]),
-          'cutoff': None,
-          'res': 1.0,
+          'ys2': np.array([[11, 12, 20]]),
+          'res': 0.5,
       },
       {
           'ys1': np.array([[1, 4, 8, 10]]),
           'ys2': np.array([[2, 5, 6, 8]]),
-          'cutoff': None,
-          'res': 0.5,
-      },
-      {
-          'ys1': np.array([[1, 4, 8, 10, 12]]),
-          'ys2': np.array([[2, 5, 6, 8, 10]]),
-          'cutoff': 1,
-          'res': 0.25,
-      },
-      {
-          'ys1': np.array([[1, 4, 8, 10, 12]]),
-          'ys2': np.array([[2, 5, 6, 8, 10]]),
-          'cutoff': 3,
           'res': 0.0,
       },
-      {
-          'ys1': np.array([[2, 5, 6, 8, 10]]),
-          'ys2': np.array([[1, 4, 8, 10, 12]]),
-          'cutoff': 3,
-          'res': 1.0,
-      },
   )
-  def test_score_one_curve_above_other(self, ys1, ys2, res, cutoff):
+  def test_score_one_curve_above_other(self, ys1, ys2, res):
     xs1 = np.arange(ys1.shape[1])
     xs2 = np.arange(ys2.shape[1])
     curve1 = convergence.ConvergenceCurve(
@@ -930,8 +915,8 @@ class StandardizedWinRateConvergenceComparatorTest(parameterized.TestCase):
     curve2 = convergence.ConvergenceCurve(
         xs=xs2, ys=ys2, trend=convergence.ConvergenceCurve.YTrend.INCREASING
     )
-    comparator = convergence.StandardizedWinRateConvergenceCurveComparator(
-        curve1, curve2, xs_cutoff=cutoff
+    comparator = convergence.WinRateConvergenceCurveComparator(
+        curve1, curve2, comparison_mode='quantiles'
     )
     self.assertEqual(comparator.score(), res)
 
@@ -970,7 +955,7 @@ class PercentageBetterConvergenceComparatorTest(parameterized.TestCase):
     self.assertEqual(comparator.score(), res)
 
 
-class NormalizedSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
+class OptimalityGapGainComparatorTest(parameterized.TestCase):
 
   @parameterized.parameters(
       {
@@ -1003,11 +988,11 @@ class NormalizedSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
     xs2 = np.arange(ys2.shape[1])
     curve1 = convergence.ConvergenceCurve(xs=xs1, ys=ys1, trend=trend)
     curve2 = convergence.ConvergenceCurve(xs=xs2, ys=ys2, trend=trend)
-    comparator = convergence.NormalizedSimpleRegretComparator(curve1, curve2)
+    comparator = convergence.OptimalityGapGainComparator(curve1, curve2)
     self.assertAlmostEqual(comparator.score(), res, delta=0.0001)
 
 
-class WinRateSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
+class OptimalityGapWinRateComparatorTest(parameterized.TestCase):
 
   @parameterized.parameters(
       {
@@ -1040,7 +1025,7 @@ class WinRateSimpleRegretConvergenceComparatorTest(parameterized.TestCase):
     xs2 = np.arange(ys2.shape[1])
     curve1 = convergence.ConvergenceCurve(xs=xs1, ys=ys1, trend=trend)
     curve2 = convergence.ConvergenceCurve(xs=xs2, ys=ys2, trend=trend)
-    comparator = convergence.WinRateSimpleRegretComparator(curve1, curve2)
+    comparator = convergence.OptimalityGapWinRateComparator(curve1, curve2)
     self.assertEqual(comparator.score(), res)
 
 
