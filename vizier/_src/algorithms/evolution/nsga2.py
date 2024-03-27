@@ -40,14 +40,8 @@ def _pareto_rank(ys: np.ndarray) -> np.ndarray:
   """
   if ys.shape[0] == 0:
     return np.zeros([0])
-  n = ys.shape[0]
-  dominated = np.asarray(
-      [
-          [np.all(ys[i] <= ys[j]) & np.any(ys[j] > ys[i]) for i in range(n)]
-          for j in range(n)
-      ]
-  )
-  return np.sum(dominated, axis=0)
+  dominated = [np.all(ys <= r, axis=-1) & np.any(r > ys, axis=-1) for r in ys]
+  return np.sum(np.stack(dominated), axis=0)
 
 
 def _crowding_distance(ys: np.ndarray) -> np.ndarray:
