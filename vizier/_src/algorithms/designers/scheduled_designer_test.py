@@ -88,8 +88,8 @@ class ScheduledDesignerTest(absltest.TestCase):
         expected_total_num_trials=expected_total_num_trials,
     )
     # Check initial values.
-    self.assertEqual(mock_scheduled_designer._designer.parameter1, 10.5)  # pytype: disable=attribute-error
-    self.assertEqual(mock_scheduled_designer._designer.parameter2, 1.5)  # pytype: disable=attribute-error
+    self.assertEqual(mock_scheduled_designer.designer.parameter1, 10.5)  # pytype: disable=attribute-error
+    self.assertEqual(mock_scheduled_designer.designer.parameter2, 1.5)  # pytype: disable=attribute-error
     # Check suggestions.
     self.assertLen(
         test_runners.RandomMetricsRunner(
@@ -103,9 +103,89 @@ class ScheduledDesignerTest(absltest.TestCase):
         expected_total_num_trials,
     )
     # Check final values.
-    print(mock_scheduled_designer._designer)
-    self.assertAlmostEqual(mock_scheduled_designer._designer.parameter1, 2.1)  # pytype: disable=attribute-error
-    self.assertAlmostEqual(mock_scheduled_designer._designer.parameter2, 20.1)  # pytype: disable=attribute-error
+    self.assertAlmostEqual(mock_scheduled_designer.designer.parameter1, 2.1)  # pytype: disable=attribute-error
+    self.assertAlmostEqual(mock_scheduled_designer.designer.parameter2, 20.1)  # pytype: disable=attribute-error
+
+  def test_validate_suggested_num_trials(self):
+    # Test that updating the designer with trials changes the state.
+    problem = vz.ProblemStatement(
+        test_studies.flat_continuous_space_with_scaling()
+    )
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name="metric", goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    param1 = scheduled_designer.LinearScheduledParam(
+        init_value=10.5, final_value=2.1
+    )
+    param2 = scheduled_designer.ExponentialScheduledParam(
+        init_value=1.5, final_value=20.1, rate=1.7
+    )
+    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+        problem,
+        designer_factory=MockParameterizedDesigner,
+        designer_state_updater=DirectDesignerStateUpdater(),
+        scheduled_params={"parameter1": param1, "parameter2": param2},
+        expected_total_num_trials=10,
+    )
+    # Generate active and completed trials.
+    active_trials = test_studies.flat_continuous_space_with_scaling_trials(2)
+    completed_trials = [
+        s.to_trial()
+        for s in test_studies.flat_continuous_space_with_scaling_trials(4)
+    ]
+    for trial in completed_trials:
+      trial.complete(vz.Measurement({"metric": 1.2}), inplace=True)
+    # Update the scheduled designer.
+    mock_scheduled_designer.update(
+        vza.CompletedTrials(completed_trials), vza.ActiveTrials(active_trials)
+    )
+    # Validate that the state was updated.
+    self.assertEqual(
+        mock_scheduled_designer.num_incorporated_suggested_trials, 4 + 2
+    )
+
+  def test_scheduled_designer_serialization(self):
+    expected_total_num_trials = 10
+    problem = vz.ProblemStatement(
+        test_studies.flat_continuous_space_with_scaling()
+    )
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name="metric", goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    param1 = scheduled_designer.LinearScheduledParam(
+        init_value=10.5, final_value=2.1
+    )
+    param2 = scheduled_designer.ExponentialScheduledParam(
+        init_value=1.5, final_value=20.1, rate=1.7
+    )
+    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+        problem,
+        designer_factory=MockParameterizedDesigner,
+        designer_state_updater=DirectDesignerStateUpdater(),
+        scheduled_params={"parameter1": param1, "parameter2": param2},
+        expected_total_num_trials=expected_total_num_trials,
+    )
+    # Making several suggestions so the state would change.
+    mock_scheduled_designer.suggest(count=1)
+    mock_scheduled_designer.suggest(count=3)
+    # Store the state in metadata.
+    state = mock_scheduled_designer.dump()
+    # Create a new designer and load state.
+    new_mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+        problem,
+        designer_factory=MockParameterizedDesigner,
+        designer_state_updater=DirectDesignerStateUpdater(),
+        scheduled_params={"parameter1": param1, "parameter2": param2},
+        expected_total_num_trials=expected_total_num_trials,
+    )
+    new_mock_scheduled_designer.load(state)
+    self.assertEqual(
+        new_mock_scheduled_designer._num_incorporated_suggested_trials, 4
+    )
 
 
 class ScheduledGpBanditTest(absltest.TestCase):

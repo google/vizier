@@ -24,6 +24,8 @@ import attrs
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
+from vizier._src.pyvizier.shared import common
+from vizier.interfaces import serializable
 
 ParamsValues = dict[str, float]
 
@@ -113,9 +115,8 @@ class DesignerStateUpdater(Protocol):
     pass
 
 
-# TODO: serialize the designer.
-@attrs.define(auto_attribs=False)
-class ScheduledDesigner(vza.Designer):
+@attrs.define
+class ScheduledDesigner(vza.PartiallySerializableDesigner):
   """Scheduled designer."""
 
   _problem: vz.ProblemStatement = attrs.field(kw_only=False)
@@ -131,22 +132,85 @@ class ScheduledDesigner(vza.Designer):
   # Internal attributes which should not be set by callers.
   # ------------------------------------------------------------------
   _designer: vza.Designer = attrs.field(init=False)
-  _suggested_num_trials: int = attrs.field(init=False, default=0)
+  _num_incorporated_suggested_trials: int = attrs.field(init=False, default=0)
   _metadata_ns: str = attrs.field(default="scheduled_designer", init=False)
 
   def __attrs_post_init__(self):
     self._designer = self._designer_factory(self._problem)
     self._update_designer_state()
 
+  def dump(self) -> vz.Metadata:
+    """Dumps the current state of the designer.
+
+    Note that the state only contains the number of suggested trials. The other
+    attributes are provided during designer instantiation.
+
+    Returns:
+      Metadata with the current designer's state.
+    """
+    metadata = vz.Metadata()
+    metadata.ns(self._metadata_ns)["suggested_num_trials"] = str(
+        self._num_incorporated_suggested_trials
+    )
+    return metadata
+
+  def load(self, metadata: common.Metadata) -> None:
+    """Loads the designer state from the metadata."""
+    if (
+        metadata.ns(self._metadata_ns).get("suggested_num_trials", default=None)
+        is None
+    ):
+      # When the designer is called for the first time, or if the algorithm has
+      # changed in the middle of the study.
+      raise serializable.FatalDecodeError(
+          "The metadata doesn't contain a state to be recovered."
+      )
+    try:
+      self._num_incorporated_suggested_trials = int(
+          metadata.ns(self._metadata_ns)["suggested_num_trials"]
+      )
+    except Exception as e:
+      raise serializable.FatalDecodeError(
+          "Couldn't load state ('suggested_num_trials') from metadata."
+      ) from e
+
+  @property
+  def designer(self) -> vza.Designer:
+    return self._designer
+
   @property
   def scheduled_params(self) -> dict[str, ScheduledParam]:
     return self._scheduled_params
+
+  @property
+  def num_incorporated_suggested_trials(self) -> int:
+    """Returns the total number of suggested trials the designer generated (regardless of their current status)."""
+    return self._num_incorporated_suggested_trials
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:
     """Update the underlying designer based on completed and pending trials."""
     self._designer.update(completed, all_active)
+    self._validate_num_incorporated_suggested_trials(completed, all_active)
+
+  def _validate_num_incorporated_suggested_trials(
+      self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
+  ) -> None:
+    """Validate (and if needed update) the designer's suggested number of trials."""
+    num_completed = len(completed.trials)
+    num_active = len(all_active.trials)
+    if self._num_incorporated_suggested_trials < num_completed + num_active:
+      # If the designer is updated with more trials than what it observed, we
+      # fast forward and update the state. Would happen if the designer is
+      # updated with trials it didn't generate.
+      logging.warning(
+          "The scheduled designer's `num_incorporated_suggested_trials` (%s)"
+          " doesn't match the actual number of trials in the study (%s).",
+          self._num_incorporated_suggested_trials,
+          num_completed + num_active,
+      )
+      self._num_incorporated_suggested_trials = num_completed + num_active
 
   def _update_designer_state(self) -> ParamsValues:
     """Efficiently update the underlying designer state (inplace).
@@ -158,7 +222,7 @@ class ScheduledDesigner(vza.Designer):
     for name, scheduled_param in self._scheduled_params.items():
       params_values[name] = scheduled_param.value(
           total_steps=self._expected_total_num_trials,
-          step=self._suggested_num_trials,
+          step=self._num_incorporated_suggested_trials,
       )
     self._designer_state_updater(self._designer, params_values)
     logging.info("Updated designer state with params: %s", params_values)
@@ -170,17 +234,20 @@ class ScheduledDesigner(vza.Designer):
     params_values = self._update_designer_state()
     # Suggest 'count' trials in batch, using the same scheduled params values.
     suggest_trials = self._designer.suggest(count)
-    self._suggested_num_trials += len(suggest_trials)
+    self._num_incorporated_suggested_trials += len(suggest_trials)
     # Log the parameter values in the suggested trials for debugging.
     for trial in suggest_trials:
       metadata = trial.metadata.ns(self._metadata_ns).ns("devinfo")
       for name in self._scheduled_params.keys():
         metadata[name] = str(params_values[name])
     # Check that the maximum number of trials hasn't surpassed.
-    if self._suggested_num_trials >= self._expected_total_num_trials:
-      logging.warning(
+    if (
+        self._num_incorporated_suggested_trials
+        >= self._expected_total_num_trials
+    ):
+      logging.info(
           "Suggested trial count (%s) exceeded the configured maximum (%s).",
-          self._suggested_num_trials,
+          self._num_incorporated_suggested_trials,
           self._expected_total_num_trials,
       )
     return suggest_trials

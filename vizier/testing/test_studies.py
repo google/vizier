@@ -17,17 +17,33 @@ from __future__ import annotations
 """Test study generator."""
 
 from typing import List
+import numpy as np
 from vizier import pyvizier as vz
 
 
 def flat_continuous_space_with_scaling() -> vz.SearchSpace:
-  """Search space with all parameter types."""
+  """Search space with float parameter types."""
 
   space = vz.SearchSpace()
   root = space.root
   root.add_float_param('lineardouble', -1., 2.)
   root.add_float_param('logdouble', 1e-4, 1e2, scale_type=vz.ScaleType.LOG)
   return space
+
+
+def flat_continuous_space_with_scaling_trials(
+    count: int = 1,
+) -> list[vz.TrialSuggestion]:
+  """Trials of search space with float parameter types."""
+  trials = []
+  for _ in range(count):
+    trials.append(
+        vz.Trial({
+            'lineardouble': np.random.uniform(low=-1.0, high=2.0),
+            'logdouble': np.random.uniform(low=1e-4, high=1e2),
+        })
+    )
+  return trials
 
 
 def flat_space_with_all_types() -> vz.SearchSpace:
