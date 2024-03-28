@@ -35,6 +35,7 @@ from vizier._src.pythia.pythia_errors import PythiaFallbackError
 from vizier._src.pythia.pythia_errors import PythiaProtocolError
 from vizier._src.pythia.pythia_errors import TemporaryPythiaError
 from vizier._src.pythia.pythia_errors import VizierDatabaseError
+from vizier._src.pythia.suggest_default import seed_with_default
 
 # Documentation
 assert issubclass(CancelComputeError, Exception)

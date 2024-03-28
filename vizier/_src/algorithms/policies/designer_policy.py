@@ -68,6 +68,7 @@ class DesignerPolicy(pythia.Policy):
     self._designer_factory = designer_factory
     self._policy_name = policy_name
 
+  @pythia.seed_with_default
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     logging.info(
         'Processing request for study guid %s, with max trial id %s',
