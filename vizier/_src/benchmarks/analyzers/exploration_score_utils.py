@@ -35,6 +35,9 @@ def compute_parameter_entropy(
     parameter_config: The parameter config.
     parameter_values: Values of a parameter.
 
+  WARNING: Entropy estimation accuracy depends on the sample size, so to compare
+  the entropies of two `parameter_values`, make sure they have the same size.
+
   Returns:
     The entropy of parameter values.
   """
@@ -62,19 +65,23 @@ def compute_parameter_entropy(
     if parameter_config.type == vz.ParameterType.INTEGER:
       _, counts = np.unique(values, return_counts=True)
     else:
-      # Chooses the bin width by the Freedman–Diaconis rule
-      # https://en.wikipedia.org/wiki/Freedman%E2%80%93Diaconis_rule with a
-      # lower bound such that the number of bins is at most 10000.
-      bin_width = max(
-          2.0 * scipy.stats.iqr(values) / len(values) ** (1 / 3.0),
-          1e-4 * (max_val - min_val),
-      )
+      # Sets the number of fixed-width bins as c * sample_size ** (1.0 / 3.0).
+      # The cubic-root dependency on the sample size appears in several common
+      # bin-size selection strategies, e.g.
+      # https://en.wikipedia.org/wiki/Histogram#Number_of_bins_and_width
+      # The multiplier `c` is chosen such that for a small sample size, say 100,
+      # we still get a reasonable number of bins, say 30.
+      alpha = 1.0 / 3.0
+      c = 30.0 / (100**alpha)
+      n_sample = len(values)
+      # We also ensure that the number of bins is at most the sample size.
+      num_bins = np.min((int(c * n_sample**alpha), n_sample))
       counts, _ = np.histogram(
           values,
           bins=np.linspace(
               min_val,
               max_val,
-              num=int((max_val - min_val) / bin_width) + 1,
+              num=num_bins + 1,
               dtype=np.float32,
           ),
       )

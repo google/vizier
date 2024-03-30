@@ -132,6 +132,69 @@ class ExplorationScoreUtilsTest(parameterized.TestCase):
       # the entropy of two bins with equal counts.
       self.assertGreater(max_ent, -np.log(0.5))
 
+  @parameterized.parameters(3, 5, 11, 101, 1001, 10001)
+  def test_compute_parameter_entropy_uniform_full_range_gt_half_range(
+      self, sample_size
+  ):
+    parameter_config = vz.ParameterConfig.factory(
+        name='param',
+        bounds=(-5.0, 5.0),
+    )
+    full_range_uniform_ent = exploration_score_utils.compute_parameter_entropy(
+        parameter_config=parameter_config,
+        parameter_values=[
+            vz.ParameterValue(value=v)
+            for v in np.linspace(-5.0, 5.0, sample_size)
+        ],
+    )
+    half_range_uniform_ent = exploration_score_utils.compute_parameter_entropy(
+        parameter_config=parameter_config,
+        parameter_values=[
+            vz.ParameterValue(value=v)
+            for v in np.linspace(-5.0, 0.0, sample_size)
+        ],
+    )
+    # The entropy of a uniform distribution is ln(range), so when the range
+    # shrinks by half, the entropy is expected to decrease additively by
+    # ln(2.0). Relaxes the threshold to account for estimation errors.
+    self.assertGreater(
+        full_range_uniform_ent - half_range_uniform_ent, 0.6 * np.log(2.0)
+    )
+
+  @parameterized.parameters(11, 101, 1001, 10001)
+  def test_compute_parameter_entropy_continuous_uniform_gt_standard_normal(
+      self, sample_size
+  ):
+    parameter_config = vz.ParameterConfig.factory(
+        name='param',
+        bounds=(-5.0, 5.0),
+    )
+    uniform_ent_est = exploration_score_utils.compute_parameter_entropy(
+        parameter_config=parameter_config,
+        parameter_values=[
+            vz.ParameterValue(value=v)
+            for v in np.linspace(-5.0, 5.0, sample_size)
+        ],
+    )
+    standard_normal_ent_est = exploration_score_utils.compute_parameter_entropy(
+        parameter_config=parameter_config,
+        parameter_values=[
+            vz.ParameterValue(value=v)
+            for v in np.random.default_rng(seed=sample_size).normal(
+                size=sample_size
+            )
+        ],
+    )
+    # The entropy is ln(range) for a uniform distribution, and
+    # ln(sqrt(2 * PI * e)) for a standard Normal distribution. Relaxes the
+    # expected gap to account for estimation errors.
+    expected_ent_gap = 0.8 * (
+        np.log(10.0) - np.log(np.sqrt(2.0 * np.pi * np.exp(1.0)))
+    )
+    self.assertGreater(
+        uniform_ent_est - standard_normal_ent_est, expected_ent_gap
+    )
+
   def test_compute_average_marginal_parameter_entropy(self):
     min_ent_study, max_ent_study = _generate_min_and_max_ent_studies()
     max_ent = (
