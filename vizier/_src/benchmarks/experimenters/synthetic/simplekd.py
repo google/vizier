@@ -86,7 +86,7 @@ def _int_term(x_list: list[int]) -> float:
 
 
 @attrs.define
-class SimpleKD(experimenter.Experimenter):
+class SimpleKDExperimenter(experimenter.Experimenter):
   """Simple problem with arbitrary number of parameter of each type.
 
   SimpleKD is a carefully constructed function to trap an underexploring

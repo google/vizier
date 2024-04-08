@@ -67,7 +67,7 @@ class SimpleKDConvergenceTester:
 
   def assert_convergence(self) -> None:
     """Run the convergence test."""
-    exptr = simplekd.SimpleKD(
+    exptr = simplekd.SimpleKDExperimenter(
         self.best_category,
         num_float_param=self.num_float_param,
         num_discrete_param=self.num_discrete_param,

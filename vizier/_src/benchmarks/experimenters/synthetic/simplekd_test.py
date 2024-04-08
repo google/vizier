@@ -24,7 +24,7 @@ from vizier._src.benchmarks.runners import benchmark_state
 from absl.testing import absltest
 
 
-class SimpleKDTest(parameterized.TestCase):
+class SimpleKDExperimenterTest(parameterized.TestCase):
 
   @parameterized.product(
       best_category=['corner', 'center', 'mixed'],
@@ -35,7 +35,7 @@ class SimpleKDTest(parameterized.TestCase):
       best_category: simplekd.SimpleKDCategory,
       output_relative_error: bool,
   ) -> None:
-    experimenter = simplekd.SimpleKD(
+    experimenter = simplekd.SimpleKDExperimenter(
         best_category, output_relative_error=output_relative_error
     )
     runner = benchmark_runner.BenchmarkRunner(
@@ -62,7 +62,7 @@ class SimpleKDTest(parameterized.TestCase):
   def test_compute_optimal_objective(
       self, best_category: simplekd.SimpleKDCategory
   ) -> None:
-    exptr_simple4d = simplekd.SimpleKD(best_category)
+    exptr_simple4d = simplekd.SimpleKDExperimenter(best_category)
     categorical_values = ['corner', 'center', 'mixed']
     discrete_values = (1, 2, 5, 6, 8)
     integer_values = [1, 2, 3]
@@ -91,7 +91,7 @@ class SimpleKDTest(parameterized.TestCase):
   def test_optimal_relative_error(
       self, best_category: simplekd.SimpleKDCategory
   ) -> None:
-    exptr_simple4d = simplekd.SimpleKD(
+    exptr_simple4d = simplekd.SimpleKDExperimenter(
         best_category, output_relative_error=True
     )
     categorical_values = ['corner', 'center', 'mixed']
