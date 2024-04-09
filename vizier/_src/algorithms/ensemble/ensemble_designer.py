@@ -187,7 +187,7 @@ class EnsembleDesigner(vza.Designer):
     if self._reward_generator is None:
       rewards = []
       for t in completed.trials:
-        if t.final_measurement is not None:
+        if t.final_measurement is not None and t.final_measurement.metrics:
           metrics = t.final_measurement.metrics
           first_key = list(metrics.keys())[0]
           rewards.append(metrics.get_value(first_key, default=0.0))
