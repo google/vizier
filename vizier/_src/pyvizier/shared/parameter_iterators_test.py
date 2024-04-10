@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Sequence
 from typing import Literal
 
+import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.pyvizier.shared import parameter_iterators as pi
 
@@ -64,6 +65,41 @@ class ParameterIteratorsTest(parameterized.TestCase):
       builder.choose_value(valid_params[parameter_config.name])
 
     self.assertEqual(builder.parameters.as_dict(), valid_params)
+
+
+class GetDefaultParametersTest(absltest.TestCase):
+
+  def test_double_user_default(self):
+    ss = vz.SearchSpace()
+    ss.root.add_float_param('x', 0.0, 1.0, default_value=0.2)
+    params = pi.get_default_parameters(ss)
+    self.assertEqual(params.get_value('x'), 0.2)
+
+  def test_double_logscale(self):
+    ss = vz.SearchSpace()
+    ss.root.add_float_param(
+        'x', np.exp(-2), np.exp(2), scale_type=vz.ScaleType.LOG
+    )
+    params = pi.get_default_parameters(ss)
+    self.assertEqual(params.get_value('x'), 1.0)
+
+  def test_double_fixed(self):
+    ss = vz.SearchSpace()
+    ss.root.add_float_param('x', 1.0, 1.0)
+    params = pi.get_default_parameters(ss)
+    self.assertEqual(params.get_value('x'), 1.0)
+
+  def test_discrete(self):
+    ss = vz.SearchSpace()
+    ss.root.add_discrete_param('x', [1, 2, 3, 6])
+    params = pi.get_default_parameters(ss)
+    self.assertEqual(params.get_value('x'), 3)
+
+  def test_categorical(self):
+    ss = vz.SearchSpace()
+    ss.root.add_categorical_param('x', ['a', 'b', 'c', 'd'])
+    params = pi.get_default_parameters(ss)
+    self.assertEqual(params.get_value('x'), 'c')
 
 
 if __name__ == '__main__':
