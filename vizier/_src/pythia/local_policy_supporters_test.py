@@ -134,7 +134,7 @@ class LocalPolicySupportersTest(parameterized.TestCase):
         runner.GetStudyConfig(study_guid=_GUID).metadata.ns('ns').get('key'),
         'value')
     trial0 = runner.GetTrials(min_trial_id=1, max_trial_id=1)[0]
-    self.assertCountEqual(trial0.metadata.ns('ns'), {'key': 'value'})
+    self.assertSequenceEqual(trial0.metadata.ns('ns'), {'key': 'value'})
 
   # TODO: Need a test for LocalPolicySupporter.SuggestTrials().
 
@@ -161,7 +161,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
     runner.AddTrials(trials)
 
     objectives = np.array([
-        t.final_measurement_or_die.metrics['objective'].value
+        t.final_measurement.metrics['objective'].value
         for t in runner.GetBestTrials(count=count)
     ])
     np.testing.assert_array_equal(objectives, np.array(best_values))
@@ -199,8 +199,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
 
     # Check the radius.
     rs = np.array([
-        t.final_measurement_or_die.metrics['r'].value
-        for t in runner.GetBestTrials()
+        t.final_measurement.metrics['r'].value for t in runner.GetBestTrials()
     ])
     self.assertEqual(rs.size, 5)
     np.testing.assert_array_equal(rs, np.ones_like(rs) * best_r)
@@ -244,7 +243,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
     # Check the radius.
     best_trials = runner.GetBestTrials()
     self.assertLen(best_trials, 1)
-    cosine = best_trials[0].final_measurement_or_die.metrics['cos'].value
+    cosine = best_trials[0].final_measurement.metrics['cos'].value
     if cos_goal == vz.ObjectiveMetricGoal.MAXIMIZE:
       self.assertGreaterEqual(cosine, 0.51)
     else:

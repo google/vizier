@@ -39,6 +39,7 @@ from vizier._src.pyvizier.shared.parameter_config import ParameterType
 from vizier._src.pyvizier.shared.parameter_config import ScaleType
 from vizier._src.pyvizier.shared.parameter_config import SearchSpace
 from vizier._src.pyvizier.shared.parameter_config import SearchSpaceSelector
+from vizier._src.pyvizier.shared.parameter_iterators import SequentialParameterBuilder
 from vizier._src.pyvizier.shared.study import ProblemAndTrials
 from vizier._src.pyvizier.shared.trial import CompletedTrial
 from vizier._src.pyvizier.shared.trial import CompletedTrialWithMeasurements

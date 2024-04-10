@@ -56,7 +56,6 @@ class DesignerPolicy(pythia.Policy):
       designer_factory: vza.DesignerFactory[vza.Designer],
       *,
       policy_name: str = 'DesignerPolicy',
-      use_seeding: bool = True,
   ):
     """Init.
 
@@ -64,15 +63,10 @@ class DesignerPolicy(pythia.Policy):
       supporter:
       designer_factory:
       policy_name: A user visible name.
-      use_seeding:
     """
     self._supporter = supporter
     self._designer_factory = designer_factory
     self._policy_name = policy_name
-    self._use_seeding = use_seeding
-
-    if self._use_seeding:
-      self.suggest = pythia.seed_with_default(self.suggest)
 
   def suggest(self, request: pythia.SuggestRequest) -> pythia.SuggestDecision:
     logging.info(
@@ -141,7 +135,7 @@ class _SerializableDesignerPolicyBase(
   the computation by following these steps in order:
     * Re-use the saved Designer instance from the last `suggest()` call.
     * `load()` the Designer state from the study-level metadata.
-    * If either of the first two steps succeeds, then we update the Designer
+    * If either of the first two steps succeedes, then we update the Designer
     with **newly** completed and **all** active (pending) trials.
     * Otherwise, we update the Designer with all trials.
 
@@ -280,7 +274,7 @@ class _SerializableDesignerPolicyBase(
       problem_statement:
 
     Raises:
-      ValueError: If problem_statement is different from the initially
+      ValueError: If problem_statement is differerent from the initially
         received problem_statement.
     """
     if self._designer is not None:

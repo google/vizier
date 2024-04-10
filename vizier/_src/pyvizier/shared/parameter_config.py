@@ -431,7 +431,6 @@ class ParameterConfig:
 
   @property
   def feasible_values(self) -> Union[List[int], List[float], List[str]]:
-    """Sorted feasible values, or a ValueError if config is continuous."""
     if self.type in (ParameterType.DISCRETE, ParameterType.CATEGORICAL):
       if not self._feasible_values:
         return []

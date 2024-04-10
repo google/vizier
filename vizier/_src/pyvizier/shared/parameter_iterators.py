@@ -20,13 +20,10 @@ from typing import Iterator
 import copy
 from typing import Generator, Literal, Union
 
-import numpy as np
 from vizier._src.pyvizier.shared.parameter_config import ParameterConfig
-from vizier._src.pyvizier.shared.parameter_config import ParameterType
 from vizier._src.pyvizier.shared.parameter_config import SearchSpace
 from vizier._src.pyvizier.shared.trial import ParameterDict
 from vizier._src.pyvizier.shared.trial import ParameterValueTypes
-from vizier.pyvizier.converters import core
 
 
 class SequentialParameterBuilder(Iterator[ParameterConfig]):
@@ -119,28 +116,3 @@ class SequentialParameterBuilder(Iterator[ParameterConfig]):
     WARNING: Do not mutate the dict until this Iterator is exhausted.
     """
     return self._parameters
-
-
-def get_default_parameters(search_space: SearchSpace) -> ParameterDict:
-  """Gets the default parameters for the given search space."""
-  builder = SequentialParameterBuilder(search_space)
-
-  for pc in builder:
-    if pc.default_value is not None:
-      builder.choose_value(pc.default_value)
-    elif pc.type in (
-        ParameterType.CATEGORICAL,
-        ParameterType.INTEGER,
-        ParameterType.DISCRETE,
-    ):
-      # Choose the middle value.
-      builder.choose_value(pc.feasible_values[len(pc.feasible_values) // 2])
-    elif pc.type == ParameterType.DOUBLE:
-      if pc.num_feasible_values == 1:
-        builder.choose_value(pc.bounds[0])
-      else:
-        scaler = core.ModelInputArrayBijector.scaler_from_spec(
-            core.NumpyArraySpec.from_parameter_config(pc)
-        )
-        builder.choose_value(scaler.backward_fn(np.array(0.5)).item())
-  return builder.parameters
