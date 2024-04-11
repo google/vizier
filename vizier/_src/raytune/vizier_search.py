@@ -35,7 +35,7 @@ class VizierSearch(search.Searcher):
       self,
       study_id: Optional[str] = None,
       problem: Optional[svz.StudyConfig] = None,
-      algorithm: Optional[str] = 'GAUSSIAN_PROCESS_BANDIT',
+      algorithm: Optional[str] = 'DEFAULT',
       **kwargs,
   ):
     """Initialize a Searcher via ProblemStatement.
