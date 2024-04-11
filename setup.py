@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 """Setup for pip package."""
+
+import datetime
 import itertools
 import os
 import sys
@@ -68,6 +70,12 @@ class BuildCmd(build):
 
 
 _VERSION = _get_version()
+_NAME = 'google-vizier'
+
+if '--dev' in sys.argv:
+  sys.argv.remove('--dev')
+  _VERSION += '.dev' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+  _NAME += '-dev'
 
 extras_require = {
     'jax': _parse_requirements('requirements-jax.txt'),
@@ -82,7 +90,7 @@ extras_require['all'] = list(
 )
 
 setup(
-    name='google-vizier',
+    name=_NAME,
     version=_VERSION,
     url='https://github.com/google/vizier',
     license='Apache License 2.0',
