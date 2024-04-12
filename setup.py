@@ -74,7 +74,7 @@ _NAME = 'google-vizier'
 
 if '--dev' in sys.argv:
   sys.argv.remove('--dev')
-  _VERSION += '.dev' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+  _VERSION += '.dev' + datetime.datetime.now().strftime('%Y%m%d%H%M%S')
   _NAME += '-dev'
 
 extras_require = {
