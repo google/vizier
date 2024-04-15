@@ -1,6 +1,5 @@
-# This workflow will upload a dev Python Package to TestPyPI using Twine when a main branch commit
+# This workflow will upload a dev Python Package to PyPI using Twine when a main branch commit
 # is pushed. For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
-# NOTE: User will need to add a extra url to `requirements.txt`: https://stackoverflow.com/questions/29281587/format-a-requirements-txt-file-for-pip-where-one-or-more-packages-have-a-differe
 
 name: pypi-dev
 
@@ -26,8 +25,8 @@ jobs:
         pip install setuptools wheel twine grpcio-tools==1.48.2
     - name: Build and publish
       env:
-        TWINE_USERNAME: ${{ secrets.TEST_PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_PASSWORD }}
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
         python setup.py --dev sdist bdist_wheel
-        twine upload --repository testpypi dist/*
+        twine upload dist/*
