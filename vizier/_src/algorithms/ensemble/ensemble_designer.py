@@ -187,13 +187,26 @@ class EnsembleDesigner(vza.Designer):
     if self._reward_generator is None:
       rewards = []
       for t in completed.trials:
-        if t.final_measurement is not None:
+        if t.infeasible:
+          rewards.append(0.0)
+        elif t.final_measurement is not None and t.final_measurement.metrics:
           metrics = t.final_measurement.metrics
           first_key = list(metrics.keys())[0]
           rewards.append(metrics.get_value(first_key, default=0.0))
+        else:
+          raise ValueError(
+              'A completed Trial is feasible but has no final measurement'
+              f' metrics: {t}.'
+          )
     else:
       rewards = self._reward_generator(list(completed.trials))
 
+    if len(completed.trials) != len(rewards):
+      # If lengths are different zip(..) would silently truncate the lists.
+      raise RuntimeError(
+          'Internal error: Mismatched completed trials count'
+          f' (len(completed.trials)) and rewards counts {(len(rewards))}.'
+      )
     # Update the EnsembleDesign strategy.
     for trial, reward in zip(completed.trials, rewards):
       designer_key = trial.metadata.ns(ENSEMBLE_NS).get(EXPERT_KEY)

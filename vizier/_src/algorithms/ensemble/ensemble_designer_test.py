@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
+from vizier import algorithms as vza
 from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import random
@@ -163,6 +164,31 @@ class EnsembleDesignerTest(parameterized.TestCase):
         ),
         5,
     )
+
+  def testInfeasibleTrials(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('x1', 0.0, 1.0)
+    problem.metric_information = [
+        vz.MetricInformation(name='obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+    ]
+    random_designer = random.RandomDesigner(problem.search_space)
+    eagle = eagle_strategy.EagleStrategyDesigner(problem)
+    ens_designer = ensemble_designer.EnsembleDesigner(
+        {'random': random_designer, 'eagle': eagle},
+    )
+    trial1 = ens_designer.suggest(num_suggestions=1)[0].to_trial()
+    trial2 = ens_designer.suggest(num_suggestions=1)[0].to_trial()
+    # Complete trial1 with feasible value.
+    trial1.complete(vz.Measurement({'obj': 1240.5}), inplace=True)
+    # Complete trial2 with infeasible value.
+    trial2.complete(
+        vz.Measurement(), infeasibility_reason='infeasible', inplace=True
+    )
+    ens_designer.update(
+        completed=vza.CompletedTrials([trial1, trial2]),
+        all_active=vza.ActiveTrials([]),
+    )
+    ens_designer.suggest(num_suggestions=1)
 
 
 if __name__ == '__main__':
