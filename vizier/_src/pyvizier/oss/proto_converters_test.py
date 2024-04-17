@@ -170,6 +170,7 @@ class TrialConverterTest(absltest.TestCase):
     self.assertEqual(test.parameters['str'].value, '3')
 
     # Final measurement
+    assert test.final_measurement is not None
     self.assertLen(test.final_measurement.metrics, 2)
     self.assertEqual(test.final_measurement.metrics['pr-auc'].value, 0.8)
     self.assertEqual(test.final_measurement.metrics['latency'].value, 32)
@@ -192,6 +193,7 @@ class TrialConverterTest(absltest.TestCase):
 
     self.assertIsNotNone(test.creation_time)
     self.assertIsNotNone(test.completion_time)
+    assert test.duration is not None
     self.assertEqual(test.duration.total_seconds(), 10)
 
     self.assertFalse(test.infeasible)

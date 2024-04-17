@@ -82,7 +82,7 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertIsNone(sc.pythia_endpoint)
     self.assertEqual(sc.single_objective_metric_name, 'pr-auc')
     self.assertTrue(sc.is_single_objective)
-
+    assert sc.automated_stopping_config is not None
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())
@@ -207,6 +207,7 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertEqual(sc.single_objective_metric_name, 'pr-auc')
     self.assertTrue(sc.is_single_objective)
 
+    assert sc.automated_stopping_config is not None
     compare.assertProto2Equal(self, expected_automated_stopping_config,
                               sc.automated_stopping_config.to_proto())
     compare.assertProto2Equal(self, study_config_proto, sc.to_proto())

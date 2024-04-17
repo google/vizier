@@ -163,12 +163,14 @@ class TrialTest(absltest.TestCase):
     self.assertLessEqual(test.completion_time,
                          datetime.datetime.now().astimezone())
     self.assertGreaterEqual(test.completion_time, test.creation_time)
+    assert test.duration is not None
     self.assertGreaterEqual(test.duration.total_seconds(), 0)
 
     self.assertEqual(completed.final_measurement, measurement)
     self.assertLessEqual(completed.completion_time,
                          datetime.datetime.now().astimezone())
     self.assertGreaterEqual(completed.completion_time, completed.creation_time)
+    assert completed.duration is not None
     self.assertGreaterEqual(completed.duration.total_seconds(), 0)
 
     # completed is the same reference as test.
@@ -191,6 +193,7 @@ class TrialTest(absltest.TestCase):
     self.assertGreaterEqual(completed.completion_time, completed.creation_time)
     self.assertLessEqual(completed.completion_time,
                          datetime.datetime.now().astimezone())
+    assert completed.duration is not None
     self.assertGreaterEqual(completed.duration.total_seconds(), 0)
     self.assertEqual(completed.status, trial.TrialStatus.COMPLETED)
     self.assertTrue(completed.is_completed)
