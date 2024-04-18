@@ -424,6 +424,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
     converter = core.DefaultTrialConverter.from_study_config(study_config)
     trials = converter.to_trials({'x': features}, {'y': labels})
     for t in trials:
+      assert t.final_measurement is not None
       if not t.final_measurement.metrics:
         self.assertTrue(t.infeasible)
     for label, t in zip(labels.flatten(), trials):

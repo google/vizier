@@ -419,9 +419,9 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
         self.assertEqual(evaluated_curve, stored_curve)
 
         # See if final_measurement is defaulted to end of curve.
-        final_accuracy = (
-            trial.materialize().final_measurement.metrics['accuracy'].value
-        )
+        final_measurement = trial.materialize().final_measurement
+        assert final_measurement is not None
+        final_accuracy = final_measurement.metrics['accuracy'].value
         self.assertEqual(evaluated_curve[-1], final_accuracy)
 
   def test_trial_update_metadata(self):

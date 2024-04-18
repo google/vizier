@@ -154,6 +154,7 @@ def main(argv: Sequence[str]) -> None:
   optimal_trials = study.optimal_trials()
   for optimal_trial in optimal_trials:
     optimal_trial = optimal_trial.materialize(include_all_measurements=True)
+    assert optimal_trial.final_measurement is not None
     logging.info(
         'Pareto-optimal trial found so far has parameters %s and metrics %s',
         optimal_trial.parameters,
