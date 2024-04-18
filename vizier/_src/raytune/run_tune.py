@@ -23,7 +23,7 @@ from ray import air
 from ray import data
 from ray import tune
 from ray.air import session
-from vizier import pyvizier
+from vizier import pyvizier as vz
 from vizier._src.raytune import converters
 from vizier.benchmarks import experimenters
 
@@ -110,12 +110,12 @@ def run_tune_from_factory(
   if tune_config is None:
     tune_config = tune.TuneConfig()
   tune_config.metric = metric_info.name
-  if metric_info.goal == pyvizier.ObjectiveMetricGoal.MINIMIZE:
+  if metric_info.goal == vz.ObjectiveMetricGoal.MINIMIZE:
     tune_config.mode = 'min'
   else:
     tune_config.mode = 'max'
 
-  def objective_fn(config: pyvizier.ParameterDict) -> None:
+  def objective_fn(config: vz.ParameterDict) -> None:
     # Config contains parameter names to values and is autopopulated for each
     # Trial. Evaluation is static for BBOB so we simply loop.
     for _ in range(tune_config.num_samples):
