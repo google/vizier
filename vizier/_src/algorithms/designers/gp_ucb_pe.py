@@ -71,11 +71,10 @@ class UCBPEConfig(eqx.Module):
   ucb_overwrite_probability: jt.Float[jt.Array, ''] = eqx.field(
       default=0.25, converter=jnp.asarray
   )
-
   # Probability of selecting the PE acquisition function when there are new
   # completed trials.
   pe_overwrite_probability: jt.Float[jt.Array, ''] = eqx.field(
-      default=0.0, converter=jnp.asarray
+      default=0.1, converter=jnp.asarray
   )
 
   def __repr__(self):
