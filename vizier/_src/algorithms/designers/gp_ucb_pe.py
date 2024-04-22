@@ -66,9 +66,16 @@ class UCBPEConfig(eqx.Module):
   cb_violation_penalty_coefficient: jt.Float[jt.Array, ''] = eqx.field(
       default=10.0, converter=jnp.asarray
   )
-  # Probability of using empty pending trials during batched suggestions.
+  # Probability of selecting the UCB acquisition function when there are no new
+  # completed trials.
   ucb_overwrite_probability: jt.Float[jt.Array, ''] = eqx.field(
       default=0.25, converter=jnp.asarray
+  )
+
+  # Probability of selecting the PE acquisition function when there are new
+  # completed trials.
+  pe_overwrite_probability: jt.Float[jt.Array, ''] = eqx.field(
+      default=0.0, converter=jnp.asarray
   )
 
   def __repr__(self):
@@ -690,23 +697,26 @@ class VizierGPUCBPEBandit(vza.Designer):
     active_trials = list(self._all_active_trials)
     for _ in range(count):
       self._rng, rng = jax.random.split(self._rng, 2)
-      ucb_overwrite = jax.random.bernoulli(
-          key=rng, p=self._config.ucb_overwrite_probability
-      )
-      # Optimize the UCB acquisition when there are trials completed after all
-      # active trials were created, or when `ucb_overwrite` is true. The
-      # `ucb_overwrite_probability` config  parameter should be set to a small
-      # positive value so that the UCB acquisition function is optimized for
-      # more than one but not too many suggestions in a batch suggestion
-      # request. This helps compensate for sub-optimality of the acquisition
-      # function optimizer, without compromising the diversity of the
-      # suggestions in the feature space.
-      use_ucb = _has_new_completed_trials(
+      if _has_new_completed_trials(
           completed_trials=self._all_completed_trials,
           active_trials=active_trials,
-      ) or (
-          ucb_overwrite and (len(self._all_completed_trials) > 0)  # pylint:disable=g-explicit-length-test
-      )
+      ):
+        # When there are trials completed after all active trials were created,
+        # we optimize the UCB acquisition function except with a small
+        # probability the PE acquisition function to ensure exploration.
+        use_ucb = not jax.random.bernoulli(
+            key=rng, p=self._config.pe_overwrite_probability
+        )
+      else:
+        has_completed_trials = len(self._all_completed_trials) > 0  # pylint:disable=g-explicit-length-test
+        # When there are no trials completed after all active trials were
+        # created, we optimize the PE acquisition function except with a small
+        # probability the UCB acquisition function, in case the UCB acquisition
+        # function is not well optimized.
+        use_ucb = has_completed_trials and jax.random.bernoulli(
+            key=rng, p=self._config.ucb_overwrite_probability
+        )
+
       # TODO: Feed the eagle strategy with completed trials.
       # TODO: Change budget based on requested suggestion count.
       acquisition_optimizer = self._acquisition_optimizer_factory(

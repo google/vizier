@@ -55,6 +55,7 @@ class GpUcbPeTest(parameterized.TestCase):
       dict(iters=5, batch_size=1, num_seed_trials=2),
       dict(iters=5, batch_size=3, num_seed_trials=2, ensemble_size=3),
       dict(iters=3, batch_size=5, num_seed_trials=5, applies_padding=True),
+      dict(iters=5, batch_size=1, num_seed_trials=2, pe_overwrite=True),
   )
   def test_on_flat_continuous_space(
       self,
@@ -64,6 +65,7 @@ class GpUcbPeTest(parameterized.TestCase):
       ard_optimizer: str = 'default',
       ensemble_size: int = 1,
       applies_padding: bool = False,
+      pe_overwrite: bool = False,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -92,6 +94,7 @@ class GpUcbPeTest(parameterized.TestCase):
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
             ucb_overwrite_probability=0.0,
+            pe_overwrite_probability=1.0 if pe_overwrite else 0.0,
         ),
         ensemble_size=ensemble_size,
         padding_schedule=padding.PaddingSchedule(
@@ -168,7 +171,7 @@ class GpUcbPeTest(parameterized.TestCase):
                 'gp_ucb_pe_bandit_test'
             )
         )
-        if jdx == 0 and idx < (iters + 1):
+        if jdx == 0 and idx < (iters + 1) and not pe_overwrite:
           # Except for the last batch of suggestions, the acquisition value of
           # the first suggestion in a batch is expected to be UCB, which
           # combines the predicted mean based only on completed trials and the
