@@ -86,6 +86,8 @@ class SklearnClassifier:
     self._check_features_and_labels_shapes()
     self._check_labels_values()
     self._check_eval_metric()
+    if self.classifier is None:
+      raise RuntimeError('Classifier is None.')
     self.classifier.fit(np.asarray(self.features), np.asarray(self.labels))
     if self.eval_metric == 'probability':
       return self.classifier.predict_proba(np.asarray(self.features_test))[:, 1]
