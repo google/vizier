@@ -23,18 +23,28 @@ from vizier._src.benchmarks.testing import experimenter_testing
 from absl.testing import absltest
 
 
-class Hartmann6DExperimenterTest(absltest.TestCase):
+class Hartmann3DExperimenterTest(absltest.TestCase):
 
-  def test_numpy_fn(self):
-    np.testing.assert_allclose(
-        hartmann._hartmann6d(
-            np.asarray(
-                [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573]
-            )
-        ),
-        -3.32237,
-        atol=1e-5,
+  def test_experimenter_argmin(self):
+    trial = vz.Trial(
+        parameters={
+            f'x{i+1}': x for i, x in enumerate([0.114614, 0.555649, 0.852547])
+        }
     )
+    hartmann.Hartmann3DExperimenter().evaluate([trial])
+    self.assertAlmostEqual(
+        trial.final_measurement_or_die.metrics.get_value('value', np.nan),
+        -3.86278,
+        places=5,
+    )
+
+  def test_experimenter(self):
+    experimenter_testing.assert_evaluates_random_suggestions(
+        self, hartmann.Hartmann3DExperimenter()
+    )
+
+
+class Hartmann6DExperimenterTest(absltest.TestCase):
 
   def test_experimenter_argmin(self):
     trial = vz.Trial(
@@ -55,34 +65,6 @@ class Hartmann6DExperimenterTest(absltest.TestCase):
   def test_experimenter(self):
     experimenter_testing.assert_evaluates_random_suggestions(
         self, hartmann.Hartmann6DExperimenter()
-    )
-
-
-class Hartmann3DExperimenterTest(absltest.TestCase):
-
-  def test_numpy_fn(self):
-    np.testing.assert_allclose(
-        hartmann._hartmann3d(np.asarray([0.114614, 0.555649, 0.852547])),
-        -3.86278,
-        atol=1e-5,
-    )
-
-  def test_experimenter_argmin(self):
-    trial = vz.Trial(
-        parameters={
-            f'x{i+1}': x for i, x in enumerate([0.114614, 0.555649, 0.852547])
-        }
-    )
-    hartmann.Hartmann3DExperimenter().evaluate([trial])
-    self.assertAlmostEqual(
-        trial.final_measurement_or_die.metrics.get_value('value', np.nan),
-        -3.86278,
-        places=5,
-    )
-
-  def test_experimenter(self):
-    experimenter_testing.assert_evaluates_random_suggestions(
-        self, hartmann.Hartmann3DExperimenter()
     )
 
 

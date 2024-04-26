@@ -42,4 +42,5 @@ from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier._src.benchmarks.experimenters.synthetic.branin import Branin2DExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.hartmann import Hartmann3DExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.hartmann import Hartmann6DExperimenter
+from vizier._src.benchmarks.experimenters.synthetic.hartmann import HartmannExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.simplekd import SimpleKDExperimenter
