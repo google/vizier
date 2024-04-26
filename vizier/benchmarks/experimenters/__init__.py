@@ -28,6 +28,8 @@ from vizier._src.benchmarks.experimenters.experimenter_factory import BBOBExperi
 from vizier._src.benchmarks.experimenters.experimenter_factory import ExperimenterFactory
 from vizier._src.benchmarks.experimenters.experimenter_factory import SerializableExperimenterFactory
 from vizier._src.benchmarks.experimenters.experimenter_factory import SingleObjectiveExperimenterFactory
+from vizier._src.benchmarks.experimenters.infeasible_experimenter import HashingInfeasibleExperimenter
+from vizier._src.benchmarks.experimenters.infeasible_experimenter import ParamRegionInfeasibleExperimenter
 from vizier._src.benchmarks.experimenters.l1_categorical_experimenter import L1CategorialExperimenter
 from vizier._src.benchmarks.experimenters.multiobjective_experimenter import MultiObjectiveExperimenter
 from vizier._src.benchmarks.experimenters.noisy_experimenter import NoisyExperimenter

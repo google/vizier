@@ -60,7 +60,7 @@ class HashingInfeasibleExperimenter(experimenter.Experimenter):
 
 
 @attrs.define
-class ParameterRegionInfeasibleExperimenter(experimenter.Experimenter):
+class ParamRegionInfeasibleExperimenter(experimenter.Experimenter):
   """Selects a parameter and splits its values into feasible/infeasible."""
 
   exptr: experimenter.Experimenter = attrs.field()

@@ -43,13 +43,13 @@ class HashingInfeasibleExperimenterTest(absltest.TestCase):
         )
 
 
-class ParameterRegionInfeasibleExperimenterTest(absltest.TestCase):
+class ParamRegionInfeasibleExperimenterTest(absltest.TestCase):
 
   def test_e2e(self):
     exptr = numpy_experimenter.NumpyExperimenter(
         bbob.Sphere, bbob.DefaultBBOBProblemStatement(2)
     )
-    exptr = infeasible_experimenter.ParameterRegionInfeasibleExperimenter(
+    exptr = infeasible_experimenter.ParamRegionInfeasibleExperimenter(
         exptr, parameter_name='x0', infeasible_interval=(0.0, 0.5)
     )
 
