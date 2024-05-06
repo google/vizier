@@ -439,7 +439,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       )
     else:
       # Otherwise, penalize the parent by decreasing its perturbation factor.
-      parent_fly.perturbation *= 0.9
+      parent_fly.perturbation *= self._config.penalize_factor
 
     if parent_fly.perturbation < self._config.perturbation_lower_bound:
       # If the perturbation factor is too low we attempt to eliminate the

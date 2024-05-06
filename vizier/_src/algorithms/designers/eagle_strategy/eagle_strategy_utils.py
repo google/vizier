@@ -48,12 +48,16 @@ class FireflyAlgorithmConfig:
   discrete_perturbation_factor: float = 10.0
   pure_categorical_perturbation: float = 0.1
   max_perturbation: float = 0.5
+  # Penalize lack of improvement
+  penalize_factor: float = 0.9
   # Pool size
   pool_size_factor: float = 1.2
   # Exploration rate (value > 1.0 encourages more exploration)
   explore_rate: float = 1.0
   # The factor to apply on infeasible trial repel force.
   infeasible_force_factor: float = 0.0
+  # The maximum pool size.
+  max_pool_size: int = 1000
 
 
 @attr.define
@@ -211,7 +215,10 @@ class EagleStrategyUtils:
   def compute_pool_capacity(self) -> int:
     """Computes the pool capacity."""
     df = self._n_parameters
-    return 10 + round((df**self.config.pool_size_factor + df) * 0.5)
+    return min(
+        10 + round((df**self.config.pool_size_factor + df) * 0.5),
+        self.config.max_pool_size,
+    )
 
   def combine_two_parameters(
       self,
