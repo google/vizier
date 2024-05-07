@@ -110,6 +110,38 @@ class ExperimenterFactoryTest(parameterized.TestCase):
     exptr.evaluate([t])
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 
+  def testSingleObjectiveWithPermutation(self):
+    dim = 5
+    bbob_factory = experimenter_factory.BBOBExperimenterFactory(
+        name='Sphere', dim=dim
+    )
+    exptr_factory = experimenter_factory.SingleObjectiveExperimenterFactory(
+        base_factory=bbob_factory,
+        shift=np.asarray(1.9),
+        categorical_dict={0: 3, 1: 5, 2: 4},
+        permute_categoricals=True,
+    )
+    exptr = exptr_factory()
+
+    self.assertIn('Shifting', str(exptr))
+    self.assertIn('Discretizing', str(exptr))
+    self.assertIn('Permuting', str(exptr))
+
+    space = exptr.problem_statement().search_space
+    self.assertEqual(
+        space.num_parameters(pyvizier.ParameterType.CATEGORICAL), 3
+    )
+
+    parameters = {}
+    for param in space.parameters:
+      if param.type == pyvizier.ParameterType.DOUBLE:
+        parameters[param.name] = param.bounds[0]
+      else:
+        parameters[param.name] = param.feasible_values[0]
+    t = pyvizier.Trial(parameters=parameters)
+    exptr.evaluate([t])
+    self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
+
   def testSingleObjectiveFactoryError(self):
     dim = 4
     bbob_factory = experimenter_factory.BBOBExperimenterFactory(

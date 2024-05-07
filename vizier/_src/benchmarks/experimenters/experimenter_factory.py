@@ -29,6 +29,7 @@ from vizier._src.benchmarks.experimenters import experimenter
 from vizier._src.benchmarks.experimenters import noisy_experimenter
 from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
+from vizier._src.benchmarks.experimenters import permuting_experimenter
 from vizier._src.benchmarks.experimenters import shifting_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier.interfaces import serializable
@@ -125,6 +126,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
     categorical_dict: Dictionary of parameter indices to categorize in a grid.
       Similar to `discrete_dict`, except this converts a parameter to
       categorical instead of discrete.
+    permute_categoricals: Whether to permute the categorical values.
   """
 
   base_factory: SerializableExperimenterFactory = attr.field()
@@ -135,6 +137,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
   num_normalization_samples: int = attr.field(default=0)
   discrete_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
   categorical_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
+  permute_categoricals: bool = attr.field(default=True, kw_only=True)
   # TODO: Add support for sparsification.
 
   def __call__(self) -> experimenter.Experimenter:
@@ -177,6 +180,17 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
           )
       )
 
+    if self.permute_categoricals:
+      search_space = exptr.problem_statement().search_space
+      categorical_parameters = [
+          p.name
+          for p in search_space.parameters
+          if p.type == vz.ParameterType.CATEGORICAL
+      ]
+      exptr = permuting_experimenter.PermutingExperimenter(
+          exptr, categorical_parameters
+      )
+
     if self.noise_type is not None:
       exptr = noisy_experimenter.NoisyExperimenter.from_type(
           exptr, noise_type=self.noise_type.upper(), seed=self.noise_seed
@@ -194,6 +208,9 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
         'num_normalization_samples': self.num_normalization_samples,
         'discrete_dict': self.discrete_dict,
         'categorical_dict': self.categorical_dict,
+        'should_restrict': self.should_restrict,
+        'permute_categoricals': self.permute_categoricals,
+        'noise_seed': self.noise_seed,
     }
     metadata[SINGLE_OBJECTIVE_FACTORY_KEY] = json.dumps(
         metadata_dict, cls=json_utils.NumpyEncoder

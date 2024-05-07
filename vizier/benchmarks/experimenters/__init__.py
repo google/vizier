@@ -35,6 +35,7 @@ from vizier._src.benchmarks.experimenters.multiobjective_experimenter import Mul
 from vizier._src.benchmarks.experimenters.noisy_experimenter import NoisyExperimenter
 from vizier._src.benchmarks.experimenters.normalizing_experimenter import NormalizingExperimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
+from vizier._src.benchmarks.experimenters.permuting_experimenter import PermutingExperimenter
 from vizier._src.benchmarks.experimenters.shifting_experimenter import ShiftingExperimenter
 from vizier._src.benchmarks.experimenters.sign_flip_experimenter import SignFlipExperimenter
 from vizier._src.benchmarks.experimenters.sparse_experimenter import SparseExperimenter
