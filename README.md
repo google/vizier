@@ -110,7 +110,7 @@ Check if all unit tests work by running `run_tests.sh` after a full installation
 
 Thanks!
 
-```
+```bibtex
 @inproceedings{oss_vizier,
   author    = {Xingyou Song and
                Sagi Perel and
@@ -121,6 +121,7 @@ Thanks!
   booktitle = {Automated Machine Learning Conference, Systems Track (AutoML-Conf Systems)},
   year      = {2022},
 }
+
 @inproceedings{google_vizier,
   author    = {Daniel Golovin and
                Benjamin Solnik and
