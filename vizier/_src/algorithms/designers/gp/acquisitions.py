@@ -610,15 +610,21 @@ class TrustRegion(eqx.Module):
     features.
 
     Args:
-      xs: (M, D) array where each element is in [0, 1].
+      xs: (M_0, M_1, ..., D) array where each element is in [0, 1]. The leading
+        axes are the batch dimensions, and the last axis is the feature
+        dimension.
 
     Returns:
-      (M,) array of floating numbers, L-infinity distances to the nearest
-      trusted point.
+      (M_0, M_1, ...) array of floating numbers that has one fewer axis than
+      `xs`: L-infinity distances to the nearest trusted point.
     """
-    trusted = self.trusted.continuous.replace_fill_value(0.0).padded_array
+    trusted = self.trusted.continuous.replace_fill_value(
+        0.0
+    ).padded_array  # (N, D)
     xs = xs.continuous.replace_fill_value(0.0).padded_array
-    distances = jnp.abs(trusted - xs[..., jnp.newaxis, :])  # (M, N, D)
+    distances = jnp.abs(
+        trusted - xs[..., jnp.newaxis, :]
+    )  # (M_0, M_1, ..,, N, D)
     # Mask out padded features. We set these distances to infinite since
     # they should never be considered.
     distances = jnp.where(
@@ -627,6 +633,6 @@ class TrustRegion(eqx.Module):
         distances,
     )
     if distances.size == 0:
-      return -np.inf * jnp.ones_like(xs, shape=xs.shape[:1])
-    linf_distance = jnp.max(distances, axis=-1)  # (M, N)
-    return jnp.min(linf_distance, axis=-1)  # (M,)
+      return -np.inf * jnp.ones_like(xs, shape=xs.shape[:-1])
+    linf_distance = jnp.max(distances, axis=-1)  # (M_0, M_1, ..., N)
+    return jnp.min(linf_distance, axis=-1)  # (M_0, M_1, ...)

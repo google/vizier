@@ -61,6 +61,7 @@ class GpUcbPeTest(parameterized.TestCase):
           iters=3,
           batch_size=5,
           num_seed_trials=5,
+          applies_padding=True,
           optimize_set_acquisition_for_exploration=True,
       ),
       dict(
@@ -69,9 +70,10 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           applies_padding=True,
           optimize_set_acquisition_for_exploration=True,
+          search_space=test_studies.flat_categorical_space(),
       ),
   )
-  def test_on_flat_continuous_space(
+  def test_on_flat_space(
       self,
       iters: int = 5,
       batch_size: int = 1,
@@ -81,14 +83,15 @@ class GpUcbPeTest(parameterized.TestCase):
       applies_padding: bool = False,
       pe_overwrite: bool = False,
       optimize_set_acquisition_for_exploration: bool = False,
+      search_space: vz.SearchSpace = (
+          test_studies.flat_continuous_space_with_scaling()
+      ),
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
     if ard_optimizer == 'default':
       ard_optimizer = optimizers.default_optimizer()
-    problem = vz.ProblemStatement(
-        test_studies.flat_continuous_space_with_scaling()
-    )
+    problem = vz.ProblemStatement(search_space)
     problem.metric_information.append(
         vz.MetricInformation(
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE

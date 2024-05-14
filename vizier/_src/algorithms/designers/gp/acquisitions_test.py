@@ -329,22 +329,50 @@ class TrustRegionTest(absltest.TestCase):
         trusted=xs,
     )
 
-    xs_cont_test = np.array([[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]])
+    xs_cont_test = np.array([
+        [[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]],
+        [[1.0, 1.0], [0.0, 0.3], [0.9, 0.8]],
+    ])
     xs_test = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            xs_cont_test, target_shape=(3, 6), fill_value=-100.0
+            xs_cont_test, target_shape=(3, 3, 6), fill_value=-100.0
         ),
         categorical=types.PaddedArray.from_array(
             np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),
-            target_shape=(3, 5),
+            target_shape=(3, 3, 5),
             fill_value=-100,
         ),
     )
     np.testing.assert_allclose(
         tr.min_linf_distance(xs_test),
-        np.array([0.3, 0.2, 0.0]),
+        np.array([[0.3, 0.2, 0.0], [0.0, 0.3, 0.2], [0.0, 0.0, 0.0]]),
     )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
+
+  def test_trust_region_padded_all_categorical_multi_batch_dims(self):
+    xs = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(jnp.array([])),
+        categorical=types.PaddedArray.from_array(
+            np.ones((2, 2), dtype=types.INT_DTYPE),
+            target_shape=(4, 5),
+            fill_value=0,
+        ),
+    )
+    tr = acquisitions.TrustRegion(
+        trusted=xs,
+    )
+    xs_test = types.ModelInput(
+        continuous=types.PaddedArray.as_padded(jnp.array([])),
+        categorical=types.PaddedArray.from_array(
+            np.ones((2, 3, 2), dtype=types.INT_DTYPE),
+            target_shape=(3, 3, 5),
+            fill_value=-100,
+        ),
+    )
+    np.testing.assert_allclose(
+        tr.min_linf_distance(xs_test),
+        np.ones((3, 3)) * -np.inf,
+    )
 
 
 if __name__ == '__main__':

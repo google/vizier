@@ -31,6 +31,16 @@ def flat_continuous_space_with_scaling() -> vz.SearchSpace:
   return space
 
 
+def flat_categorical_space() -> vz.SearchSpace:
+  """Search space with categorical parameter types."""
+
+  space = vz.SearchSpace()
+  root = space.root
+  root.add_categorical_param('categorical_0', ['a', 'aa', 'aaa'])
+  root.add_categorical_param('categorical_1', ['b', 'bb', 'bbb'])
+  return space
+
+
 def flat_continuous_space_with_scaling_trials(
     count: int = 1,
 ) -> list[vz.TrialSuggestion]:
