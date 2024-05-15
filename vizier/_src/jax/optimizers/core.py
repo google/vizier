@@ -126,7 +126,7 @@ def get_best_params(
   logging.info('Best loss(es): %s at retry %s', losses[best_idx], best_idx)
   optimal_params = jax.tree_util.tree_map(lambda p: p[best_idx], all_params)
   if best_n is None:
-    optimal_params = jax.tree_map(
+    optimal_params = jax.tree.map(
         functools.partial(jnp.squeeze, axis=0), optimal_params
     )
   return optimal_params

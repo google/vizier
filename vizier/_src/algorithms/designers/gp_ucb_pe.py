@@ -639,7 +639,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     }
     best_n = self._ensemble_size or 1
     optimal_params, metrics = self._ard_optimizer(
-        init_params=jax.tree_map(
+        init_params=jax.tree.map(
             lambda x, y: jnp.concatenate([x, y]),
             fixed_init_params,
             random_init_params,

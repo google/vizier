@@ -105,7 +105,7 @@ class OptaxTrain(core.Optimizer[core.Params]):
     train_step = jax.vmap(_train_step)
 
     logging.info('Initialized parameters. %s',
-                 jax.tree_map(lambda x: x.shape, params))
+                 jax.tree.map(lambda x: x.shape, params))
 
     # See https://jax.readthedocs.io/en/latest/faq.html#buffer-donation.
     train_step = jax.jit(train_step, donate_argnums=[0, 1])

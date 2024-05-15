@@ -600,7 +600,7 @@ def best_candidates_to_trials(
       metadata = trial.metadata.ns('devinfo')
       metadata['acquisition_optimization'] = json.dumps(
           {'acquisition': best_results.rewards[ind]}
-          | jax.tree_map(
+          | jax.tree.map(
               lambda x, ind=ind: np.asarray(x[ind]), best_results.aux
           ),
           cls=json_utils.NumpyEncoder,

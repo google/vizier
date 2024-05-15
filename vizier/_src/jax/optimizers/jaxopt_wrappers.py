@@ -103,7 +103,7 @@ def _unbatch_params(batched_params: core.Params) -> list[core.Params]:
   batch_size = jax.tree_util.tree_leaves(batched_params)[0].shape[0]
   return list(
       map(
-          lambda i: jax.tree_map(lambda p: p[i], batched_params),
+          lambda i: jax.tree.map(lambda p: p[i], batched_params),
           range(batch_size),
       )
   )
