@@ -826,15 +826,12 @@ class VizierGPUCBPEBandit(vza.Designer):
 
     if isinstance(acquisition_optimizer, vb.VectorizedOptimizer):
       acq_rng, self._rng = jax.random.split(self._rng)
-      prior_features = None
-      if self._all_completed_trials:
-        prior_features = vb.trials_to_sorted_array(
-            self._all_completed_trials, self._converter
-        )
       with profiler.timeit('acquisition_optimizer', also_log=True):
         best_candidates = eqx.filter_jit(acquisition_optimizer)(
             scoring_fn.score,
-            prior_features=prior_features,
+            prior_features=vb.trials_to_sorted_array(
+                self._all_completed_trials, self._converter
+            ),
             count=1,
             seed=acq_rng,
             score_with_aux_fn=scoring_fn.score_with_aux,
@@ -930,6 +927,9 @@ class VizierGPUCBPEBandit(vza.Designer):
     with profiler.timeit('acquisition_optimizer', also_log=True):
       best_candidates = eqx.filter_jit(acquisition_optimizer)(
           scoring_fn.score,
+          prior_features=vb.trials_to_sorted_array(
+              self._all_completed_trials, self._converter
+          ),
           count=1,
           seed=acq_rng,
           score_with_aux_fn=scoring_fn.score_with_aux,
