@@ -1062,6 +1062,7 @@ class VizierGPUCBPEBandit(vza.Designer):
                 active_trials, data, model, predictive, tr, acquisition_problem
             )
         )
+        active_trials.append(suggestions[-1].to_trial())
       return suggestions + self._suggest_batch_with_exploration(
           count - len(suggestions), active_trials, data, model, predictive, tr
       )
