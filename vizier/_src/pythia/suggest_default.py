@@ -30,7 +30,7 @@ from vizier._src.pythia.policy import SuggestRequest
 _T = TypeVar('_T')
 
 
-def _get_default_parameters(search_space: vz.SearchSpace) -> vz.ParameterDict:
+def get_default_parameters(search_space: vz.SearchSpace) -> vz.ParameterDict:
   """Gets the default parameters for the given search space."""
   builder = vz.SequentialParameterBuilder(search_space)
 
@@ -94,7 +94,7 @@ def seed_with_default(suggest_fn: _T) -> _T:
     if request.max_trial_id > 0:
       return suggest_fn(self, request)
 
-    default_parameters = _get_default_parameters(
+    default_parameters = get_default_parameters(
         request.study_config.search_space
     )
     decision = SuggestDecision([vz.TrialSuggestion(default_parameters)])

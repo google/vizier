@@ -39,7 +39,7 @@ class GetDefaultParametersTest(absltest.TestCase):
   def test_double_user_default(self):
     ss = vz.SearchSpace()
     ss.root.add_float_param('x', 0.0, 1.0, default_value=0.2)
-    params = suggest_default._get_default_parameters(ss)
+    params = suggest_default.get_default_parameters(ss)
     self.assertEqual(params.get_value('x'), 0.2)
 
   @unittest.skip('TODO')
@@ -48,25 +48,25 @@ class GetDefaultParametersTest(absltest.TestCase):
     ss.root.add_float_param(
         'x', np.exp(-2), np.exp(2), scale_type=vz.ScaleType.LOG
     )
-    params = suggest_default._get_default_parameters(ss)
+    params = suggest_default.get_default_parameters(ss)
     self.assertEqual(params.get_value('x'), 1.0)
 
   def test_double_fixed(self):
     ss = vz.SearchSpace()
     ss.root.add_float_param('x', 1.0, 1.0)
-    params = suggest_default._get_default_parameters(ss)
+    params = suggest_default.get_default_parameters(ss)
     self.assertEqual(params.get_value('x'), 1.0)
 
   def test_discrete(self):
     ss = vz.SearchSpace()
     ss.root.add_discrete_param('x', [1, 2, 3, 6])
-    params = suggest_default._get_default_parameters(ss)
+    params = suggest_default.get_default_parameters(ss)
     self.assertEqual(params.get_value('x'), 3)
 
   def test_categorical(self):
     ss = vz.SearchSpace()
     ss.root.add_categorical_param('x', ['a', 'b', 'c', 'd'])
-    params = suggest_default._get_default_parameters(ss)
+    params = suggest_default.get_default_parameters(ss)
     self.assertEqual(params.get_value('x'), 'c')
 
 
