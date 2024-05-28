@@ -119,8 +119,6 @@ def sample_parameters(rng: np.random.Generator,
 
 
 def shuffle_list(rng: np.random.Generator, items: List[_T]) -> List[_T]:
-  """Create a new list of shuffled items. Original list remains the same."""
-  shuffled_indices = np.array(range(len(items)))
-  rng.shuffle(shuffled_indices)
-  shuffled_items = [items[i] for i in shuffled_indices]
-  return shuffled_items
+  """Shuffled a list of items (inplace)."""
+  rng.shuffle(items)
+  return items

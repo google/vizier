@@ -279,12 +279,14 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     # in random order every time. Creates a deep copy of the pool members.
     shuffled_flies = self._firefly_pool.get_shuffled_flies(self._rng)
     for other_fly in shuffled_flies:
-      is_other_fly_better = self._utils.is_better_than(other_fly.trial,
-                                                       moving_fly.trial)
+      is_other_fly_better = self._utils.is_better_than(
+          other_fly.trial, moving_fly.trial
+      )
       # Compute 'other_fly' pull weights by parameter type. In the paper
       # this is called "attractivness" and is denoted by beta(r).
       pull_weights = self._utils.compute_pull_weight_by_type(
-          other_fly.trial.parameters, mutated_parameters, is_other_fly_better)
+          other_fly.trial.parameters, mutated_parameters, is_other_fly_better
+      )
       # Apply the pulls from 'other_fly' on the moving fly's parameters.
       for param_config in self._problem.search_space.parameters:
         pull_weight = pull_weights[param_config.type]
