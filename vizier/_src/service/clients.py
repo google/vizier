@@ -155,10 +155,10 @@ class Study(client_abc.StudyInterface):
   def _add_trial(self, trial: vz.Trial) -> Trial:
     return self._trial_client(self._client.add_trial(trial))
 
-  def request(self, suggestion: vz.TrialSuggestion) -> None:
+  def request(self, suggestion: vz.TrialSuggestion) -> Trial:
     trial = suggestion.to_trial()
     trial.is_requested = True
-    self._client.add_trial(trial)
+    return self._trial_client(self._client.add_trial(trial))
 
   def trials(
       self, trial_filter: Optional[vz.TrialFilter] = None

@@ -216,7 +216,7 @@ class StudyInterface(abc.ABC):
   # TODO: Request does not play well with boolean or discrete
   # integer parameters.
   @abc.abstractmethod
-  def request(self, suggestion: vz.TrialSuggestion) -> None:
+  def request(self, suggestion: vz.TrialSuggestion) -> TrialInterface:
     """Request a trial to be suggested in the future.
 
     Requested trials are "queued" in the vizier database. Next time a client

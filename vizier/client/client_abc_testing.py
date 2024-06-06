@@ -172,12 +172,15 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def test_suggest_requested(self):
     # Given the same client id, should return the same trials.
     study = self.create_test_study(self.id())
-    request = vz.TrialSuggestion(parameters={'float': 0.11112})
-    study.request(request)
+    requested_parameters = {'float': 0.11112}
+    requested_trial = study.request(vz.TrialSuggestion(requested_parameters))
+    self.assertCountEqual(
+        requested_trial.parameters.items(), requested_parameters.items()
+    )
     trials = study.suggest(count=5, client_id='worker1')
     self.assertLen(trials, 5)
     self.assertCountEqual(
-        trials[0].parameters.items(), request.parameters.as_dict().items()
+        trials[0].parameters.items(), requested_parameters.items()
     )
 
   def test_suggest_different_workers(self):
