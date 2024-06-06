@@ -17,7 +17,7 @@ from __future__ import annotations
 """Utils for attrs."""
 
 import re
-from typing import Any, Callable, Collection, Optional
+from typing import Any, Callable, Collection, Literal, Optional, get_args, get_origin
 
 import attr
 
@@ -107,3 +107,33 @@ def shape_equals(instance_to_shape: Callable[[Any], Collection[Optional[int]]]):
                        f'which does not match the expected shape {shape}')
 
   return validator
+
+
+def literal_validator(
+    instance: Any, attribute: attr.Attribute, value: Any
+) -> None:
+  """Validates a `Literal` type.
+
+  Can be used as an argument to `attr.field(validator=)`.
+
+  NOTE: Static typechecker in most cases can enforce `Literal` types. You are
+  usually fine with not adding the extra runtime typecheck.
+
+  Args:
+    instance:
+    attribute:
+    value:
+
+  Raises:
+    ValueError:
+  """
+  del instance
+  if get_origin(attribute.type) is not Literal:
+    raise ValueError(
+        f'Literal validator cannot be applied to type: {attribute.type}'
+    )
+  allowed_values = get_args(attribute.type)
+  if value not in allowed_values:
+    raise ValueError(
+        f'Bad literal value {value}. Must be one of: {allowed_values}'
+    )
