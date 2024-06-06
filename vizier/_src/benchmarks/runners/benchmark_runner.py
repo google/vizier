@@ -89,13 +89,13 @@ class GenerateAndEvaluate(BenchmarkSubroutine):
     suggestions = state.algorithm.suggest(self.batch_size)
     if not suggestions:
       logging.info(
-          (
-              'Algorithm did not generate %d suggestions'
-              'because it returned nothing.'
-          ),
+          'Algorithm returned 0 suggestions. Expected: %s.',
           self.batch_size,
       )
+    logging.info('Generated %s suggestions.', len(suggestions))
     state.experimenter.evaluate(list(suggestions))
+    for t in suggestions:
+      logging.info('Trial %s: %s', t.id, t.final_measurement)
 
 
 @attr.define
@@ -165,6 +165,9 @@ class EvaluateActiveTrials(BenchmarkSubroutine):
       evaluated_trials = active_trials[: self.num_evaluations]
 
     state.experimenter.evaluate(evaluated_trials)
+    logging.info('Evaluated %s trials.', len(evaluated_trials))
+    for t in evaluated_trials:
+      logging.info('Trial %s: %s', t.id, t.final_measurement)
 
 
 @attr.define

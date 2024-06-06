@@ -573,7 +573,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
   @classmethod
   def from_problem(
-      cls, problem: vz.ProblemStatement, seed: Optional[int] = None
+      cls,
+      problem: vz.ProblemStatement,
+      seed: Optional[int] = None,
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
     # Linear coef is set to 1.0 as prior and uses VizierLinearGaussianProcess

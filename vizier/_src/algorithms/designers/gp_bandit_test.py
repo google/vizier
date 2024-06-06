@@ -30,7 +30,9 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.algorithms.testing import simplekd_runner
 from vizier._src.algorithms.testing import test_runners
+from vizier._src.benchmarks.experimenters.synthetic import simplekd
 from vizier._src.jax import types
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
@@ -492,6 +494,39 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ).run_designer(designer),
         iters,
     )
+
+
+class GPBanditSimplekDTest(parameterized.TestCase):
+  """Simplekd convergence tests for gp bandit designer."""
+
+  @parameterized.parameters(
+      dict(best_category='corner', max_relative_error=0.5),
+      dict(best_category='center', max_relative_error=0.1),
+      dict(best_category='mixed', max_relative_error=0.1),
+  )
+  def test_convergence(
+      self,
+      best_category: simplekd.SimpleKDCategory,
+      *,
+      max_relative_error: float,
+  ) -> None:
+    simplekd_runner.SimpleKDConvergenceTester(
+        best_category=best_category,
+        designer_factory=(
+            # pylint: disable=g-long-lambda
+            lambda problem, seed: gp_bandit.VizierGPBandit(
+                problem,
+                rng=jax.random.PRNGKey(seed),
+                padding_schedule=padding.PaddingSchedule(
+                    num_trials=padding.PaddingType.MULTIPLES_OF_10
+                ),
+            )
+        ),
+        num_trials=20,
+        max_relative_error=max_relative_error,
+        num_repeats=1,
+        target_num_convergence=1,
+    ).assert_convergence()
 
 
 # TODO: Fix transfer learning and enable tests.
