@@ -16,8 +16,10 @@ from __future__ import annotations
 
 """Analyzers for BenchmarkStates for fast comparisons and statistics."""
 
+import collections
 import json
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Callable, Dict, Optional, Sequence, Tuple
+
 from absl import logging
 import attrs
 import numpy as np
@@ -26,6 +28,7 @@ from vizier import benchmarks
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.analyzers import convergence_curve
 from vizier.benchmarks import experimenters
+
 
 RECORD_OBJECTIVE_KEY = 'objective'
 
@@ -160,6 +163,25 @@ class BenchmarkStateAnalyzer:
     )
 
 
+def summarize_element(element: PlotElement) -> np.ndarray:
+  if element.plot_type == 'error-bar':
+    assert element.curve is not None
+    return np.median(np.array(element.curve.ys[:, -1]))
+  elif element.plot_type == 'histogram':
+    return np.median(element.plot_array)
+  else:
+    raise NotImplementedError(f'Unsupported plot type {element.plot_type}')
+
+
+def summarize_elements(
+    plot_elements_list: Sequence[PlotElement],
+) -> PlotElement:
+  summary_vector = [
+      summarize_element(element) for element in plot_elements_list
+  ]
+  return PlotElement(plot_array=np.array(summary_vector), plot_type='histogram')
+
+
 class BenchmarkRecordAnalyzer:
   """Analyzer for a sequence of Benchmark Records."""
 
@@ -270,3 +292,81 @@ class BenchmarkRecordAnalyzer:
         )
 
     return analyzed_records
+
+  @classmethod
+  def summarize(
+      cls,
+      records: Sequence[BenchmarkRecord],
+      record_to_reduced_keys: Callable[[BenchmarkRecord], tuple[str, str]],
+      *,
+      summarize_elements_fn: Callable[
+          [Sequence[PlotElement]], PlotElement
+      ] = summarize_elements,
+  ) -> Sequence[BenchmarkRecord]:
+    """Summarizes PlotElements to BenchmarkRecord.
+
+    Comparisons are done for compare_metric with respect to the baseline_algo.
+
+    Args:
+      records: Sequence of BenchmarkRecords
+      record_to_reduced_keys: Takes a BenchmarkRecord and returns the removed
+        key as string and the reduced metadata as a json string. For example, if
+        metadata = {'experimenter': Sphere, 'dim': 4} and we want to reduce
+        across experimenter, then the removed key would be Sphere and the
+        reduced metadata would be '{"dim": 4}'.
+      summarize_elements_fn: PlotElement summarization function.
+
+    Returns:
+      List of summarized BenchmarkRecords.
+    """
+
+    records_list = [
+        (rec.algorithm, *record_to_reduced_keys(rec), rec) for rec in records
+    ]
+    df = pd.DataFrame(
+        records_list,
+        columns=['algorithm', 'removed_key', 'reduced_metadata', 'record'],
+    )
+
+    summarized_records = []
+    for algorithm_name, group_by_algo in df.groupby('algorithm'):
+      if not group_by_algo.size:
+        continue
+      for reduced_metadata, group_by_reduced_metadata in group_by_algo.groupby(
+          'reduced_metadata'
+      ):
+        if not group_by_reduced_metadata.size:
+          continue
+        summarized_records.append(
+            BenchmarkRecord(
+                algorithm=str(algorithm_name),
+                experimenter_metadata=vz.Metadata(json.loads(reduced_metadata)),
+                plot_elements=cls._summarize_elements_df(
+                    group_by_reduced_metadata,
+                    summarize_elements_fn=summarize_elements_fn,
+                ),
+            )
+        )
+    return summarized_records
+
+  @classmethod
+  def _summarize_elements_df(
+      cls,
+      elements_df: pd.DataFrame,
+      summarize_elements_fn: Callable[
+          [Sequence[PlotElement]], PlotElement
+      ] = summarize_elements,
+  ) -> dict[str, PlotElement]:
+    """Summarizes PlotElements via removed_key in a dataframe."""
+    key_to_elements_list = collections.defaultdict(list)
+    for removed_key, group in elements_df.groupby('removed_key'):
+      if len(group) > 1:
+        raise ValueError(f'More than 1 group after analysis for {removed_key}')
+      for key, element in group.record.iloc[0].plot_elements.items():
+        key_to_elements_list[key].append(element)
+
+    # Summarize metadata and plot elements
+    summarized_plot_elements = {}
+    for key, elements_list in key_to_elements_list.items():
+      summarized_plot_elements[key] = summarize_elements_fn(elements_list)
+    return summarized_plot_elements

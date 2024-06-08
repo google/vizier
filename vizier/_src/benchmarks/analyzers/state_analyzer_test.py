@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 from vizier import benchmarks as vzb
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import grid
@@ -117,8 +118,8 @@ class StateAnalyzerTest(absltest.TestCase):
     self.assertIn('Sphere', str(record.experimenter_metadata))
     self.assertIn(f'{dim}', str(record.experimenter_metadata))
 
-  def test_add_comparison_metrics(self):
-    function_names = ['Sphere', 'Discus']
+  def test_summarize_records(self):
+    function_names = ['Sphere', 'Discus', 'AttractiveSector']
     dimensions = [4, 8]
     product_list = list(itertools.product(function_names, dimensions))
 
@@ -162,22 +163,20 @@ class StateAnalyzerTest(absltest.TestCase):
         )
         records.append(record)
 
-    compare_metric = state_analyzer.RECORD_OBJECTIVE_KEY
-    baseline_algo = 'random'
-    analyzed_records = (
-        state_analyzer.BenchmarkRecordAnalyzer.add_comparison_metrics(
-            records, baseline_algo='random', compare_metric='objective'
-        )
+    def record_to_reduced_keys(record: state_analyzer.BenchmarkRecord):
+      json_metadata = record.experimenter_metadata[
+          experimenters.experimenter_factory.BBOB_FACTORY_KEY
+      ]
+      metadata_dict = json.loads(json_metadata)
+      exptr_name = metadata_dict.pop('name')
+      return (exptr_name, json.dumps(metadata_dict))
+
+    summarized_records = state_analyzer.BenchmarkRecordAnalyzer.summarize(
+        records, record_to_reduced_keys
     )
-    for record in analyzed_records:
-      self.assertIn(
-          compare_metric + ':score:' + baseline_algo,
-          record.plot_elements.keys(),
-      )
-      self.assertIn(
-          compare_metric + ':score_curve:' + baseline_algo,
-          record.plot_elements.keys(),
-      )
+    self.assertLen(summarized_records, len(dimensions) * len(algorithms))
+    for record in summarized_records:
+      self.assertLen(record.plot_elements, 1)
 
 
 if __name__ == '__main__':
