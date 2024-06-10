@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 from vizier import pyvizier
@@ -32,7 +32,7 @@ class PermutingExperimenter(experimenter.Experimenter):
       self,
       exptr: experimenter.Experimenter,
       parameters_to_permute: Sequence[str],
-      seed: int = 0,
+      seed: Optional[int] = None,
   ):
     """PermutingExperiment permutes discrete parameter values before passing to exptr.
 

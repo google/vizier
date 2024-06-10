@@ -73,7 +73,7 @@ class PermutingExperimenterTest(parameterized.TestCase):
     ]
     self.assertLen(discretized_parameters, 2)
     permuted_exptr = permuting_experimenter.PermutingExperimenter(
-        dis_exptr, discretized_parameters
+        dis_exptr, discretized_parameters, seed=0
     )
 
     self.assertEqual(

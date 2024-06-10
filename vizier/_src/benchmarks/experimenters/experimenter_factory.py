@@ -130,14 +130,17 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
   """
 
   base_factory: SerializableExperimenterFactory = attr.field()
-  shift: Optional[np.ndarray] = attr.field(default=None)
+
+  # Below are optional randomization + transformation options.
+  shift: Optional[np.ndarray] = attr.field(default=None, kw_only=True)
   should_restrict: bool = attr.field(default=True, kw_only=True)
-  noise_type: Optional[str] = attr.field(default=None)
-  noise_seed: int = attr.field(default=0)
-  num_normalization_samples: int = attr.field(default=0)
-  discrete_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
-  categorical_dict: dict[int, int] = attr.field(default=attr.Factory(dict))
-  permute_categoricals: bool = attr.field(default=True, kw_only=True)
+  noise_type: Optional[str] = attr.field(default=None, kw_only=True)
+  noise_seed: Optional[int] = attr.field(default=None, kw_only=True)
+  num_normalization_samples: int = attr.field(default=0, kw_only=True)
+  discrete_dict: dict[int, int] = attr.field(factory=dict, kw_only=True)
+  categorical_dict: dict[int, int] = attr.field(factory=dict, kw_only=True)
+  permute_categoricals: bool = attr.field(default=False, kw_only=True)
+  permute_seed: Optional[int] = attr.field(default=None, kw_only=True)
   # TODO: Add support for sparsification.
 
   def __call__(self) -> experimenter.Experimenter:
@@ -188,7 +191,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
           if p.type == vz.ParameterType.CATEGORICAL
       ]
       exptr = permuting_experimenter.PermutingExperimenter(
-          exptr, categorical_parameters
+          exptr, categorical_parameters, seed=self.permute_seed
       )
 
     if self.noise_type is not None:
