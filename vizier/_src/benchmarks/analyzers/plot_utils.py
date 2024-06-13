@@ -225,7 +225,6 @@ def plot_from_records(
               percentiles=(elem_for_metric.percentile_error_bar,),
               **kwargs,
           )
-          ax.set_xlabel('# of Trials')
         elif plot_type == 'scatter':
           plot = elem_for_metric.plot_array
           ax.scatter(
@@ -254,6 +253,7 @@ def plot_from_records(
           )
         else:
           raise ValueError(f'{plot_type} plot not yet supported!')
+        ax.set_xlabel(elem_for_metric.xlabel)
         ax.set_yscale(elem_for_metric.yscale)
         ax.yaxis.set_major_locator(mpl.ticker.LinearLocator(20))
         ax.yaxis.set_minor_locator(mpl.ticker.LinearLocator(100))

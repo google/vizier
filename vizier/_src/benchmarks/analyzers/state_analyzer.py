@@ -54,6 +54,9 @@ class PlotElement:
       default='error-bar',
       validator=attrs.validators.in_(['error-bar', 'histogram', 'scatter']),
   )
+  xlabel: str = attrs.field(
+      default='Num Trials', validator=attrs.validators.instance_of(str)
+  )
   yscale: str = attrs.field(
       default='linear',
       validator=attrs.validators.in_(['linear', 'symlog', 'logit']),
