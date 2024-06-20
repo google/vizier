@@ -117,14 +117,16 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     observation_noise_bounds = (np.float64(1e-10 - eps), 1.0 + eps)
     amplitude_bounds = (np.float64(1e-3 - eps), 10.0 + eps)
     continuous_ones = np.ones((self._dim.continuous), dtype=np.float64)
-    continuous_length_scale_bounds = (
+    continuous_length_scale_squared_bounds = (
         continuous_ones * (1e-2 - eps),
-        continuous_ones * 1e2 + eps,
+        continuous_ones * 2 * (self._dim.continuous + self._dim.categorical)
+        + eps,
     )
     categorical_ones = np.ones((self._dim.categorical), dtype=np.float64)
-    categorical_length_scale_bounds = (
+    categorical_length_scale_squared_bounds = (
         categorical_ones * (1e-2 - eps),
-        categorical_ones * 1e2 + eps,
+        categorical_ones * 2 * (self._dim.continuous + self._dim.categorical)
+        + eps,
     )
 
     signal_variance = yield sp.ModelParameter(
@@ -138,27 +140,34 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     )
     kernel = tfpk.MaternFiveHalves(amplitude=jnp.sqrt(signal_variance))
 
+    # TODO: The length scale for dimension $d$ should ideally be
+    # upper bounded by the maximum distance between two points in the dimension.
     continuous_length_scale_squared = yield sp.ModelParameter(
         init_fn=_log_uniform_init(
-            *continuous_length_scale_bounds, shape=(self._dim.continuous,)
+            *continuous_length_scale_squared_bounds,
+            shape=(self._dim.continuous,),
         ),
         constraint=sp.Constraint(
-            continuous_length_scale_bounds,
-            tfb.SoftClip(*continuous_length_scale_bounds, hinge_softness=1e-2),
+            continuous_length_scale_squared_bounds,
+            tfb.SoftClip(
+                *continuous_length_scale_squared_bounds, hinge_softness=1e-2
+            ),
         ),
-        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2),
+        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.01) ** 2),
         name='continuous_length_scale_squared',
     )
     categorical_length_scale_squared = yield sp.ModelParameter(
         init_fn=_log_uniform_init(
-            *categorical_length_scale_bounds,
+            *categorical_length_scale_squared_bounds,
             shape=(self._dim.categorical,),
         ),
         constraint=sp.Constraint(
-            categorical_length_scale_bounds,
-            tfb.SoftClip(*categorical_length_scale_bounds, hinge_softness=1e-2),
+            categorical_length_scale_squared_bounds,
+            tfb.SoftClip(
+                *categorical_length_scale_squared_bounds, hinge_softness=1e-2
+            ),
         ),
-        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2),
+        regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.01) ** 2),
         name='categorical_length_scale_squared',
     )
     kernel = tfpke.FeatureScaledWithCategorical(
@@ -283,12 +292,12 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     observation_noise_bounds = (np.float64(1e-10 - eps), 1.0 + eps)
     amplitude_bounds = (np.float64(1e-3 - eps), 10.0 + eps)
     continuous_ones = np.ones((self._dim.continuous), dtype=np.float64)
-    continuous_length_scale_bounds = (
+    continuous_length_scale_squared_bounds = (
         continuous_ones * (1e-2 - eps),
         continuous_ones * 1e2 + eps,
     )
     categorical_ones = np.ones((self._dim.categorical), dtype=np.float64)
-    categorical_length_scale_bounds = (
+    categorical_length_scale_squared_bounds = (
         categorical_ones * (1e-2 - eps),
         categorical_ones * 1e2 + eps,
     )
@@ -306,23 +315,28 @@ class VizierLinearGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
 
     continuous_length_scale_squared = yield sp.ModelParameter(
         init_fn=_log_uniform_init(
-            *continuous_length_scale_bounds, shape=(self._dim.continuous,)
+            *continuous_length_scale_squared_bounds,
+            shape=(self._dim.continuous,),
         ),
         constraint=sp.Constraint(
-            continuous_length_scale_bounds,
-            tfb.SoftClip(*continuous_length_scale_bounds, hinge_softness=1e-2),
+            continuous_length_scale_squared_bounds,
+            tfb.SoftClip(
+                *continuous_length_scale_squared_bounds, hinge_softness=1e-2
+            ),
         ),
         regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2),
         name='continuous_length_scale_squared',
     )
     categorical_length_scale_squared = yield sp.ModelParameter(
         init_fn=_log_uniform_init(
-            *categorical_length_scale_bounds,
+            *categorical_length_scale_squared_bounds,
             shape=(self._dim.categorical,),
         ),
         constraint=sp.Constraint(
-            categorical_length_scale_bounds,
-            tfb.SoftClip(*categorical_length_scale_bounds, hinge_softness=1e-2),
+            categorical_length_scale_squared_bounds,
+            tfb.SoftClip(
+                *categorical_length_scale_squared_bounds, hinge_softness=1e-2
+            ),
         ),
         regularizer=lambda x: jnp.sum(0.01 * jnp.log(x / 0.5) ** 2),
         name='categorical_length_scale_squared',
