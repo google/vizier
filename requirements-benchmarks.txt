@@ -13,4 +13,4 @@ nats_bench  # NASBench-201
 xgboost==1.5.1
 
 # For Raytune
-ray==2.3.1
+ray==2.7.0
