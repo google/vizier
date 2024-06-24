@@ -852,7 +852,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
         Trial(),
     ])
-    expected = np.asarray([[1.0], [2.0], [-3.0], [np.NaN], [np.NaN]], dtype)
+    expected = np.asarray([[1.0], [2.0], [-3.0], [np.nan], [np.nan]], dtype)
     np.testing.assert_allclose(expected, actual)
     self.assertEqual(expected.dtype, actual.dtype)
 
@@ -999,7 +999,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(parameters={'x1': pyvizier.ParameterValue('a')}),
         Trial(),
     ])
-    expected = np.asarray([[0.5], [0.6], [np.NaN], [np.NaN]], dtype)
+    expected = np.asarray([[0.5], [0.6], [np.nan], [np.nan]], dtype)
     np.testing.assert_equal(expected, actual)
 
   @parameterized.parameters([
@@ -1026,7 +1026,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.NaN], [np.NaN]],
+        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.nan], [np.nan]],
         dtype=dtype,
     )
     np.testing.assert_almost_equal(expected, actual)
@@ -1055,7 +1055,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.NaN], [np.NaN]],
+        [[0.5], [0.5 + np.exp(1.2) - np.exp(0.9)], [np.nan], [np.nan]],
         dtype=dtype,
     )
     np.testing.assert_almost_equal(expected, actual)
@@ -1084,7 +1084,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[4 / 6], [5 / 6], [0 / 6], [np.NaN], [np.NaN]], dtype=dtype
+        [[4 / 6], [5 / 6], [0 / 6], [np.nan], [np.nan]], dtype=dtype
     )
     np.testing.assert_allclose(expected, actual)
     self.assertEqual(expected.dtype, actual.dtype)
@@ -1127,7 +1127,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[1.0], [2.0], [-3.0], [np.NaN], [np.NaN]], dtype=dtype
+        [[1.0], [2.0], [-3.0], [np.nan], [np.nan]], dtype=dtype
     )
     np.testing.assert_allclose(expected, actual)
 
@@ -1233,7 +1233,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[1.0], [2.0], [-3.0], [np.NaN], [np.NaN]], dtype=np.float32
+        [[1.0], [2.0], [-3.0], [np.nan], [np.nan]], dtype=np.float32
     )
     np.testing.assert_equal(expected, actual)
 
@@ -1252,7 +1252,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         Trial(),
     ])
     expected = np.asarray(
-        [[0.0], [0.5], [-2.0], [np.NaN], [np.NaN]], dtype=np.float32
+        [[0.0], [0.5], [-2.0], [np.nan], [np.nan]], dtype=np.float32
     )
     np.testing.assert_equal(expected, actual)
 
