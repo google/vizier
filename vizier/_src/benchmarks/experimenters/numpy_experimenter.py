@@ -22,7 +22,7 @@ import math
 from typing import Callable, Sequence
 
 import numpy as np
-from vizier import pyvizier
+from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters import experimenter
 from vizier.pyvizier import converters
 
@@ -43,7 +43,7 @@ class NumpyExperimenter(experimenter.Experimenter):
   def __init__(
       self,
       impl: Callable[[np.ndarray], float],
-      problem_statement: pyvizier.ProblemStatement,
+      problem_statement: vz.ProblemStatement,
   ):
     """NumpyExperimenter with analytic function impl for one metric.
 
@@ -80,7 +80,7 @@ class NumpyExperimenter(experimenter.Experimenter):
         raise ValueError(f'Non-numeric parameters {parameter}')
 
     objective_metrics = problem_statement.metric_information.of_type(
-        pyvizier.MetricType.OBJECTIVE
+        vz.MetricType.OBJECTIVE
     )
     self._metric_name = objective_metrics.item().name
 
@@ -91,24 +91,22 @@ class NumpyExperimenter(experimenter.Experimenter):
         flip_sign_for_minimization_metrics=False,
     )
 
-  def problem_statement(self) -> pyvizier.ProblemStatement:
+  def problem_statement(self) -> vz.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
 
-  def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
+  def evaluate(self, suggestions: Sequence[vz.Trial]):
     # Features has shape (num_trials, num_features).
     features = self._converter.to_features(suggestions)
     for idx, suggestion in enumerate(suggestions):
       val = self.impl(features[idx])
       if math.isfinite(val):
-        suggestion.complete(
-            pyvizier.Measurement(metrics={self._metric_name: val})
-        )
+        suggestion.complete(vz.Measurement(metrics={self._metric_name: val}))
       else:
         self.problem_statement().search_space.assert_contains(
             suggestions[idx].parameters
         )
         suggestion.complete(
-            pyvizier.Measurement(),
+            vz.Measurement(),
             infeasibility_reason='Objective value is not finite: %f' % val,
         )
 
@@ -126,7 +124,7 @@ class MultiObjectiveNumpyExperimenter(experimenter.Experimenter):
   def __init__(
       self,
       impl: Callable[[np.ndarray], Sequence[float]],
-      problem_statement: pyvizier.ProblemStatement,
+      problem_statement: vz.ProblemStatement,
   ):
     self._impl = impl
     self._problem_statement = copy.deepcopy(problem_statement)
@@ -136,13 +134,14 @@ class MultiObjectiveNumpyExperimenter(experimenter.Experimenter):
         flip_sign_for_minimization_metrics=False,
     )
 
-  def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
+  def evaluate(self, suggestions: Sequence[vz.Trial]) -> None:
+    metric_info = self._problem_statement.metric_information
     features = self._converter.to_features(suggestions)
     for i, suggestion in enumerate(suggestions):
       feat = features[i]
       values = self._impl(feat)
-      for mc, value in zip(self._problem_statement.metric_information, values):
-        suggestion.complete(pyvizier.Measurement(metrics={mc.name: value}))
+      metrics = {mc.name: value for mc, value in zip(metric_info, values)}
+      suggestion.complete(vz.Measurement(metrics))
 
-  def problem_statement(self) -> pyvizier.ProblemStatement:
+  def problem_statement(self) -> vz.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
