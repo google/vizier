@@ -31,7 +31,7 @@ class Hartmann3DExperimenterTest(absltest.TestCase):
             f'x{i+1}': x for i, x in enumerate([0.114614, 0.555649, 0.852547])
         }
     )
-    hartmann.Hartmann3DExperimenter().evaluate([trial])
+    hartmann.HartmannExperimenter.from_3d().evaluate([trial])
     self.assertAlmostEqual(
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         -3.86278,
@@ -40,7 +40,7 @@ class Hartmann3DExperimenterTest(absltest.TestCase):
 
   def test_experimenter(self):
     experimenter_testing.assert_evaluates_random_suggestions(
-        self, hartmann.Hartmann3DExperimenter()
+        self, hartmann.HartmannExperimenter.from_3d()
     )
 
 
@@ -55,7 +55,7 @@ class Hartmann6DExperimenterTest(absltest.TestCase):
             )
         }
     )
-    hartmann.Hartmann6DExperimenter().evaluate([trial])
+    hartmann.HartmannExperimenter.from_6d().evaluate([trial])
     self.assertAlmostEqual(
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         -3.32237,
@@ -64,7 +64,7 @@ class Hartmann6DExperimenterTest(absltest.TestCase):
 
   def test_experimenter(self):
     experimenter_testing.assert_evaluates_random_suggestions(
-        self, hartmann.Hartmann6DExperimenter()
+        self, hartmann.HartmannExperimenter.from_6d()
     )
 
 

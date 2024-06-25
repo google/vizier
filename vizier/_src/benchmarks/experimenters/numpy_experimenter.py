@@ -114,3 +114,35 @@ class NumpyExperimenter(experimenter.Experimenter):
 
   def __repr__(self) -> str:
     return f'NumpyExperimenter {{name: {self._impl_name}}}'
+
+
+class MultiObjectiveNumpyExperimenter(experimenter.Experimenter):
+  """Multiobjective variant with variable number of objectives and dimensions.
+
+  We assume that `impl` returns a list of values, one per objective, ordered by
+  the metric information in the problem statement.
+  """
+
+  def __init__(
+      self,
+      impl: Callable[[np.ndarray], Sequence[float]],
+      problem_statement: pyvizier.ProblemStatement,
+  ):
+    self._impl = impl
+    self._problem_statement = copy.deepcopy(problem_statement)
+    self._converter = converters.TrialToArrayConverter.from_study_config(
+        study_config=self.problem_statement(),
+        scale=False,
+        flip_sign_for_minimization_metrics=False,
+    )
+
+  def evaluate(self, suggestions: Sequence[pyvizier.Trial]) -> None:
+    features = self._converter.to_features(suggestions)
+    for i, suggestion in enumerate(suggestions):
+      feat = features[i]
+      values = self._impl(feat)
+      for mc, value in zip(self._problem_statement.metric_information, values):
+        suggestion.complete(pyvizier.Measurement(metrics={mc.name: value}))
+
+  def problem_statement(self) -> pyvizier.ProblemStatement:
+    return copy.deepcopy(self._problem_statement)

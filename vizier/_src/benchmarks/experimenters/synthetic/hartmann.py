@@ -55,12 +55,10 @@ class HartmannExperimenter(experimenter.Experimenter):
     )
     return problem
 
-
-class Hartmann3DExperimenter(HartmannExperimenter):
-  """See https://www.sfu.ca/~ssurjano/hart3.html."""
-
-  def __init__(self):
-    super().__init__(
+  @classmethod
+  def from_3d(cls) -> "HartmannExperimenter":
+    """See https://www.sfu.ca/~ssurjano/hart3.html."""
+    return cls(
         alpha=np.array([1.0, 1.2, 3.0, 3.2]),
         A=np.array([
             [3, 10, 30],
@@ -77,12 +75,10 @@ class Hartmann3DExperimenter(HartmannExperimenter):
         ]),
     )
 
-
-class Hartmann6DExperimenter(HartmannExperimenter):
-  """See https://www.sfu.ca/~ssurjano/hart6.html."""
-
-  def __init__(self):
-    super().__init__(
+  @classmethod
+  def from_6d(cls) -> "HartmannExperimenter":
+    """See https://www.sfu.ca/~ssurjano/hart6.html."""
+    return cls(
         alpha=np.array([1.0, 1.2, 3.0, 3.2]),
         A=np.array([
             [10, 3, 17, 3.5, 1.7, 8],
