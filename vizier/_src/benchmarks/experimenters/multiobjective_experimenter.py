@@ -61,10 +61,10 @@ class MultiObjectiveExperimenter(experimenter.Experimenter):
 
     metric_infos = []
     # Keeps track of the underlying metric information name of each extpr.
-    self._previous_names = {}
+    self._exptr_to_metric = {}
     for name, exptr in exptrs.items():
       metric_info = exptr.problem_statement().metric_information.item()
-      self._previous_names[name] = metric_info.name
+      self._exptr_to_metric[name] = metric_info.name
       metric_info.name = name
       metric_infos.append(metric_info)
 
@@ -80,12 +80,12 @@ class MultiObjectiveExperimenter(experimenter.Experimenter):
     measurements = [pyvizier.Measurement() for _ in suggestions]
     for name, exptr in self._exptrs.items():
       exptr.evaluate(suggestions_copy)
-      previous_name = self._previous_names[name]
+      exptr_metric_name = self._exptr_to_metric[name]
       for idx, copied in enumerate(suggestions_copy):
         measurement = measurements[idx]
         assert copied.final_measurement is not None
         measurement.metrics[name] = copied.final_measurement.metrics[
-            previous_name
+            exptr_metric_name
         ]
 
     for suggestion, measurement in zip(suggestions, measurements):

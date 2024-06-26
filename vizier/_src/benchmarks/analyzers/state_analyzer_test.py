@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import numpy as np
 from vizier import benchmarks as vzb
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import grid
@@ -56,6 +57,40 @@ class StateAnalyzerTest(absltest.TestCase):
   def test_empty_curve_error(self):
     with self.assertRaisesRegex(ValueError, 'Empty'):
       state_analyzer.BenchmarkStateAnalyzer.to_curve([])
+
+  def test_multiobj_curve_conversion(self):
+    dim = 10
+    experimenter_factories = {
+        'sphere': experimenters.BBOBExperimenterFactory('Sphere', dim),
+        'discus': experimenters.BBOBExperimenterFactory('Discus', dim),
+    }
+    multi_experimenter = experimenters.CombinedExperimenterFactory(
+        base_factories=experimenter_factories
+    )()
+
+    def _designer_factory(config: vz.ProblemStatement, seed: int):
+      return random.RandomDesigner(config.search_space, seed=seed)
+
+    benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
+        designer_factory=_designer_factory, experimenter=multi_experimenter
+    )
+    num_trials = 20
+    runner = vzb.BenchmarkRunner(
+        benchmark_subroutines=[vzb.GenerateAndEvaluate()],
+        num_repeats=num_trials,
+    )
+
+    states = []
+    num_repeats = 3
+    for i in range(num_repeats):
+      bench_state = benchmark_state_factory(seed=i)
+      runner.run(bench_state)
+      states.append(bench_state)
+
+    curve = state_analyzer.BenchmarkStateAnalyzer.to_curve(
+        states, reference_value=np.asarray([-1])
+    )
+    self.assertEqual(curve.ys.shape, (num_repeats, num_trials))
 
   def test_different_curve_error(self):
     exp1 = experimenters.BBOBExperimenterFactory('Sphere', dim=2)()

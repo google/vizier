@@ -25,6 +25,7 @@ from vizier._src.benchmarks.experimenters.combo_experimenter import PestControlE
 from vizier._src.benchmarks.experimenters.discretizing_experimenter import DiscretizingExperimenter
 from vizier._src.benchmarks.experimenters.experimenter import Experimenter
 from vizier._src.benchmarks.experimenters.experimenter_factory import BBOBExperimenterFactory
+from vizier._src.benchmarks.experimenters.experimenter_factory import CombinedExperimenterFactory
 from vizier._src.benchmarks.experimenters.experimenter_factory import ExperimenterFactory
 from vizier._src.benchmarks.experimenters.experimenter_factory import SerializableExperimenterFactory
 from vizier._src.benchmarks.experimenters.experimenter_factory import SingleObjectiveExperimenterFactory
