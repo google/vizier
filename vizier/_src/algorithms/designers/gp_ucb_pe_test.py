@@ -72,6 +72,14 @@ class GpUcbPeTest(parameterized.TestCase):
           optimize_set_acquisition_for_exploration=True,
           search_space=test_studies.flat_categorical_space(),
       ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          applies_padding=True,
+          ensemble_size=3,
+          turns_on_high_noise_mode=True,
+      ),
   )
   def test_on_flat_space(
       self,
@@ -86,6 +94,7 @@ class GpUcbPeTest(parameterized.TestCase):
       search_space: vz.SearchSpace = (
           test_studies.flat_continuous_space_with_scaling()
       ),
+      turns_on_high_noise_mode: bool = False,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -113,9 +122,14 @@ class GpUcbPeTest(parameterized.TestCase):
             cb_violation_penalty_coefficient=10.0,
             ucb_overwrite_probability=0.0,
             pe_overwrite_probability=1.0 if pe_overwrite else 0.0,
+            # In high noise mode, the PE acquisition function is always used.
+            pe_overwrite_probability_in_high_noise=1.0,
             optimize_set_acquisition_for_exploration=(
                 optimize_set_acquisition_for_exploration
             ),
+            signal_to_noise_threshold=np.inf
+            if turns_on_high_noise_mode
+            else 0.0,
         ),
         ensemble_size=ensemble_size,
         padding_schedule=padding.PaddingSchedule(
@@ -189,12 +203,17 @@ class GpUcbPeTest(parameterized.TestCase):
       set_acq_value = None
       stddev_from_all_list = []
       for jdx in range(batch_size):
-        mean, stddev, stddev_from_all, acq, use_ucb = _extract_predictions(
+        mean, _, stddev_from_all, acq, use_ucb = _extract_predictions(
             all_trials[idx * batch_size + jdx].metadata.ns(
                 'gp_ucb_pe_bandit_test'
             )
         )
-        if jdx == 0 and idx < (iters + 1) and not pe_overwrite:
+        if (
+            jdx == 0
+            and idx < (iters + 1)
+            and not pe_overwrite
+            and not turns_on_high_noise_mode
+        ):
           # Except for the last batch of suggestions, the acquisition value of
           # the first suggestion in a batch is expected to be UCB, which
           # combines the predicted mean based only on completed trials and the
@@ -216,11 +235,9 @@ class GpUcbPeTest(parameterized.TestCase):
           # Pure-Exploration acquisition function. In this test, that happens
           # on the entire last batch and the second until the last suggestions
           # in every batch. The Pure-Exploration acquisition values are standard
-          # deviation predictions based on all trials (completed and pending),
-          # and are expected to be not much larger than the standard deviation
-          # predictions based only on completed trials.
-          self.assertLessEqual(
-              acq, 2 * stddev, msg=f'batch: {idx}, suggestion: {jdx}'
+          # deviation predictions based on all trials (completed and pending).
+          self.assertAlmostEqual(
+              acq, stddev_from_all, msg=f'batch: {idx}, suggestion: {jdx}'
           )
       if optimize_set_acquisition_for_exploration:
         geometric_mean_of_pred_cov_eigs = np.exp(

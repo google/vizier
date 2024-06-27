@@ -77,6 +77,17 @@ class UCBPEConfig(eqx.Module):
   pe_overwrite_probability: jt.Float[jt.Array, ''] = eqx.field(
       default=0.1, converter=jnp.asarray
   )
+  # The same as `pe_overwrite_probability` but only applies when the noise is
+  # estimated to be high.
+  pe_overwrite_probability_in_high_noise: jt.Float[jt.Array, ''] = eqx.field(
+      default=0.7, converter=jnp.asarray
+  )
+  # When the ratio between the estimated signal variance and the noise variance
+  # is below this threshold, the designer considers the noise to be high and may
+  # explore more aggressively. Default to 0.0 to disable this feature.
+  signal_to_noise_threshold: jt.Float[jt.Array, ''] = eqx.field(
+      default=0.0, converter=jnp.asarray
+  )
   # Whether to optimize the set acquisition function for exploration.
   optimize_set_acquisition_for_exploration: bool = eqx.field(
       default=False, static=True
@@ -715,6 +726,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       pending_features: types.ModelInput,
       data: types.ModelData,
       model: sp.StochasticProcessWithCoroutine,
+      noise_is_high: bool,
   ) -> sp.UniformEnsemblePredictive:
     """Builds the predictive model conditioned on observed and pending features.
 
@@ -722,6 +734,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       pending_features: Pending features.
       data: Features/labels for completed trials.
       model: The GP model.
+      noise_is_high: Whether the noise is estimated to be high.
 
     Returns:
       Predictive model with cached Cholesky conditioned on observed and pending
@@ -757,8 +770,14 @@ class VizierGPUCBPEBandit(vza.Designer):
     all_labels = jnp.concatenate([data.labels.unpad(), dummy_labels], axis=0)
     all_labels = self._padding_schedule.pad_labels(all_labels)
     all_data = types.ModelData(features=all_features, labels=all_labels)
+    if noise_is_high:
+      pe_params = dict(copy.deepcopy(model.params))
+      pe_params['observation_noise_variance'] = jnp.array([1e-10])
+      pe_model = sp.StochasticProcessWithCoroutine(model.coroutine, pe_params)
+    else:
+      pe_model = model
     return sp.UniformEnsemblePredictive(
-        predictives=eqx.filter_jit(model.precompute_predictive)(all_data)
+        predictives=eqx.filter_jit(pe_model.precompute_predictive)(all_data)
     )
 
   def _suggest_one(
@@ -773,6 +792,15 @@ class VizierGPUCBPEBandit(vza.Designer):
     """Generates one suggestion."""
     start_time = datetime.datetime.now()
     self._rng, rng = jax.random.split(self._rng, 2)
+    snr = model.params['signal_variance'] / jnp.maximum(
+        model.params['observation_noise_variance'], 1e-12
+    )
+    noise_is_high = (snr < self._config.signal_to_noise_threshold).all()
+    pe_overwrite_probability = (
+        self._config.pe_overwrite_probability_in_high_noise
+        if noise_is_high
+        else self._config.pe_overwrite_probability
+    )
     if _has_new_completed_trials(
         completed_trials=self._all_completed_trials,
         active_trials=active_trials,
@@ -780,9 +808,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       # When there are trials completed after all active trials were created,
       # we optimize the UCB acquisition function except with a small
       # probability the PE acquisition function to ensure exploration.
-      use_ucb = not jax.random.bernoulli(
-          key=rng, p=self._config.pe_overwrite_probability
-      )
+      use_ucb = not jax.random.bernoulli(key=rng, p=pe_overwrite_probability)
     else:
       has_completed_trials = len(self._all_completed_trials) > 0  # pylint:disable=g-explicit-length-test
       # When there are no trials completed after all active trials were
@@ -797,13 +823,10 @@ class VizierGPUCBPEBandit(vza.Designer):
     # TODO: Change budget based on requested suggestion count.
     acquisition_optimizer = self._acquisition_optimizer_factory(self._converter)
 
-    if active_trials:
-      pending_features = self._converter.to_features(active_trials)
-      predictive_all_features = self._get_predictive_all_features(
-          pending_features, data, model
-      )
-    else:
-      predictive_all_features = predictive
+    pending_features = self._converter.to_features(active_trials)
+    predictive_all_features = self._get_predictive_all_features(
+        pending_features, data, model, noise_is_high
+    )
 
     # When `use_ucb` is true, the acquisition function computes the UCB
     # values. Otherwise, it computes the Pure-Exploration acquisition values.
@@ -904,14 +927,16 @@ class VizierGPUCBPEBandit(vza.Designer):
   ):
     """Generates a batch of suggestions with exploration."""
     start_time = datetime.datetime.now()
-    if active_trials:
-      pending_features = self._converter.to_features(active_trials)
-      predictive_all_features = self._get_predictive_all_features(
-          pending_features, data, model
-      )
-    else:
-      predictive_all_features = predictive
-
+    snr = model.params['signal_variance'] / jnp.maximum(
+        model.params['observation_noise_variance'], 1e-12
+    )
+    pending_features = self._converter.to_features(active_trials)
+    predictive_all_features = self._get_predictive_all_features(
+        pending_features,
+        data,
+        model,
+        noise_is_high=(snr < self._config.signal_to_noise_threshold),
+    )
     scoring_fn = SetPEScoreFunction(
         predictive,
         predictive_all_features,
