@@ -80,7 +80,7 @@ class WFGExperimenterFactory(
   )
 
   def __attrs_post_init__(self):
-    k = 4 if self.num_objectives == 2 else 2 * (self.num_objectives - 1)
+    k = self.num_objectives - 1
     if (self.dim - k) % 2 != 0:
       raise ValueError(
           f"dimensions - k must be even, got {self.dim - k} for k={k}."
