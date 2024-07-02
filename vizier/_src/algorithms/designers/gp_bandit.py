@@ -584,12 +584,19 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       return cls(problem, rng=rng, linear_coef=1.0)
     else:
       objectives = problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
-      random_weights = np.abs(np.random.normal(size=len(objectives)))
+      num_scalarizations = 100
+      random_weights = [
+          np.abs(np.random.normal(size=len(objectives)))
+          for _ in range(num_scalarizations)
+      ]
 
       def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
-        del data
-        scalarizer = scalarization.HyperVolumeScalarization(random_weights)
-        return acq_lib.ScalarizedAcquisition(acq_lib.UCB(), scalarizer)
+        reference_point = acq_lib.get_worst_labels(data.labels)
+        scalarizers = [
+            scalarization.HyperVolumeScalarization(weights, reference_point)
+            for weights in random_weights
+        ]
+        return acq_lib.ScalarizedAcquisition(acq_lib.UCB(), scalarizers)
 
       scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
           _scalarized_ucb
