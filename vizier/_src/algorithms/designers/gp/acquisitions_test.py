@@ -71,13 +71,17 @@ class AcquisitionsTest(absltest.TestCase):
     )
 
   def test_scalarized_ucb(self):
+    labels = types.PaddedArray.as_padded(
+        jnp.array([[0.2, 0.3], [0.01, 0.5], [0.5, 0.01]])
+    )
+    reference_point = acquisitions.get_worst_labels(labels)
     ucb = acquisitions.UCB(coefficient=2.0)
     scalarizer = scalarization.HyperVolumeScalarization(
-        weights=jnp.array([0.1, 0.2])
+        weights=jnp.array([0.1, 0.2]), reference_point=reference_point
     )
-    acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
+    acq = acquisitions.ScalarizedAcquisition(ucb, [scalarizer, scalarizer])
     self.assertAlmostEqual(
-        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(21), delta=1e-5
+        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(20.9), delta=1e-2
     )
 
   def test_pi(self):

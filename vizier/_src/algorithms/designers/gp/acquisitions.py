@@ -109,6 +109,26 @@ def get_best_labels(labels: types.PaddedArray) -> jax.Array:
   return jnp.max(labels.replace_fill_value(-np.inf).padded_array, axis=-2)
 
 
+def get_worst_labels(labels: types.PaddedArray) -> jax.Array:
+  """Returns the minimum values of labels.
+
+  A note on "labels" in TFP acquisition functions: TFP acquisition functions
+  (EI, PI, qEI, qUCB) take the minimum of `"observations"` (labels) over the
+  rightmost axis, which is assumed to correspond to the number of observations.
+  `best_labels` has a (singleton) rightmost dimension corresponding to the
+  number of metrics. The shapes therefore work out correctly, although the
+  semantics are different.
+
+  Args:
+    labels: Observed labels with padded shape `(num_observations, num_metrics)`.
+
+  Returns: Minimum label values for each metric.
+  """
+  if jnp.size(labels.padded_array) == 0:
+    return np.inf
+  return jnp.min(labels.replace_fill_value(np.inf).padded_array, axis=-2)
+
+
 def _apply_trust_region(
     region: 'TrustRegion',
     xs: types.ModelInput,
@@ -524,14 +544,23 @@ class ScalarizedAcquisition(AcquisitionFunction):
   """Wrapper that scalarizes multiple objective before acquisition eval."""
 
   acquisition_fn: AcquisitionFunction
-  scalarizer: scalarization.Scalarization
+  scalarizers: list[scalarization.Scalarization]
 
   def __call__(
       self,
       dist: tfd.Distribution,
       seed: Optional[jax.Array] = None,
   ) -> jax.Array:
-    return jnp.squeeze(self.scalarizer(self.acquisition_fn(dist, seed)))
+    return jnp.mean(
+        jnp.stack(
+            [
+                jnp.squeeze(scalarizer(self.acquisition_fn(dist, seed)))
+                for scalarizer in self.scalarizers
+            ],
+            axis=0,
+        ),
+        axis=0,
+    )
 
 
 @struct.dataclass
