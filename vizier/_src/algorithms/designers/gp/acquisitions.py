@@ -551,16 +551,11 @@ class ScalarizedAcquisition(AcquisitionFunction):
       dist: tfd.Distribution,
       seed: Optional[jax.Array] = None,
   ) -> jax.Array:
-    return jnp.mean(
-        jnp.stack(
-            [
-                jnp.squeeze(scalarizer(self.acquisition_fn(dist, seed)))
-                for scalarizer in self.scalarizers
-            ],
-            axis=0,
-        ),
-        axis=0,
-    )
+    scores = [
+        jnp.squeeze(scalarizer(self.acquisition_fn(dist, seed)))
+        for scalarizer in self.scalarizers
+    ]
+    return jnp.mean(jnp.stack(scores, axis=0), axis=0)
 
 
 @struct.dataclass
@@ -607,6 +602,7 @@ class TrustRegion(eqx.Module):
     if distance <= tr.trust_radius:
       print('xs in trust region')
   """
+
   trusted: types.ModelInput
 
   @property
