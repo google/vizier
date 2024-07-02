@@ -80,6 +80,7 @@ class WFGExperimenterFactory(
   )
 
   def __attrs_post_init__(self):
+    # k = "Position-related parameters". Must be divisible by (num_obj-1).
     k = self.num_objectives - 1
     if (self.dim - k) % 2 != 0:
       raise ValueError(

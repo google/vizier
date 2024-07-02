@@ -74,6 +74,29 @@ class ExperimenterFactoryTest(parameterized.TestCase):
     exptr.evaluate([t])
     self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
 
+  def testCombinedFactory(self):
+    dim = 5
+    experimenter_factories = {
+        'sphere': experimenter_factory.BBOBExperimenterFactory('Sphere', dim),
+        'discus': experimenter_factory.BBOBExperimenterFactory('Discus', dim),
+    }
+    exptr = experimenter_factory.CombinedExperimenterFactory(
+        base_factories=experimenter_factories
+    )()
+
+    parameters = exptr.problem_statement().search_space.parameters
+    self.assertLen(parameters, dim)
+
+    t = pyvizier.Trial(
+        parameters={
+            param.name: float(index) for index, param in enumerate(parameters)
+        }
+    )
+    exptr.evaluate([t])
+    self.assertIn('sphere', t.final_measurement_or_die.metrics)
+    self.assertIn('discus', t.final_measurement_or_die.metrics)
+    self.assertEqual(t.status, pyvizier.TrialStatus.COMPLETED)
+
   def testSingleObjectiveFactoryDiscrete(self):
     dim = 5
     bbob_factory = experimenter_factory.BBOBExperimenterFactory(

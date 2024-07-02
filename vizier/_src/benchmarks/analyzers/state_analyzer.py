@@ -92,6 +92,7 @@ class BenchmarkStateAnalyzer:
       cls,
       states: list[benchmarks.BenchmarkState],
       flip_signs_for_min: bool = False,
+      reference_value: Optional[np.ndarray] = None,
   ) -> convergence_curve.ConvergenceCurve:
     """Generates a ConvergenceCurve from a batch of BenchmarkStates.
 
@@ -101,6 +102,7 @@ class BenchmarkStateAnalyzer:
       states: List of BenchmarkStates.
       flip_signs_for_min: If true, flip signs of curve when it is MINIMIZE
         metric.
+      reference_value: Reference value for multiobjective hypervolume curve.
 
     Returns:
       Convergence curve with batch size equal to length of states.
@@ -122,10 +124,15 @@ class BenchmarkStateAnalyzer:
         )
       state_trials = state.algorithm.supporter.GetTrials()
 
+      if problem_statement.is_single_objective:
+        kwargs = {'flip_signs_for_min': flip_signs_for_min}
+      else:
+        kwargs = {'reference_value': reference_value}
+
       converter = (
           convergence_curve.MultiMetricCurveConverter.from_metrics_config(
               problem_statement.metric_information,
-              flip_signs_for_min=flip_signs_for_min,
+              **kwargs,
           )
       )
       curve = converter.convert(state_trials)

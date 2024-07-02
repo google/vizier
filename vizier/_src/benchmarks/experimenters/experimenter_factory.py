@@ -26,6 +26,7 @@ import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters import discretizing_experimenter
 from vizier._src.benchmarks.experimenters import experimenter
+from vizier._src.benchmarks.experimenters import multiobjective_experimenter
 from vizier._src.benchmarks.experimenters import noisy_experimenter
 from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
@@ -37,6 +38,7 @@ from vizier.utils import json_utils
 
 BBOB_FACTORY_KEY = 'bbob_factory'
 SINGLE_OBJECTIVE_FACTORY_KEY = 'single_objective_factory'
+MULTI_OBJECTIVE_FACTORY_KEY = 'multi_objective_factory'
 
 
 class ExperimenterFactory(abc.ABC):
@@ -247,4 +249,43 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
 
     return SingleObjectiveExperimenterFactory(
         base_factory=base_factory, **metadata_dict
+    )
+
+
+@attr.define
+class CombinedExperimenterFactory(SerializableExperimenterFactory):
+  """Factory for a multi-objective Experimenter that combines multiple single-objective experimenters.
+
+  Attributes:
+    base_factories:
+  """
+
+  base_factories: dict[str, SerializableExperimenterFactory] = attr.field()
+
+  def __call__(self) -> experimenter.Experimenter:
+    """Creates the MultiObjective Experimenter."""
+    exptrs = {name: factory() for name, factory in self.base_factories.items()}
+    return multiobjective_experimenter.MultiObjectiveExperimenter(exptrs)
+
+  def dump(self) -> vz.Metadata:
+    metadata = vz.Metadata()
+    metadata_dict = {
+        name: factory.dump() for name, factory in self.base_factories.items()
+    }
+    metadata[MULTI_OBJECTIVE_FACTORY_KEY] = json.dumps(
+        metadata_dict, cls=json_utils.NumpyEncoder
+    )
+    return metadata
+
+  @classmethod
+  def recover(cls, metadata: vz.Metadata) -> 'CombinedExperimenterFactory':
+    # TODO: Use generics to make this work.
+    metadata_dict = json.loads(
+        metadata[MULTI_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder
+    )
+    return CombinedExperimenterFactory(
+        base_factories={
+            name: SerializableExperimenterFactory.recover(factory_dump)
+            for name, factory_dump in metadata_dict.items()
+        }
     )

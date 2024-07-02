@@ -355,8 +355,9 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
     Args:
       metric_informations:
       reference_value: Reference point value from which hypervolume is computed,
-        with shape that is broadcastable with (dim,). If None, this computes the
-        minimum of each objective as the reference point.
+        with shape that is broadcastable with (dim,). Note that the sign is
+        flipped for minimization metrics. If None, this computes the minimum of
+        each objective as the reference point.
       num_vectors: Number of vectors from which hypervolume is computed.
       infer_origin_factor: When inferring the reference point, set origin to be
         minimum value - factor * (range).
