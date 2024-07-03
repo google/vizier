@@ -32,14 +32,11 @@ class Scalarization(abc.ABC, eqx.Module):
   Assumes all objectives are for MAXIMIZATION.
   """
 
-  # Weights shape should be broadcastable with objectives when called.
-  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
-
-  @jt.jaxtyped(typechecker=typeguard.typechecked)
+  @abc.abstractmethod
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
   ) -> jt.Float[jax.Array, '*Batch']:
-    pass
+    """Computes the scalarization."""
 
 
 # Scalarization factory from weights.
@@ -50,6 +47,7 @@ ScalarizationFromWeights = Callable[
 
 class LinearScalarization(Scalarization):
   """Linear Scalarization."""
+  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
@@ -60,6 +58,7 @@ class LinearScalarization(Scalarization):
 
 class ChebyshevScalarization(Scalarization):
   """Chebyshev Scalarization."""
+  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
@@ -70,7 +69,7 @@ class ChebyshevScalarization(Scalarization):
 
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
-
+  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
   reference_point: Optional[jt.Float[jax.Array, '* #Obj']] = eqx.field(
       default=None
   )
@@ -96,6 +95,7 @@ class LinearAugmentedScalarization(Scalarization):
 
   See https://arxiv.org/pdf/1904.05760.pdf.
   """
+  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
 
   scalarization_factory: ScalarizationFromWeights = eqx.field(static=True)
   augment_weight: jt.Float[jax.Array, ''] = eqx.field(

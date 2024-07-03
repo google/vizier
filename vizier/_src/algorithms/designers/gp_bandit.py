@@ -192,6 +192,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         ),
     )
 
+    # Additional validations
     coroutine = gp_models.get_vizier_gp_coroutine(empty_data)
     params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
@@ -443,11 +444,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if not isinstance(acquisition_optimizer, lo.LBFGSBOptimizer):
       acquisition_optimizer = eqx.filter_jit(acquisition_optimizer)
     best_candidates: vb.VectorizedStrategyResults = acquisition_optimizer(
-        score,
+        eqx.filter_jit(score),
         prior_features=seed_features,
         count=count,
         seed=acq_rng,
-        score_with_aux_fn=score_with_aux,
+        score_with_aux_fn=eqx.filter_jit(score_with_aux),
         n_parallel=n_parallel,
     )
 
