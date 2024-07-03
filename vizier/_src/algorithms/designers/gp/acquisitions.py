@@ -129,6 +129,26 @@ def get_worst_labels(labels: types.PaddedArray) -> jax.Array:
   return jnp.min(labels.replace_fill_value(np.inf).padded_array, axis=-2)
 
 
+def get_reference_point(
+    labels: types.PaddedArray, scale: float = 0.1
+) -> jax.Array:
+  """Returns the reference point for hypervolume computations.
+
+  Reference point is generally set to nadir - 0.1 * range. See [Ishibuchi2011]
+  find 0.1 to be a robust multiplier for scaling the nadir point.
+
+  Args:
+    labels: Observed labels with padded shape `(num_observations, num_metrics)`.
+    scale: The scaling factor for the range.
+
+  Returns: Reference point.
+  """
+  best_labels = get_best_labels(labels)
+  worst_labels = get_worst_labels(labels)
+  labels_range = best_labels - worst_labels
+  return worst_labels - scale * labels_range
+
+
 def _apply_trust_region(
     region: 'TrustRegion',
     xs: types.ModelInput,

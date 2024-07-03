@@ -579,6 +579,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       problem: vz.ProblemStatement,
       seed: Optional[int] = None,
       num_scalarizations: int = 1000,
+      reference_scaling: float = 0.01,
       **kwargs,
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
@@ -595,7 +596,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
       def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         scalarizer = scalarization.HyperVolumeScalarization(
-            weights, acq_lib.get_worst_labels(data.labels)
+            weights,
+            acq_lib.get_reference_point(data.labels, scale=reference_scaling),
         )
         return acq_lib.ScalarizedAcquisition(
             acq_lib.UCB(),

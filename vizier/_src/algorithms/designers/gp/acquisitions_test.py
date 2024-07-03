@@ -85,6 +85,23 @@ class AcquisitionsTest(absltest.TestCase):
         acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(20.9), delta=1e-2
     )
 
+  def test_ehvi_approximation(self):
+    labels = types.PaddedArray.as_padded(
+        jnp.array([[0.2, 0.3], [0.01, 0.5], [0.5, 0.01]])
+    )
+    reference_point = acquisitions.get_reference_point(labels)
+    ucb = acquisitions.UCB(coefficient=2.0)
+    scalarizer = scalarization.HyperVolumeScalarization(
+        weights=jnp.array([[0.1, 0.2], [0.2, 0.1], [1, 1]]),
+        reference_point=reference_point,
+    )
+    acq = acquisitions.ScalarizedAcquisition(
+        ucb, scalarizer, reduction_fn=lambda x: jnp.mean(x, axis=0)
+    )
+    self.assertAlmostEqual(
+        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(11.343), delta=1e-2
+    )
+
   def test_pi(self):
     labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
     best_labels = acquisitions.get_best_labels(labels)
