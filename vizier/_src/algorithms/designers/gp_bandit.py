@@ -578,7 +578,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       cls,
       problem: vz.ProblemStatement,
       seed: Optional[int] = None,
-      num_scalarizations: int = 10,
+      num_scalarizations: int = 1000,
       **kwargs,
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
