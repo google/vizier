@@ -26,6 +26,17 @@ import jaxtyping as jt
 import typeguard
 
 
+def _broadcast_multiply(
+    weights: jt.Float[jax.Array, '*Num #Obj'],
+    objs: jt.Float[jax.Array, '*Batch #Obj'],
+) -> jt.Float[jax.Array, '*NumBatch #Obj']:
+  # [*Num, #Obj] -> [*Num, 1, ..., 1, #Obj]
+  broadcasted_weights = jnp.expand_dims(
+      weights, axis=range(-2, -1 - len(objs.shape), -1)
+  )
+  return broadcasted_weights * objs
+
+
 class Scalarization(abc.ABC, eqx.Module):
   """Reduces an array of objectives to a single float.
 
@@ -35,41 +46,46 @@ class Scalarization(abc.ABC, eqx.Module):
   @abc.abstractmethod
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
-  ) -> jt.Float[jax.Array, '*Batch']:
+  ) -> jt.Float[jax.Array, '*NumBatch']:
     """Computes the scalarization."""
 
 
 # Scalarization factory from weights.
 ScalarizationFromWeights = Callable[
-    [jt.Float[jax.Array, '#Obj']], Scalarization
+    [jt.Float[jax.Array, '*Num #Obj']], Scalarization
 ]
 
 
 class LinearScalarization(Scalarization):
   """Linear Scalarization."""
-  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
+
+  weights: jt.Float[jax.Array, '*Num #Obj'] = eqx.field(converter=jnp.asarray)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
-  ) -> jt.Float[jax.Array, '*Batch']:
-    return jnp.sum(self.weights * objectives, axis=-1)
+  ) -> jt.Float[jax.Array, '*NumBatch']:
+    product = _broadcast_multiply(self.weights, objectives)
+    return jnp.sum(product, axis=-1)
 
 
 class ChebyshevScalarization(Scalarization):
   """Chebyshev Scalarization."""
-  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
+
+  weights: jt.Float[jax.Array, '*Num #Obj'] = eqx.field(converter=jnp.asarray)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
-  ) -> jt.Float[jax.Array, '*Batch']:
-    return jnp.min(objectives * self.weights, axis=-1)
+  ) -> jt.Float[jax.Array, '*NumBatch']:
+    product = _broadcast_multiply(self.weights, objectives)
+    return jnp.min(product, axis=-1)
 
 
 class HyperVolumeScalarization(Scalarization):
   """HyperVolume Scalarization."""
-  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
+
+  weights: jt.Float[jax.Array, '*Num #Obj'] = eqx.field(converter=jnp.asarray)
   reference_point: Optional[jt.Float[jax.Array, '* #Obj']] = eqx.field(
       default=None
   )
@@ -77,17 +93,16 @@ class HyperVolumeScalarization(Scalarization):
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
-  ) -> jt.Float[jax.Array, '*Batch']:
+  ) -> jt.Float[jax.Array, '*NumBatch']:
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
     # non-convex multiobjective optimization. Removes the exponentiation
     # factor in number of objectives as it is a monotone transformation and
     # removes the non-negativity for easier gradients.
     if self.reference_point is not None:
-      return jnp.min(
-          (objectives - self.reference_point) / self.weights, axis=-1
-      )
-    else:
-      return jnp.min(objectives / self.weights, axis=-1)
+      objectives = objectives - self.reference_point
+
+    product = _broadcast_multiply(1.0 / self.weights, objectives)
+    return jnp.min(product, axis=-1)
 
 
 class LinearAugmentedScalarization(Scalarization):
@@ -95,7 +110,8 @@ class LinearAugmentedScalarization(Scalarization):
 
   See https://arxiv.org/pdf/1904.05760.pdf.
   """
-  weights: jt.Float[jax.Array, '#Obj'] = eqx.field(converter=jnp.asarray)
+
+  weights: jt.Float[jax.Array, '*Num #Obj'] = eqx.field(converter=jnp.asarray)
 
   scalarization_factory: ScalarizationFromWeights = eqx.field(static=True)
   augment_weight: jt.Float[jax.Array, ''] = eqx.field(
@@ -105,7 +121,7 @@ class LinearAugmentedScalarization(Scalarization):
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
-  ) -> jt.Float[jax.Array, '*Batch']:
+  ) -> jt.Float[jax.Array, '*NumBatch']:
     return self.scalarization_factory(self.weights)(
         objectives
     ) + self.augment_weight * LinearScalarization(weights=self.weights)(

@@ -31,6 +31,7 @@ from absl import logging
 import attr
 import equinox as eqx
 import jax
+import jax.numpy as jnp
 import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
@@ -586,19 +587,21 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if problem.is_single_objective:
       return cls(problem, linear_coef=1.0, rng=rng, **kwargs)
     else:
-      objectives = problem.metric_information.of_type(vz.MetricType.OBJECTIVE)
-      random_weights = [
-          np.abs(np.random.normal(size=len(objectives)))
-          for _ in range(num_scalarizations)
-      ]
+      num_obj = len(problem.metric_information.of_type(vz.MetricType.OBJECTIVE))
+      rng, weights_rng = jax.random.split(rng)
+      weights = jnp.abs(
+          jax.random.normal(weights_rng, shape=(num_scalarizations, num_obj))
+      )
 
       def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
-        reference_point = acq_lib.get_worst_labels(data.labels)
-        scalarizers = [
-            scalarization.HyperVolumeScalarization(weights, reference_point)
-            for weights in random_weights
-        ]
-        return acq_lib.ScalarizedAcquisition(acq_lib.UCB(), scalarizers)
+        scalarizer = scalarization.HyperVolumeScalarization(
+            weights, acq_lib.get_worst_labels(data.labels)
+        )
+        return acq_lib.ScalarizedAcquisition(
+            acq_lib.UCB(),
+            scalarizer,
+            reduction_fn=lambda x: jnp.mean(x, axis=0),
+        )
 
       scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
           _scalarized_ucb

@@ -25,6 +25,7 @@ from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
 from absl.testing import absltest
+
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
 tfpke = tfp.experimental.psd_kernels
@@ -79,7 +80,7 @@ class AcquisitionsTest(absltest.TestCase):
     scalarizer = scalarization.HyperVolumeScalarization(
         weights=jnp.array([0.1, 0.2]), reference_point=reference_point
     )
-    acq = acquisitions.ScalarizedAcquisition(ucb, [scalarizer, scalarizer])
+    acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
     self.assertAlmostEqual(
         acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(20.9), delta=1e-2
     )

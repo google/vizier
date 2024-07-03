@@ -539,23 +539,26 @@ class QUCB(AcquisitionFunction):
     )()
 
 
+# TODO: What do we end up jitting? If we end up directly jitting this call
+# then we should make it `eqx.Module` and set
+# `reduction_fn=eqx.field(static=True)` instead.
 @struct.dataclass
 class ScalarizedAcquisition(AcquisitionFunction):
   """Wrapper that scalarizes multiple objective before acquisition eval."""
 
   acquisition_fn: AcquisitionFunction
-  scalarizers: list[scalarization.Scalarization]
+  scalarizer: scalarization.Scalarization
+  reduction_fn: Callable[[jax.Array], jax.Array] = struct.field(
+      pytree_node=False, default=lambda x: x
+  )
 
   def __call__(
       self,
       dist: tfd.Distribution,
       seed: Optional[jax.Array] = None,
   ) -> jax.Array:
-    scores = [
-        jnp.squeeze(scalarizer(self.acquisition_fn(dist, seed)))
-        for scalarizer in self.scalarizers
-    ]
-    return jnp.mean(jnp.stack(scores, axis=0), axis=0)
+    scalarized = self.scalarizer(self.acquisition_fn(dist, seed).squeeze())
+    return self.reduction_fn(scalarized)
 
 
 @struct.dataclass
