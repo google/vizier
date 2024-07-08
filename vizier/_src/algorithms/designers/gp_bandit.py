@@ -593,6 +593,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       weights = jnp.abs(
           jax.random.normal(weights_rng, shape=(num_scalarizations, num_obj))
       )
+      weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
       def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         scalarizer = scalarization.HyperVolumeScalarization(

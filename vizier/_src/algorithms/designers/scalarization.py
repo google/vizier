@@ -95,14 +95,14 @@ class HyperVolumeScalarization(Scalarization):
       self, objectives: jt.Float[jax.Array, '*Batch Obj']
   ) -> jt.Float[jax.Array, '*NumBatch']:
     # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
-    # non-convex multiobjective optimization. Removes the exponentiation
-    # factor in number of objectives as it is a monotone transformation and
-    # removes the non-negativity for easier gradients.
+    # non-convex multiobjective optimization. Removes the non-negativity
+    # constraint as objectives shifted by reference point should be
+    # non-negative.
     if self.reference_point is not None:
       objectives = objectives - self.reference_point
 
     product = _broadcast_multiply(1.0 / self.weights, objectives)
-    return jnp.min(product, axis=-1)
+    return jnp.pow(jnp.min(product, axis=-1), objectives.shape[-1])
 
 
 class LinearAugmentedScalarization(Scalarization):

@@ -241,23 +241,6 @@ class LCB(AcquisitionFunction):
 
 
 @struct.dataclass
-class HyperVolumeScalarization(AcquisitionFunction):
-  """HyperVolume Scalarization acquisition function."""
-
-  coefficient: float = 1.0
-
-  def __call__(
-      self,
-      dist: tfd.Distribution,
-      seed: Optional[jax.Array] = None,
-  ) -> jax.Array:
-    del seed
-    # Uses scalarizations in https://arxiv.org/abs/2006.04655 for
-    # non-convex biobjective optimization of mean vs stddev.
-    return jnp.minimum(dist.mean(), self.coefficient * dist.stddev())
-
-
-@struct.dataclass
 class EI(AcquisitionFunction):
   """Expected Improvement acquisition function."""
 

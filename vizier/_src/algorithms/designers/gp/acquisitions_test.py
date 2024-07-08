@@ -56,10 +56,6 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.LCB(coefficient=2.0)
     self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), -1.9)
 
-  def test_hvs(self):
-    acq = acquisitions.HyperVolumeScalarization(coefficient=2.0)
-    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 0.1)
-
   def test_ei(self):
     labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
     best_labels = acquisitions.get_best_labels(labels)
@@ -82,24 +78,37 @@ class AcquisitionsTest(absltest.TestCase):
     )
     acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
     self.assertAlmostEqual(
-        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(20.9), delta=1e-2
+        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(436.81), delta=1e-2
     )
 
   def test_ehvi_approximation(self):
-    labels = types.PaddedArray.as_padded(
-        jnp.array([[0.2, 0.3], [0.01, 0.5], [0.5, 0.01]])
+    num_obj = 2
+    num_scalarizations = 1000
+    weights = jnp.abs(
+        jax.random.normal(
+            jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
+        )
     )
-    reference_point = acquisitions.get_reference_point(labels)
-    ucb = acquisitions.UCB(coefficient=2.0)
+    weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
+
     scalarizer = scalarization.HyperVolumeScalarization(
-        weights=jnp.array([[0.1, 0.2], [0.2, 0.1], [1, 1]]),
-        reference_point=reference_point,
+        weights,
     )
-    acq = acquisitions.ScalarizedAcquisition(
-        ucb, scalarizer, reduction_fn=lambda x: jnp.mean(x, axis=0)
+
+    # Tests that the scalarizer gives the approximate hypervolume with mean
+    # and uses constant rescaling of pi/4 for num_objs=2.
+    hypervolume = acquisitions.ScalarizedAcquisition(
+        acquisitions.UCB(coefficient=0.0),
+        scalarizer,
+        reduction_fn=lambda x: jnp.mean(x, axis=0),
     )
-    self.assertAlmostEqual(
-        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(11.343), delta=1e-2
+    # Expected hypervolume should be 2 * 1.5 = 3.0.
+    np.testing.assert_allclose(
+        hypervolume(tfd.Normal(jnp.array([2, 1.5]), jnp.ones(num_obj)))
+        * (3.1415)
+        / 4.0,
+        jnp.array([3.0]),
+        rtol=1e-1,
     )
 
   def test_pi(self):
