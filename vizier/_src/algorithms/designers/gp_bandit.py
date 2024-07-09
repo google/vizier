@@ -580,6 +580,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       seed: Optional[int] = None,
       num_scalarizations: int = 1000,
       reference_scaling: float = 0.01,
+      num_samples: int | None = None,
       **kwargs,
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
@@ -595,19 +596,42 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       )
       weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
-      def _scalarized_ucb(data: types.ModelData) -> acq_lib.AcquisitionFunction:
-        scalarizer = scalarization.HyperVolumeScalarization(
-            weights,
-            acq_lib.get_reference_point(data.labels, scale=reference_scaling),
-        )
-        return acq_lib.ScalarizedAcquisition(
-            acq_lib.UCB(),
-            scalarizer,
-            reduction_fn=lambda x: jnp.mean(x, axis=0),
-        )
+      if num_samples is None:
+
+        def _scalarized_ucb(
+            data: types.ModelData,
+        ) -> acq_lib.AcquisitionFunction:
+          scalarizer = scalarization.HyperVolumeScalarization(
+              weights,
+              acq_lib.get_reference_point(data.labels, reference_scaling),
+          )
+          return acq_lib.ScalarizedAcquisition(
+              acq_lib.UCB(),
+              scalarizer,
+              reduction_fn=lambda x: jnp.mean(x, axis=0),
+          )
+
+        acq_fn_factory = _scalarized_ucb
+      else:
+
+        def _scalarized_sample_ehvi(
+            data: types.ModelData,
+        ) -> acq_lib.AcquisitionFunction:
+          scalarizer = scalarization.HyperVolumeScalarization(
+              weights,
+              acq_lib.get_reference_point(data.labels, reference_scaling),
+          )
+          return acq_lib.ScalarizedAcquisition(
+              acq_lib.Sample(num_samples),
+              scalarizer,
+              # We need to reduce across the scalarization and sample axes.
+              reduction_fn=lambda x: jnp.mean(jax.nn.relu(x), axis=[0, 1]),
+          )
+
+        acq_fn_factory = _scalarized_sample_ehvi
 
       scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
-          _scalarized_ucb
+          acq_fn_factory
       )
       return cls(
           problem,

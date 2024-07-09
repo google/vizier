@@ -29,7 +29,6 @@ from vizier._src.algorithms.designers import scalarization
 from vizier._src.jax import types
 from vizier._src.jax.models import continuous_only_kernel
 
-
 tfd = tfp.distributions
 tfp_bo = tfp.experimental.bayesopt
 tfpke = tfp.experimental.psd_kernels
@@ -272,6 +271,22 @@ class PI(AcquisitionFunction):
     return tfp_bo.acquisition.GaussianProcessProbabilityOfImprovement(
         dist, observations=self.best_labels
     )()
+
+
+@struct.dataclass
+class Sample(AcquisitionFunction):
+  """Sample AcquisitionFunction."""
+
+  num_samples: int = 1000
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      seed: Optional[jax.Array] = None,
+  ) -> jax.Array:
+    if seed is None:
+      seed = jax.random.PRNGKey(0)
+    return dist.sample([self.num_samples], seed=seed)
 
 
 class MaxValueEntropySearch(eqx.Module):
