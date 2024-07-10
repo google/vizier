@@ -119,7 +119,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       default=optimizers.DEFAULT_RANDOM_RESTARTS, kw_only=True
   )
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
-  _linear_coef: float = attr.field(default=0.0, kw_only=True)
+  # If used, should set to 1.0 as prior uses a sum of Matern and linear but ARD
+  # still tunes its amplitude. Only used for single-objective.
+  _linear_coef: Optional[float] = attr.field(default=None, kw_only=True)
   _scoring_function_factory: acq_lib.ScoringFunctionFactory = attr.field(
       factory=lambda: default_scoring_function_factory,
       kw_only=True,
@@ -578,67 +580,61 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       cls,
       problem: vz.ProblemStatement,
       seed: Optional[int] = None,
+      *,  # Below are multi-objective options for acquisition function.
       num_scalarizations: int = 1000,
       reference_scaling: float = 0.01,
       num_samples: int | None = None,
       **kwargs,
   ) -> 'VizierGPBandit':
     rng = jax.random.PRNGKey(seed or 0)
-    # Linear coef is set to 1.0 as prior and uses VizierLinearGaussianProcess
-    # which uses a sum of Matern and linear but ARD still tunes its amplitude.
     if problem.is_single_objective:
-      return cls(problem, linear_coef=1.0, rng=rng, **kwargs)
+      return cls(problem, rng=rng, **kwargs)
+
+    # Multi-objective.
+    num_obj = len(problem.metric_information.of_type(vz.MetricType.OBJECTIVE))
+    rng, weights_rng = jax.random.split(rng)
+    weights = jnp.abs(
+        jax.random.normal(weights_rng, shape=(num_scalarizations, num_obj))
+    )
+    weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
+
+    if num_samples is None:
+
+      def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
+        # Scalarized UCB.
+        scalarizer = scalarization.HyperVolumeScalarization(
+            weights,
+            acq_lib.get_reference_point(data.labels, reference_scaling),
+        )
+        return acq_lib.ScalarizedAcquisition(
+            acq_lib.UCB(),
+            scalarizer,
+            reduction_fn=lambda x: jnp.mean(x, axis=0),
+        )
+
     else:
-      num_obj = len(problem.metric_information.of_type(vz.MetricType.OBJECTIVE))
-      rng, weights_rng = jax.random.split(rng)
-      weights = jnp.abs(
-          jax.random.normal(weights_rng, shape=(num_scalarizations, num_obj))
-      )
-      weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
-      if num_samples is None:
+      def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
+        # Sampled EHVI.
+        scalarizer = scalarization.HyperVolumeScalarization(
+            weights,
+            acq_lib.get_reference_point(data.labels, reference_scaling),
+        )
+        return acq_lib.ScalarizedAcquisition(
+            acq_lib.Sample(num_samples),
+            scalarizer,
+            # We need to reduce across the scalarization and sample axes.
+            reduction_fn=lambda x: jnp.mean(jax.nn.relu(x), axis=[0, 1]),
+        )
 
-        def _scalarized_ucb(
-            data: types.ModelData,
-        ) -> acq_lib.AcquisitionFunction:
-          scalarizer = scalarization.HyperVolumeScalarization(
-              weights,
-              acq_lib.get_reference_point(data.labels, reference_scaling),
-          )
-          return acq_lib.ScalarizedAcquisition(
-              acq_lib.UCB(),
-              scalarizer,
-              reduction_fn=lambda x: jnp.mean(x, axis=0),
-          )
-
-        acq_fn_factory = _scalarized_ucb
-      else:
-
-        def _scalarized_sample_ehvi(
-            data: types.ModelData,
-        ) -> acq_lib.AcquisitionFunction:
-          scalarizer = scalarization.HyperVolumeScalarization(
-              weights,
-              acq_lib.get_reference_point(data.labels, reference_scaling),
-          )
-          return acq_lib.ScalarizedAcquisition(
-              acq_lib.Sample(num_samples),
-              scalarizer,
-              # We need to reduce across the scalarization and sample axes.
-              reduction_fn=lambda x: jnp.mean(jax.nn.relu(x), axis=[0, 1]),
-          )
-
-        acq_fn_factory = _scalarized_sample_ehvi
-
-      scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
-          acq_fn_factory
-      )
-      return cls(
-          problem,
-          linear_coef=1.0,
-          scoring_function_factory=scoring_function_factory,
-          scoring_function_is_parallel=True,
-          use_trust_region=False,
-          rng=rng,
-          **kwargs,
-      )
+    scoring_function_factory = acq_lib.bayesian_scoring_function_factory(
+        acq_fn_factory
+    )
+    return cls(
+        problem,
+        scoring_function_factory=scoring_function_factory,
+        scoring_function_is_parallel=True,
+        use_trust_region=False,
+        rng=rng,
+        **kwargs,
+    )

@@ -610,7 +610,6 @@ class VizierGPUCBPEBandit(vza.Designer):
       `data.labels`. If `data.features` is empty, the returned parameters are
       initial values picked by the GP model.
     """
-    # TODO: Update to `VizierLinearGaussianProcess`.
     coroutine = tuned_gp_models.VizierGaussianProcess.build_model(
         data.features
     ).coroutine

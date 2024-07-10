@@ -143,7 +143,7 @@ class StackedResidualGP(GPState):
 def get_vizier_gp_coroutine(
     data: types.ModelData,
     *,
-    linear_coef: float = 0.0,
+    linear_coef: Optional[float] = None,
 ) -> sp.ModelCoroutine:
   """Gets a GP model coroutine.
 
@@ -156,24 +156,18 @@ def get_vizier_gp_coroutine(
     The model coroutine.
   """
   # Construct the multi-task GP.
-  labels_shape = data.labels.shape
-  if labels_shape[-1] > 1:
+  if data.labels.shape[-1] > 1:
     gp_coroutine = multitask_tuned_gp_models.VizierMultitaskGaussianProcess(
         _feature_dim=types.ContinuousAndCategorical[int](
             data.features.continuous.padded_array.shape[-1],
             data.features.categorical.padded_array.shape[-1],
         ),
-        _num_tasks=labels_shape[-1],
+        _num_tasks=data.labels.shape[-1],
     )
     return sp.StochasticProcessModel(gp_coroutine).coroutine
 
-  if linear_coef:
-    return tuned_gp_models.VizierLinearGaussianProcess.build_model(
-        features=data.features, linear_coef=linear_coef
-    ).coroutine
-
   return tuned_gp_models.VizierGaussianProcess.build_model(
-      data.features
+      data.features, linear_coef=linear_coef
   ).coroutine
 
 

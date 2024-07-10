@@ -280,7 +280,7 @@ class VizierGpTest(absltest.TestCase):
     )
     target_loss = -0.2
     model = sp.CoroutineWithData(
-        tuned_gp_models.VizierLinearGaussianProcess(
+        tuned_gp_models.VizierGaussianProcess(
             types.ContinuousAndCategorical[int](9, 5), _linear_coef=1.0
         ),
         data=data,
