@@ -72,13 +72,24 @@ class AcquisitionsTest(absltest.TestCase):
         jnp.array([[0.2, 0.3], [0.01, 0.5], [0.5, 0.01]])
     )
     reference_point = acquisitions.get_worst_labels(labels)
-    ucb = acquisitions.UCB(coefficient=2.0)
+    ucb = acquisitions.UCB(coefficient=0.1)
     scalarizer = scalarization.HyperVolumeScalarization(
         weights=jnp.array([0.1, 0.2]), reference_point=reference_point
     )
+
     acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
     self.assertAlmostEqual(
-        acq(tfd.Normal([0.1, 0.2], [1, 2])), jnp.array(436.81), delta=1e-2
+        acq(tfd.Normal([0.1, 0.2], [0.1, 0.1])), jnp.array([1.0]), delta=1e-2
+    )
+
+    # Tests that the scalarized acquisition is larger with max_scalarized.
+    scalarized_labels = scalarizer(labels.unpad())
+    max_scalarized = jnp.max(scalarized_labels, axis=-1)
+    acq = acquisitions.ScalarizedAcquisition(
+        ucb, scalarizer, max_scalarized=max_scalarized
+    )
+    self.assertAlmostEqual(
+        acq(tfd.Normal([0.1, 0.2], [0.1, 0.1])), jnp.array([2.10]), delta=1e-2
     )
 
   def test_ehvi_approximation(self):
@@ -101,6 +112,7 @@ class AcquisitionsTest(absltest.TestCase):
         acquisitions.UCB(coefficient=0.0),
         scalarizer,
         reduction_fn=lambda x: jnp.mean(x, axis=0),
+        max_scalarized=jnp.zeros(shape=(num_scalarizations,)),
     )
     # Expected hypervolume should be 2 * 1.5 = 3.0.
     np.testing.assert_allclose(

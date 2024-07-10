@@ -602,29 +602,47 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
       def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         # Scalarized UCB.
+        labels_array = data.labels.padded_array
+        has_labels = labels_array.shape[0] > 0
         scalarizer = scalarization.HyperVolumeScalarization(
             weights,
-            acq_lib.get_reference_point(data.labels, reference_scaling),
+            acq_lib.get_reference_point(data.labels, reference_scaling)
+            if has_labels
+            else None,
+        )
+
+        max_scalarized = (
+            jnp.max(scalarizer(labels_array), axis=-1) if has_labels else None
         )
         return acq_lib.ScalarizedAcquisition(
             acq_lib.UCB(),
             scalarizer,
             reduction_fn=lambda x: jnp.mean(x, axis=0),
+            max_scalarized=max_scalarized,
         )
 
     else:
 
       def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         # Sampled EHVI.
+        labels_array = data.labels.padded_array
+        has_labels = labels_array.shape[0] > 0
         scalarizer = scalarization.HyperVolumeScalarization(
             weights,
-            acq_lib.get_reference_point(data.labels, reference_scaling),
+            acq_lib.get_reference_point(data.labels, reference_scaling)
+            if has_labels
+            else None,
+        )
+
+        max_scalarized = (
+            jnp.max(scalarizer(labels_array), axis=-1) if has_labels else None
         )
         return acq_lib.ScalarizedAcquisition(
             acq_lib.Sample(num_samples),
             scalarizer,
             # We need to reduce across the scalarization and sample axes.
             reduction_fn=lambda x: jnp.mean(jax.nn.relu(x), axis=[0, 1]),
+            max_scalarized=max_scalarized,
         )
 
     scoring_function_factory = acq_lib.bayesian_scoring_function_factory(

@@ -569,6 +569,9 @@ class ScalarizedAcquisition(AcquisitionFunction):
   reduction_fn: Callable[[jax.Array], jax.Array] = struct.field(
       pytree_node=False, default=lambda x: x
   )
+  max_scalarized: Optional[jax.Array] = struct.field(
+      pytree_node=False, default=None
+  )
 
   def __call__(
       self,
@@ -576,6 +579,13 @@ class ScalarizedAcquisition(AcquisitionFunction):
       seed: Optional[jax.Array] = None,
   ) -> jax.Array:
     scalarized = self.scalarizer(self.acquisition_fn(dist, seed).squeeze())
+    # Broadcast max_scalarized to the same shape as scalarized and take max.
+    if self.max_scalarized is not None:
+      shape_mismatch = len(scalarized.shape) - len(self.max_scalarized.shape)
+      expand_max = jnp.expand_dims(
+          self.max_scalarized, axis=range(-shape_mismatch, 0)
+      )
+      scalarized = jnp.maximum(scalarized, expand_max)
     return self.reduction_fn(scalarized)
 
 

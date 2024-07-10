@@ -466,7 +466,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
 
   @parameterized.parameters(
-      dict(num_samples=10),
+      dict(num_samples=11),
       dict(num_samples=None),
   )
   def test_multi_metrics(self, num_samples: int | None):
