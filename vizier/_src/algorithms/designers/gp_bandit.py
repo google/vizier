@@ -143,11 +143,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _output_warper: output_warpers.OutputWarper = attr.field(
       factory=output_warpers.create_default_warper, kw_only=True
   )
-
   # Multi-objective parameters.
   _num_scalarizations: int = attr.field(default=1000, kw_only=True)
   _ref_scaling: float = attr.field(default=0.01, kw_only=True)
-  _num_ehvi_samples: Optional[int] = attr.field(default=None, kw_only=True)
+
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
   # ------------------------------------------------------------------
@@ -212,16 +211,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       weights = jnp.abs(weights)
       weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
-      if self._num_ehvi_samples:  # Sampled EHVI.
-        reduction_fn = lambda x: jnp.mean(jax.nn.relu(x), axis=[0, 1])
-        acquisition_fn = acq_lib.Sample(self._num_ehvi_samples)
-      else:  # Scalarized UCB.
-        reduction_fn = lambda x: jnp.mean(x, axis=0)
-        acquisition_fn = acq_lib.UCB()
-
-      def acq_fn_factory(
-          data: types.ModelData,
-      ) -> acq_lib.AcquisitionFunction:
+      def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         # Scalarized UCB.
         labels_array = data.labels.padded_array
         has_labels = labels_array.shape[0] > 0
@@ -236,9 +226,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
             jnp.max(scalarizer(labels_array), axis=-1) if has_labels else None
         )
         return acq_lib.ScalarizedAcquisition(
-            acquisition_fn,
+            acq_lib.UCB(),
             scalarizer,
-            reduction_fn=reduction_fn,
+            reduction_fn=lambda x: jnp.mean(x, axis=0),
             max_scalarized=max_scalarized,
         )
 
