@@ -546,7 +546,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       self,
       trials: Sequence[vz.TrialSuggestion],
       rng: Optional[jax.Array] = None,
-      num_samples: Optional[int] = None,
+      num_samples: int = 1000,
   ) -> types.Array:
     """Returns unwarped samples from the model for any given trials.
 
@@ -558,8 +558,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     Returns:
       The samples in the specified trials. shape: (num_samples, num_trials)
     """
-    rng = rng or jax.random.PRNGKey(0)
-    num_samples = num_samples or 1000
+    if rng is None:
+      rng = jax.random.PRNGKey(0)
 
     if not trials:
       return np.zeros((num_samples, 0))

@@ -220,7 +220,10 @@ class GoogleGpBanditTest(parameterized.TestCase):
     samples = designer.sample(predict_trials, num_samples=5)
     self.assertSequenceEqual(samples.shape, (5, 3))
     self.assertFalse(np.isnan(samples).any())
-    empty_samples = designer.sample([], num_samples=5)
+    # test the sample method with a different rng.
+    empty_samples = designer.sample(
+        [], num_samples=5, rng=jax.random.PRNGKey(1)
+    )
     self.assertSequenceEqual(empty_samples.shape, (5, 0))
     # test the predict method.
     prediction = designer.predict(predict_trials)
@@ -281,7 +284,10 @@ class GoogleGpBanditTest(parameterized.TestCase):
     # Test the sample method.
     samples = designer.sample(predict_trials, num_samples=5)
     self.assertSequenceEqual(samples.shape, (5, 3))
-    samples = designer.sample(predict_trials, num_samples=5)
+    # Test the sample method with a different rng.
+    samples = designer.sample(
+        predict_trials, num_samples=5, rng=jax.random.PRNGKey(1)
+    )
     self.assertSequenceEqual(samples.shape, (5, 3))
     self.assertFalse(np.isnan(samples).any())
     empty_samples = designer.sample([], num_samples=5)
