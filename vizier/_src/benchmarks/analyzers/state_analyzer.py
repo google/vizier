@@ -286,6 +286,7 @@ class BenchmarkRecordAnalyzer:
           elems_dict[dict_key] = PlotElement(
               plot_array=np.asarray([comparator.score()]),
               plot_type='histogram',
+              xlabel='score frequency',
           )
         except Exception as e:  # pylint: disable=broad-exception-caught
           output_str = (
