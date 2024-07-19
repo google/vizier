@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import abc
 import functools
-from typing import Callable, Optional
+from typing import Callable, Generic, Optional, TypeVar
 
 from absl import logging
 from vizier import pyvizier as vz
@@ -29,16 +29,14 @@ from absl.testing import parameterized
 # Aliases are defined, so when you are developing a new client, you can
 # swap it with your subclass. It makes your IDE understand which class
 # you are using.
-_StudyClient = client_abc.StudyInterface
+_S = TypeVar('_S', bound=client_abc.StudyInterface)
 _TrialClient = client_abc.TrialInterface
 
 
-class VizierClientTestMixin(abc.ABC):
+class VizierClientTestMixin(abc.ABC, Generic[_S]):
 
   @abc.abstractmethod
-  def create_study(
-      self, study_config: vz.ProblemStatement, name: str
-  ) -> _StudyClient:
+  def create_study(self, study_config: vz.ProblemStatement, name: str) -> _S:
     """Create study given study config and study name."""
     pass
 
@@ -47,7 +45,9 @@ class MyMeta(type(VizierClientTestMixin), type(parameterized.TestCase)):
   pass
 
 
-class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
+class TestCase(
+    parameterized.TestCase, VizierClientTestMixin[_S], metaclass=MyMeta
+):
   """Generic tests for cross-platform clients.
 
   This test provides basic coverage and it is not meant to be a comprehensive
@@ -56,7 +56,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   Override `create_study` method.
   """
 
-  def create_test_study(self, name: str) -> _StudyClient:
+  def create_test_study(self, name: str) -> _S:
     """Creates a study."""
     logging.info('Creating study name=%s, testcasename=%s', name, self.id())
     problem = vz.ProblemStatement()
@@ -113,7 +113,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
       t.metadata['future_id'] = str(idx + 1)  # id to be assigned
     return trials
 
-  def create_test_study_with_trials(self, name: str) -> _StudyClient:
+  def create_test_study_with_trials(self, name: str) -> _S:
     study = self.create_test_study(name)
     trials = self._example_trials()
     for i, t in enumerate(trials):
@@ -345,9 +345,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
   def assertPassesE2ETuning(
       self,
       *,
-      study_factory: Optional[
-          Callable[[vz.ProblemStatement], _StudyClient]
-      ] = None,
+      study_factory: Optional[Callable[[vz.ProblemStatement], _S]] = None,
       batch_size: int = 2,
       num_iterations: int = 5,
       multi_objective: bool = False,
@@ -387,7 +385,7 @@ class TestCase(parameterized.TestCase, VizierClientTestMixin, metaclass=MyMeta):
           )
       )
 
-    study: _StudyClient = study_factory(problem)
+    study: _S = study_factory(problem)
 
     def learning_curve_simulator(learning_rate: float) -> list[float]:
       return [learning_rate * step for step in range(10)]
