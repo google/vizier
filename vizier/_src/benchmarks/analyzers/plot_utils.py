@@ -131,8 +131,8 @@ def plot_from_records(
     col_figsize: float = 6.0,
     row_figsize: float = 6.0,
     **kwargs,
-):
-  """Generates a grid of algorithm comparison plots.
+) -> mpl.figure.Figure:
+  """Generates a grid of plot elements.
 
   Generates one plot for each Experimenter x Metrics in records. Note that
   each row = Experimenter and each column = Metrics.
@@ -149,6 +149,9 @@ def plot_from_records(
 
   Raises:
     ValueError: When plot type is not supported.
+
+  Returns:
+    The figure object.
   """
 
   def _metadata_to_str(metadata: vz.Metadata) -> str:
@@ -260,3 +263,4 @@ def plot_from_records(
         ax.yaxis.set_major_formatter(mpl.ticker.ScalarFormatter())
       ax.legend()
     fig_idx += 1
+  return fig
