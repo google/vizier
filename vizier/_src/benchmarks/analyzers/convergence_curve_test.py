@@ -214,7 +214,7 @@ class ConvergenceCurveConverterTest(parameterized.TestCase):
     )
     curve = generator.convert(trials)
     np.testing.assert_array_equal(curve.xs, list(range(1, len(trials) + 1)))
-    np.testing.assert_array_equal(curve.ys, np.float_(expected))
+    np.testing.assert_array_equal(curve.ys, np.float64(expected))
 
   @parameterized.named_parameters(
       ('maximize', pyvizier.ObjectiveMetricGoal.MAXIMIZE, [[-np.inf, 2, 2]]),
