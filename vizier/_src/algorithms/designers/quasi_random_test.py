@@ -49,7 +49,7 @@ class QuasiRandomTest(absltest.TestCase):
     designer2.load(metadata)
     self.assertEqual(designer.suggest(10), designer2.suggest(10))
 
-  def test_distribution(self):
+  def test_distribution1d(self):
     # Make sure output distribution makes sense.
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('float', 0.0, 1.0)
@@ -67,6 +67,24 @@ class QuasiRandomTest(absltest.TestCase):
         float_points, stats.uniform(loc=0.0, scale=1.0).cdf
     )
     self.assertGreater(float_p_value, 0.9)
+
+  def test_distribution4d(self):
+    # Make sure output distribution makes sense.
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('x0', 0.0, 1.0)
+    problem.search_space.root.add_float_param('x1', 0.0, 1.0)
+    problem.search_space.root.add_float_param('x2', 0.0, 1.0)
+    problem.search_space.root.add_float_param('x3', 0.0, 1.0)
+    designer = quasi_random.QuasiRandomDesigner(problem.search_space)
+
+    suggestions = designer.suggest(2000)
+    for i_dim in ['x0', 'x1', 'x2', 'x3']:
+      float_points = [
+          suggestion.parameters[i_dim].value for suggestion in suggestions
+      ]
+      # Test that in every dimension, we cover the full range.
+      self.assertGreater(max(float_points), 0.998)
+      self.assertLess(min(float_points), 0.002)
 
   def test_equal_seeds(self):
     problem = vz.ProblemStatement()

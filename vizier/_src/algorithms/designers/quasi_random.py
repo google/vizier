@@ -133,10 +133,11 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
     count = count or 1
     sample = collections.defaultdict(list)
     for _ in range(count):
-      # Generate random values in range of [0.0, 1.0].
-      halton_values = self._halton.random(len(self._output_specs))[0]
+      # Generate one random sample in [0.0, 1.0]^d (d was specified in the
+      # constructor).
+      halton_values = self._halton.random(n=1)[0]
       # Increment 'skip_points' to reflect designer's state.
-      self._skip_points += len(self._output_specs)
+      self._skip_points += 1
       for dimension_index, spec in enumerate(self._output_specs):
         halton_value = halton_values[dimension_index]
         if spec.type == converters.NumpyArraySpecType.CONTINUOUS:
