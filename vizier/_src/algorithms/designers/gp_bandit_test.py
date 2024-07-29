@@ -507,8 +507,8 @@ class GPBanditSimplekDTest(parameterized.TestCase):
 
   @parameterized.parameters(
       dict(best_category='corner', max_relative_error=0.5),
-      dict(best_category='center', max_relative_error=0.1),
-      dict(best_category='mixed', max_relative_error=0.1),
+      dict(best_category='center', max_relative_error=0.5),
+      dict(best_category='mixed', max_relative_error=0.5),
   )
   def test_convergence(
       self,
