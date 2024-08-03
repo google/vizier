@@ -562,7 +562,7 @@ class QUCB(AcquisitionFunction):
 # `reduction_fn=eqx.field(static=True)` instead.
 @struct.dataclass
 class ScalarizedAcquisition(AcquisitionFunction):
-  """Wrapper that scalarizes multiple objective before acquisition eval."""
+  """Wrapper that scalarizes a vectorized acquisition function."""
 
   acquisition_fn: AcquisitionFunction
   scalarizer: scalarization.Scalarization
@@ -587,6 +587,43 @@ class ScalarizedAcquisition(AcquisitionFunction):
       )
       scalarized = jnp.maximum(scalarized, expand_max)
     return self.reduction_fn(scalarized)
+
+
+# TODO: Temporary for experimentation.
+@struct.dataclass
+class AcquisitionOverScalarized(AcquisitionFunction):
+  """Wrapper that applies acquisition over a scalarized distribution."""
+
+  acquisition_fn: AcquisitionFunction
+  scalarizer: scalarization.Scalarization
+  max_scalarized: Optional[jax.Array] = struct.field(
+      pytree_node=False, default=None
+  )
+  num_samples: int = 1000
+
+  def __call__(
+      self,
+      dist: tfd.Distribution,
+      seed: Optional[jax.Array] = None,
+  ) -> jax.Array:
+    # S = num_samples, M = num_objs, W = num_scalarized
+    samples = dist.sample(self.num_samples, seed=seed).squeeze()  # [S, ..., M]
+    scalarized_samples = self.scalarizer(samples)  # [W, S, ...]
+    # Transpose to move sample dim out. Treat all inner dims as events.
+    dist_samples = jnp.swapaxes(scalarized_samples, 0, 1)  # [S, W, ...]
+    scalar_dist = tfd.Empirical(
+        dist_samples, event_ndims=len(dist_samples.shape) - 1
+    )
+
+    acq_score = self.acquisition_fn(scalar_dist, seed)  # [W, ...]
+    # Broadcast max_scalarized to the same shape as scalarized and take max.
+    if self.max_scalarized is not None:
+      shape_mismatch = len(acq_score.shape) - len(self.max_scalarized.shape)
+      expand_max = jnp.expand_dims(
+          self.max_scalarized, axis=range(-shape_mismatch, 0)
+      )
+      acq_score = jnp.maximum(acq_score, expand_max)
+    return jnp.mean(acq_score, axis=0)  # [...], removed W-axis.
 
 
 @struct.dataclass
