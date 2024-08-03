@@ -102,9 +102,7 @@ class AcquisitionsTest(absltest.TestCase):
     )
     weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
 
-    scalarizer = scalarization.HyperVolumeScalarization(
-        weights,
-    )
+    scalarizer = scalarization.HyperVolumeScalarization(weights)
 
     # Tests that the scalarizer gives the approximate hypervolume with mean
     # and uses constant rescaling of pi/4 for num_objs=2.
@@ -123,6 +121,30 @@ class AcquisitionsTest(absltest.TestCase):
         rtol=1e-1,
     )
 
+  def test_ehvi_approximation_aq_over_scalar(self):
+    num_obj = 2
+    num_scalarizations = 1000
+    weights = jnp.abs(
+        jax.random.normal(
+            jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
+        )
+    )
+    weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
+    scalarizer = scalarization.HyperVolumeScalarization(weights)
+
+    # Tests that the scalarizer gives the approximate hypervolume with mean
+    # and uses constant rescaling of pi/4 for num_objs=2.
+    hypervolume = acquisitions.AcquisitionOverScalarized(
+        acquisitions.UCB(coefficient=0.0), scalarizer
+    )
+    # Expected hypervolume should be 2 * 1.5 = 3.0.
+    dist = tfd.Normal(jnp.array([2, 1.5]), jnp.ones(num_obj))
+    np.testing.assert_allclose(
+        hypervolume(dist, jax.random.PRNGKey(0)) * 3.1415 / 4.0,
+        jnp.array([3.0]),
+        rtol=1e-1,
+    )
+
   def test_ehvi_mcmc(self):
     num_obj = 2
     num_scalarizations = 1000
@@ -133,9 +155,7 @@ class AcquisitionsTest(absltest.TestCase):
     )
     weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
 
-    scalarizer = scalarization.HyperVolumeScalarization(
-        weights,
-    )
+    scalarizer = scalarization.HyperVolumeScalarization(weights)
 
     # Tests that the scalarizer gives the approximate hypervolume with mean
     # and uses constant rescaling of pi/4 for num_objs=2.
