@@ -89,6 +89,7 @@ class HyperVolumeScalarization(Scalarization):
   reference_point: Optional[jt.Float[jax.Array, '* #Obj']] = eqx.field(
       default=None
   )
+  enforce_nonnegativity: bool = eqx.field(default=True)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
@@ -100,6 +101,11 @@ class HyperVolumeScalarization(Scalarization):
     # non-negative.
     if self.reference_point is not None:
       objectives = objectives - self.reference_point
+
+    if self.enforce_nonnegativity:
+      # Sometimes shifted objectives are still negative. This enforces the
+      # non-negativity constraint.
+      objectives = jnp.maximum(objectives, 0.0)
 
     product = _broadcast_multiply(1.0 / self.weights, objectives)
     return jnp.pow(jnp.min(product, axis=-1), objectives.shape[-1])
