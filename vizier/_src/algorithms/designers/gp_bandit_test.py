@@ -471,7 +471,11 @@ class GoogleGpBanditTest(parameterized.TestCase):
         iters * n_parallel,
     )
 
-  def test_multi_metrics(self):
+  @parameterized.parameters(
+      dict(num_samples=10),
+      dict(num_samples=None),
+  )
+  def test_multi_metrics(self, num_samples: int | None):
     search_space = vz.SearchSpace()
     search_space.root.add_float_param('x0', -5.0, 5.0)
     problem = vz.ProblemStatement(
@@ -489,7 +493,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
 
     iters = 2
-    designer = gp_bandit.VizierGPBandit(problem)
+    designer = gp_bandit.VizierGPBandit(problem, num_samples=num_samples)
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
