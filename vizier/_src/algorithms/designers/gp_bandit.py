@@ -148,6 +148,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _num_samples: Optional[int] = attr.field(default=None, kw_only=True)
   _num_scalarizations: int = attr.field(default=1000, kw_only=True)
   _ref_scaling: float = attr.field(default=0.01, kw_only=True)
+  _use_max_scalarized: bool = attr.field(default=True, kw_only=True)
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -238,9 +239,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         )
         scalarizer = scalarization.HyperVolumeScalarization(weights, ref_point)
 
-        max_scalarized = (
-            jnp.max(scalarizer(labels_array), axis=-1) if has_labels else None
-        )
+        max_scalarized = None
+        if has_labels and self._use_max_scalarized:
+          max_scalarized = jnp.max(scalarizer(labels_array), axis=-1)
 
         return acq_factory(scalarizer=scalarizer, max_scalarized=max_scalarized)
 
