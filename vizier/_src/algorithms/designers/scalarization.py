@@ -89,7 +89,7 @@ class HyperVolumeScalarization(Scalarization):
   reference_point: Optional[jt.Float[jax.Array, '* #Obj']] = eqx.field(
       default=None
   )
-  enforce_nonnegativity: bool = eqx.field(default=True)
+  enforce_nonnegativity: bool = eqx.field(static=True, default=True)
 
   @jt.jaxtyped(typechecker=typeguard.typechecked)
   def __call__(
