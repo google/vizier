@@ -144,10 +144,13 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   _output_warper: output_warpers.OutputWarper = attr.field(
       factory=output_warpers.create_default_warper, kw_only=True
   )
+
   # Multi-objective parameters.
   _num_samples: Optional[int] = attr.field(default=None, kw_only=True)
   _num_scalarizations: int = attr.field(default=1000, kw_only=True)
   _ref_scaling: float = attr.field(default=0.01, kw_only=True)
+  # Should be true generally, keeps track of maximum scalarized value in each
+  # direction for cumulative comparisons.
   _use_max_scalarized: bool = attr.field(default=True, kw_only=True)
 
   # ------------------------------------------------------------------
