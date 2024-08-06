@@ -95,13 +95,11 @@ class AcquisitionsTest(absltest.TestCase):
   def test_ehvi_approximation(self):
     num_obj = 2
     num_scalarizations = 1000
-    weights = jnp.abs(
-        jax.random.normal(
-            jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
-        )
+    weights = jax.random.normal(
+        jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
     )
+    weights = jnp.abs(weights)
     weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
-
     scalarizer = scalarization.HyperVolumeScalarization(weights)
 
     # Tests that the scalarizer gives the approximate hypervolume with mean
@@ -124,11 +122,10 @@ class AcquisitionsTest(absltest.TestCase):
   def test_ehvi_approximation_aq_over_scalar(self):
     num_obj = 2
     num_scalarizations = 1000
-    weights = jnp.abs(
-        jax.random.normal(
-            jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
-        )
+    weights = jax.random.normal(
+        jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
     )
+    weights = jnp.abs(weights)
     weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
     scalarizer = scalarization.HyperVolumeScalarization(weights)
 
@@ -148,13 +145,11 @@ class AcquisitionsTest(absltest.TestCase):
   def test_ehvi_mcmc(self):
     num_obj = 2
     num_scalarizations = 1000
-    weights = jnp.abs(
-        jax.random.normal(
-            jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
-        )
+    weights = jax.random.normal(
+        jax.random.PRNGKey(0), shape=(num_scalarizations, num_obj)
     )
+    weights = jnp.abs(weights)
     weights = weights / jnp.linalg.norm(weights, axis=1, keepdims=True)
-
     scalarizer = scalarization.HyperVolumeScalarization(weights)
 
     # Tests that the scalarizer gives the approximate hypervolume with mean

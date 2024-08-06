@@ -611,6 +611,7 @@ class AcquisitionOverScalarized(AcquisitionFunction):
     scalarized_samples = self.scalarizer(samples)  # [W, S, ...]
     # Transpose to move sample dim out. Treat all inner dims as events.
     dist_samples = jnp.swapaxes(scalarized_samples, 0, 1)  # [S, W, ...]
+    # Event shape is [W, ...].
     scalar_dist = tfd.Empirical(
         dist_samples, event_ndims=len(dist_samples.shape) - 1
     )
