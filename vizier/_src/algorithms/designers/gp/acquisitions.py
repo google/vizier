@@ -561,7 +561,7 @@ class QUCB(AcquisitionFunction):
 # then we should make it `eqx.Module` and set
 # `reduction_fn=eqx.field(static=True)` instead.
 @struct.dataclass
-class ScalarizedAcquisition(AcquisitionFunction):
+class ScalarizeOverAcquisitions(AcquisitionFunction):
   """Wrapper that scalarizes a vectorized acquisition function."""
 
   acquisition_fn: AcquisitionFunction
@@ -589,7 +589,6 @@ class ScalarizedAcquisition(AcquisitionFunction):
     return self.reduction_fn(scalarized)
 
 
-# TODO: Temporary for experimentation.
 @struct.dataclass
 class AcquisitionOverScalarized(AcquisitionFunction):
   """Wrapper that applies acquisition over a scalarized distribution."""

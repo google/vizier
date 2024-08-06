@@ -77,7 +77,7 @@ class AcquisitionsTest(absltest.TestCase):
         weights=jnp.array([0.1, 0.2]), reference_point=reference_point
     )
 
-    acq = acquisitions.ScalarizedAcquisition(ucb, scalarizer)
+    acq = acquisitions.ScalarizeOverAcquisitions(ucb, scalarizer)
     self.assertAlmostEqual(
         acq(tfd.Normal([0.1, 0.2], [0.1, 0.1])), jnp.array([1.0]), delta=1e-2
     )
@@ -85,7 +85,7 @@ class AcquisitionsTest(absltest.TestCase):
     # Tests that the scalarized acquisition is larger with max_scalarized.
     scalarized_labels = scalarizer(labels.unpad())
     max_scalarized = jnp.max(scalarized_labels, axis=-1)
-    acq = acquisitions.ScalarizedAcquisition(
+    acq = acquisitions.ScalarizeOverAcquisitions(
         ucb, scalarizer, max_scalarized=max_scalarized
     )
     self.assertAlmostEqual(
@@ -104,7 +104,7 @@ class AcquisitionsTest(absltest.TestCase):
 
     # Tests that the scalarizer gives the approximate hypervolume with mean
     # and uses constant rescaling of pi/4 for num_objs=2.
-    hypervolume = acquisitions.ScalarizedAcquisition(
+    hypervolume = acquisitions.ScalarizeOverAcquisitions(
         acquisitions.UCB(coefficient=0.0),
         scalarizer,
         reduction_fn=lambda x: jnp.mean(x, axis=0),
@@ -154,7 +154,7 @@ class AcquisitionsTest(absltest.TestCase):
 
     # Tests that the scalarizer gives the approximate hypervolume with mean
     # and uses constant rescaling of pi/4 for num_objs=2.
-    hypervolume = acquisitions.ScalarizedAcquisition(
+    hypervolume = acquisitions.ScalarizeOverAcquisitions(
         acquisitions.Sample(num_samples=100),
         scalarizer,
         reduction_fn=lambda x: jnp.mean(jax.nn.relu(x)),

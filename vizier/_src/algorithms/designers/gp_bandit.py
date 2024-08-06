@@ -24,7 +24,6 @@ A Python implementation of Google Vizier's GP-Bandit algorithm.
 import copy
 import dataclasses
 import datetime
-import functools
 import random
 from typing import Optional, Sequence
 
@@ -146,12 +145,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   )
 
   # Multi-objective parameters.
-  _num_samples: Optional[int] = attr.field(default=None, kw_only=True)
   _num_scalarizations: int = attr.field(default=1000, kw_only=True)
   _ref_scaling: float = attr.field(default=0.01, kw_only=True)
-  # Should be true generally, keeps track of maximum scalarized value in each
-  # direction for cumulative comparisons.
-  _use_max_scalarized: bool = attr.field(default=True, kw_only=True)
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -217,20 +212,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       weights = jnp.abs(weights)
       weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
-      acquisition_fn = acq_lib.UCB()
-      if self._num_samples is None:
-        acq_factory = functools.partial(
-            acq_lib.ScalarizedAcquisition,
-            acquisition_fn=acquisition_fn,
-            reduction_fn=lambda x: jnp.mean(x, axis=0),
-        )
-      else:
-        acq_factory = functools.partial(
-            acq_lib.AcquisitionOverScalarized,
-            acquisition_fn=acquisition_fn,
-            num_samples=self._num_samples,
-        )
-
       def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         # Scalarized UCB.
         labels_array = data.labels.padded_array
@@ -243,10 +224,15 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         scalarizer = scalarization.HyperVolumeScalarization(weights, ref_point)
 
         max_scalarized = None
-        if has_labels and self._use_max_scalarized:
+        if has_labels:
           max_scalarized = jnp.max(scalarizer(labels_array), axis=-1)
 
-        return acq_factory(scalarizer=scalarizer, max_scalarized=max_scalarized)
+        return acq_lib.ScalarizeOverAcquisitions(
+            acquisition_fn=acq_lib.UCB(),
+            scalarizer=scalarizer,
+            reduction_fn=lambda x: jnp.mean(x, axis=0),
+            max_scalarized=max_scalarized,
+        )
 
       self._scoring_function_factory = (
           acq_lib.bayesian_scoring_function_factory(acq_fn_factory)
