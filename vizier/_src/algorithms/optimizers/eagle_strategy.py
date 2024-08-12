@@ -257,10 +257,28 @@ class VectorizedEagleStrategyState:
   perturbations: jax.Array  # Shape (pool_size,).
 
 
-def _compute_features_dist(
+def _compute_features_dist_squared(
     x_batch: vb.VectorizedOptimizerInput, x_pool: vb.VectorizedOptimizerInput
 ) -> jax.Array:
-  """Computes distance between features (or parallel feature batches)."""
+  """Computes squared distance between features (or parallel feature batches).
+
+  The distance computed is the squared Euclidean distance between each feature
+  in the batch and each feature in the pool.
+
+  To avoid materializing an array of size (batch_size, pool_size, n_features),
+  the distances are computed efficiently using the formula (a-b)**2 = a**2 +
+  b**2 - 2ab and broadcasting.
+
+  Reference:
+  https://github.com/tensorflow/probability/blob/r0.24/tensorflow_probability/python/math/psd_kernels/internal/util.py#L191
+
+  Args:
+    x_batch: A batch of features to be compared to the pool.
+    x_pool: The pool of features to be compared to the batch.
+
+  Returns:
+    Array of size (batch_size, pool_size) with the squared distances.
+  """
   dist = jnp.zeros([], dtype=x_batch.continuous.dtype)
   if x_batch.continuous.size > 0:
     x_batch_cont = jnp.reshape(
@@ -421,6 +439,11 @@ class VectorizedEagleStrategy(
   ) -> types.ContinuousAndCategoricalArray:
     """Populate the pool with prior trials.
 
+    A portion of the pool is first populated with random features based on
+    'prior_trials_pool_pct', then the rest of the flies are populated by
+    sequentially iterate over the prior trials, finding the cloest firefly in
+    the pool and replace it if the reward is better.
+
     Args:
       seed: Random seed.
       prior_features: (n_prior_features, n_parallel, features_count)
@@ -428,11 +451,6 @@ class VectorizedEagleStrategy(
 
     Returns:
       initial_features
-
-    A portion of the pool is first populated with random features based on
-    'prior_trials_pool_pct', then the rest of the flies are populated by
-    sequentially iterate over the prior trials, finding the cloest firefly in
-    the pool and replace it if the reward is better.
     """
     if prior_features is None or prior_rewards is None:
       raise ValueError("One of prior features / prior rewards wasn't provided!")
@@ -504,7 +522,7 @@ class VectorizedEagleStrategy(
     def _loop_body(i, args):
       features, rewards = args
       ind = jnp.argmin(
-          _compute_features_dist(
+          _compute_features_dist_squared(
               jax.tree_util.tree_map(
                   lambda x: x[i][jnp.newaxis],
                   flipped_prior_features,
@@ -571,9 +589,13 @@ class VectorizedEagleStrategy(
   ) -> vb.VectorizedOptimizerInput:
     """Suggest new mutated and perturbed features.
 
-    After initializing, at each call `batch_size` fireflies are mutated to
-    generate new features using pulls (attraction/repulsion) from all other
-    fireflies in the pool.
+    After initializing, at each call a `batch_size` of firefiles is taken
+    from the pool and mutated to generate new features. The batch of fireflies
+    is chosen based on the current iteration number. The mutation is done
+    by applying pulling/pushing forces from all the fireflies in the pool.
+
+    The update rule is:
+    x' <-- x' + gravity * sum_i exp(-visibility * ||x'-x_i||^2) (x_i-x') + noise
 
     Args:
       seed: Random seed.
@@ -585,6 +607,7 @@ class VectorizedEagleStrategy(
     Returns:
       suggested batch features: (batch_size, n_parallel, n_features)
     """
+    # Take the batch of fireflies based on which new features are generated.
     batch_id = state.iterations % (self.pool_size // self.batch_size)
     start = batch_id * self.batch_size
     features_batch = jax.tree_util.tree_map(
@@ -641,10 +664,10 @@ class VectorizedEagleStrategy(
   ) -> vb.VectorizedOptimizerInput:
     """Create new batch of mutated and perturbed features.
 
-    The pool fireflies forces (pull/push) are being normalized to ensure the
-    combined force doesn't throw the firefly too far. Mathematically, the
-    normalization guarantees that the combined normalized force is within the
-    simplex constructed by the unnormalized forces and therefore within bounds.
+    The combined forces (pull/push) induced by the firefly pool is normalized to
+    ensure it's contained and doesn't throw the firefly too far. Mathematically,
+    the normalization guarantees that the combined normalized force is within
+    the simplex spanned by the unnormalized forces and therefore within bounds.
 
     Args:
       features: (pool_size, n_parallel, n_features)
@@ -657,46 +680,44 @@ class VectorizedEagleStrategy(
     Returns:
       batch features: (batch_size, n_parallel, n_features)
     """
-    # Compute the pairwise squared distances between the features batch and the
-    # pool. We use a less numerically precise squared distance formulation to
-    # avoid materializing a possibly large intermediate of shape
-    # (batch_size, pool_size, n_features).
-    dists = _compute_features_dist(features_batch, features)
+    # Compute the pairwise squared distances between the batch and the
+    # pool features.
+    dists = _compute_features_dist_squared(
+        features_batch, features
+    )  # shape: (batch_size, pool_size)
 
     # Compute the scaled direction for applying pull between two flies.
     # scaled_directions[i,j] := direction of force applied by fly 'j' on fly
     # 'i'. Note that to compute 'directions' we might perform subtract with
-    # removed flies with having value of -np.inf. Moreover, we might even
-    # subtract between two removed flies which will result in np.nan. Both cases
-    # are handled when computing the actual feautre changes applying a relevant
-    # mask.
+    # removed flies having value of -np.inf. We might even subtract between two
+    # removed flies which will result in np.nan. Both cases are handled when
+    # computing the actual feature changes by applying a relevant mask.
     directions = rewards - rewards_batch[:, jnp.newaxis]
     scaled_directions = jnp.where(
         directions >= 0.0, self.config.gravity, -self.config.negative_gravity
-    )  # shape (batch_size, pool_size)
+    )  # shape: (batch_size, pool_size)
 
-    # Normalize the distance by the number of features.
     # Get the number of non-padded features.
     n_feature_dimensions = sum(
         jax.tree_util.tree_leaves(self.n_feature_dimensions)
     )
+    # Normalize the distance by the number of feature dimensions.
     force = jnp.exp(
         -self.config.visibility * dists / n_feature_dimensions * 10.0
     )
-    scaled_force = scaled_directions * force
+    # Compute the directed force each pool firefly applies on batch fireflies.
+    scaled_force = scaled_directions * force  # shape: (batch_size, pool_size)
     # Handle removed fireflies without updated rewards.
     finite_ind = jnp.isfinite(rewards).astype(scaled_force.dtype)
-
     # Ignore fireflies that were removed from the pool.
     scaled_force = scaled_force * finite_ind
-
     # Separate forces to pull and push so to normalize them separately.
     scaled_pulls = jnp.maximum(scaled_force, 0.0)
     scaled_push = jnp.minimum(scaled_force, 0.0)
 
     seed, categorical_seed = jax.random.split(seed)
     if self.config.mutate_normalization_type == MutateNormalizationType.MEAN:
-      # Divide the push and pull forces by the number of flies participating.
+      # Divide the push / pull forces by the number of participating fireflies.
       # Also multiply by normalization_scale.
       # pytype: disable=wrong-arg-types  # jnp-type
       norm_scaled_pulls = self.config.normalization_scale * jnp.nan_to_num(
@@ -726,8 +747,8 @@ class VectorizedEagleStrategy(
       push_weight_matrix = push_rand_matrix / jnp.sum(
           push_rand_matrix, axis=1, keepdims=True
       )
-      # Normalize pulls/pulls by the weight matrices.
-      # Also multiply by normalization_scale.
+      # Normalize pulls/pulls by the weight matrices and multiply by
+      # normalization_scale.
       norm_scaled_pulls = (
           self.config.normalization_scale * scaled_pulls * pull_weight_matrix
       )
@@ -740,24 +761,30 @@ class VectorizedEagleStrategy(
       # Doesn't normalize the forces. Use this option with caution.
       norm_scaled_pulls = scaled_pulls
       norm_scaled_push = scaled_push
+    else:
+      raise ValueError(
+          "Unsupported mutate normalization type:"
+          f" {self.config.mutate_normalization_type}"
+      )
 
-    # Sums normalized forces (pull/push) of all fireflies. This is equivalent to
-    # features_dist[i, j] := distance between fly 'j' and fly 'i'
-    # but avoids materializing the large pairwise distance matrix.
+    # Sums the normalized forces (pull/push) of all fireflies.
     scale = norm_scaled_pulls + norm_scaled_push
     flat_features = jnp.reshape(
         features.continuous, (features.continuous.shape[0], -1)
-    )
+    )  # shape: (pool_size, n_features)
     flat_features_batch = jnp.reshape(
         features_batch.continuous, (features_batch.continuous.shape[0], -1)
-    )
+    )  # shape: (batch_size, n_features)
 
-    # TODO: Consider computing per batch member.
+    # Compute the feature changes without materializing a large matrix:
+    # batch_features_i += sum_j (scale_{ij} * (features_j - batch_features_i))
+    # shape: (batch_size, pool_size) @ (pool_size, n_features) - (batch_size,
+    # n_features) * (batch_size, 1).
     features_changes_continuous = jnp.matmul(
         scale, flat_features
     ) - flat_features_batch * jnp.sum(scale, axis=-1, keepdims=True)
 
-    features_continuous = (
+    new_features_continuous = (
         features_batch.continuous
         + jnp.reshape(
             features_changes_continuous, features_batch.continuous.shape
@@ -771,15 +798,15 @@ class VectorizedEagleStrategy(
           )
           + perturbations_batch.categorical
       )
-      features_categorical = tfd.Categorical(
+      new_features_categorical = tfd.Categorical(
           logits=features_categorical_logits
       ).sample(seed=categorical_seed)
     else:
-      features_categorical = jnp.zeros(
+      new_features_categorical = jnp.zeros(
           features_batch.continuous.shape[:2] + (0,), dtype=types.INT_DTYPE
       )
     return vb.VectorizedOptimizerInput(
-        continuous=features_continuous, categorical=features_categorical
+        continuous=new_features_continuous, categorical=new_features_categorical
     )
 
   def _create_logits_vector(
@@ -995,7 +1022,7 @@ class VectorizedEagleStrategy(
       prev_batch_rewards: jax.Array,
       perturbations: jax.Array,
   ) -> Tuple[vb.VectorizedOptimizerInput, jax.Array, jax.Array]:
-    """Update the features and rewards for flies with improved rewards.
+    """Update the features and rewards for fireflies with improved rewards.
 
     Arguments:
       batch_features: (batch_size, n_parallel, n_features), new proposed
@@ -1041,8 +1068,8 @@ class VectorizedEagleStrategy(
     A firefly is considered unsuccessful if its current perturbation is below
     'perturbation_lower_bound' and it's not the best fly seen thus far.
     Random features are created to replace the existing ones, and rewards
-    are set to -np.inf to indicate that we don't have values for those feaures
-    yet and we shouldn't use them during suggest.
+    are set to -np.inf to indicate that we don't yet have values for those
+    features and they shouldn't be used during suggest.
 
     Args:
       batch_features: (batch_size, n_parallel, n_features)
