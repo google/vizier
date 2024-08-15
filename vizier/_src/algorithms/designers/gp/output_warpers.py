@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import abc
 import copy
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, Tuple
 
 import attr
 import attrs
@@ -519,11 +519,21 @@ class ZScoreLabels(OutputWarper):
     )
 
 
+@attr.define
 class NormalizeLabels(OutputWarper):
   """Normalizes the finite label values, leaving the NaNs & infinities out."""
 
+  target_interval: Tuple[float, float] = attr.ib(default=(0.0, 1.0))
+
+  def __attrs_post_init__(self):
+    if self.target_interval[0] > self.target_interval[1]:
+      raise ValueError(f'Bounds {self.target_interval} is invalid.')
+
   def warp(self, labels_arr: types.Array) -> types.Array:
-    """Normalizes the finite label values to bring them between 0 and 1.
+    """Normalizes the finite label values to bring them within target_interval.
+
+    If all finite labels are equal, they get mapped to target_interval's
+    midpoint.
 
     Args:
       labels_arr: (num_points, 1) shaped array of labels.
@@ -534,13 +544,20 @@ class NormalizeLabels(OutputWarper):
     labels_arr = _validate_labels(labels_arr)
     if np.isnan(labels_arr).all():
       raise ValueError('Labels need to have at least one non-NaN entry.')
-    if np.nanmax(labels_arr) == np.nanmax(labels_arr):
-      return labels_arr
+
     labels_finite_ind = np.isfinite(labels_arr)
     labels_arr_finite = labels_arr[labels_finite_ind]
-    labels_arr_finite_normalized = (
-        labels_arr_finite - np.nanmin(labels_arr_finite)
-    ) / (np.nanmax(labels_arr_finite) - np.nanmin(labels_arr_finite))
+
+    source_interval = (np.min(labels_arr_finite), np.max(labels_arr_finite))
+
+    if source_interval[0] == source_interval[1]:
+      midpoint = (self.target_interval[0] + self.target_interval[1]) / 2
+      labels_arr[labels_finite_ind] = midpoint
+      return labels_arr
+
+    labels_arr_finite_normalized = np.interp(
+        labels_arr_finite, source_interval, self.target_interval
+    )
     labels_arr[labels_finite_ind] = labels_arr_finite_normalized
     return labels_arr
 

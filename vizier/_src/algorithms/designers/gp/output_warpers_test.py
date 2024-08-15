@@ -189,13 +189,20 @@ class ZScoreLabelsTest(_OutputWarperTestCase):
 
 class NormalizeLabelsTest(_OutputWarperTestCase):
 
+  def setUp(self):
+    super().setUp()
+    self.labels_arr = np.asarray([10.0, 15.0, 20.0])[:, np.newaxis]
+
   @property
   def warper(self) -> OutputWarper:
     return output_warpers.NormalizeLabels()
 
   def test_known_arrays(self):
-    # TODO: Add a couple of parameterized test cases.
-    self.skipTest('No test cases provided')
+    actual = self.warper.warp(self.labels_arr)
+    expected = np.asarray([0.0, 0.5, 1.0])[:, np.newaxis]
+    np.testing.assert_allclose(
+        actual, expected, err_msg=f'actual: {actual.tolist()}'
+    )
 
 
 class DetectOutliersTest(_OutputWarperTestCase):
