@@ -89,7 +89,6 @@ class PermutingExperimenter(experimenter.Experimenter):
       for name, parameter in suggestion.parameters.items():
         if name in self._parameter_permutation_dict:
           permutation_dict = self._parameter_permutation_dict[name]
-          print('permutation dict', permutation_dict)
           logging.info('Permuting %s ', permutation_dict)
           new_parameters[name] = permutation_dict[parameter.value]
         else:
