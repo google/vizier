@@ -104,13 +104,32 @@ which installs add-ons from `requirements-X.txt`. Possible options:
 Check if all unit tests work by running `run_tests.sh` after a full installation. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.8+.
 
 ## Citing and Highlights <a name="citing_vizier"></a>
-<ins>**Citing Vizier:**</ins> If you found this code useful, please consider citing the [OSS Vizier paper](https://arxiv.org/abs/2207.13676) as well as the [Google Vizier paper](https://dl.acm.org/doi/10.1145/3097983.3098043).
+<ins>**Citing Vizier:**</ins> Please consider citing the appropriate paper(s): [Algorithm](https://arxiv.org/abs/2408.11527), [OSS Package](https://arxiv.org/abs/2207.13676), and [Google System](https://dl.acm.org/doi/10.1145/3097983.3098043) if you found any of them useful.
 
 <ins>**Highlights:**</ins> We track [notable users](https://oss-vizier.readthedocs.io/en/latest/highlights/applications.html) and [media attention](https://oss-vizier.readthedocs.io/en/latest/highlights/media.html) - let us know if OSS Vizier was helpful for your work.
 
 Thanks!
 
 ```bibtex
+@article{gaussian_process_bandit,
+  author       = {Xingyou Song and
+                  Qiuyi Zhang and
+                  Chansoo Lee and
+                  Emily Fertig and
+                  Tzu-Kuo Huang and
+                  Lior Belenki and
+                  Greg Kochanski and
+                  Setareh Ariafar and
+                  Srinivas Vasudevan and
+                  Sagi Perel and
+                  Daniel Golovin},
+  title        = {The Vizier Gaussian Process Bandit Algorithm},
+  journal      = {Google DeepMind Technical Report},
+  year         = {2024},
+  eprinttype    = {arXiv},
+  eprint       = {2408.11527},
+}
+
 @inproceedings{oss_vizier,
   author    = {Xingyou Song and
                Sagi Perel and
