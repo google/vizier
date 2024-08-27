@@ -212,6 +212,8 @@ class StudyInterface(abc.ABC):
     Returns:
       Trials.
     """
+    # TODO: Add `parameters` argument. This will allow
+    # `suggest` to be used with context.
 
   # TODO: Request does not play well with boolean or discrete
   # integer parameters.
