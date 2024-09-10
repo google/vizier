@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from vizier import pyvizier
+from vizier._src.benchmarks.experimenters import combo_experimenter
 from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
@@ -70,6 +71,47 @@ class NormalizingExperimenterTest(parameterized.TestCase):
     normalizing_exptr.evaluate([t])
     normalized_value = t.final_measurement_or_die.metrics[metric_name].value
     self.assertBetween(normalized_value, -10, 10)
+
+
+class HyperCubeExperimenterTest(parameterized.TestCase):
+
+  def testE2E(self):
+    num_boolean_params = 3
+
+    original_exptr = combo_experimenter.ContaminationExperimenter(
+        contamination_n_stages=num_boolean_params
+    )
+    hypercube_exptr = normalizing_experimenter.HyperCubeExperimenter(
+        original_exptr
+    )
+
+    problem = hypercube_exptr.problem_statement()
+    metric_name = problem.metric_information.item().name
+
+    # 3 Booleans -> 6 total coordinates after one-hots.
+    self.assertLen(problem.search_space.parameters, 2 * num_boolean_params)
+
+    t = pyvizier.Trial(
+        parameters={
+            'h0': 0.0,
+            'h1': 1.0,
+            'h2': 1.0,
+            'h3': 0.0,
+            'h4': 0.3,
+            'h5': 0.6,
+        }
+    )
+    hypercube_exptr.evaluate([t])
+    hypercube_value = t.final_measurement_or_die.metrics[metric_name].value
+
+    # Argmax over hypercube one-hots.
+    t = pyvizier.Trial(
+        parameters={'x_0': 'True', 'x_1': 'False', 'x_2': 'True'}
+    )
+    original_exptr.evaluate([t])
+    original_value = t.final_measurement_or_die.metrics[metric_name].value
+
+    self.assertEqual(hypercube_value, original_value)
 
 
 if __name__ == '__main__':

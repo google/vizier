@@ -34,6 +34,7 @@ from vizier._src.benchmarks.experimenters.infeasible_experimenter import ParamRe
 from vizier._src.benchmarks.experimenters.l1_categorical_experimenter import L1CategorialExperimenter
 from vizier._src.benchmarks.experimenters.multiobjective_experimenter import MultiObjectiveExperimenter
 from vizier._src.benchmarks.experimenters.noisy_experimenter import NoisyExperimenter
+from vizier._src.benchmarks.experimenters.normalizing_experimenter import HyperCubeExperimenter
 from vizier._src.benchmarks.experimenters.normalizing_experimenter import NormalizingExperimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import MultiObjectiveNumpyExperimenter
 from vizier._src.benchmarks.experimenters.numpy_experimenter import NumpyExperimenter
