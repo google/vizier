@@ -455,11 +455,18 @@ class InfeasibleWarperComponent(OutputWarper):
   nearly equal to v_infeasible.
   """
 
-  _shift: float = attr.field(default=np.nan)
+  _shift: Optional[float] = attr.field(default=None)
 
   def warp(self, labels_arr: types.Array) -> types.Array:
     labels_arr = _validate_labels(labels_arr)
     labels_arr = labels_arr.flatten()
+
+    if np.isnan(labels_arr).all():
+      # Edge case when all values are NaN.
+      self._shift = np.nan
+      labels_arr[:] = 0
+      return labels_arr[:, np.newaxis]
+
     labels_range = np.nanmax(labels_arr) - np.nanmin(labels_arr)
     warped_bad_value = np.nanmin(labels_arr) - (0.5 * labels_range + 1)
     num_feasible = labels_arr.size - np.isnan(labels_arr).sum()
@@ -481,7 +488,7 @@ class InfeasibleWarperComponent(OutputWarper):
     return labels_arr[:, np.newaxis]
 
   def unwarp(self, labels_arr: types.Array) -> types.Array:
-    if np.isnan(self._shift):
+    if self._shift is None:
       raise ValueError('warp() needs to be called before unwarp() is called.')
     return labels_arr - self._shift
 

@@ -490,6 +490,16 @@ class InfeasibleWarperTest(parameterized.TestCase):
     labels_warped_infeasible = warper_infeasible.warp(labels)
     self.assertEqual(np.isnan(labels_warped_infeasible).sum(), 0)
 
+  def test_all_nans(self):
+    warper_infeasible = output_warpers.InfeasibleWarperComponent()
+    labels = np.array([[np.nan], [np.nan], [np.nan], [np.nan]])
+    labels_warped_infeasible = warper_infeasible.warp(labels)
+    expected = np.array([[0.0], [0.0], [0.0], [0.0]])
+    np.testing.assert_equal(labels_warped_infeasible, expected)
+
+    unwarped = warper_infeasible.unwarp(labels_warped_infeasible)
+    np.testing.assert_equal(unwarped, labels)
+
   def test_known_arrays(self):
     # TODO: Add a couple of parameterized test cases.
     self.skipTest('No test cases provided')
