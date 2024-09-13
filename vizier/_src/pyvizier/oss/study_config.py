@@ -78,8 +78,6 @@ class Algorithm(enum.Enum):
   QUASI_RANDOM_SEARCH = 'QUASI_RANDOM_SEARCH'
   # NSGA2 (https://ieeexplore.ieee.org/document/996017).
   NSGA2 = 'NSGA2'
-  # Emukit implementation of GP-EI (https://emukit.github.io/).
-  EMUKIT_GP_EI = 'EMUKIT_GP_EI'
   # BOCS (https://arxiv.org/abs/1806.08838) only applicable to boolean search
   # spaces.
   BOCS = 'BOCS'

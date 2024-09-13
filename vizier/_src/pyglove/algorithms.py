@@ -55,7 +55,6 @@ class PseudoAlgorithm(pg.DNAGenerator):
                 # OSS-Vizier only algorithms:
                 'BOCS',
                 'CMA_ES',
-                'EMUKIT_GP_EI',
                 'HARMONICA',
                 'NSGA2',
                 'QUASI_RANDOM_SEARCH',

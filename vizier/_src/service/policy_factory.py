@@ -89,10 +89,6 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
       return dp.PartiallySerializableDesignerPolicy(
           problem_statement, policy_supporter, nsga2.NSGA2Designer
       )
-    elif algorithm == 'EMUKIT_GP_EI':
-      from vizier._src.algorithms.designers import emukit
-
-      return dp.DesignerPolicy(policy_supporter, emukit.EmukitDesigner)
     elif algorithm == 'BOCS':
       from vizier._src.algorithms.designers import bocs
 

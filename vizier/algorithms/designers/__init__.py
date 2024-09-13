@@ -19,7 +19,6 @@ from __future__ import annotations
 from vizier._src.algorithms.designers.bocs import BOCSDesigner
 from vizier._src.algorithms.designers.cmaes import CMAESDesigner
 from vizier._src.algorithms.designers.eagle_strategy.eagle_strategy import EagleStrategyDesigner
-from vizier._src.algorithms.designers.emukit import EmukitDesigner
 from vizier._src.algorithms.designers.gp_bandit import VizierGPBandit
 from vizier._src.algorithms.designers.gp_ucb_pe import VizierGPUCBPEBandit
 from vizier._src.algorithms.designers.grid import GridSearchDesigner
