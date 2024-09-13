@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Experimenter that normalizes the range of each metric."""
 
+import collections
 import copy
 from typing import Dict, Sequence
 
@@ -25,9 +26,9 @@ from vizier._src.benchmarks.experimenters import experimenter
 from vizier.pyvizier import converters
 
 
-# TODO: Improve normalization by using optimization.
+# TODO: Allow more sampling methods.
 class NormalizingExperimenter(experimenter.Experimenter):
-  """Normalizes an Experimenter output via dividing by L1 norm at grid points."""
+  """Normalizes an Experimenter output via (y - empirical_mean) / empirical_std."""
 
   def __init__(
       self,
@@ -53,26 +54,19 @@ class NormalizingExperimenter(experimenter.Experimenter):
         np.zeros(feature_dim), np.ones(feature_dim), num_normalization_samples
     )
     sampled_params = converter.to_parameters(normalized_samples)
-    metrics: Dict[str, list[float]] = {}
+    metrics = collections.defaultdict(list)
     for parameters in sampled_params:
       trial = vz.Trial(parameters=parameters)
       exptr.evaluate([trial])
       measurement = trial.final_measurement
       for name, metric in (measurement.metrics if measurement else {}).items():
-        if name in metrics:
-          metrics[name].append(metric.value)
-        else:
-          metrics[name] = [metric.value]
+        metrics[name].append(metric.value)
 
-    self._normalizations: Dict[str, float] = {}
+    self._norm_means: Dict[str, float] = {}
+    self._norm_stds: Dict[str, float] = {}
     for name, grid_values in metrics.items():
-      normalization = np.mean(np.absolute(np.array(grid_values)))
-      if normalization == 0:
-        raise ValueError(
-            f'Cannot normalize {name} due to nonpositive L1 norm'
-            f' with grid values {grid_values}'
-        )
-      self._normalizations[name] = normalization
+      self._norm_means[name] = np.mean(grid_values)
+      self._norm_stds[name] = np.std(grid_values) + 1e-7
 
   def problem_statement(self) -> vz.ProblemStatement:
     return copy.deepcopy(self._problem_statement)
@@ -84,15 +78,15 @@ class NormalizingExperimenter(experimenter.Experimenter):
         continue
       normalized_metrics: Dict[str, vz.Metric] = {}
       for name, metric in suggestion.final_measurement.metrics.items():
-        normalized_metrics[name] = vz.Metric(
-            value=metric.value / self._normalizations[name]
-        )
+        norm_val = metric.value - self._norm_means[name]
+        norm_val /= self._norm_stds[name]
+        normalized_metrics[name] = vz.Metric(norm_val)
       suggestion.final_measurement.metrics = normalized_metrics
 
   def __repr__(self):
     return (
-        f'NormalizingExperimenter with normalizations {self._normalizations} on'
-        f' {self._exptr}'
+        'NormalizingExperimenter with normalization means'
+        f' {self._norm_means} and stds {self._norm_stds} on {self._exptr}'
     )
 
 
