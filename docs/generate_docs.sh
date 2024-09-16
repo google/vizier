@@ -23,8 +23,7 @@
 OUTPUT_FOLDER=_build
 
 # Install Sphinx.
-sudo apt-get install python3-sphinx
-
+pip install sphinx<7.0.0  # Ensures compatibility with `sphinx_rtd_theme`.
 # Installs relevant Sphinx packages.
 pip install -r requirements-docs.txt --use-deprecated=legacy-resolver
 
