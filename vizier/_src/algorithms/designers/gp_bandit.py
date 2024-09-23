@@ -580,18 +580,11 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     samples = samples[
         :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
     ]
-    unwarped_samples = None
     # TODO: vectorize output warping.
-    for i in range(samples.shape[0]):
-      unwarp_samples_ = self._output_warper.unwarp(
-          samples[i][..., np.newaxis]
-      ).reshape(-1)
-      if unwarped_samples is not None:
-        unwarped_samples = np.vstack([unwarp_samples_, unwarped_samples])
-      else:
-        unwarped_samples = unwarp_samples_
-
-    return unwarped_samples  # pytype: disable=bad-return-type
+    return np.vstack([
+        self._output_warper.unwarp(samples[i][..., np.newaxis]).reshape(-1)
+        for i in range(samples.shape[0])
+    ])
 
   @profiler.record_runtime
   def predict(

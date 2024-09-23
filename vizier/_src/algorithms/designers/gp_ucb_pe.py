@@ -546,6 +546,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         self._problem.search_space,
         seed=int(jax.random.randint(qrs_seed, [], 0, 2**16)),
     )
+    self._output_warper = None
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -706,9 +707,8 @@ class VizierGPUCBPEBandit(vza.Designer):
         data.labels.shape,
         _get_features_shape(data.features),
     )
-    warped_labels = output_warpers.create_default_warper().warp(
-        np.array(data.labels.unpad())
-    )
+    self._output_warper = output_warpers.create_default_warper()
+    warped_labels = self._output_warper.warp(np.array(data.labels.unpad()))
     labels = types.PaddedArray.from_array(
         warped_labels,
         data.labels.padded_array.shape,
@@ -1012,6 +1012,84 @@ class VizierGPUCBPEBandit(vza.Designer):
           )
       )
     return suggestions
+
+  @profiler.record_runtime
+  def sample(
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.Array] = None,
+      num_samples: int = 1000,
+  ) -> types.Array:
+    """Returns unwarped samples from the model for any given trials.
+
+    Arguments:
+      trials: The trials where the predictions will be made.
+      rng: The sampling random key.
+      num_samples: The number of samples per trial.
+
+    Returns:
+      The samples in the specified trials. shape: (num_samples, num_trials)
+    """
+    if rng is None:
+      rng = jax.random.PRNGKey(0)
+
+    if not trials:
+      return np.zeros((num_samples, 0))
+
+    data = self._trials_to_data(self._all_completed_trials)
+    self._rng, ard_rng = jax.random.split(self._rng, 2)
+    model = self._build_gp_model_and_optimize_parameters(data, ard_rng)
+    predictive = sp.UniformEnsemblePredictive(
+        predictives=eqx.filter_jit(model.precompute_predictive)(data)
+    )
+
+    xs = self._converter.to_features(trials)
+    xs = types.ModelInput(
+        continuous=xs.continuous.replace_fill_value(0.0),
+        categorical=xs.categorical.replace_fill_value(0),
+    )
+    samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
+        predictive, xs, num_samples, key=rng
+    )  # (num_samples, num_trials)
+    # Scope the samples to non-padded only (there's a single padded dimension).
+    samples = samples[
+        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
+    ]
+    # TODO: vectorize output warping.
+    if self._output_warper is not None:
+      return np.vstack([
+          self._output_warper.unwarp(samples[i][..., np.newaxis]).reshape(-1)
+          for i in range(samples.shape[0])
+      ])
+    else:
+      raise TypeError(
+          'Output warper is expected to be set, but found to be None.'
+      )
+
+  @profiler.record_runtime
+  def predict(
+      self,
+      trials: Sequence[vz.TrialSuggestion],
+      rng: Optional[jax.Array] = None,
+      num_samples: Optional[int] = 1000,
+  ) -> vza.Prediction:
+    """Returns the mean and stddev for any given trials.
+
+    The method performs sampling of the warped GP model, unwarp the samples and
+    compute the empirical mean and standard deviation as an apprixmation.
+
+    Arguments:
+      trials: The trials where the predictions will be made.
+      rng: The sampling random key used for approximation.
+      num_samples: The number of samples used for the approximation.
+
+    Returns:
+      The predictions in the specified trials.
+    """
+    unwarped_samples = self.sample(trials, rng, num_samples)
+    mean = np.mean(unwarped_samples, axis=0)
+    stddev = np.std(unwarped_samples, axis=0)
+    return vza.Prediction(mean=mean, stddev=stddev)
 
   @profiler.record_runtime(name_prefix='VizierGPUCBPEBandit', name='suggest')
   def suggest(
