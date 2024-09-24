@@ -671,8 +671,8 @@ class DefaultModelInputConverter(ModelInputConverter):
       if self._should_clip:
         value = np.clip(
             value,
-            self._parameter_config.bounds[0],
-            self._parameter_config.bounds[1],
+            np.float64(self._parameter_config.bounds[0]),
+            np.float64(self._parameter_config.bounds[1]),
         )
       return pyvizier.ParameterValue(float(value))
     elif self.output_spec.type == NumpyArraySpecType.CONTINUOUS:
