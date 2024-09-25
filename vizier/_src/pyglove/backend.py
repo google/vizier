@@ -338,7 +338,7 @@ class VizierBackend(pg.tuning.Backend):
       # Trials are added to the study directly upon creation.
       trials: Sequence[vz.Trial] = self._load_prior_trials()
       for trial in trials:
-        self._study._add_trial(trial)  # pylint: disable=protected-access
+        self._study.add_trial(trial)
 
   def _create_suggestion_generator(self):
     """Creates a suggestion generator."""

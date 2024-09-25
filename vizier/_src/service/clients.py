@@ -152,7 +152,9 @@ class Study(client_abc.StudyInterface):
     actual_delta = vz.MetadataDelta(on_study=delta)
     self._client.update_metadata(actual_delta)
 
-  def _add_trial(self, trial: vz.Trial) -> Trial:
+  def add_trial(self, trial: vz.Trial) -> Trial:
+    sc = self._client.get_study_config(self.resource_name)
+    sc.search_space.assert_contains(trial.parameters)
     return self._trial_client(self._client.add_trial(trial))
 
   def request(self, suggestion: vz.TrialSuggestion) -> Trial:

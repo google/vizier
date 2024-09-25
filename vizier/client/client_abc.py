@@ -249,10 +249,19 @@ class StudyInterface(abc.ABC):
       delta: Change in Metadata from the original.
     """
 
-  # TODO: Make this method public.
   @abc.abstractmethod
-  def _add_trial(self, trial: vz.Trial) -> TrialInterface:
-    """Adds a trial to the Study. For testing only."""
+  def add_trial(self, trial: vz.Trial) -> TrialInterface:
+    """Adds a trial to the Study. Allows warm-starting.
+
+    Args:
+      trial: Trial to be added.
+
+    Returns:
+      Trial client.
+
+    Raises:
+      ValueError: If the trial is not within the search space.
+    """
 
   @abc.abstractmethod
   def trials(

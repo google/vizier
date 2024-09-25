@@ -117,8 +117,7 @@ class TestCase(
     study = self.create_test_study(name)
     trials = self._example_trials()
     for i, t in enumerate(trials):
-      # TODO: Remove this.
-      study._add_trial(t)  # pylint: disable=protected-access
+      study.add_trial(t)
       if i == 2:
         # Make sure the requested trial becomes ACTIVE.
         _ = study.suggest(count=1)
