@@ -47,19 +47,17 @@ class DefaultVizierServer:
   (SQL_MEMORY_URL) since tests don't easily allow arbitrarily filepaths.
   """
 
-  _host: str = attr.field(init=True, default='localhost')
-  _database_url: str = attr.field(
-      init=True, default=constants.SQL_LOCAL_URL, kw_only=True
-  )
+  _host: str = attr.field(default='localhost')
+  _database_url: str = attr.field(default=constants.SQL_LOCAL_URL, kw_only=True)
   _policy_factory: pythia.PolicyFactory = attr.field(
-      init=True,
-      factory=service_policy_factory_lib.DefaultPolicyFactory,
-      kw_only=True,
+      factory=service_policy_factory_lib.DefaultPolicyFactory, kw_only=True
   )
   _early_stop_recycle_period: datetime.timedelta = attr.field(
-      init=True, default=datetime.timedelta(seconds=0.1), kw_only=True
+      default=datetime.timedelta(seconds=0.1), kw_only=True
   )
-  _port: int = attr.field(init=False, factory=portpicker.pick_unused_port)
+  _port: int = attr.field(factory=portpicker.pick_unused_port, kw_only=True)
+
+  # Fields which should not be set by users.
   _servicer: vizier_service.VizierServicer = attr.field(init=False)
   _server: grpc.Server = attr.field(init=False)
   stub: vizier_service_pb2_grpc.VizierServiceStub = attr.field(init=False)
@@ -106,8 +104,10 @@ class DistributedPythiaVizierServer(DefaultVizierServer):
   """
 
   _pythia_port: int = attr.field(
-      init=False, factory=portpicker.pick_unused_port
+      factory=portpicker.pick_unused_port, kw_only=True
   )
+
+  # Fields which should not be set by users.
   _pythia_servicer: pythia_service.PythiaServicer = attr.field(init=False)
   _pythia_server: grpc.Server = attr.field(init=False)
   pythia_stub: pythia_service_pb2_grpc.PythiaServiceStub = attr.field(
