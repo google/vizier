@@ -48,4 +48,6 @@ from vizier._src.benchmarks.experimenters.synthetic import bbob
 from vizier._src.benchmarks.experimenters.synthetic.branin import Branin2DExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.deb import DHExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.hartmann import HartmannExperimenter
+from vizier._src.benchmarks.experimenters.synthetic.multiarm import BernoulliMultiArmExperimenter
+from vizier._src.benchmarks.experimenters.synthetic.multiarm import FixedMultiArmExperimenter
 from vizier._src.benchmarks.experimenters.synthetic.simplekd import SimpleKDExperimenter
