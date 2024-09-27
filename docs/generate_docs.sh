@@ -23,9 +23,9 @@
 OUTPUT_FOLDER=_build
 
 # Install Sphinx.
-pip install sphinx<7.0.0  # Ensures compatibility with `sphinx_rtd_theme`.
+pip install sphinx>=8.0.0  # Make sure up-to-date with ReadTheDocs server.
 # Installs relevant Sphinx packages.
-pip install -r requirements-docs.txt --use-deprecated=legacy-resolver
+pip install -r requirements-docs.txt
 
 # Build files (HTML, doctests, etc.) into `OUTPUT_FOLDER` directory.
 rm -rf ${OUTPUT_FOLDER}  # Clear out original folder
