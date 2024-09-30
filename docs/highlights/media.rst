@@ -19,11 +19,15 @@ Articles
 -  `Random Access (Spanish) <https://randomaccessnoticias.com/inteligencia-artificial/hacia-una-optimizacion-confiable-y-flexible-de-hiperparametros-y-blackbox-google-ai-blog/>`__
 -  `Electronic Smith <https://electronicsmith.com/web-stories/google-ai-open-sources-vizier/>`__
 -  `Deep Learning Weekly <https://open.substack.com/pub/deeplearningweekly/p/deep-learning-weekly-issue-287?utm_campaign=post&utm_medium=web>`__
+-  `China Z (Chinese) <https://www.chinaz.com/2024/0823/1637848.shtml>`__
+-  `TuringPost <https://www.turingpost.com/p/fod64>`__
+-  `Open Data Science <https://odsc.medium.com/odscs-ai-weekly-recap-week-of-august-30th-37921c9d13c3>`__
 
 
 Videos/Talks
 ------------
 
+-  `Beijing Academy of Artificial Intelligence (BAAI) <https://event.baai.ac.cn/activities/834>`__
 -  `AutoML Conference 2023 Tutorial <https://youtu.be/Xpdn_9uPEZY?si=wHXLYVV_j0yE5sLI>`__ (`Hands-on Colab <https://github.com/google/vizier/blob/main/docs/tutorials/automl_conf_2023.ipynb>`__)
 -  `AutoML Seminar 2023 Talk <https://youtu.be/Ya_V5isGdG8>`__
 -  `AutoML Conference 2022 Paper Presentation <https://youtu.be/b5hemgM16tM>`__
