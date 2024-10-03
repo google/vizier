@@ -19,6 +19,7 @@ from vizier._src.benchmarks.experimenters import combo_experimenter
 from vizier._src.benchmarks.experimenters import normalizing_experimenter
 from vizier._src.benchmarks.experimenters import numpy_experimenter
 from vizier._src.benchmarks.experimenters.synthetic import bbob
+from vizier._src.benchmarks.experimenters.synthetic import multiarm
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -71,6 +72,17 @@ class NormalizingExperimenterTest(parameterized.TestCase):
     normalizing_exptr.evaluate([t])
     normalized_value = t.final_measurement_or_die.metrics[metric_name].value
     self.assertBetween(normalized_value, -10, 10)
+
+  def test_NormalizingCategoricals(self):
+    mab_exptr = multiarm.FixedMultiArmExperimenter(rewards=[-1e6, 0.0, 1e6])
+    norm_exptr = normalizing_experimenter.NormalizingExperimenter(mab_exptr)
+    metric_name = norm_exptr.problem_statement().metric_information.item().name
+
+    for arm in range(3):
+      t = pyvizier.Trial(parameters={'arm': str(arm)})
+      norm_exptr.evaluate([t])
+      normalized_value = t.final_measurement_or_die.metrics[metric_name].value
+      self.assertBetween(normalized_value, -10, 10)
 
 
 class HyperCubeExperimenterTest(parameterized.TestCase):

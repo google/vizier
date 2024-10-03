@@ -34,12 +34,14 @@ class NormalizingExperimenter(experimenter.Experimenter):
       self,
       exptr: experimenter.Experimenter,
       num_normalization_samples: int = 100,
+      noise_seed: int = 42,
   ):
     """Normalizing experimenter uses a grid to estimate a normalization constant.
 
     Args:
       exptr: Experimenter to be normalized.
       num_normalization_samples: Number of samples to determine normalization.
+      noise_seed: Random seed for tiebreaking categorical samples.
     """
     self._exptr = exptr
     self._problem_statement = exptr.problem_statement()
@@ -53,6 +55,14 @@ class NormalizingExperimenter(experimenter.Experimenter):
     normalized_samples = np.linspace(
         np.zeros(feature_dim), np.ones(feature_dim), num_normalization_samples
     )
+
+    # Categoricals use argmax and break ties by always choosing the first
+    # feasible choice. Let's randomize the tiebreaking.
+    noise = np.random.RandomState(noise_seed).normal(
+        scale=1e-6, size=(num_normalization_samples, feature_dim)
+    )
+    normalized_samples += noise
+
     sampled_params = converter.to_parameters(normalized_samples)
     metrics = collections.defaultdict(list)
     for parameters in sampled_params:
