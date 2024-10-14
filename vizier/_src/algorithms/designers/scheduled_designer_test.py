@@ -17,7 +17,9 @@ from __future__ import annotations
 """Tests for scheduled designers."""
 
 from typing import Sequence
+
 import attrs
+import jax
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
@@ -28,6 +30,7 @@ from vizier._src.algorithms.designers import scheduled_gp_bandit
 from vizier._src.algorithms.designers import scheduled_gp_ucb_pe
 from vizier._src.algorithms.testing import test_runners
 from vizier.testing import test_studies
+
 from absl.testing import absltest
 
 
@@ -243,7 +246,7 @@ class ScheduledGpUcbPeTest(absltest.TestCase):
 
     scheduled_desinger = scheduled_gp_ucb_pe.ScheduledGPUCBPEFactory(
         gp_ucb_pe_factory=_gp_ucb_pe_factory,
-        expected_total_num_trials=3,
+        expected_total_num_trials=10,
         init_ucb_coefficient=4.0,
         final_ucb_coefficient=1.0,
         decay_ucb_coefficient=1.2,
@@ -258,15 +261,16 @@ class ScheduledGpUcbPeTest(absltest.TestCase):
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
-            iters=3,
+            iters=10,
             batch_size=1,
             verbose=1,
             validate_parameters=True,
             seed=1,
         ).run_designer(scheduled_desinger),
-        3,
+        10,
     )
 
 
 if __name__ == "__main__":
+  jax.config.update("jax_enable_x64", True)
   absltest.main()
