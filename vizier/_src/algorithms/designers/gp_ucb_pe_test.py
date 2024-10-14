@@ -316,7 +316,6 @@ class GpUcbPeTest(parameterized.TestCase):
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
             ucb_overwrite_probability=1.0,
-            signal_to_noise_threshold=0.0,
         ),
         padding_schedule=padding.PaddingSchedule(
             num_trials=padding.PaddingType.MULTIPLES_OF_10
