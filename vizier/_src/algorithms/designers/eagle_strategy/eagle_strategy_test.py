@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-"""Tests for eagle_strategy."""
+"""Tests for eagle_strategy module."""
 
 import numpy as np
 from vizier import algorithms as vza
@@ -22,6 +22,7 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy
 from vizier._src.algorithms.designers.eagle_strategy import eagle_strategy_utils
 from vizier._src.algorithms.designers.eagle_strategy import testing
+from vizier.testing import test_studies
 
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -327,6 +328,25 @@ class EagleStrategyTest(parameterized.TestCase):
     for _ in range(3):
       _suggest_and_update(eagle_designer, tid, infeasible=False)
       tid += 1
+
+  def test_on_singleton_search_space(self):
+    problem = vz.ProblemStatement(
+        test_studies.flat_space_with_all_types_with_singletons()
+    )
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    designer = eagle_strategy.EagleStrategyDesigner(problem)
+    initial_suggestions = designer.suggest(25)
+    trials = []
+    for idx, suggestion in enumerate(initial_suggestions):
+      trial = suggestion.to_trial(idx)
+      trial.complete(vz.Measurement({'metric': 1.0}))
+      trials.append(trial)
+    designer.update(vza.CompletedTrials(trials), vza.ActiveTrials([]))
+    self.assertLen(designer.suggest(25), 25)
 
 
 if __name__ == '__main__':
