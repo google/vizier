@@ -1,11 +1,11 @@
 # Optional Jax library.
-jax>=0.4.26
-jaxlib>=0.4.26
+jax>=0.4.34
+jaxlib>=0.4.34
 jaxopt>=0.8.3
-flax>=0.8.2
-optax>=0.2.2
-chex>=0.1.86
+flax>=0.10.0
+optax>=0.2.3
+chex>=0.1.87
 tfp-nightly[jax]
-equinox==0.11.3
-jaxtyping>=0.2.28
+equinox==0.11.7
+jaxtyping>=0.2.34
 typeguard<=2.13.3
