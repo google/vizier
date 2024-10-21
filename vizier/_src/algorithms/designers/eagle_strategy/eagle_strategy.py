@@ -73,7 +73,6 @@ of firefly id created, to ensure that each firefly has its own unique id.
 import json
 import time
 from typing import Optional, Sequence
-
 from absl import logging
 import attr
 import numpy as np
@@ -136,8 +135,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       # ensure non-repeated behavior.
       seed = int(time.time())
       logging.info(
-          ('A seed was not provided to Eagle Strategy designer constructor. '
-           'Setting the seed to %s'),
+          (
+              'A seed was not provided to Eagle Strategy designer constructor. '
+              'Setting the seed to %s'
+          ),
           str(seed),
       )
     self._scaler = converters.ProblemAndTrialsScaler(problem_statement)
@@ -172,7 +173,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     metadata = vz.Metadata()
     metadata.ns('eagle')['rng'] = serialization.serialize_rng(self._rng)
     metadata.ns('eagle')['firefly_pool'] = (
-        serialization.partially_serialize_firefly_pool(self._firefly_pool))
+        serialization.partially_serialize_firefly_pool(self._firefly_pool)
+    )
     metadata.ns('eagle')['serialization_version'] = 'v1'
     metadata.ns('eagle')['dump_timestamp'] = str(time.time())
     metadata.ns('eagle').ns('random_designer').attach(
@@ -196,23 +198,28 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     """
     if metadata.ns('eagle').get('serialization_version', default=None) is None:
       # First time the designer is called, so the namespace doesn't exist yet.
-      logging.info('Eagle designer was called for the first time. No state was'
-                   ' recovered.')
+      logging.info(
+          'Eagle designer was called for the first time. No state was'
+          ' recovered.'
+      )
     else:
       try:
         self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])
       except Exception as e:
         raise serializable.FatalDecodeError(
-            "Couldn't load random generator from metadata.") from e
+            "Couldn't load random generator from metadata."
+        ) from e
       self._utils.rng = self._rng
 
       try:
         firefly_pool = metadata.ns('eagle')['firefly_pool']
         self._firefly_pool = serialization.restore_firefly_pool(
-            self._utils, firefly_pool)
+            self._utils, firefly_pool
+        )
       except Exception as e:
         raise serializable.HarmlessDecodeError(
-            "Couldn't load firefly pool from metadata.") from e
+            "Couldn't load firefly pool from metadata."
+        ) from e
 
       try:
         self._initial_designer = quasi_random.QuasiRandomDesigner(
@@ -225,8 +232,10 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
         ) from e
 
       logging.info(
-          ('Eagle designer restored state from timestamp %s. Firefly pool'
-           ' now contains %s fireflies.'),
+          (
+              'Eagle designer restored state from timestamp %s. Firefly pool'
+              ' now contains %s fireflies.'
+          ),
           metadata.ns('eagle')['dump_timestamp'],
           self._firefly_pool.size,
       )
@@ -386,7 +395,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       return
 
     elif not trial.infeasible and self._utils.is_better_than(
-        trial, parent_fly.trial):
+        trial, parent_fly.trial
+    ):
       # There's improvement. Update the parent with the new trial.
       parent_fly.trial = trial
       parent_fly.generation += 1

@@ -198,7 +198,10 @@ class EagleStrategyUtils:
         dist_squared_by_type[param_config.type] += int(p1_value == p2_value)
       else:
         min_value, max_value = param_config.bounds
-        dist = (p1_value - p2_value) / (max_value - min_value)
+        if max_value == min_value:
+          dist = 0
+        else:
+          dist = (p1_value - p2_value) / (max_value - min_value)
         dist_squared_by_type[param_config.type] += dist * dist
 
     return dist_squared_by_type

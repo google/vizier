@@ -74,6 +74,24 @@ def flat_space_with_all_types() -> vz.SearchSpace:
   return space
 
 
+def flat_space_with_all_types_with_singletons() -> vz.SearchSpace:
+  """Search space with all parameter types."""
+
+  space = vz.SearchSpace()
+  root = space.root
+  root.add_float_param('double_singleton', min_value=1.0, max_value=1.0)
+  root.add_int_param('integer_singleton', min_value=5, max_value=5)
+  root.add_categorical_param('categorical_singleton', feasible_values=['a'])
+  root.add_discrete_param('discrete_singleton', feasible_values=[3])
+  root.add_float_param('double', min_value=0.0, max_value=5.0)
+  root.add_int_param('integer', min_value=0, max_value=10)
+  root.add_categorical_param(
+      'categorical', feasible_values=['a', '1', 'b', '2']
+  )
+  root.add_discrete_param('discrete', feasible_values=[0.0, 0.6])
+  return space
+
+
 def conditional_automl_space() -> vz.SearchSpace:
   """Conditional space for a simple AutoML task."""
   space = vz.SearchSpace()
