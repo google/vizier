@@ -15,9 +15,9 @@
 from __future__ import annotations
 
 """Tests for sql_datastore."""
+
 import os
 import sqlalchemy as sqla
-
 from vizier._src.service import constants
 from vizier._src.service import datastore_test_lib
 from vizier._src.service import sql_datastore
@@ -46,7 +46,9 @@ class SQLDataStoreTest(datastore_test_lib.DataStoreTestCase):
         )
     )
 
-    engine = sqla.create_engine(constants.SQL_MEMORY_URL, echo=True)
+    engine = sqla.create_engine(
+        constants.SQL_MEMORY_URL, echo=True, future=True
+    )
     self.datastore = sql_datastore.SQLDataStore(engine)
     super().setUp()
 
@@ -92,12 +94,12 @@ class SQLDataStoreAdditionalTest(absltest.TestCase):
     db_path = os.path.join(absltest.get_default_test_tmpdir(), 'local.db')
     sql_url = f'sqlite:///{db_path}'
 
-    engine = sqla.create_engine(sql_url, echo=True)
+    engine = sqla.create_engine(sql_url, echo=True, future=True)
     datastore = sql_datastore.SQLDataStore(engine)
     datastore.create_study(self.example_study)
     del datastore
 
-    engine2 = sqla.create_engine(sql_url, echo=True)
+    engine2 = sqla.create_engine(sql_url, echo=True, future=True)
     datastore2 = sql_datastore.SQLDataStore(engine2)
     study = datastore2.load_study(self.example_study.name)
 

@@ -104,8 +104,9 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     else:
       engine = sqla.create_engine(
           database_url,
-          echo=False,  # Set True to log transactions for debugging.
           connect_args={'check_same_thread': False},
+          echo=False,  # Set True to log transactions for debugging.
+          future=True,  # Backward compatibility with sqlalchemy 1.4.
           poolclass=sqla.pool.StaticPool,
       )
       self.datastore = sql_datastore.SQLDataStore(engine)
