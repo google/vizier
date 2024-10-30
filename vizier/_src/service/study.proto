@@ -289,6 +289,24 @@ message StudySpec {
     // Leave unset for `CATEGORICAL` parameters.
     ScaleType scale_type = 6;
 
+    // This is a place where the Vizier client can note the representation it
+    // presents to its callers.
+    // e.g. boolean can be represented inside Vizier in several ways (e.g.
+    // CATEGORICAL, INTEGER, or DOUBLE). Or, to represent a python range like
+    // range(10, 100, 10), you need to use an internal DOUBLE representation and
+    // use the external AS_INTEGER representation.
+    //
+    // NOTE: This field is not examined or modified by the Vizier service.
+    // NOTE: Not all combinations of ExternalType and ParameterType make sense.
+    enum ExternalType {
+      AS_INTERNAL = 0;
+      AS_BOOLEAN = 1;
+      AS_INTEGER = 2;
+      AS_FLOAT = 3;
+    }
+
+    ExternalType external_type = 7;
+
     // Represents a parameter spec with condition from its parent parameter.
     message ConditionalParameterSpec {
       // The spec for a conditional parameter.
@@ -351,7 +369,7 @@ message StudySpec {
   // See pyvizier.Algorithm for a list of native Vizier algorithms.
   string algorithm = 3;
 
-  // Use the deault early stopping policy.
+  // Use the default early stopping policy.
   reserved 4, 5, 8;
   message DefaultEarlyStoppingSpec {}
 

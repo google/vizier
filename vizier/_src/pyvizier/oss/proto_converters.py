@@ -35,6 +35,8 @@ from vizier._src.service import vizier_service_pb2
 
 ScaleType = parameter_config.ScaleType
 _ScaleTypePb2 = study_pb2.StudySpec.ParameterSpec.ScaleType
+ExternalType = parameter_config.ExternalType
+_ExternalTypePb2 = study_pb2.StudySpec.ParameterSpec.ExternalType
 ParameterType = parameter_config.ParameterType
 MonotypeParameterSequence = parameter_config.MonotypeParameterSequence
 
@@ -86,6 +88,26 @@ class _ScaleTypeMap:
 
   @classmethod
   def from_proto(cls, proto: _ScaleTypePb2) -> ScaleType:
+    return cls._proto_to_pyvizier[proto]
+
+
+class _ExternalTypeMap:
+  """Proto converter for external type."""
+
+  _pyvizier_to_proto = dict([
+      (ExternalType.INTERNAL, _ExternalTypePb2.AS_INTERNAL),
+      (ExternalType.BOOLEAN, _ExternalTypePb2.AS_BOOLEAN),
+      (ExternalType.INTEGER, _ExternalTypePb2.AS_INTEGER),
+      (ExternalType.FLOAT, _ExternalTypePb2.AS_FLOAT),
+  ])
+  _proto_to_pyvizier = {v: k for k, v in _pyvizier_to_proto.items()}
+
+  @classmethod
+  def to_proto(cls, pyvizier: ExternalType) -> _ExternalTypePb2:
+    return cls._pyvizier_to_proto[pyvizier]
+
+  @classmethod
+  def from_proto(cls, proto: _ExternalTypePb2) -> ExternalType:
     return cls._proto_to_pyvizier[proto]
 
 
@@ -173,7 +195,8 @@ class ParameterConfigConverter:
     Raises:
       ValueError: See the "strict_validtion" arg documentation.
     """
-    feasible_values = []
+    bounds = None
+    feasible_values = None
     oneof_name = proto.WhichOneof('parameter_value_spec')
     if oneof_name == 'integer_value_spec':
       bounds = (
@@ -210,6 +233,10 @@ class ParameterConfigConverter:
     if proto.scale_type:
       scale_type = _ScaleTypeMap.from_proto(proto.scale_type)
 
+    external_type = None
+    if proto.external_type:
+      external_type = _ExternalTypeMap.from_proto(proto.external_type)
+
     try:
       config = parameter_config.ParameterConfig.factory(
           name=proto.parameter_id,
@@ -218,6 +245,7 @@ class ParameterConfigConverter:
           children=children,
           scale_type=scale_type,
           default_value=default_value,
+          external_type=external_type,
       )
     except ValueError as e:
       raise ValueError(
@@ -258,10 +286,8 @@ class ParameterConfigConverter:
     parent_proto.ClearField('conditional_parameter_specs')
     for child_pair in children:
       if len(child_pair) != 2:
-        raise ValueError(
-            """Each element in children must be a tuple of
-            (Sequence of valid parent values,  ParameterConfig)"""
-        )
+        raise ValueError("""Each element in children must be a tuple of
+            (Sequence of valid parent values,  ParameterConfig)""")
 
     logging.debug(
         '_set_child_parameter_configs: parent_proto=%s, children=%s',
@@ -316,6 +342,8 @@ class ParameterConfigConverter:
       proto.scale_type = _ScaleTypeMap.to_proto(pc.scale_type)
     if pc.default_value is not None:
       cls._set_default_value(proto, pc.default_value)
+    if pc.external_type is not None:
+      proto.external_type = _ExternalTypeMap.to_proto(pc.external_type)
 
     cls._set_child_parameter_configs(proto, pc)
     return proto

@@ -384,6 +384,57 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertIsInstance(parameters['batch_size'], int)
     self.assertIsInstance(parameters['floating_point_param'], float)
 
+  def testTrialToDictWithExternalType(self):
+    """Test conversion when external types are not specified."""
+    proto = study_pb2.StudySpec()
+    proto.parameters.add(
+        parameter_id='learning_rate',
+        double_value_spec=study_pb2.StudySpec.ParameterSpec.DoubleValueSpec(
+            min_value=1e-4, max_value=0.1),
+        scale_type=study_pb2.StudySpec.ParameterSpec.ScaleType.UNIT_LOG_SCALE)
+    proto.parameters.add(
+        parameter_id='batch_size',
+        discrete_value_spec=study_pb2.StudySpec.ParameterSpec.DiscreteValueSpec(
+            values=[1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0]),
+        external_type=study_pb2.StudySpec.ParameterSpec.ExternalType.AS_INTEGER)
+    proto.parameters.add(
+        parameter_id='training_steps',
+        discrete_value_spec=study_pb2.StudySpec.ParameterSpec.DiscreteValueSpec(
+            values=[1000.0, 10000.0]),
+        external_type=study_pb2.StudySpec.ParameterSpec.ExternalType.AS_INTEGER)
+    proto.observation_noise = study_pb2.StudySpec.ObservationNoise.HIGH
+    proto.metrics.add(
+        metric_id='loss', goal=study_pb2.StudySpec.MetricSpec.MINIMIZE)
+
+    trial_proto = study_pb2.Trial()
+    trial_proto.id = str(1)
+    trial_proto.parameters.add(
+        parameter_id='batch_size', value=struct_pb2.Value(number_value=128.0))
+    trial_proto.parameters.add(
+        parameter_id='learning_rate',
+        value=struct_pb2.Value(number_value=1.2137854406366652E-4))
+    trial_proto.parameters.add(
+        parameter_id='training_steps',
+        value=struct_pb2.Value(number_value=10000.0))
+
+    py_study_config = vz.StudyConfig.from_proto(proto)
+    self.assertEqual(
+        py_study_config.observation_noise, vz.ObservationNoise.HIGH
+    )
+    parameters = py_study_config.trial_parameters(trial_proto)
+    self.assertEqual(
+        py_study_config.observation_noise, vz.ObservationNoise.HIGH
+    )
+    expected = {
+        'batch_size': 128,
+        'learning_rate': 1.2137854406366652E-4,
+        'training_steps': 10000.0
+    }
+    self.assertEqual(expected, parameters)
+    self.assertIsInstance(parameters['learning_rate'], float)
+    self.assertIsInstance(parameters['batch_size'], int)
+    self.assertIsInstance(parameters['training_steps'], int)
+
   def testTrialToDictWithoutExternalType(self):
     """Test conversion when external types are not specified."""
     proto = study_pb2.StudySpec()

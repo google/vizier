@@ -17,9 +17,7 @@ from __future__ import annotations
 """Tests for proto_converters."""
 
 from absl import logging
-
 import attr
-
 from vizier._src.pyvizier.oss import proto_converters
 from vizier._src.pyvizier.pythia import study
 from vizier._src.pyvizier.shared import parameter_config as pc
@@ -365,6 +363,7 @@ class ParameterConfigConverterToProtoTest(absltest.TestCase):
         'name',
         feasible_values=feasible_values,
         scale_type=pc.ScaleType.LOG,
+        external_type=pc.ExternalType.INTEGER,
         default_value=2,
     )
 
@@ -375,6 +374,10 @@ class ParameterConfigConverterToProtoTest(absltest.TestCase):
     self.assertEqual(
         proto.scale_type,
         study_pb2.StudySpec.ParameterSpec.ScaleType.UNIT_LOG_SCALE,
+    )
+    self.assertEqual(
+        proto.external_type,
+        study_pb2.StudySpec.ParameterSpec.ExternalType.AS_INTEGER,
     )
 
 
