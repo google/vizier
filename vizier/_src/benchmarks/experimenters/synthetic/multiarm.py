@@ -20,6 +20,7 @@ Search space is pure 1-D categorical, and rewards are given by fixed
 distributions.
 """
 
+import copy
 from typing import Optional, Sequence
 
 import numpy as np
@@ -27,14 +28,23 @@ from vizier import pyvizier as vz
 from vizier._src.benchmarks.experimenters import experimenter
 
 
-def _default_multiarm_problem(num_arms: int) -> vz.ProblemStatement:
+def _default_multiarm_problem(
+    num_arms: int, arms_as_chars: bool
+) -> vz.ProblemStatement:
   """Returns default multi-arm problem statement."""
   problem = vz.ProblemStatement()
   problem.metric_information.append(
       vz.MetricInformation(name="reward", goal=vz.ObjectiveMetricGoal.MAXIMIZE)
   )
+
+  if arms_as_chars:
+    # Starts with 'a' character.
+    feasible_values = [chr(i + 97) for i in range(num_arms)]
+  else:
+    feasible_values = [str(i) for i in range(num_arms)]
+
   problem.search_space.root.add_categorical_param(
-      name="arm", feasible_values=[str(i) for i in range(num_arms)]
+      name="arm", feasible_values=feasible_values
   )
   return problem
 
@@ -42,18 +52,25 @@ def _default_multiarm_problem(num_arms: int) -> vz.ProblemStatement:
 class BernoulliMultiArmExperimenter(experimenter.Experimenter):
   """Uses a collection of Bernoulli arms with given probabilities."""
 
-  def __init__(self, probs: Sequence[float], seed: Optional[int] = None):
+  def __init__(
+      self,
+      probs: Sequence[float],
+      arms_as_chars: bool = True,
+      seed: Optional[int] = None,
+  ):
     self._probs = probs
     self._rng = np.random.RandomState(seed)
+    self._problem = _default_multiarm_problem(len(self._probs), arms_as_chars)
 
   def problem_statement(self) -> vz.ProblemStatement:
-    return _default_multiarm_problem(len(self._probs))
+    return copy.deepcopy(self._problem)
 
   def evaluate(self, suggestions: Sequence[vz.Trial]) -> None:
     """Each arm has a fixed probability of outputting 0 or 1 reward."""
+    feasibles = self._problem.search_space.parameters[0].feasible_values
     for suggestion in suggestions:
-      arm = int(suggestion.parameters["arm"].value)
-      prob = self._probs[arm]
+      arm_index = feasibles.index(suggestion.parameters["arm"].value)
+      prob = self._probs[arm_index]
       reward = self._rng.choice([0, 1], p=[1 - prob, prob])
       suggestion.final_measurement = vz.Measurement(metrics={"reward": reward})
 
@@ -61,14 +78,16 @@ class BernoulliMultiArmExperimenter(experimenter.Experimenter):
 class FixedMultiArmExperimenter(experimenter.Experimenter):
   """Rewards are deterministic."""
 
-  def __init__(self, rewards: Sequence[float]):
+  def __init__(self, rewards: Sequence[float], arms_as_chars: bool = True):
     self._rewards = rewards
+    self._problem = _default_multiarm_problem(len(self._rewards), arms_as_chars)
 
   def problem_statement(self) -> vz.ProblemStatement:
-    return _default_multiarm_problem(len(self._rewards))
+    return copy.deepcopy(self._problem)
 
   def evaluate(self, suggestions: Sequence[vz.Trial]) -> None:
+    feasibles = self._problem.search_space.parameters[0].feasible_values
     for suggestion in suggestions:
-      arm = int(suggestion.parameters["arm"].value)
-      reward = self._rewards[arm]
+      arm_index = feasibles.index(suggestion.parameters["arm"].value)
+      reward = self._rewards[arm_index]
       suggestion.final_measurement = vz.Measurement(metrics={"reward": reward})

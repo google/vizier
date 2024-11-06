@@ -74,7 +74,9 @@ class NormalizingExperimenterTest(parameterized.TestCase):
     self.assertBetween(normalized_value, -10, 10)
 
   def test_NormalizingCategoricals(self):
-    mab_exptr = multiarm.FixedMultiArmExperimenter(rewards=[-1e6, 0.0, 1e6])
+    mab_exptr = multiarm.FixedMultiArmExperimenter(
+        rewards=[-1e6, 0.0, 1e6], arms_as_chars=False
+    )
     norm_exptr = normalizing_experimenter.NormalizingExperimenter(mab_exptr)
     metric_name = norm_exptr.problem_statement().metric_information.item().name
 
