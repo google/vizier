@@ -75,7 +75,7 @@ pip install google-vizier[jax]
 ```
 
 ### Advanced Installation
-**Minimal version:** To install only the core service and client APIs from `requirements.txt`, run:
+**Minimal installation:** To install only the core service and client APIs from `requirements.txt`, run:
 
 ```bash
 pip install google-vizier
@@ -100,6 +100,12 @@ which installs add-ons from `requirements-X.txt`. Possible options:
 * `requirements-algorithms.txt`: Additional repositories (e.g. EvoJAX) for algorithms.
 * `requirements-benchmarks.txt`: Additional repositories (e.g. NASBENCH-201) for benchmarks.
 * `requirements-test.txt`: Libraries needed for testing code.
+
+**Developer installation:** To install up to the latest commit, run:
+
+```bash
+pip install google-vizier-dev[X]
+```
 
 Check if all unit tests work by running `run_tests.sh` after a full installation. OSS Vizier requires Python 3.10+, while client-only packages require Python 3.8+.
 
