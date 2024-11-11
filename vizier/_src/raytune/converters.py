@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Converters for PyVizier with RayTune."""
 
-from typing import Any, Dict, Callable, Union
+from typing import Any, Callable, Dict, Union
 
 from ray import tune
 from ray.tune.search import sample
@@ -91,7 +91,7 @@ class SearchSpaceConverter:
         space.root.add_int_param(
             param_name,
             min_value=param_config.lower,
-            max_value=param_config.upper,
+            max_value=param_config.upper - 1,
         )
       elif isinstance(param_config, sample.Categorical):
         if not all([isinstance(c, str) for c in param_config.categories]):

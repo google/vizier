@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 """Test for converters. Cannot be tested internally but can be on GitHub."""
+
 # pytype: skip-file
 from ray import tune
 from vizier import pyvizier as vz
@@ -30,7 +31,7 @@ class ConvertersTest(absltest.TestCase):
     param_space = {
         'float': tune.uniform(1, 2),
         'float_log': tune.loguniform(2, 3),
-        'int': tune.randint(4, 5),
+        'int': tune.randint(4, 6),
         'choice': tune.choice(['a', 'b', 'c']),
     }
     search_space = converters.SearchSpaceConverter.to_vizier(param_space)
