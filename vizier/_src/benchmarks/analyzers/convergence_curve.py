@@ -570,6 +570,10 @@ class ConvergenceComparator(abc.ABC):
       for efficiency comparison. The higher the quantile, the better the quality
       of the baseline batch.
     name: Name of comparator.
+    steps_cutoff: The number of initial steps (i.e., trials) to exclude from the
+      convergence curve. This allows any-time algorithms to disregard initial
+      trial performance, for example, when the study is guaranteed to run beyond
+      that number of steps.
   """
 
   _baseline_curve: ConvergenceCurve = attr.field()
@@ -588,6 +592,7 @@ class ConvergenceComparator(abc.ABC):
       default='score', validator=attr.validators.instance_of(str), kw_only=True
   )
   _sign: float = attr.field(init=False)
+  _steps_cutoff: Optional[float] = None
 
   def __attrs_post_init__(self):
     """Validates the curves and determines the sign.
@@ -636,7 +641,6 @@ class ConvergenceComparator(abc.ABC):
 
   def standardize_curves(
       self,
-      xs_cutoff: Optional[float] = None,
       apply_quantiles: bool = True,
   ) -> tuple[np.ndarray, np.ndarray]:
     """Standardize convergence curves.
@@ -644,10 +648,9 @@ class ConvergenceComparator(abc.ABC):
     1. Align xs and keep each ys.
     2. Convert curves to INCREASING.
     3. Apply quantiles and impute NaN (optional).
-    4. Remove values where xs < xs_cutoff.
+    4. Remove convergence curve points where xs < steps_cutoff.
 
     Args:
-      xs_cutoff: The xs value before which values are ignored.
       apply_quantiles: Whether to compute quantiles on the batches.
 
     Returns:
@@ -674,12 +677,18 @@ class ConvergenceComparator(abc.ABC):
     baseline_ys = np.nan_to_num(baseline_ys, nan=-np.inf)
     compared_ys = np.nan_to_num(compared_ys, nan=-np.inf)
 
-    # Remove burn cutoff values.
-    if xs_cutoff is not None:
-      baseline_cutoff_ind = np.where(align_baseline_curve.xs >= xs_cutoff)[0]
-      compared_cutoff_ind = np.where(align_compared_curve.xs >= xs_cutoff)[0]
+    # Remove convergence curve points where xs < steps_cutoff.
+    if self._steps_cutoff is not None:
+      baseline_cutoff_ind = np.where(
+          align_baseline_curve.xs >= self._steps_cutoff
+      )[0]
+      compared_cutoff_ind = np.where(
+          align_compared_curve.xs >= self._steps_cutoff
+      )[0]
       if np.size(baseline_cutoff_ind) == 0 or np.size(compared_cutoff_ind) == 0:
-        raise ValueError('fThe given burn_cutoff {xs_cutoff} value is too high')
+        raise ValueError(
+            f'fThe given steps_cutoff {self._steps_cutoff} is too high'
+        )
       else:
         baseline_ys = baseline_ys[baseline_cutoff_ind[0] :]
         compared_ys = compared_ys[compared_cutoff_ind[0] :]
@@ -834,12 +843,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
   For example, assuming a study with 100 trials, a score of 0.07 means that on
   average for each 'baseline' trial the 'compared' convergence curve has already
   reached that value 7 steps before.
-
-  Attributes:
-    xs_cutoff: The cutoff below which values not included in score.
   """
-
-  _xs_cutoff: Optional[float] = None
 
   def _compute_directional_score(
       self, baseline: np.ndarray, compared: np.ndarray
@@ -892,7 +896,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
       ValueError: If curve trends are not INCREASING or DECREASING, or not
       equal.
     """
-    baseline_ys, compared_ys = self.standardize_curves(self._xs_cutoff)
+    baseline_ys, compared_ys = self.standardize_curves()
     baseline_compared_score = self._compute_directional_score(
         baseline_ys, compared_ys
     )
@@ -997,6 +1001,7 @@ class OptimalityGapWinRateComparatorFactory(ConvergenceComparatorFactory):
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
     return OptimalityGapWinRateComparator(
         baseline_curve=baseline_curve,
@@ -1004,6 +1009,7 @@ class OptimalityGapWinRateComparatorFactory(ConvergenceComparatorFactory):
         baseline_quantile=baseline_quantile,
         compared_quantile=compared_quantile,
         name='optimality_gap_win_rate',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1016,6 +1022,7 @@ class OptimalityGapGainComparatorFactory(ConvergenceComparatorFactory):
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
     return OptimalityGapGainComparator(
         baseline_curve=baseline_curve,
@@ -1023,6 +1030,7 @@ class OptimalityGapGainComparatorFactory(ConvergenceComparatorFactory):
         baseline_quantile=baseline_quantile,
         compared_quantile=compared_quantile,
         name='optimality_gap_gain',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1038,6 +1046,7 @@ class WinRateConvergenceCurveComparatorFactory(ConvergenceComparatorFactory):
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
     return WinRateConvergenceCurveComparator(
         baseline_curve=baseline_curve,
@@ -1046,6 +1055,7 @@ class WinRateConvergenceCurveComparatorFactory(ConvergenceComparatorFactory):
         compared_quantile=compared_quantile,
         name='convergence_curve_win_rate',
         comparison_mode=self.comparison_mode,
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1060,6 +1070,7 @@ class LogEfficiencyConvergenceCurveComparatorFactory(
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
     return LogEfficiencyConvergenceCurveComparator(
         baseline_curve=baseline_curve,
@@ -1067,6 +1078,7 @@ class LogEfficiencyConvergenceCurveComparatorFactory(
         baseline_quantile=baseline_quantile,
         compared_quantile=compared_quantile,
         name='log_eff',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1081,6 +1093,7 @@ class PercentageBetterConvergenceCurveComparatorFactory(
       compared_curve: ConvergenceCurve,
       baseline_quantile: float = 0.5,
       compared_quantile: float = 0.5,
+      steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
     return PercentageBetterConvergenceCurveComparator(
         baseline_curve=baseline_curve,
@@ -1088,6 +1101,7 @@ class PercentageBetterConvergenceCurveComparatorFactory(
         baseline_quantile=baseline_quantile,
         compared_quantile=compared_quantile,
         name='pct_better',
+        steps_cutoff=steps_cutoff,
     )
 
 

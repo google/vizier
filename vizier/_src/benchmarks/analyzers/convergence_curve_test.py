@@ -954,6 +954,40 @@ class PercentageBetterConvergenceComparatorTest(parameterized.TestCase):
     )
     self.assertEqual(comparator.score(), res)
 
+  @parameterized.parameters(
+      {
+          'ys1': np.array([[1, 2, 3, 4]]),
+          'ys2': np.array([[-2, -1, 5, 6]]),
+          'steps_cutoff': 2,
+          'res': 1.0,
+      },
+      {
+          'ys1': np.array([[1, 2, 3, 4, 8, 8]]),
+          'ys2': np.array([[0, 1, 5, 6, 6, 6]]),
+          'steps_cutoff': 4,
+          'res': -1.0,
+      },
+      {
+          'ys1': np.array([[-7, -7, -7, -7, -7, 1, 2, 3, 4]]),
+          'ys2': np.array([[-1, -1, -1, -1, -1, -1, 20, 30, 70]]),
+          'steps_cutoff': 5,
+          'res': 0.5,
+      },
+  )
+  def test_score_with_steps_cutoff(self, ys1, ys2, steps_cutoff, res):
+    xs1 = np.arange(ys1.shape[1])
+    xs2 = np.arange(ys2.shape[1])
+    curve1 = convergence.ConvergenceCurve(
+        xs=xs1, ys=ys1, trend=convergence.ConvergenceCurve.YTrend.INCREASING
+    )
+    curve2 = convergence.ConvergenceCurve(
+        xs=xs2, ys=ys2, trend=convergence.ConvergenceCurve.YTrend.INCREASING
+    )
+    comparator = convergence.PercentageBetterConvergenceCurveComparator(
+        curve1, curve2, steps_cutoff
+    )
+    self.assertEqual(comparator.score(), res)
+
 
 class OptimalityGapGainComparatorTest(parameterized.TestCase):
 
