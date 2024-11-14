@@ -34,28 +34,45 @@ OBJECTIVE_NAME = 'objective'
 @attr.define
 class FireflyAlgorithmConfig:
   """Configuration hyperparameters for Eagle Strategy / Firefly Algorithm."""
-  # Gravity
+  # ---------------------------- Gravity ---------------------------------------
+  # The amount of pulling force a brighter firefly applies to its neighbors.
   gravity: float = 1.0
+  # The amount of repel force a darker firefly applies to its neighbors.
   negative_gravity: float = 0.02
-  # Visiblitiy
+
+  # --------------------------- Visibility -------------------------------------
+  # The visibility associated with continuous parameters.
   visibility: float = 3.0
+  # The visibility associated with categorical parameters.
   categorical_visibility: float = 0.2
+  # The visibility associated with discrete parameters.
   discrete_visibility: float = 1.0
-  # Perturbation
+
+  # ---------------------------- Perturbation ----------------------------------
+  # The default perturbation that fireflies start with.
   perturbation: float = 1e-1
+  # The lower bound of the perturbation factor below which firefly are removed.
   perturbation_lower_bound: float = 1e-3
+  # The perturbation factor for categorical parameters.
   categorical_perturbation_factor: float = 25.0
+  # The perturbation factor for discrete parameters.
   discrete_perturbation_factor: float = 10.0
+  # The perturbation of purely categorical search space.
   pure_categorical_perturbation: float = 0.1
+  # The maximum perturbation factor.
   max_perturbation: float = 0.5
-  # Penalize lack of improvement
+  # The penalize factor used to penalize a parent firefly's lack of improvement.
   penalize_factor: float = 0.9
-  # Pool size
-  pool_size_factor: float = 1.2
+
+  # ---------------------------- Exploration -----------------------------------
   # Exploration rate (value > 1.0 encourages more exploration)
   explore_rate: float = 1.0
   # The factor to apply on infeasible trial repel force.
   infeasible_force_factor: float = 0.0
+
+  # ----------------------------- Pool Size ------------------------------------
+  # The factor used to compute the pool size.
+  pool_size_factor: float = 1.2
   # The maximum pool size.
   max_pool_size: int = 1000
 
