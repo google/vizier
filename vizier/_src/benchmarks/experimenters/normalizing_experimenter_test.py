@@ -75,7 +75,7 @@ class NormalizingExperimenterTest(parameterized.TestCase):
 
   def test_NormalizingCategoricals(self):
     mab_exptr = multiarm.FixedMultiArmExperimenter(
-        rewards=[-1e6, 0.0, 1e6], arms_as_chars=False
+        arms_to_rewards={'0': -1e6, '1': 0.0, '2': 1e6}
     )
     norm_exptr = normalizing_experimenter.NormalizingExperimenter(mab_exptr)
     metric_name = norm_exptr.problem_statement().metric_information.item().name
