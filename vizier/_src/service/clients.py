@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from typing import Any, Callable, Iterable, Iterator, List, Mapping, Optional, Type
 import attr
-
 from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import vizier_client
@@ -138,12 +137,10 @@ class Study(client_abc.StudyInterface):
   def suggest(
       self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
   ) -> List[Trial]:
-    return [
-        self._trial_client(t)
-        for t in self._client.get_suggestions(
-            count, client_id_override=client_id
-        )
-    ]
+    suggestions = self._client.get_suggestions(
+        count, client_id_override=client_id
+    )
+    return [self._trial_client(t) for t in suggestions]
 
   def delete(self) -> None:
     self._client.delete_study()
@@ -181,7 +178,7 @@ class Study(client_abc.StudyInterface):
       return self._trial_client(trial)
     except KeyError as err:
       raise ResourceNotFoundError(
-          f'Study f{self.resource_name} does not have Trial {trial_id}.'
+          f'Study {self.resource_name} does not have Trial {trial_id}.'
       ) from err
 
   def optimal_trials(self, count: Optional[int] = None) -> TrialIterable:
@@ -207,14 +204,11 @@ class Study(client_abc.StudyInterface):
 
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
-    client = vizier_client.VizierClient(
-        name,
-        constants.UNUSED_CLIENT_ID,
-    )
+    client = vizier_client.VizierClient(name, constants.UNUSED_CLIENT_ID)
     try:
       _ = client.get_study_config()  # Make sure study exists.
     except Exception as err:
-      raise KeyError(f'Study {name} does not exist.') from err
+      raise ResourceNotFoundError(f'Study {name} does not exist.') from err
     return Study(client)
 
   @classmethod
@@ -233,10 +227,8 @@ class Study(client_abc.StudyInterface):
     Raises:
       ResourceNotFoundError.
     """
-    study_resource_name = resources.StudyResource(
-        owner_id=owner, study_id=study_id
-    ).name
-    return cls.from_resource_name(study_resource_name)
+    resource = resources.StudyResource(owner, study_id)
+    return cls.from_resource_name(resource.name)
 
   @classmethod
   def from_study_config(
@@ -257,11 +249,10 @@ class Study(client_abc.StudyInterface):
     """
     # Use a dummy client_id, since for multi-worker workflows, each worker is
     # expected to provide a client_id in the suggest() call.
-    return Study(
-        vizier_client.create_or_load_study(
-            owner_id=owner,
-            client_id=constants.UNUSED_CLIENT_ID,
-            study_id=study_id,
-            study_config=config,
-        )
+    client = vizier_client.create_or_load_study(
+        owner_id=owner,
+        client_id=constants.UNUSED_CLIENT_ID,
+        study_id=study_id,
+        study_config=config,
     )
+    return Study(client)

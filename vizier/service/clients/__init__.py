@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 """OSS Client API."""
+
 from vizier._src.service.clients import environment_variables
+from vizier._src.service.clients import ResourceNotFoundError
 from vizier._src.service.clients import Study
 from vizier._src.service.clients import Trial
 from vizier._src.service.clients import TrialIterable

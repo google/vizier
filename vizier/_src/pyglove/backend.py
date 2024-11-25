@@ -287,7 +287,7 @@ class VizierBackend(pg.tuning.Backend):
       )
 
       return is_chief
-    except KeyError:
+    except client_abc.ResourceNotFoundError:
       # Study does not exist.
       if self._run_mode == TunerMode.SECONDARY:
         pg.logging.info(
@@ -481,7 +481,7 @@ class VizierBackend(pg.tuning.Backend):
     while True:
       try:
         return self._tuner.load_study(owner, name)
-      except KeyError:
+      except client_abc.ResourceNotFoundError:
         logging.info(
             'Study %s (owner=%s) does not exist. Retrying after 10 seconds.',
             name,
