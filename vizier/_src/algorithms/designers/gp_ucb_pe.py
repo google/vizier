@@ -457,6 +457,9 @@ class VizierGPUCBPEBandit(vza.Designer):
   Attributes:
     problem: Must be a flat study with a single metric.
     acquisition_optimizer:
+    gp_model_class: The GP model class, which must implement a `build_model`
+      class method that takes `ModelInput` and returns a
+      `StochasticProcessModel`.
     metadata_ns: Metadata namespace that this designer writes to.
     use_trust_region: Uses trust region.
     ard_optimizer: An optimizer object, which should return a batch of
@@ -474,6 +477,10 @@ class VizierGPUCBPEBandit(vza.Designer):
   ] = attr.field(
       kw_only=True,
       factory=lambda: VizierGPUCBPEBandit.default_acquisition_optimizer_factory,
+  )
+  _gp_model_class: sp.ModelCoroutine[tfd.GaussianProcess] = attr.field(
+      kw_only=True,
+      factory=lambda: tuned_gp_models.VizierGaussianProcess,
   )
   _metadata_ns: str = attr.field(
       default='google_gp_ucb_pe_bandit', kw_only=True
@@ -611,7 +618,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       `data.labels`. If `data.features` is empty, the returned parameters are
       initial values picked by the GP model.
     """
-    coroutine = tuned_gp_models.VizierGaussianProcess.build_model(
+    coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
         data.features
     ).coroutine
     model = sp.CoroutineWithData(coroutine, data)
