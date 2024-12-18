@@ -510,23 +510,24 @@ class VizierGPUCBPEBandit(vza.Designer):
       factory=padding.PaddingSchedule, kw_only=True
   )
 
+  default_eagle_config = es.EagleStrategyConfig(
+      visibility=3.6782451729470043,
+      gravity=3.028167342024462,
+      negative_gravity=0.03036267153343141,
+      perturbation=0.23337470891647027,
+      categorical_perturbation_factor=9.587350648631066,
+      pure_categorical_perturbation_factor=28.636337967676518,
+      prob_same_category_without_perturbation=0.9744882009359648,
+      perturbation_lower_bound=7.376256294543107e-4,
+      penalize_factor=0.7817632796830948,
+      pool_size_exponent=2.0494446726436744,
+      mutate_normalization_type=es.MutateNormalizationType.RANDOM,
+      normalization_scale=1.9893618760239418,
+      prior_trials_pool_pct=0.423499384081575,
+  )
   default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
       strategy_factory=es.VectorizedEagleStrategyFactory(
-          eagle_config=es.EagleStrategyConfig(
-              visibility=3.6782451729470043,
-              gravity=3.028167342024462,
-              negative_gravity=0.03036267153343141,
-              perturbation=0.23337470891647027,
-              categorical_perturbation_factor=9.587350648631066,
-              pure_categorical_perturbation_factor=28.636337967676518,
-              prob_same_category_without_perturbation=0.9744882009359648,
-              perturbation_lower_bound=7.376256294543107e-4,
-              penalize_factor=0.7817632796830948,
-              pool_size_exponent=2.0494446726436744,
-              mutate_normalization_type=es.MutateNormalizationType.RANDOM,
-              normalization_scale=1.9893618760239418,
-              prior_trials_pool_pct=0.423499384081575,
-          )
+          eagle_config=default_eagle_config
       ),
       max_evaluations=75000,
       suggestion_batch_size=25,
