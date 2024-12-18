@@ -68,12 +68,13 @@ optimizer = VectorizedOptimizerFactory(
 # Run the optimization.
 trials = optimizer.optimize(problem_statement, objective_function)
 """
+import dataclasses
 # pylint: disable=g-long-lambda
 
 import enum
 import logging
 import math
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import attr
 from flax import struct
@@ -150,11 +151,150 @@ class EagleStrategyConfig:
   prior_trials_pool_pct: float = struct.field(pytree_node=False, default=0.96)
 
 
+@dataclasses.dataclass(frozen=True)
+class FeatureDimensions:
+  """Dimensions of the features used by Eagle."""
+
+  # The number of categories for each categorical feature.
+  categorical_sizes: list[int]
+  # The number of feature dimensions with feature padding.
+  n_feature_dimensions_with_padding: types.ContinuousAndCategorical[int]
+  # The number of feature dimensions without feature padding.
+  n_feature_dimensions: types.ContinuousAndCategorical[int]
+
+  @property
+  def max_categorical_size(self) -> int:
+    """The maximum number of categories across the categorical features."""
+    return max(self.categorical_sizes) if self.categorical_sizes else 0
+
+
+def compute_feature_dimensions_from_converter(
+    converter: converters.TrialToModelInputConverter,
+) -> FeatureDimensions:
+  """Computes feature dimensions for Eagle from a converter.
+
+  Args:
+    converter: A converter from trials to the input to the acquisition function.
+
+  Returns:
+    A FeatureDimensions object that contains the feature dimensions information
+    for Eagle.
+  """
+  empty_features = converter.to_features([])
+  n_feature_dimensions_with_padding = types.ContinuousAndCategorical[int](
+      continuous=empty_features.continuous.shape[-1],
+      categorical=empty_features.categorical.shape[-1],
+  )
+  n_feature_dimensions = types.ContinuousAndCategorical(
+      continuous=len(converter.output_specs.continuous),
+      categorical=len(converter.output_specs.categorical),
+  )
+
+  categorical_sizes = []
+  for spec in converter.output_specs.categorical:
+    categorical_sizes.append(spec.bounds[1])
+  extra_categories = (
+      n_feature_dimensions_with_padding.categorical
+      - n_feature_dimensions.categorical
+  )
+  # Pads the categorical sizes with 0s to match the number of categorical
+  # features with padding.
+  categorical_sizes = categorical_sizes + [0] * extra_categories
+  return FeatureDimensions(
+      categorical_sizes=categorical_sizes,
+      n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
+      n_feature_dimensions=n_feature_dimensions,
+  )
+
+
+class DefaultProjection(vb.Projection):
+  """Default projection for vectorized optimizer."""
+
+  def __init__(
+      self,
+      converter: converters.TrialToModelInputConverter,
+  ):
+    del converter
+
+  def __call__(
+      self,
+      x: vb.VectorizedOptimizerInput,
+  ) -> vb.VectorizedOptimizerInput:
+    # TODO: The range of features is not always [0, 1].
+    #   Specifically, for features that are single-point, it can be [0, 0]; we
+    #   also want this code to be aware of the feature's bounds to enable
+    #   contextual bandit operation.  Note that if a parameter's bound changes,
+    #   we might also want to change the firefly noise or normalizations.
+    return vb.VectorizedOptimizerInput(
+        continuous=jnp.clip(x.continuous, 0.0, 1.0), categorical=x.categorical
+    )
+
+
+class DefaultRandomSampler(vb.RandomSampler):
+  """Default random sampler for vectorized optimizer."""
+
+  def __init__(
+      self,
+      converter: converters.TrialToModelInputConverter,
+  ):
+    feature_dimensions = compute_feature_dimensions_from_converter(converter)
+    self._max_categorical_size = feature_dimensions.max_categorical_size
+    self._categorical_sizes = feature_dimensions.categorical_sizes
+    self._continuous_padded_dim = (
+        feature_dimensions.n_feature_dimensions_with_padding.continuous
+    )
+
+  def __call__(
+      self,
+      num_samples: int,
+      n_parallel: int,
+      seed: jax.Array,
+  ) -> vb.VectorizedOptimizerInput:
+    cont_seed, cat_seed = jax.random.split(seed)
+
+    if self._max_categorical_size > 0:
+      # Appends a new axis to `self._categorical_sizes` to make it broadcastable
+      # with the shape of jnp.arange(self._max_categorical_size) in the
+      # comparison below.
+      sizes = jnp.array(self._categorical_sizes)[:, jnp.newaxis]
+      logits = jnp.where(
+          jnp.arange(self._max_categorical_size) < sizes,
+          0.0,
+          -jnp.inf,
+      )  # shape (sizes.shape[0], max_categorical_size)
+      random_categorical_features = (
+          tfd.Categorical(logits=logits)
+          .sample((num_samples, n_parallel), seed=cat_seed)
+          .astype(types.INT_DTYPE)
+      )
+    else:
+      random_categorical_features = jnp.zeros(
+          [num_samples, n_parallel, 0], types.INT_DTYPE
+      )
+    return types.ContinuousAndCategoricalArray(
+        continuous=jax.random.uniform(
+            cont_seed,
+            shape=(
+                num_samples,
+                n_parallel,
+                self._continuous_padded_dim,
+            ),
+        ),
+        categorical=random_categorical_features,
+    )
+
+
 @attr.define(frozen=True)
 class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
   """Eagle strategy factory."""
 
   eagle_config: EagleStrategyConfig = attr.field(factory=EagleStrategyConfig)
+  random_sampler_factory: Callable[
+      [converters.TrialToModelInputConverter], vb.RandomSampler
+  ] = attr.field(default=DefaultRandomSampler)
+  projection_factory: Callable[
+      [converters.TrialToModelInputConverter], vb.Projection
+  ] = attr.field(default=DefaultProjection)
 
   def __call__(
       self,
@@ -190,31 +330,10 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     ):
       raise ValueError("Only DISCRETE/CONTINUOUS parameters are supported!")
 
-    empty_features = converter.to_features([])
-    n_feature_dimensions_with_padding = types.ContinuousAndCategorical[int](
-        continuous=empty_features.continuous.shape[-1],
-        categorical=empty_features.categorical.shape[-1],
-    )
-    n_feature_dimensions = types.ContinuousAndCategorical(
-        continuous=len(converter.output_specs.continuous),
-        categorical=len(converter.output_specs.categorical),
-    )
-
-    categorical_sizes = []
-    for spec in converter.output_specs.categorical:
-      categorical_sizes.append(spec.bounds[1])
-    if categorical_sizes:
-      max_categorical_size = max(categorical_sizes)
-    else:
-      max_categorical_size = 0
-    extra_categories = (
-        n_feature_dimensions_with_padding.categorical
-        - n_feature_dimensions.categorical
-    )
-    categorical_sizes = categorical_sizes + [0] * extra_categories
-
+    feature_dimensions = compute_feature_dimensions_from_converter(converter)
     n_features = (
-        n_feature_dimensions.continuous + n_feature_dimensions.categorical
+        feature_dimensions.n_feature_dimensions.continuous
+        + feature_dimensions.n_feature_dimensions.categorical
     )
     pool_size = self.eagle_config.pool_size
     if pool_size == 0:
@@ -234,13 +353,17 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
     # Use priors to populate Eagle state
     # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategy(
-        n_feature_dimensions=n_feature_dimensions,
-        n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
+        n_feature_dimensions=feature_dimensions.n_feature_dimensions,
+        n_feature_dimensions_with_padding=(
+            feature_dimensions.n_feature_dimensions_with_padding
+        ),
+        random_sampler=self.random_sampler_factory(converter),
+        projection=self.projection_factory(converter),
         batch_size=suggestion_batch_size,
         config=self.eagle_config,
         pool_size=pool_size,
-        categorical_sizes=jnp.array(categorical_sizes),
-        max_categorical_size=max_categorical_size,
+        categorical_sizes=jnp.array(feature_dimensions.categorical_sizes),
+        max_categorical_size=feature_dimensions.max_categorical_size,
         dtype=converter._impl.dtype,
     )
     # pytype: enable=wrong-arg-types
@@ -356,6 +479,8 @@ class VectorizedEagleStrategy(
   max_categorical_size: int = struct.field(pytree_node=False)
   pool_size: int = struct.field(pytree_node=False)
   dtype: jnp.dtype = struct.field(pytree_node=False)
+  random_sampler: vb.RandomSampler = struct.field(pytree_node=False)
+  projection: vb.Projection = struct.field(pytree_node=False)
   batch_size: Optional[int] = struct.field(pytree_node=False, default=None)
   config: EagleStrategyConfig = struct.field(
       default_factory=EagleStrategyConfig
@@ -387,8 +512,10 @@ class VectorizedEagleStrategy(
           seed, prior_features, prior_rewards
       )
     else:
-      init_features = self._sample_random_features(
-          self.pool_size, n_parallel=n_parallel, seed=seed
+      init_features = self.random_sampler(
+          self.pool_size,
+          n_parallel=n_parallel,
+          seed=seed,
       )
     # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategyState(
@@ -399,37 +526,6 @@ class VectorizedEagleStrategy(
         perturbations=jnp.ones(self.pool_size) * self.config.perturbation,
     )
     # pytype: enable=wrong-arg-types
-
-  def _sample_random_features(
-      self, num_samples: int, n_parallel: int, seed: jax.Array
-  ) -> vb.VectorizedOptimizerInput:
-    cont_seed, cat_seed = jax.random.split(seed)
-
-    if self.max_categorical_size > 0:
-      sizes = jnp.array(self.categorical_sizes)[:, jnp.newaxis]
-      logits = jnp.where(
-          jnp.arange(self.max_categorical_size) < sizes, 0.0, -jnp.inf
-      )
-      random_categorical_features = (
-          tfd.Categorical(logits=logits)
-          .sample((num_samples, n_parallel), seed=cat_seed)
-          .astype(types.INT_DTYPE)
-      )
-    else:
-      random_categorical_features = jnp.zeros(
-          [num_samples, n_parallel, 0], types.INT_DTYPE
-      )
-    return types.ContinuousAndCategoricalArray(
-        continuous=jax.random.uniform(
-            cont_seed,
-            shape=(
-                num_samples,
-                n_parallel,
-                self.n_feature_dimensions_with_padding.continuous,
-            ),
-        ),
-        categorical=random_categorical_features,
-    )
 
   def _populate_pool_with_prior_trials(
       self,
@@ -491,8 +587,10 @@ class VectorizedEagleStrategy(
 
     n_parallel = flipped_prior_features.continuous.shape[1]
 
-    pool_random_features = self._sample_random_features(
-        self.pool_size, n_parallel, seed
+    pool_random_features = self.random_sampler(
+        self.pool_size,
+        n_parallel,
+        seed,
     )
     n_random_flies = int(
         self.pool_size * (1 - self.config.prior_trials_pool_pct)
@@ -643,15 +741,7 @@ class VectorizedEagleStrategy(
         features_batch,
     )
 
-    # TODO: The range of features is not always [0, 1].
-    #   Specifically, for features that are single-point, it can be [0, 0]; we
-    #   also want this code to be aware of the feature's bounds to enable
-    #   contextual bandit operation.  Note that if a parameter's bound changes,
-    #   we might also want to change the firefly noise or normalizations.
-    return vb.VectorizedOptimizerInput(
-        continuous=jnp.clip(new_features.continuous, 0.0, 1.0),
-        categorical=new_features.categorical,
-    )
+    return self.projection(new_features)
 
   def _create_features(
       self,
@@ -1087,7 +1177,7 @@ class VectorizedEagleStrategy(
     indx = indx & (batch_rewards != best_reward)
 
     # Replace fireflies with random features and evaluate rewards.
-    random_features = self._sample_random_features(
+    random_features = self.random_sampler(
         self.batch_size,
         n_parallel=batch_features.continuous.shape[1],
         seed=seed,

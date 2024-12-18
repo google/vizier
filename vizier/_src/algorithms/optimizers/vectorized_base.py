@@ -41,6 +41,30 @@ _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 VectorizedOptimizerInput = types.ContinuousAndCategorical[types.Array]
 
 
+class RandomSampler(abc.ABC):
+  """Random sampler for vectorized optimizer."""
+
+  @abc.abstractmethod
+  def __call__(
+      self,
+      num_samples: int,
+      n_parallel: int,
+      seed: jax.Array,
+  ) -> VectorizedOptimizerInput:
+    """Samples random points for vectorized optimizer."""
+
+
+class Projection(abc.ABC):
+  """Projection operator for vectorized optimizer."""
+
+  @abc.abstractmethod
+  def __call__(
+      self,
+      features: VectorizedOptimizerInput,
+  ) -> VectorizedOptimizerInput:
+    """Projects features for vectorized optimizer."""
+
+
 def optimizer_to_model_input_single_array(
     x: types.Array, n_features: jax.Array
 ) -> types.PaddedArray:

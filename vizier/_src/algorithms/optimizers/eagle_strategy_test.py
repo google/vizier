@@ -486,6 +486,46 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
 
   @parameterized.parameters(
+      dict(add_float_params=True, add_categorical_params=True),
+      dict(add_float_params=True, add_categorical_params=False),
+      dict(add_float_params=False, add_categorical_params=True),
+  )
+  def test_compute_feature_dimensions_from_converter(
+      self, add_float_params: bool, add_categorical_params: bool
+  ):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    if add_float_params:
+      root.add_float_param('x1', 0.0, 1.0)
+      root.add_float_param('x2', 0.0, 1.0)
+      root.add_float_param('x3', 0.0, 1.0)
+    if add_categorical_params:
+      root.add_categorical_param('c1', ['a', 'b', 'c'])
+      root.add_categorical_param('c2', ['d', 'e', 'f', 'g'])
+    converter = converters.TrialToModelInputConverter.from_problem(
+        problem,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10,
+            num_features=padding.PaddingType.POWERS_OF_2,
+        ),
+    )
+    feature_dimensions = (
+        eagle_strategy.compute_feature_dimensions_from_converter(converter)
+    )
+    if add_float_params:
+      self.assertEqual(feature_dimensions.n_feature_dimensions.continuous, 3)
+      self.assertEqual(
+          feature_dimensions.n_feature_dimensions_with_padding.continuous, 4
+      )
+    if add_categorical_params:
+      self.assertEqual(feature_dimensions.n_feature_dimensions.categorical, 2)
+      self.assertEqual(
+          feature_dimensions.n_feature_dimensions_with_padding.categorical, 2
+      )
+      self.assertEqual(feature_dimensions.max_categorical_size, 4)
+      self.assertEqual(feature_dimensions.categorical_sizes, [3, 4])
+
+  @parameterized.parameters(
       {'num_prior_trials': 0},
       {'num_prior_trials': 3},
       {'num_prior_trials': 53},
@@ -573,8 +613,11 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     # features shouldn't have values in oov_mask, and have the structure of:
     # [c1,c1,c1,f1,c2,c2,c2,c2,d1]
     num_parallel = 3
-    sampled_features = self.eagle._sample_random_features(
-        20, n_parallel=num_parallel, seed=jax.random.PRNGKey(0)
+    random_sampler = eagle_strategy.DefaultRandomSampler(self.converter)
+    sampled_features = random_sampler(
+        20,
+        n_parallel=num_parallel,
+        seed=jax.random.PRNGKey(0),
     )
     self.assertTrue(
         np.all(
