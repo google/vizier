@@ -620,7 +620,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       initial values picked by the GP model.
     """
     coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
-        data.features
+        data
     ).coroutine
     model = sp.CoroutineWithData(coroutine, data)
 
