@@ -359,7 +359,7 @@ class Result(pg.tuning.Result):
       **kwargs,
   ):
     # Return summary.
-    status_field = pg.tuning.Trial.schema.get_field('status')
+    status_field = pg.tuning.Trial.__schema__.get_field('status')
     assert status_field is not None
     possible_status = set(
         typing.cast(pg.typing.Enum, status_field.value).values
