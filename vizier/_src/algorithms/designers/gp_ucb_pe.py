@@ -619,8 +619,10 @@ class VizierGPUCBPEBandit(vza.Designer):
       `data.labels`. If `data.features` is empty, the returned parameters are
       initial values picked by the GP model.
     """
+    # TODO: Creates a new abstract base class for GP models with a
+    # `build_model` API to avoid disabling the pytype attribute-error.
     coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
-        data.features
+        data
     ).coroutine
     model = sp.CoroutineWithData(coroutine, data)
 

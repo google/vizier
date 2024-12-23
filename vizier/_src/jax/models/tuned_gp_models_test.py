@@ -19,7 +19,6 @@ from __future__ import annotations
 from absl import logging
 import equinox as eqx
 import jax
-from jax import config
 import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
@@ -28,13 +27,14 @@ from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
 tfb = tfp.bijectors
 
 
-class VizierGpTest(absltest.TestCase):
+class VizierGpTest(parameterized.TestCase):
 
-  def _generate_xys(self):
+  def _generate_xys(self, num_metrics: int):
     x_obs = np.array(
         [
             [
@@ -120,46 +120,58 @@ class VizierGpTest(absltest.TestCase):
         ],
         dtype=np.float64,
     )
-    y_obs = np.array(
-        [
-            0.55552674,
-            -0.29054829,
-            -0.04703586,
-            0.0217839,
-            0.15445438,
-            0.46654119,
-            0.12255823,
-            -0.19540335,
-            -0.11772564,
-            -0.44447326,
-        ],
-        dtype=np.float64,
-    )[:, np.newaxis]
+    y_obs = np.tile(
+        np.array(
+            [
+                0.55552674,
+                -0.29054829,
+                -0.04703586,
+                0.0217839,
+                0.15445438,
+                0.46654119,
+                0.12255823,
+                -0.19540335,
+                -0.11772564,
+                -0.44447326,
+            ],
+            dtype=np.float64,
+        )[
+            :, np.newaxis
+        ],  # Added a new axis to be compatible with `np.tile`.
+        (1, num_metrics),
+    )
     return x_obs, y_obs
 
   # TODO: Define generic assertions for loss values/masking in
   # coroutines.
-  def test_masking_works(self):
-    # Mask three dimensions and four observations.
-    x_obs, y_obs = self._generate_xys()
+  @parameterized.parameters(
+      # Pads two observations.
+      dict(num_metrics=1, num_obs=12),
+      # No observations are padded because multimetric GP does not support
+      # observation padding.
+      dict(num_metrics=2, num_obs=10),
+  )
+  def test_masking_works(self, num_metrics: int, num_obs: int):
+    x_obs, y_obs = self._generate_xys(num_metrics)
     data = types.ModelData(
         features=types.ModelInput(
+            # Pads three continuous dimensions.
             continuous=types.PaddedArray.from_array(
-                x_obs, target_shape=(12, 9), fill_value=1.0
+                x_obs, target_shape=(num_obs, 9), fill_value=1.0
             ),
             categorical=types.PaddedArray.from_array(
                 np.zeros((9, 0), dtype=types.INT_DTYPE),
-                target_shape=(12, 2),
+                target_shape=(num_obs, 2),
                 fill_value=1,
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12, 1), fill_value=np.nan
+            y_obs, target_shape=(num_obs, num_metrics), fill_value=np.nan
         ),
     )
     model1 = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 2)
+            types.ContinuousAndCategorical[int](9, 2), num_metrics
         ),
         data=data,
     )
@@ -173,7 +185,7 @@ class VizierGpTest(absltest.TestCase):
     )
     model2 = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 2)
+            types.ContinuousAndCategorical[int](9, 2), num_metrics
         ),
         data=modified_data,
     )
@@ -205,37 +217,44 @@ class VizierGpTest(absltest.TestCase):
         model2.loss_with_aux(optimal_params2)[0],
     )
 
-  def test_good_log_likelihood(self):
+  @parameterized.parameters(
+      # Pads two observations.
+      dict(num_metrics=1, num_obs=12),
+      # No observations are padded because multimetric GP does not support
+      # observation padding.
+      dict(num_metrics=2, num_obs=10),
+  )
+  def test_good_log_likelihood(self, num_metrics: int, num_obs: int):
     # We use a fixed random seed for sampling categorical data (and continuous
     # data from `_generate_xys`, above) so that the same data is used for every
     # test run.
     rng, init_rng, cat_rng = jax.random.split(jax.random.PRNGKey(2), 3)
-    x_cont_obs, y_obs = self._generate_xys()
+    x_cont_obs, y_obs = self._generate_xys(num_metrics)
     data = types.ModelData(
         features=types.ModelInput(
             continuous=types.PaddedArray.from_array(
-                x_cont_obs, target_shape=(12, 9), fill_value=np.nan
+                x_cont_obs, target_shape=(num_obs, 9), fill_value=np.nan
             ),
             categorical=types.PaddedArray.from_array(
                 jax.random.randint(
                     cat_rng,
-                    shape=(12, 3),
+                    shape=(num_obs, 3),
                     minval=0,
                     maxval=3,
                     dtype=types.INT_DTYPE,
                 ),
-                target_shape=(12, 5),
+                target_shape=(num_obs, 5),
                 fill_value=-1,
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12, 1), fill_value=np.nan
+            y_obs, target_shape=(num_obs, num_metrics), fill_value=np.nan
         ),
     )
     target_loss = -0.2
     model = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 5)
+            types.ContinuousAndCategorical[int](9, 5), num_metrics
         ),
         data=data,
     )
@@ -251,37 +270,53 @@ class VizierGpTest(absltest.TestCase):
     logging.info('Loss: %s', metrics['loss'])
     self.assertLess(np.min(metrics['loss']), target_loss)
 
-  def test_good_log_likelihood_linear(self):
-    # We use a fixed random seed for sampling categorical data (and continuous
-    # data from `_generate_xys`, above) so that the same data is used for every
-    # test run.
+  @parameterized.parameters(
+      # Pads two observations.
+      dict(num_metrics=1, num_obs=12),
+      # No observations are padded because multimetric GP does not support
+      # observation padding.
+      dict(num_metrics=2, num_obs=10),
+  )
+  def test_good_log_likelihood_linear(self, num_metrics: int, num_obs: int):
+    """Tests that the GP with linear coef after ARD has good log likelihood.
+
+    The tests use a fixed random seed for sampling categorical data (and
+    continuous data from `_generate_xys`, above) so that the same data is used
+    for every test run.
+
+    Args:
+      num_metrics: Number of metrics.
+      num_obs: Number of observations.
+    """
     rng, init_rng, cat_rng = jax.random.split(jax.random.PRNGKey(2), 3)
-    x_cont_obs, y_obs = self._generate_xys()
+    x_cont_obs, y_obs = self._generate_xys(num_metrics)
     data = types.ModelData(
         features=types.ModelInput(
             continuous=types.PaddedArray.from_array(
-                x_cont_obs, target_shape=(12, 9), fill_value=np.nan
+                x_cont_obs, target_shape=(num_obs, 9), fill_value=np.nan
             ),
             categorical=types.PaddedArray.from_array(
                 jax.random.randint(
                     cat_rng,
-                    shape=(12, 3),
+                    shape=(num_obs, 3),
                     minval=0,
                     maxval=3,
                     dtype=types.INT_DTYPE,
                 ),
-                target_shape=(12, 5),
+                target_shape=(num_obs, 5),
                 fill_value=-1,
             ),
         ),
         labels=types.PaddedArray.from_array(
-            y_obs, target_shape=(12, 1), fill_value=np.nan
+            y_obs, target_shape=(num_obs, num_metrics), fill_value=np.nan
         ),
     )
     target_loss = -0.2
     model = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 5), _linear_coef=1.0
+            types.ContinuousAndCategorical[int](9, 5),
+            num_metrics,
+            _linear_coef=1.0,
         ),
         data=data,
     )
@@ -327,11 +362,14 @@ class VizierGpTest(absltest.TestCase):
         ),
     )
     y_pred_mean = predictive.predict(pred_features).mean()
-    self.assertEqual(y_pred_mean.shape, (best_n, n_pred_features))
+    self.assertEqual(
+        y_pred_mean.shape,
+        (best_n, n_pred_features) + ((num_metrics,) if num_metrics > 1 else ()),
+    )
 
 
 if __name__ == '__main__':
   # Jax disables float64 computations by default and will silently convert
   # float64s to float32s. We must explicitly enable float64.
-  config.update('jax_enable_x64', True)
+  jax.config.update('jax_enable_x64', True)
   absltest.main()

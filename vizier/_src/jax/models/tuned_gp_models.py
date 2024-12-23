@@ -33,6 +33,7 @@ from vizier._src.jax.models import mask_features
 
 tfb = tfp.bijectors
 tfd = tfp.distributions
+tfde = tfp.experimental.distributions
 tfpk = tfp.math.psd_kernels
 tfpke = tfp.experimental.psd_kernels
 
@@ -86,26 +87,34 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
   """
 
   _dim: types.ContinuousAndCategorical[int] = struct.field(pytree_node=False)
+  _num_metrics: int = struct.field(pytree_node=False)
   _use_retrying_cholesky: bool = struct.field(
       pytree_node=False, default=True, kw_only=True
   )
   _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
   _linear_coef: Optional[float] = struct.field(default=None, kw_only=True)
 
+  def __attrs_post_init__(self):
+    if self._num_metrics < 1:
+      raise ValueError(
+          'Number of metrics must be at least 1, got: {self._num_metrics}'
+      )
+
   @classmethod
   def build_model(
       cls,
-      features: types.ModelInput,
+      data: types.ModelData,
       *,
       use_retrying_cholesky: bool = True,
       linear_coef: Optional[float] = None,
   ) -> sp.StochasticProcessModel:
-    """Returns the model and loss function."""
+    """Returns a StochasticProcessModel for the GP."""
     gp_coroutine = VizierGaussianProcess(
         _dim=types.ContinuousAndCategorical[int](
-            features.continuous.padded_array.shape[-1],
-            features.categorical.padded_array.shape[-1],
+            data.features.continuous.padded_array.shape[-1],
+            data.features.categorical.padded_array.shape[-1],
         ),
+        _num_metrics=data.labels.shape[-1],
         _use_retrying_cholesky=use_retrying_cholesky,
         _linear_coef=linear_coef,
     )
@@ -122,7 +131,9 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
         continuous_feature_dim), (num_examples, categorical_feature_dim).
 
     Yields:
-      GaussianProcess whose event shape is `num_examples`.
+      GaussianProcess whose event shape is `num_examples` for single-metric GP
+      and MultiTaskGaussianProcess with event shape
+      `[num_examples, num_metrics]` for multimetric GP.
     """
     eps = self._boundary_epsilon
     observation_noise_bounds = (np.float64(1e-10 - eps), 1.0 + eps)
@@ -214,8 +225,11 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       # output a shape of `[batch_shape, 1]`, ensuring that batch dimensions
       # line up properly.
       mean_fn_constant = yield sp.ModelParameter(
-          init_fn=lambda k: jax.random.normal(key=k, shape=[1]),
-          regularizer=lambda x: 0.5 * jnp.squeeze(x, axis=-1) ** 2,
+          init_fn=lambda k: jax.random.normal(
+              key=k,
+              shape=[1] if self._num_metrics == 1 else [1, self._num_metrics],
+          ),
+          regularizer=lambda x: 0.5 * jnp.sum(x**2),
           name='mean_fn',
       )
 
@@ -256,10 +270,19 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       )
       cholesky_fn = lambda matrix: retrying_cholesky(matrix)[0]
 
-    return tfd.GaussianProcess(
-        kernel,
-        index_points=inputs,
-        observation_noise_variance=observation_noise_variance,
-        cholesky_fn=cholesky_fn,
-        mean_fn=mean_fn,
-    )
+    if self._num_metrics > 1:
+      return tfde.MultiTaskGaussianProcess(
+          tfpke.Independent(self._num_metrics, kernel),
+          index_points=inputs,
+          observation_noise_variance=observation_noise_variance,
+          cholesky_fn=cholesky_fn,
+          mean_fn=mean_fn,
+      )
+    else:
+      return tfd.GaussianProcess(
+          kernel,
+          index_points=inputs,
+          observation_noise_variance=observation_noise_variance,
+          cholesky_fn=cholesky_fn,
+          mean_fn=mean_fn,
+      )
