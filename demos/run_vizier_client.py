@@ -36,7 +36,6 @@ from typing import Sequence
 from absl import app
 from absl import flags
 from absl import logging
-
 from vizier import service
 from vizier.service import clients
 from vizier.service import pyvizier as vz
@@ -71,6 +70,12 @@ flags.DEFINE_boolean(
         'Whether to demonstrate multiobjective or single-objective capabilities'
         ' and API.'
     ),
+)
+flags.DEFINE_string(
+    'client_id',
+    clients.UNUSED_CLIENT_ID,
+    'The client id to use for the study. NOTE: For distributed cases, this'
+    ' needs to be unique for every client.',
 )
 
 FLAGS = flags.FLAGS
@@ -138,7 +143,9 @@ def main(argv: Sequence[str]) -> None:
 
   # Evaluate the suggestion(s) and report the results to Vizier.
   for _ in range(FLAGS.max_num_iterations):
-    trials = study.suggest(count=FLAGS.suggestion_count)
+    trials = study.suggest(
+        count=FLAGS.suggestion_count, client_id=FLAGS.client_id
+    )
     for trial in trials:
       materialized_trial = trial.materialize()
       measurement = evaluate_trial(materialized_trial)

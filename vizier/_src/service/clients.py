@@ -32,6 +32,8 @@ ResourceNotFoundError = client_abc.ResourceNotFoundError
 # Redeclared since clients.py is the user-facing client API.
 environment_variables = vizier_client.environment_variables
 
+UNUSED_CLIENT_ID = constants.UNUSED_CLIENT_ID
+
 
 @attr.define
 class Trial(client_abc.TrialInterface):
@@ -204,7 +206,7 @@ class Study(client_abc.StudyInterface):
 
   @classmethod
   def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
-    client = vizier_client.VizierClient(name, constants.UNUSED_CLIENT_ID)
+    client = vizier_client.VizierClient(name, UNUSED_CLIENT_ID)
     try:
       _ = client.get_study_config()  # Make sure study exists.
     except Exception as err:
@@ -251,7 +253,7 @@ class Study(client_abc.StudyInterface):
     # expected to provide a client_id in the suggest() call.
     client = vizier_client.create_or_load_study(
         owner_id=owner,
-        client_id=constants.UNUSED_CLIENT_ID,
+        client_id=UNUSED_CLIENT_ID,
         study_id=study_id,
         study_config=config,
     )

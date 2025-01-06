@@ -21,3 +21,4 @@ from vizier._src.service.clients import ResourceNotFoundError
 from vizier._src.service.clients import Study
 from vizier._src.service.clients import Trial
 from vizier._src.service.clients import TrialIterable
+from vizier._src.service.clients import UNUSED_CLIENT_ID

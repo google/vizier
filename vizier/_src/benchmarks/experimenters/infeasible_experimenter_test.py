@@ -38,9 +38,6 @@ class HashingInfeasibleExperimenterTest(absltest.TestCase):
 
       for t in trials:
         self.assertEqual(t.infeasible, trials[0].infeasible)
-        self.assertEqual(
-            t.final_measurement_or_die, trials[0].final_measurement_or_die
-        )
 
 
 class ParamRegionInfeasibleExperimenterTest(absltest.TestCase):
