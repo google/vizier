@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Tests for gp_ucb_pe."""
 
+import ast
 import copy
 from typing import Any, Tuple
 
@@ -39,12 +40,12 @@ ensemble_ard_optimizer = optimizers.default_optimizer()
 
 def _extract_predictions(
     metadata: Any,
-) -> Tuple[float, float, float, float, bool]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, bool]:
   pred = metadata.ns('prediction_in_warped_y_space')
   return (
-      float(pred['mean']),
-      float(pred['stddev']),
-      float(pred['stddev_from_all']),
+      np.asarray(ast.literal_eval(pred['mean'])),
+      np.asarray(ast.literal_eval(pred['stddev'])),
+      np.asarray(ast.literal_eval(pred['stddev_from_all'])),
       float(pred['acquisition']),
       bool(pred['use_ucb'] == 'True'),
   )
@@ -81,6 +82,26 @@ class GpUcbPeTest(parameterized.TestCase):
           ensemble_size=3,
           turns_on_high_noise_mode=True,
       ),
+      dict(iters=3, batch_size=5, num_seed_trials=5, num_metrics=2),
+      dict(
+          iters=3,
+          batch_size=3,
+          num_metrics=2,
+          applies_padding=True,
+          multimetric_promising_region_penalty_type=(
+              gp_ucb_pe.MultimetricPromisingRegionPenaltyType.UNION
+          ),
+      ),
+      dict(
+          iters=3,
+          batch_size=3,
+          num_metrics=2,
+          applies_padding=True,
+          ensemble_size=4,
+          multimetric_promising_region_penalty_type=(
+              gp_ucb_pe.MultimetricPromisingRegionPenaltyType.INTERSECTION
+          ),
+      ),
   )
   def test_on_flat_space(
       self,
@@ -96,17 +117,25 @@ class GpUcbPeTest(parameterized.TestCase):
           test_studies.flat_continuous_space_with_scaling()
       ),
       turns_on_high_noise_mode: bool = False,
+      num_metrics: int = 1,
+      multimetric_promising_region_penalty_type: (
+          gp_ucb_pe.MultimetricPromisingRegionPenaltyType
+      ) = gp_ucb_pe.MultimetricPromisingRegionPenaltyType.AVERAGE,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
     if ard_optimizer == 'default':
       ard_optimizer = optimizers.default_optimizer()
     problem = vz.ProblemStatement(search_space)
-    problem.metric_information.append(
-        vz.MetricInformation(
-            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
-        )
-    )
+    for metric_idx in range(num_metrics):
+      problem.metric_information.append(
+          vz.MetricInformation(
+              name=f'metric{metric_idx}',
+              goal=vz.ObjectiveMetricGoal.MAXIMIZE
+              if metric_idx % 2 == 0
+              else vz.ObjectiveMetricGoal.MINIMIZE,
+          )
+      )
     vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
         strategy_factory=es.VectorizedEagleStrategyFactory(),
         max_evaluations=100,
@@ -134,6 +163,9 @@ class GpUcbPeTest(parameterized.TestCase):
             signal_to_noise_threshold=np.inf
             if turns_on_high_noise_mode
             else 0.0,
+            multimetric_promising_region_penalty_type=(
+                multimetric_promising_region_penalty_type
+            ),
         ),
         ensemble_size=ensemble_size,
         padding_schedule=padding.PaddingSchedule(
@@ -197,7 +229,9 @@ class GpUcbPeTest(parameterized.TestCase):
       if len(completed_trials) > 1:
         # test the sample method.
         samples = designer.sample(test_trials, num_samples=5)
-        self.assertSequenceEqual(samples.shape, (5, 3))
+        self.assertSequenceEqual(
+            samples.shape, (5, 3) if num_metrics == 1 else (5, 3, num_metrics)
+        )
         self.assertFalse(np.isnan(samples).any())
         # test the sample method with a different rng.
         samples_rng = designer.sample(
@@ -207,8 +241,14 @@ class GpUcbPeTest(parameterized.TestCase):
         self.assertFalse((np.abs(samples - samples_rng) <= 1e-6).all())
         # test the predict method.
         prediction = designer.predict(test_trials)
-        self.assertLen(prediction.mean, 3)
-        self.assertLen(prediction.stddev, 3)
+        self.assertSequenceEqual(
+            prediction.mean.shape,
+            (3,) if num_metrics == 1 else (3, num_metrics),
+        )
+        self.assertSequenceEqual(
+            prediction.stddev.shape,
+            (3,) if num_metrics == 1 else (3, num_metrics),
+        )
         self.assertFalse(np.isnan(prediction.mean).any())
         self.assertFalse(np.isnan(prediction.stddev).any())
         if last_prediction is None:
@@ -260,8 +300,11 @@ class GpUcbPeTest(parameterized.TestCase):
           # Except for the last batch of suggestions, the acquisition value of
           # the first suggestion in a batch is expected to be UCB, which
           # combines the predicted mean based only on completed trials and the
-          # predicted standard deviation based on all trials.
-          self.assertAlmostEqual(mean + 10.0 * stddev_from_all, acq)
+          # predicted standard deviation based on all trials. Only checks the
+          # single-metric case because the acquisition value in the multi-metric
+          # case is randomly scalarized.
+          if num_metrics == 1:
+            self.assertAlmostEqual(mean + 10.0 * stddev_from_all, acq)
           self.assertTrue(use_ucb)
           continue
 
@@ -280,7 +323,9 @@ class GpUcbPeTest(parameterized.TestCase):
           # in every batch. The Pure-Exploration acquisition values are standard
           # deviation predictions based on all trials (completed and pending).
           self.assertAlmostEqual(
-              acq, stddev_from_all, msg=f'batch: {idx}, suggestion: {jdx}'
+              acq,
+              np.mean(stddev_from_all),
+              msg=f'batch: {idx}, suggestion: {jdx}',
           )
       if optimize_set_acquisition_for_exploration:
         geometric_mean_of_pred_cov_eigs = np.exp(
@@ -316,6 +361,7 @@ class GpUcbPeTest(parameterized.TestCase):
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
             ucb_overwrite_probability=1.0,
+            pe_overwrite_probability=0.0,
             signal_to_noise_threshold=0.0,
         ),
         padding_schedule=padding.PaddingSchedule(
@@ -364,12 +410,12 @@ class GpUcbPeTest(parameterized.TestCase):
         # Skips the first batch of suggestions, which are generated by the
         # seeding designer, not acquisition function optimization.
         continue
-      # Because `ucb_overwrite_probability` is 1, all suggestions after the
-      # first batch are expected to be generated by UCB. Within a batch, the
-      # first suggestion's UCB value is expected to use predicted standard
-      # deviation based only on completed trials, while the UCB values of
-      # the second to the last suggestions are expected to use the predicted
-      # standard deviations based on completed and active trials.
+      # Because `ucb_overwrite_probability` is 1 and `pe_overwrite_probability`
+      # is 0, all suggestions after the first batch are expected to be generated
+      # by UCB. Within a batch, the first suggestion's UCB value is expected to
+      # use predicted standard deviation based only on completed trials, while
+      # the UCB values of the second to the last suggestions are expected to use
+      # the predicted standard deviations based on completed and active trials.
       mean, stddev, stddev_from_all, acq, use_ucb = _extract_predictions(
           trial.metadata.ns('gp_ucb_pe_bandit_test')
       )

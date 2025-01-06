@@ -557,6 +557,31 @@ class QUCB(AcquisitionFunction):
     )()
 
 
+def create_hv_scalarization(
+    num_scalarizations: int, labels: types.PaddedArray, rng: jax.Array
+):
+  """Creates a HyperVolumeScalarization with random weights.
+
+  Args:
+    num_scalarizations: The number of scalarizations to create.
+    labels: The labels used to create the reference point.
+    rng: The random key to use for sampling the weights.
+
+  Returns:
+    A HyperVolumeScalarization with random weights.
+  """
+  weights = jax.random.normal(
+      rng,
+      shape=(num_scalarizations, labels.shape[1]),
+  )
+  weights = jnp.abs(weights)
+  weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
+  ref_point = (
+      get_reference_point(labels, scale=0.01) if labels.shape[0] > 0 else None
+  )
+  return scalarization.HyperVolumeScalarization(weights, ref_point)
+
+
 # TODO: What do we end up jitting? If we end up directly jitting this call
 # then we should make it `eqx.Module` and set
 # `reduction_fn=eqx.field(static=True)` instead.
