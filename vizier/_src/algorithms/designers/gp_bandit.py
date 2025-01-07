@@ -227,7 +227,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       self._scoring_function_factory = (
           acq_lib.bayesian_scoring_function_factory(acq_fn_factory)
       )
-      self._scoring_function_is_parallel = True
       self._use_trust_region = False
 
     # Additional validations
