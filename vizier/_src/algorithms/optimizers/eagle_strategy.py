@@ -675,7 +675,7 @@ class VectorizedEagleStrategy(
     )
 
   @property
-  def suggestion_batch_size(self) -> int:
+  def suggestion_batch_size(self) -> int | None:
     """The number of suggestions returned at each call of 'suggest'."""
     return self.batch_size
 
