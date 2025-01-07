@@ -36,7 +36,6 @@ import numpy as np
 from vizier import algorithms as vza
 from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import quasi_random
-from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions as acq_lib
 from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.algorithms.designers.gp import output_warpers
@@ -202,27 +201,18 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     # Multi-objective overrides.
     m_info = self._problem.metric_information
     if not m_info.is_single_objective:
-      num_obj = len(m_info.of_type(vz.MetricType.OBJECTIVE))
 
       # Create scalarization weights.
       self._rng, weights_rng = jax.random.split(self._rng)
-      weights = jax.random.normal(
-          weights_rng, shape=(self._num_scalarizations, num_obj)
-      )
-      weights = jnp.abs(weights)
-      weights = weights / jnp.linalg.norm(weights, axis=-1, keepdims=True)
 
       def acq_fn_factory(data: types.ModelData) -> acq_lib.AcquisitionFunction:
         # Scalarized UCB.
+        scalarizer = acq_lib.create_hv_scalarization(
+            self._num_scalarizations, data.labels, weights_rng
+        )
+
         labels_array = data.labels.padded_array
         has_labels = labels_array.shape[0] > 0
-        ref_point = (
-            acq_lib.get_reference_point(data.labels, self._ref_scaling)
-            if has_labels
-            else None
-        )
-        scalarizer = scalarization.HyperVolumeScalarization(weights, ref_point)
-
         max_scalarized = None
         if has_labels:
           max_scalarized = jnp.max(scalarizer(labels_array), axis=-1)
