@@ -30,6 +30,7 @@ from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
 from vizier._src.jax.models import continuous_only_kernel
 from vizier._src.jax.models import mask_features
+from vizier._src.jax.models import multitask_tuned_gp_models
 
 tfb = tfp.bijectors
 tfd = tfp.distributions
@@ -93,6 +94,10 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
   )
   _boundary_epsilon: float = struct.field(default=1e-12, kw_only=True)
   _linear_coef: Optional[float] = struct.field(default=None, kw_only=True)
+  _multitask_type: multitask_tuned_gp_models.MultiTaskType = struct.field(
+      default=multitask_tuned_gp_models.MultiTaskType.INDEPENDENT,
+      kw_only=True,
+  )
 
   def __attrs_post_init__(self):
     if self._num_metrics < 1:
@@ -107,6 +112,9 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       *,
       use_retrying_cholesky: bool = True,
       linear_coef: Optional[float] = None,
+      multitask_type: multitask_tuned_gp_models.MultiTaskType = (
+          multitask_tuned_gp_models.MultiTaskType.INDEPENDENT
+      ),
   ) -> sp.StochasticProcessModel:
     """Returns a StochasticProcessModel for the GP."""
     gp_coroutine = VizierGaussianProcess(
@@ -117,6 +125,7 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
         _num_metrics=data.labels.shape[-1],
         _use_retrying_cholesky=use_retrying_cholesky,
         _linear_coef=linear_coef,
+        _multitask_type=multitask_type,
     )
     return sp.StochasticProcessModel(gp_coroutine)
 
@@ -271,8 +280,24 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       cholesky_fn = lambda matrix: retrying_cholesky(matrix)[0]
 
     if self._num_metrics > 1:
+      if (
+          self._multitask_type
+          == multitask_tuned_gp_models.MultiTaskType.INDEPENDENT
+      ):
+        multitask_kernel = tfpke.Independent(self._num_metrics, kernel)
+      else:
+        task_kernel_scale_linop = (
+            yield from multitask_tuned_gp_models.build_task_kernel_scale_linop(
+                self._num_metrics, self._multitask_type
+            )
+        )
+        multitask_kernel = tfpke.Separable(
+            self._num_metrics,
+            base_kernel=kernel,
+            task_kernel_scale_linop=task_kernel_scale_linop,
+        )
       return tfde.MultiTaskGaussianProcess(
-          tfpke.Independent(self._num_metrics, kernel),
+          multitask_kernel,
           index_points=inputs,
           observation_noise_variance=observation_noise_variance,
           cholesky_fn=cholesky_fn,

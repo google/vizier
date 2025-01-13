@@ -23,6 +23,7 @@ import numpy as np
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 
@@ -30,6 +31,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 tfb = tfp.bijectors
+mt_type = multitask_tuned_gp_models.MultiTaskType
 
 
 class VizierGpTest(parameterized.TestCase):
@@ -150,8 +152,28 @@ class VizierGpTest(parameterized.TestCase):
       # No observations are padded because multimetric GP does not support
       # observation padding.
       dict(num_metrics=2, num_obs=10),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
+      ),
   )
-  def test_masking_works(self, num_metrics: int, num_obs: int):
+  def test_masking_works(
+      self,
+      num_metrics: int,
+      num_obs: int,
+      multitask_type: mt_type = mt_type.INDEPENDENT,
+  ):
     x_obs, y_obs = self._generate_xys(num_metrics)
     data = types.ModelData(
         features=types.ModelInput(
@@ -171,7 +193,9 @@ class VizierGpTest(parameterized.TestCase):
     )
     model1 = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 2), num_metrics
+            types.ContinuousAndCategorical[int](9, 2),
+            num_metrics,
+            _multitask_type=multitask_type,
         ),
         data=data,
     )
@@ -185,7 +209,9 @@ class VizierGpTest(parameterized.TestCase):
     )
     model2 = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 2), num_metrics
+            types.ContinuousAndCategorical[int](9, 2),
+            num_metrics,
+            _multitask_type=multitask_type,
         ),
         data=modified_data,
     )
@@ -223,8 +249,28 @@ class VizierGpTest(parameterized.TestCase):
       # No observations are padded because multimetric GP does not support
       # observation padding.
       dict(num_metrics=2, num_obs=10),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=3,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
+      ),
   )
-  def test_good_log_likelihood(self, num_metrics: int, num_obs: int):
+  def test_good_log_likelihood(
+      self,
+      num_metrics: int,
+      num_obs: int,
+      multitask_type: mt_type = mt_type.INDEPENDENT,
+  ):
     # We use a fixed random seed for sampling categorical data (and continuous
     # data from `_generate_xys`, above) so that the same data is used for every
     # test run.
@@ -254,7 +300,9 @@ class VizierGpTest(parameterized.TestCase):
     target_loss = -0.2
     model = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
-            types.ContinuousAndCategorical[int](9, 5), num_metrics
+            types.ContinuousAndCategorical[int](9, 5),
+            num_metrics,
+            _multitask_type=multitask_type,
         ),
         data=data,
     )
@@ -276,8 +324,28 @@ class VizierGpTest(parameterized.TestCase):
       # No observations are padded because multimetric GP does not support
       # observation padding.
       dict(num_metrics=2, num_obs=10),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR,
+      ),
+      dict(
+          num_metrics=2,
+          num_obs=10,
+          multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
+      ),
   )
-  def test_good_log_likelihood_linear(self, num_metrics: int, num_obs: int):
+  def test_good_log_likelihood_linear(
+      self,
+      num_metrics: int,
+      num_obs: int,
+      multitask_type: mt_type = mt_type.INDEPENDENT,
+  ):
     """Tests that the GP with linear coef after ARD has good log likelihood.
 
     The tests use a fixed random seed for sampling categorical data (and
@@ -287,6 +355,7 @@ class VizierGpTest(parameterized.TestCase):
     Args:
       num_metrics: Number of metrics.
       num_obs: Number of observations.
+      multitask_type: The type of multitask GP to test.
     """
     rng, init_rng, cat_rng = jax.random.split(jax.random.PRNGKey(2), 3)
     x_cont_obs, y_obs = self._generate_xys(num_metrics)
@@ -317,6 +386,7 @@ class VizierGpTest(parameterized.TestCase):
             types.ContinuousAndCategorical[int](9, 5),
             num_metrics,
             _linear_coef=1.0,
+            _multitask_type=multitask_type,
         ),
         data=data,
     )

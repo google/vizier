@@ -59,6 +59,120 @@ class MultiTaskType(enum.Enum):
   SEPARABLE_DIAG_TASK_KERNEL_PRIOR = 'separable_diag_task_kernel_prior'
 
 
+def build_task_kernel_scale_linop(
+    num_tasks: int,
+    multitask_type: MultiTaskType,
+) -> Generator[sp.ModelParameter, jax.Array, tfp.tf2jax.linalg.LinearOperator]:
+  """Builds a Separable MultiTask GP's task kernel scale LinearOperator.
+
+  Args:
+    num_tasks: The number of tasks.
+    multitask_type: The type of MultiTask GP.
+
+  Yields:
+    Model parameters for the task kernel scale and a LinearOperator representing
+    the task kernel scale.
+  """
+  if multitask_type == MultiTaskType.SEPARABLE_DIAG_TASK_KERNEL_PRIOR:
+    correlation_diag = yield sp.ModelParameter.from_prior(
+        tfd.Sample(
+            tfd.Uniform(low=jnp.float64(1e-6), high=1.0),
+            sample_shape=num_tasks,
+            name='correlation_diag',
+        ),
+        constraint=sp.Constraint(
+            bounds=(1e-6, 1.0),
+            bijector=tfb.Sigmoid(low=jnp.float64(1e-6), high=1.0),
+        ),
+    )
+    task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorDiag(
+        correlation_diag
+    )
+  elif multitask_type == MultiTaskType.SEPARABLE_LKJ_TASK_KERNEL_PRIOR:
+    # Generate parameters for the Cholesky of the task kernel matrix,
+    # which accounts for correlations between tasks.
+    num_task_kernel_entries = tfb.CorrelationCholesky().inverse_event_shape(
+        [num_tasks, num_tasks]
+    )
+    correlation_cholesky_vec = yield sp.ModelParameter(
+        init_fn=lambda key: tfd.Sample(  # pylint: disable=g-long-lambda
+            tfd.Normal(jnp.float64(0.0), 1.0), num_task_kernel_entries
+        ).sample(seed=key),
+        # Use `jnp.copy` to prevent tracers leaking from bijector cache.
+        regularizer=lambda x: -tfd.CholeskyLKJ(  # pylint: disable=g-long-lambda
+            dimension=num_tasks, concentration=1.0
+        ).log_prob(tfb.CorrelationCholesky()(jnp.copy(x))),
+        name='task_kernel_correlation_cholesky_vec',
+    )
+
+    task_kernel_correlation_cholesky = tfb.CorrelationCholesky()(
+        jnp.copy(correlation_cholesky_vec)
+    )
+
+    task_kernel_scale_vec = yield sp.ModelParameter(
+        init_fn=functools.partial(
+            jax.random.uniform,
+            shape=(num_tasks,),
+            dtype=jnp.float64,
+            minval=1e-6,
+            maxval=1.0,
+        ),
+        constraint=sp.Constraint(
+            bounds=(1e-6, 1.0),
+            bijector=tfb.Sigmoid(low=jnp.float64(1e-6), high=1.0),
+        ),
+        name='task_kernel_sqrt_diagonal',
+    )
+    task_kernel_cholesky = (
+        task_kernel_correlation_cholesky * task_kernel_scale_vec[:, jnp.newaxis]
+    )
+
+    # Build the `LinearOperator` object representing the task kernel matrix,
+    # to parameterize the Separable kernel.
+    task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorLowerTriangular(
+        task_kernel_cholesky
+    )
+  elif multitask_type == MultiTaskType.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR:
+    # Generate parameters for the Cholesky of the task kernel matrix;
+    # accounts for correlations between tasks. The task kernel matrix must
+    # be positive definite, so we construct it via a Cholesky factor.
+    # Define the prior of the kernel task matrix to be centered at the
+    # identity.
+    prior_mean = jnp.eye(num_tasks, dtype=jnp.float64)
+    prior_mean_vec = tfb.FillTriangular().inverse(prior_mean)
+    prior_mean_batched = jnp.broadcast_to(prior_mean_vec, prior_mean_vec.shape)
+
+    task_kernel_cholesky_entries = yield sp.ModelParameter.from_prior(
+        tfd.Independent(
+            tfd.Normal(prior_mean_batched, 1.0),
+            reinterpreted_batch_ndims=1,
+            name='task_kernel_cholesky_entries',
+        )
+    )
+
+    # Apply a bijector to pack the task kernel entries into a lower
+    # triangular matrix and ensure the diagonal is positive.
+    task_kernel_bijector = tfb.Chain([
+        tfb.TransformDiagonal(
+            tfb.Chain([tfb.Shift(jnp.float64(1e-3)), tfb.Softplus()])
+        ),
+        tfb.FillTriangular(),
+    ])
+    task_kernel_cholesky = task_kernel_bijector(
+        jnp.copy(task_kernel_cholesky_entries)
+    )
+
+    # Build the `LinearOperator` object representing the task kernel
+    # matrix, to parameterize the Separable kernel.
+    task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorLowerTriangular(
+        task_kernel_cholesky
+    )
+  else:
+    raise ValueError(f'Unsupported multitask type: {multitask_type}')
+
+  return task_kernel_scale_linop
+
+
 @struct.dataclass
 class VizierMultitaskGaussianProcess(
     sp.ModelCoroutine[Union[tfd.GaussianProcess, tfde.MultiTaskGaussianProcess]]
@@ -100,115 +214,6 @@ class VizierMultitaskGaussianProcess(
       return jnp.exp(unif * jnp.log(high / low) + jnp.log(low))
 
     return sample
-
-  def _build_task_kernel_scale_linop(
-      self,
-  ) -> Generator[
-      sp.ModelParameter, jax.Array, tfp.tf2jax.linalg.LinearOperator
-  ]:
-    if self._multitask_type == MultiTaskType.SEPARABLE_DIAG_TASK_KERNEL_PRIOR:
-      correlation_diag = yield sp.ModelParameter.from_prior(
-          tfd.Sample(
-              tfd.Uniform(low=jnp.float64(1e-6), high=1.0),
-              sample_shape=self._num_tasks,
-              name='correlation_diag',
-          ),
-          constraint=sp.Constraint(
-              bounds=(1e-6, 1.0),
-              bijector=tfb.Sigmoid(low=jnp.float64(1e-6), high=1.0),
-          ),
-      )
-      task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorDiag(
-          correlation_diag
-      )
-    elif self._multitask_type == MultiTaskType.SEPARABLE_LKJ_TASK_KERNEL_PRIOR:
-      # Generate parameters for the Cholesky of the task kernel matrix,
-      # which accounts for correlations between tasks.
-      num_task_kernel_entries = tfb.CorrelationCholesky().inverse_event_shape(
-          [self._num_tasks, self._num_tasks]
-      )
-      correlation_cholesky_vec = yield sp.ModelParameter(
-          init_fn=lambda key: tfd.Sample(  # pylint: disable=g-long-lambda
-              tfd.Normal(jnp.float64(0.0), 1.0), num_task_kernel_entries
-          ).sample(seed=key),
-          # Use `jnp.copy` to prevent tracers leaking from bijector cache.
-          regularizer=lambda x: -tfd.CholeskyLKJ(  # pylint: disable=g-long-lambda
-              dimension=self._num_tasks, concentration=1.0
-          ).log_prob(tfb.CorrelationCholesky()(jnp.copy(x))),
-          name='task_kernel_correlation_cholesky_vec',
-      )
-
-      task_kernel_correlation_cholesky = tfb.CorrelationCholesky()(
-          jnp.copy(correlation_cholesky_vec)
-      )
-
-      task_kernel_scale_vec = yield sp.ModelParameter(
-          init_fn=functools.partial(
-              jax.random.uniform,
-              shape=(self._num_tasks,),
-              dtype=jnp.float64,
-              minval=1e-6,
-              maxval=1.0,
-          ),
-          constraint=sp.Constraint(
-              bounds=(1e-6, 1.0),
-              bijector=tfb.Sigmoid(low=jnp.float64(1e-6), high=1.0),
-          ),
-          name='task_kernel_sqrt_diagonal',
-      )
-      task_kernel_cholesky = (
-          task_kernel_correlation_cholesky
-          * task_kernel_scale_vec[:, jnp.newaxis]
-      )
-
-      # Build the `LinearOperator` object representing the task kernel matrix,
-      # to parameterize the Separable kernel.
-      task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorLowerTriangular(
-          task_kernel_cholesky
-      )
-    elif (
-        self._multitask_type == MultiTaskType.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR
-    ):
-      # Generate parameters for the Cholesky of the task kernel matrix;
-      # accounts for correlations between tasks. The task kernel matrix must
-      # be positive definite, so we construct it via a Cholesky factor.
-      # Define the prior of the kernel task matrix to be centered at the
-      # identity.
-      prior_mean = jnp.eye(self._num_tasks, dtype=jnp.float64)
-      prior_mean_vec = tfb.FillTriangular().inverse(prior_mean)
-      prior_mean_batched = jnp.broadcast_to(
-          prior_mean_vec, prior_mean_vec.shape
-      )
-
-      task_kernel_cholesky_entries = yield sp.ModelParameter.from_prior(
-          tfd.Independent(
-              tfd.Normal(prior_mean_batched, 1.0),
-              reinterpreted_batch_ndims=1,
-              name='task_kernel_cholesky_entries',
-          )
-      )
-
-      # Apply a bijector to pack the task kernel entries into a lower
-      # triangular matrix and ensure the diagonal is positive.
-      task_kernel_bijector = tfb.Chain([
-          tfb.TransformDiagonal(
-              tfb.Chain([tfb.Shift(jnp.float64(1e-6)), tfb.Softplus()])
-          ),
-          tfb.FillTriangular(),
-      ])
-      task_kernel_cholesky = task_kernel_bijector(
-          jnp.copy(task_kernel_cholesky_entries)
-      )
-
-      # Build the `LinearOperator` object representing the task kernel
-      # matrix, to parameterize the Separable kernel.
-      task_kernel_scale_linop = tfp.tf2jax.linalg.LinearOperatorLowerTriangular(
-          task_kernel_cholesky
-      )
-    else:
-      raise ValueError(f'Unsupported multitask type: {self._multitask_type}')
-
-    return task_kernel_scale_linop
 
   def __call__(
       self, inputs: Optional[types.ModelInput] = None
@@ -356,7 +361,9 @@ class VizierMultitaskGaussianProcess(
     if self._multitask_type == MultiTaskType.INDEPENDENT:
       multitask_kernel = tfpke.Independent(self._num_tasks, kernel)
     else:
-      task_kernel_scale_linop = yield from self._build_task_kernel_scale_linop()
+      task_kernel_scale_linop = yield from build_task_kernel_scale_linop(
+          self._num_tasks, self._multitask_type
+      )
       multitask_kernel = tfpke.Separable(
           self._num_tasks,
           base_kernel=kernel,
