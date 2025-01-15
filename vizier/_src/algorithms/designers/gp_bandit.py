@@ -44,6 +44,7 @@ from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -146,6 +147,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   # Multi-objective parameters.
   _num_scalarizations: int = attr.field(default=1000, kw_only=True)
   _ref_scaling: float = attr.field(default=0.01, kw_only=True)
+  _multitask_type: multitask_tuned_gp_models.MultiTaskType = attr.field(
+      default=multitask_tuned_gp_models.MultiTaskType.INDEPENDENT,
+      kw_only=True,
+  )
 
   # ------------------------------------------------------------------
   # Internal attributes which should not be set by callers.
@@ -230,7 +235,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       self._use_trust_region = False
 
     # Additional validations
-    coroutine = gp_models.get_vizier_gp_coroutine(empty_data)
+    coroutine = gp_models.get_vizier_gp_coroutine(
+        empty_data, multitask_type=self._multitask_type
+    )
     params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
     predictive = sp.UniformEnsemblePredictive(
@@ -389,7 +396,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         ard_optimizer=self._ard_optimizer,
         ard_rng=ard_rng,
         coroutine=gp_models.get_vizier_gp_coroutine(
-            data=data, linear_coef=self._linear_coef
+            data=data,
+            linear_coef=self._linear_coef,
+            multitask_type=self._multitask_type,
         ),
         ensemble_size=self._ensemble_size,
         ard_random_restarts=self._ard_random_restarts,

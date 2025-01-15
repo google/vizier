@@ -25,11 +25,14 @@ from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import gp_models
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 
 from absl.testing import absltest
 from absl.testing import parameterized
+
+mt_type = multitask_tuned_gp_models.MultiTaskType
 
 
 def _setup_lambda_search(
@@ -363,7 +366,13 @@ class StackedResidualGPTest(parameterized.TestCase):
 
     self.assertAlmostEqual(list_gp_mse, singleton_gp_mse)
 
-  def test_multi_task(self):
+  @parameterized.parameters(
+      dict(multitask_type=mt_type.INDEPENDENT),
+      dict(multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR),
+      dict(multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR),
+      dict(multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR),
+  )
+  def test_multi_task(self, multitask_type: mt_type):
     search_space = vz.SearchSpace()
     search_space.root.add_float_param('x0', -5.0, 5.0)
     problem = vz.ProblemStatement(
@@ -400,7 +409,9 @@ class StackedResidualGPTest(parameterized.TestCase):
     train_spec = gp_models.GPTrainingSpec(
         ard_optimizer=optimizers.default_optimizer(),
         ard_rng=jax.random.PRNGKey(0),
-        coroutine=gp_models.get_vizier_gp_coroutine(data=model_data),
+        coroutine=gp_models.get_vizier_gp_coroutine(
+            data=model_data, multitask_type=multitask_type
+        ),
     )
     gp = gp_models.train_gp(train_spec, model_data)
 

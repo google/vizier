@@ -28,6 +28,7 @@ from vizier._src.algorithms.designers import gp_ucb_pe
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier.converters import padding
 from vizier.testing import test_studies
@@ -36,6 +37,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 ensemble_ard_optimizer = optimizers.default_optimizer()
+
+mt_type = multitask_tuned_gp_models.MultiTaskType
 
 
 def _extract_predictions(
@@ -102,6 +105,30 @@ class GpUcbPeTest(parameterized.TestCase):
               gp_ucb_pe.MultimetricPromisingRegionPenaltyType.INTERSECTION
           ),
       ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          num_metrics=2,
+          multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
+          applies_padding=True,
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          num_metrics=2,
+          multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR,
+          applies_padding=True,
+      ),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          num_metrics=2,
+          multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
+          applies_padding=True,
+      ),
   )
   def test_on_flat_space(
       self,
@@ -121,6 +148,7 @@ class GpUcbPeTest(parameterized.TestCase):
       multimetric_promising_region_penalty_type: (
           gp_ucb_pe.MultimetricPromisingRegionPenaltyType
       ) = gp_ucb_pe.MultimetricPromisingRegionPenaltyType.AVERAGE,
+      multitask_type: mt_type = mt_type.INDEPENDENT,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -166,6 +194,7 @@ class GpUcbPeTest(parameterized.TestCase):
             multimetric_promising_region_penalty_type=(
                 multimetric_promising_region_penalty_type
             ),
+            multitask_type=multitask_type,
         ),
         ensemble_size=ensemble_size,
         padding_schedule=padding.PaddingSchedule(

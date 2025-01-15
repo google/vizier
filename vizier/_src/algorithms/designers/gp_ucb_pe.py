@@ -43,6 +43,7 @@ from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import vectorized_base as vb
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
@@ -117,6 +118,11 @@ class UCBPEConfig(eqx.Module):
       MultimetricPromisingRegionPenaltyType
   ) = eqx.field(
       default=MultimetricPromisingRegionPenaltyType.AVERAGE, static=True
+  )
+
+  # The type of multitask kernel to use for multimetric problems.
+  multitask_type: multitask_tuned_gp_models.MultiTaskType = eqx.field(
+      default=multitask_tuned_gp_models.MultiTaskType.INDEPENDENT, static=True
   )
 
   def __repr__(self):
@@ -740,7 +746,8 @@ class VizierGPUCBPEBandit(vza.Designer):
     # TODO: Creates a new abstract base class for GP models with a
     # `build_model` API to avoid disabling the pytype attribute-error.
     coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
-        data
+        data,
+        multitask_type=self._config.multitask_type,
     ).coroutine
     model = sp.CoroutineWithData(coroutine, data)
 
@@ -776,6 +783,20 @@ class VizierGPUCBPEBandit(vza.Designer):
             [[1.0] * data.features.categorical.padded_array.shape[-1]]
         ),
     }
+    # Multitask GP models whose multitask type is not `INDEPENDENT` require
+    # extra parameters for the task kernel priors, which are randomly sampled
+    # and added to the fixed initialization parameters.
+    if (
+        data.labels.shape[-1] > 1
+        and self._config.multitask_type
+        != multitask_tuned_gp_models.MultiTaskType.INDEPENDENT
+    ):
+      rng, extra_params_rng = jax.random.split(rng, 2)
+      extra_random_init_params = eqx.filter_jit(model.setup)(extra_params_rng)
+      for p_name, p_value in extra_random_init_params.items():
+        if p_name not in fixed_init_params:
+          fixed_init_params[p_name] = jnp.array([p_value])
+
     best_n = self._ensemble_size or 1
     optimal_params, metrics = self._ard_optimizer(
         init_params=jax.tree.map(

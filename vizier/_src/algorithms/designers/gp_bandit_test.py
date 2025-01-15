@@ -34,6 +34,7 @@ from vizier._src.algorithms.testing import simplekd_runner
 from vizier._src.algorithms.testing import test_runners
 from vizier._src.benchmarks.experimenters.synthetic import simplekd
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier.jax import optimizers
 from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
@@ -43,6 +44,7 @@ from vizier.utils import profiler
 from absl.testing import absltest
 from absl.testing import parameterized
 
+mt_type = multitask_tuned_gp_models.MultiTaskType
 
 ard_optimizer = optimizers.default_optimizer()
 vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
@@ -471,7 +473,13 @@ class GoogleGpBanditTest(parameterized.TestCase):
         iters * n_parallel,
     )
 
-  def test_multi_metrics(self):
+  @parameterized.parameters(
+      dict(multitask_type=mt_type.INDEPENDENT),
+      dict(multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR),
+      dict(multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR),
+      dict(multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR),
+  )
+  def test_multi_metrics(self, multitask_type: mt_type):
     search_space = vz.SearchSpace()
     search_space.root.add_float_param('x0', -5.0, 5.0)
     problem = vz.ProblemStatement(
@@ -489,7 +497,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
 
     iters = 2
-    designer = gp_bandit.VizierGPBandit(problem)
+    designer = gp_bandit.VizierGPBandit(problem, multitask_type=multitask_type)
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,

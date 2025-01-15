@@ -28,6 +28,7 @@ from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.algorithms.designers.gp import transfer_learning as vtl
 from vizier._src.jax import stochastic_process_model as sp
 from vizier._src.jax import types
+from vizier._src.jax.models import multitask_tuned_gp_models
 from vizier._src.jax.models import tuned_gp_models
 from vizier.jax import optimizers
 from vizier.utils import profiler
@@ -143,6 +144,9 @@ def get_vizier_gp_coroutine(
     data: types.ModelData,
     *,
     linear_coef: Optional[float] = None,
+    multitask_type: multitask_tuned_gp_models.MultiTaskType = (
+        multitask_tuned_gp_models.MultiTaskType.INDEPENDENT
+    ),
 ) -> sp.ModelCoroutine:
   """Gets a GP model coroutine.
 
@@ -150,6 +154,7 @@ def get_vizier_gp_coroutine(
     data: The data used to the train the GP model
     linear_coef: If non-zero, uses a linear kernel with `linear_coef`
       hyperparameter.
+    multitask_type: The type of multitask kernel to use for multimetric GP.
 
   Returns:
     The model coroutine.
@@ -157,6 +162,7 @@ def get_vizier_gp_coroutine(
   return tuned_gp_models.VizierGaussianProcess.build_model(
       data,
       linear_coef=linear_coef,
+      multitask_type=multitask_type,
   ).coroutine
 
 
