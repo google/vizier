@@ -655,14 +655,24 @@ class VizierGPUCBPEBandit(vza.Designer):
     # Extra validations
     if self._problem.search_space.is_conditional:
       raise ValueError(f'{type(self)} does not support conditional search.')
-    elif (
-        len(self._problem.metric_information) != 1
-        and self._config.optimize_set_acquisition_for_exploration
-    ):
-      raise ValueError(
-          f'{type(self)} works with exactly one metric when'
-          ' `optimize_set_acquisition_for_exploration` is enabled.'
-      )
+    elif len(self._problem.metric_information) != 1:
+      if self._config.optimize_set_acquisition_for_exploration:
+        raise ValueError(
+            f'{type(self)} works with exactly one metric when'
+            ' `optimize_set_acquisition_for_exploration` is enabled.'
+        )
+      empty_labels = jnp.array([[]])
+      padded_labels = self._padding_schedule.pad_labels(empty_labels)
+      if padded_labels.shape[0] != empty_labels.shape[0]:
+        raise ValueError(
+            f'{type(self)} does not support trial padding for multimetric'
+            ' problems.'
+        )
+      if padded_labels.shape[1] != empty_labels.shape[1]:
+        raise ValueError(
+            f'{type(self)} does not support metric padding for multimetric'
+            ' problems.'
+        )
 
     # Extra initializations.
     # Discrete parameters are continuified to account for their actual values.

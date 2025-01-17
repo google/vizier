@@ -90,7 +90,6 @@ class GpUcbPeTest(parameterized.TestCase):
           iters=3,
           batch_size=3,
           num_metrics=2,
-          applies_padding=True,
           multimetric_promising_region_penalty_type=(
               gp_ucb_pe.MultimetricPromisingRegionPenaltyType.UNION
           ),
@@ -99,7 +98,6 @@ class GpUcbPeTest(parameterized.TestCase):
           iters=3,
           batch_size=3,
           num_metrics=2,
-          applies_padding=True,
           ensemble_size=4,
           multimetric_promising_region_penalty_type=(
               gp_ucb_pe.MultimetricPromisingRegionPenaltyType.INTERSECTION
@@ -111,7 +109,6 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           num_metrics=2,
           multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
-          applies_padding=True,
       ),
       dict(
           iters=3,
@@ -119,7 +116,6 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           num_metrics=2,
           multitask_type=mt_type.SEPARABLE_LKJ_TASK_KERNEL_PRIOR,
-          applies_padding=True,
       ),
       dict(
           iters=3,
@@ -127,7 +123,6 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           num_metrics=2,
           multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
-          applies_padding=True,
       ),
   )
   def test_on_flat_space(
