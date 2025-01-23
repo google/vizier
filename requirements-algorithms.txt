@@ -1,12 +1,12 @@
 # For BOCS.
-cvxpy==1.2.1
-cvxopt==1.3.0
+cvxpy
+cvxopt
 
 # For Harmonica.
-scikit-learn==1.1.2
+scikit-learn
 
 # For CMA-ES.
-evojax==0.2.15
+evojax
 
 # For regression utils.
-lightgbm==2.2.3
+lightgbm
