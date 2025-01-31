@@ -17,12 +17,12 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'  # 3.11 breaks grpcio-tools.
+        python-version: '3.11'
     - name: Install dependencies
       run: |
         sudo apt-get install -y libprotobuf-dev
         python -m pip install --upgrade pip
-        pip install setuptools wheel twine==5.0.0 grpcio-tools==1.48.2
+        pip install setuptools wheel twine==5.0.0 grpcio-tools>=1.70.0
     - name: Build and publish
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
