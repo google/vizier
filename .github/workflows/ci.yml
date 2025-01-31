@@ -50,7 +50,7 @@ jobs:
           sudo apt-get install -y libprotobuf-dev
           python -m pip install --upgrade pip setuptools
           pip install wheel
-          pip install grpcio-tools>=1.70.0
+          pip install grpcio-tools>=1.66.2
           pip install pytest pytest-xdist
           pip wheel -e .
           pip install -e .
