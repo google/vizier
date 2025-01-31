@@ -19,6 +19,7 @@ jobs:
       with:
         python-version: '3.11'
     - name: Install dependencies
+      # NOTE: grpcio-tools needs to be periodically updated to support later Python versions.
       run: |
         sudo apt-get install -y libprotobuf-dev
         python -m pip install --upgrade pip

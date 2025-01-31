@@ -45,12 +45,13 @@ jobs:
           key: >-
             ${{ env.pythonLocation }}
             ${{ hashFiles('**/requirements*.txt') }}
-      - name: Install essential dependencies  # NOTE: grpcio-tools needs to be periodically updated.
+        # NOTE: grpcio-tools needs to be periodically updated to support later Python versions.
+      - name: Install essential dependencies
         run: |
           sudo apt-get install -y libprotobuf-dev
           python -m pip install --upgrade pip setuptools
           pip install wheel
-          pip install grpcio-tools>=1.66.2
+          pip install grpcio-tools>=1.70.0
           pip install pytest pytest-xdist
           pip wheel -e .
           pip install -e .
