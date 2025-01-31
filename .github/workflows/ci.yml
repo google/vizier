@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]  # 3.x disabled b/c of 3.13 test failures.
+        python-version: ["3.11"]  # 3.x disabled b/c of 3.12 test failures w/ GRPC.
         suffix: ["core", "benchmarks", "algorithms", "clients", "pyglove", "raytune"]
         include:
           - suffix: "clients"
