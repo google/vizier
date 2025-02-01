@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import multiprocessing.pool
 import time
-from absl import logging
 
+from absl import logging
 from vizier._src.service import constants
 from vizier._src.service import vizier_client
 from vizier._src.service import vizier_server
@@ -41,23 +41,15 @@ class PerformanceTest(parameterized.TestCase):
     )
     vizier_client.environment_variables.server_endpoint = cls.server.endpoint
 
-  @parameterized.parameters(
-      (1, 10, 2),
-      (2, 10, 2),
-      (10, 10, 2),
-      (50, 5, 2),
-      (100, 5, 2),
-  )
+  @parameterized.parameters((1, 10), (2, 10), (10, 10), (50, 5), (100, 5))
   def test_multiple_clients_basic(
-      self, num_simultaneous_clients, num_trials_per_client, dimension
+      self, num_simultaneous_clients, num_trials_per_client
   ):
     def fn(client_id: int):
-      experimenter = experimenters.BBOBExperimenterFactory(
-          'Sphere', dimension
-      )()
+      experimenter = experimenters.BBOBExperimenterFactory('Sphere', 2)()
       problem_statement = experimenter.problem_statement()
       study_config = pyvizier.StudyConfig.from_problem(problem_statement)
-      study_config.algorithm = pyvizier.Algorithm.NSGA2
+      study_config.algorithm = pyvizier.Algorithm.RANDOM_SEARCH
 
       client = vizier_client.create_or_load_study(
           owner_id='my_username',

@@ -22,6 +22,7 @@ Extensive tests can be found in `clients_test.py`.
 from concurrent import futures
 import datetime
 import time
+from typing import Optional
 
 import attr
 import grpc
@@ -48,7 +49,9 @@ class DefaultVizierServer:
   """
 
   _host: str = attr.field(default='localhost')
-  _database_url: str = attr.field(default=constants.SQL_LOCAL_URL, kw_only=True)
+  _database_url: Optional[str] = attr.field(
+      default=constants.SQL_LOCAL_URL, kw_only=True
+  )
   _policy_factory: pythia.PolicyFactory = attr.field(
       factory=service_policy_factory_lib.DefaultPolicyFactory, kw_only=True
   )

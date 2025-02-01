@@ -18,13 +18,14 @@ from __future__ import annotations
 
 For debugging/testing purposes mainly.
 """
+
 import collections
 import copy
 import dataclasses
 import threading
 from typing import Callable, DefaultDict, Dict, Iterable, List, Optional
-from absl import logging
 
+from absl import logging
 from vizier._src.service import custom_errors
 from vizier._src.service import datastore
 from vizier._src.service import key_value_pb2
@@ -109,53 +110,55 @@ class NestedDictRAMDataStore(datastore.DataStore):
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         return copy.deepcopy(
             self._owners[resource.owner_id]
             .studies[resource.study_id]
             .study_proto
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not get Study with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not get Study with name:', resource.name
+        ) from err
 
   def update_study(self, study: study_pb2.Study) -> resources.StudyResource:
     resource = resources.StudyResource.from_name(study.name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         self._owners[resource.owner_id].studies[
             resource.study_id
         ].study_proto.CopyFrom(study)
-      return resource
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not update Study with name:', resource.name
-      ) from err
+        return resource
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not update Study with name:', resource.name
+        ) from err
 
   def delete_study(self, study_name: str) -> None:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         del self._owners[resource.owner_id].studies[resource.study_id]
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Study does not exist:', study_name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Study does not exist:', study_name
+        ) from err
 
   def list_studies(self, owner_name: str) -> List[study_pb2.Study]:
     resource = resources.OwnerResource.from_name(owner_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         study_nodes = list(self._owners[resource.owner_id].studies.values())
         return copy.deepcopy(
             [study_node.study_proto for study_node in study_nodes]
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Owner does not exist:', owner_name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Owner does not exist:', owner_name
+        ) from err
 
   def create_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
@@ -175,22 +178,23 @@ class NestedDictRAMDataStore(datastore.DataStore):
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     resource = resources.TrialResource.from_name(trial_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         return copy.deepcopy(
             self._owners[resource.owner_id]
             .studies[resource.study_id]
             .trial_protos[resource.trial_id]
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not get Trial with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not get Trial with name:', resource.name
+        ) from err
 
   def update_trial(self, trial: study_pb2.Trial) -> resources.TrialResource:
     resource = resources.TrialResource.from_name(trial.name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         trial_protos = (
             self._owners[resource.owner_id]
             .studies[resource.study_id]
@@ -201,16 +205,17 @@ class NestedDictRAMDataStore(datastore.DataStore):
               'Trial %s does not exist.' % trial.name
           )
         trial_protos[resource.trial_id] = copy.deepcopy(trial)
-      return resource
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not update Trial with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not update Trial with name:', resource.name
+        ) from err
+
+    return resource
 
   def list_trials(self, study_name: str) -> List[study_pb2.Trial]:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         return copy.deepcopy(
             list(
                 self._owners[resource.owner_id]
@@ -218,29 +223,29 @@ class NestedDictRAMDataStore(datastore.DataStore):
                 .trial_protos.values()
             )
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Study does not exist:', study_name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Study does not exist:', study_name
+        ) from err
 
   def delete_trial(self, trial_name: str) -> None:
     resource = resources.TrialResource.from_name(trial_name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         del (
             self._owners[resource.owner_id]
             .studies[resource.study_id]
             .trial_protos[resource.trial_id]
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Trial does not exist:', trial_name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Trial does not exist:', trial_name
+        ) from err
 
   def max_trial_id(self, study_name: str) -> int:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         trial_ids = copy.deepcopy(
             list(
                 self._owners[resource.owner_id]
@@ -248,15 +253,12 @@ class NestedDictRAMDataStore(datastore.DataStore):
                 .trial_protos.keys()
             )
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Study does not exist:', study_name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Study does not exist:', study_name
+        ) from err
 
-    if trial_ids:
-      return max(trial_ids)
-    else:
-      return 0
+    return max(trial_ids) if trial_ids else 0
 
   def create_suggestion_operation(
       self, operation: operations_pb2.Operation
@@ -291,8 +293,9 @@ class NestedDictRAMDataStore(datastore.DataStore):
       self, operation_name: str
   ) -> operations_pb2.Operation:
     resource = resources.SuggestionOperationResource.from_name(operation_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         return copy.deepcopy(
             self._owners[resource.owner_id]
             .studies[resource.study_id]
@@ -300,27 +303,29 @@ class NestedDictRAMDataStore(datastore.DataStore):
             .suggestion_operations[resource.operation_id]
         )
 
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not find SuggestionOperation with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not find SuggestionOperation with name:', resource.name
+        ) from err
 
   def update_suggestion_operation(
       self, operation: operations_pb2.Operation
   ) -> resources.SuggestionOperationResource:
     resource = resources.SuggestionOperationResource.from_name(operation.name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         self._owners[resource.owner_id].studies[resource.study_id].clients[
             resource.client_id
         ].suggestion_operations[resource.operation_id] = copy.deepcopy(
             operation
         )
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not update SuggestionOperation with name:', resource.name
+        ) from err
+
       return resource
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not update SuggestionOperation with name:', resource.name
-      ) from err
 
   def list_suggestion_operations(
       self,
@@ -329,8 +334,9 @@ class NestedDictRAMDataStore(datastore.DataStore):
       filter_fn: Optional[Callable[[operations_pb2.Operation], bool]] = None,
   ) -> List[operations_pb2.Operation]:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         operations_list = copy.deepcopy(
             list(
                 self._owners[resource.owner_id]
@@ -339,22 +345,23 @@ class NestedDictRAMDataStore(datastore.DataStore):
                 .suggestion_operations.values()
             )
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          '(study_name, client_id) does not exist:', (study_name, client_id)
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            '(study_name, client_id) does not exist:', (study_name, client_id)
+        ) from err
 
-    if filter_fn is not None:
-      return copy.deepcopy([op for op in operations_list if filter_fn(op)])
-    else:
-      return copy.deepcopy(operations_list)
+      if filter_fn is not None:
+        return copy.deepcopy([op for op in operations_list if filter_fn(op)])
+      else:
+        return copy.deepcopy(operations_list)
 
   def max_suggestion_operation_number(
       self, study_name: str, client_id: str
   ) -> int:
     resource = resources.StudyResource.from_name(study_name)
-    try:
-      with self._lock:
+
+    with self._lock:
+      try:
         ops = (
             self._owners[resource.owner_id]
             .studies[resource.study_id]
@@ -362,10 +369,10 @@ class NestedDictRAMDataStore(datastore.DataStore):
             .suggestion_operations
         )
         return len(ops)
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          '(study_name, client_id) does not exist:', (study_name, client_id)
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            '(study_name, client_id) does not exist:', (study_name, client_id)
+        ) from err
 
   def create_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
@@ -393,17 +400,17 @@ class NestedDictRAMDataStore(datastore.DataStore):
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation_name
     )
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         return copy.deepcopy(
             self._owners[resource.owner_id]
             .studies[resource.study_id]
             .early_stopping_operations[resource.operation_id]
         )
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not find EarlyStoppingOperation with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not find EarlyStoppingOperation with name:', resource.name
+        ) from err
 
   def update_early_stopping_operation(
       self, operation: vizier_oss_pb2.EarlyStoppingOperation
@@ -411,18 +418,18 @@ class NestedDictRAMDataStore(datastore.DataStore):
     resource = resources.EarlyStoppingOperationResource.from_name(
         operation.name
     )
-    try:
-      with self._lock:
+    with self._lock:
+      try:
         self._owners[resource.owner_id].studies[
             resource.study_id
         ].early_stopping_operations[resource.operation_id] = copy.deepcopy(
             operation
         )
-      return resource
-    except KeyError as err:
-      raise custom_errors.NotFoundError(
-          'Could not update EarlyStoppingOperation with name:', resource.name
-      ) from err
+      except KeyError as err:
+        raise custom_errors.NotFoundError(
+            'Could not update EarlyStoppingOperation with name:', resource.name
+        ) from err
+    return resource
 
   def update_metadata(
       self,
