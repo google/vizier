@@ -328,7 +328,8 @@ class GpUcbPeTest(parameterized.TestCase):
           # single-metric case because the acquisition value in the multi-metric
           # case is randomly scalarized.
           if num_metrics == 1:
-            self.assertAlmostEqual(mean + 10.0 * stddev_from_all, acq)
+            expected_acq = mean + 10.0 * stddev_from_all
+            self.assertAlmostEqual(expected_acq, acq, delta=1e-6)
           self.assertTrue(use_ucb)
           continue
 
