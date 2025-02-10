@@ -31,6 +31,9 @@ from vizier.pyvizier.converters import padding
 from absl.testing import absltest
 
 tfd = tfp.distributions
+ContinuousFeaturePerturbationType = (
+    eagle_strategy.ContinuousFeaturePerturbationType
+)
 
 
 def _create_logits_vector_simple(
@@ -435,6 +438,60 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     optimizer(
         score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1), count=1
+    )
+
+  def test_continuous_feature_perturbation_type(self):
+    optimizer_additive_perturbation = vb.VectorizedOptimizerFactory(
+        strategy_factory=eagle_strategy.VectorizedEagleStrategyFactory(
+            eagle_config=eagle_strategy.EagleStrategyConfig(
+                continuous_feature_perturbation_type=(
+                    ContinuousFeaturePerturbationType.ADDITIVE
+                )
+            )
+        ),
+        max_evaluations=50,
+    )(self.converter)
+    expected_count = 4
+    new_features_additive_perturbation = optimizer_additive_perturbation(
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),
+        count=expected_count,
+    ).features
+    self.assertSequenceEqual(
+        new_features_additive_perturbation.continuous.shape,
+        (expected_count, 1, 2),
+    )
+    self.assertSequenceEqual(
+        new_features_additive_perturbation.categorical.shape,
+        (expected_count, 1, 2),
+    )
+    optimizer_mult_perturbation = vb.VectorizedOptimizerFactory(
+        strategy_factory=eagle_strategy.VectorizedEagleStrategyFactory(
+            eagle_config=eagle_strategy.EagleStrategyConfig(
+                continuous_feature_perturbation_type=(
+                    ContinuousFeaturePerturbationType.MULTIPLICATIVE
+                )
+            )
+        ),
+        max_evaluations=50,
+    )(self.converter)
+    new_features_mult_perturbation = optimizer_mult_perturbation(
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),
+        count=expected_count,
+    ).features
+    self.assertSequenceEqual(
+        new_features_mult_perturbation.continuous.shape,
+        (expected_count, 1, 2),
+    )
+    self.assertSequenceEqual(
+        new_features_mult_perturbation.categorical.shape,
+        (expected_count, 1, 2),
+    )
+    self.assertGreater(
+        np.abs(
+            new_features_additive_perturbation.continuous
+            - new_features_mult_perturbation.continuous
+        ).max(),
+        1e-1,
     )
 
   def test_optimize_with_eagle_continuous_only(self):

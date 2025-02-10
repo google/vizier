@@ -34,7 +34,7 @@ single point. Not included in the original algorithm, we added "repulsion" which
 in addition to the "attraction" forces, meaning fireflies move towards the
 bright spots as well as away from the dark spots. We also support non-decimal
 parameter types (categorical, discrete, integer), and treat them uniquely when
-computing distance, adding pertrubation, and mutating fireflies.
+computing distance, applying pertrubation, and mutating fireflies.
 
 For more details, see the linked paper.
 
@@ -68,6 +68,7 @@ optimizer = VectorizedOptimizerFactory(
 # Run the optimization.
 trials = optimizer.optimize(problem_statement, objective_function)
 """
+
 import dataclasses
 # pylint: disable=g-long-lambda
 
@@ -97,6 +98,16 @@ class MutateNormalizationType(enum.IntEnum):
   UNNORMALIZED = 2
 
 
+@enum.unique
+class ContinuousFeaturePerturbationType(enum.IntEnum):
+  """The type of perturbation to apply to continuous features."""
+
+  # Add the perturbation to the feature value.
+  ADDITIVE = 0
+  # Multiply the feature value by exp(perturbation).
+  MULTIPLICATIVE = 1
+
+
 @struct.dataclass
 class EagleStrategyConfig:
   """Eagle Strategy optimizer config.
@@ -106,6 +117,8 @@ class EagleStrategyConfig:
     gravity: The maximum amount of attraction pull.
     negative_gravity: The maximum amount of repulsion pull.
     perturbation: The default amount of noise for perturbation.
+    continuous_feature_perturbation_type: The type of perturbation to apply to
+      continuous features.
     categorical_perturbation_factor: A factor to apply on categorical params.
     pure_categorical_perturbation_factor: A factor on purely categorical space.
     prob_same_category_without_perturbation: Baseline probability of selecting
@@ -130,6 +143,9 @@ class EagleStrategyConfig:
   negative_gravity: float = 0.008
   # Perturbation
   perturbation: float = 0.16
+  continuous_feature_perturbation_type: ContinuousFeaturePerturbationType = (
+      ContinuousFeaturePerturbationType.ADDITIVE
+  )
   categorical_perturbation_factor: float = 1.0
   pure_categorical_perturbation_factor: float = 30
   prob_same_category_without_perturbation: float = 0.98
@@ -873,14 +889,28 @@ class VectorizedEagleStrategy(
     features_changes_continuous = jnp.matmul(
         scale, flat_features
     ) - flat_features_batch * jnp.sum(scale, axis=-1, keepdims=True)
-
-    new_features_continuous = (
-        features_batch.continuous
-        + jnp.reshape(
-            features_changes_continuous, features_batch.continuous.shape
-        )
-        + perturbations_batch.continuous
+    moved_features_continuous = features_batch.continuous + jnp.reshape(
+        features_changes_continuous, features_batch.continuous.shape
     )
+    if (
+        self.config.continuous_feature_perturbation_type
+        == ContinuousFeaturePerturbationType.ADDITIVE
+    ):
+      new_features_continuous = (
+          moved_features_continuous + perturbations_batch.continuous
+      )
+    elif (
+        self.config.continuous_feature_perturbation_type
+        == ContinuousFeaturePerturbationType.MULTIPLICATIVE
+    ):
+      new_features_continuous = moved_features_continuous * jnp.exp(
+          perturbations_batch.continuous
+      )
+    else:
+      raise ValueError(
+          "Unsupported continuous feature perturbation type:"
+          f" {self.config.continuous_feature_perturbation_type}"
+      )
     if self.max_categorical_size > 0:
       features_categorical_logits = (
           self._create_categorical_feature_logits(
