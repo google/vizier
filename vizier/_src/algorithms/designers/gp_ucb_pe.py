@@ -278,8 +278,10 @@ class UCBScoreFunction(eqx.Module):
 
   The UCB acquisition value is the sum of the predicted mean based on completed
   trials and the predicted standard deviation based on all trials, completed and
-  pending (scaled by the UCB coefficient). This class follows the
-  `acquisitions.ScoreFunction` protocol.
+  pending (scaled by the UCB coefficient). If `prior_acquisition` is not None,
+  the return value is the sum of the prior acquisition value and the UCB
+  acquisition value. This class follows the `acquisitions.ScoreFunction`
+  protocol.
 
   Attributes:
     predictive: Predictive model with cached Cholesky conditioned on completed
@@ -288,6 +290,7 @@ class UCBScoreFunction(eqx.Module):
       on completed and pending trials.
     ucb_coefficient: The UCB coefficient.
     trust_region: Trust region.
+    prior_acquisition: An optional prior acquisition function.
     scalarization_weights_rng: Random key for scalarization.
     labels: Labels, shaped as [num_index_points, num_metrics].
     num_scalarizations: Number of scalarizations.
@@ -297,6 +300,7 @@ class UCBScoreFunction(eqx.Module):
   predictive_all_features: sp.UniformEnsemblePredictive
   ucb_coefficient: jt.Float[jt.Array, '']
   trust_region: Optional[acquisitions.TrustRegion]
+  prior_acquisition: Callable[[types.ModelInput], jax.Array] | None
   labels: types.PaddedArray
   scalarizer: scalarization.Scalarization
 
@@ -306,6 +310,7 @@ class UCBScoreFunction(eqx.Module):
       predictive_all_features: sp.UniformEnsemblePredictive,
       ucb_coefficient: jt.Float[jt.Array, ''],
       trust_region: Optional[acquisitions.TrustRegion],
+      prior_acquisition: Callable[[types.ModelInput], jax.Array] | None,
       scalarization_weights_rng: jax.Array,
       labels: types.PaddedArray,
       num_scalarizations: int = 1000,
@@ -314,6 +319,7 @@ class UCBScoreFunction(eqx.Module):
     self.predictive_all_features = predictive_all_features
     self.ucb_coefficient = ucb_coefficient
     self.trust_region = trust_region
+    self.prior_acquisition = prior_acquisition
     self.labels = labels
     self.scalarizer = acquisitions.create_hv_scalarization(
         num_scalarizations, labels, scalarization_weights_rng
@@ -357,11 +363,16 @@ class UCBScoreFunction(eqx.Module):
       scalarized_acq_values = _apply_trust_region(
           self.trust_region, xs, scalarized_acq_values
       )
-    return scalarized_acq_values, {
+    aux = {
         'mean': mean,
         'stddev': gprm.stddev(),
         'stddev_from_all': stddev_from_all,
     }
+    if self.prior_acquisition is not None:
+      prior_acq_values = self.prior_acquisition(xs)
+      scalarized_acq_values = prior_acq_values + scalarized_acq_values
+      aux['prior_acq_values'] = prior_acq_values
+    return scalarized_acq_values, aux
 
 
 class PEScoreFunction(eqx.Module):
@@ -370,8 +381,10 @@ class PEScoreFunction(eqx.Module):
   The PE acquisition value is the predicted standard deviation (eq. (9)
   in https://arxiv.org/pdf/1304.5350) based on all completed and active trials,
   plus a penalty term that grows linearly in the amount of violation of the
-  constraint `UCB(xs) >= threshold`. This class follows the
-  `acquisitions.ScoreFunction` protocol.
+  constraint `UCB(xs) >= threshold`. If `prior_acquisition` is not None, the
+  returned value is the sum of the prior acquisition value and the PE
+  acquisition value. This class follows the `acquisitions.ScoreFunction`
+  protocol.
 
   Attributes:
     predictive: Predictive model with cached Cholesky conditioned on completed
@@ -383,6 +396,9 @@ class PEScoreFunction(eqx.Module):
       values on `xs`.
     penalty_coefficient: Multiplier on the constraint violation penalty.
     trust_region:
+    prior_acquisition: An optional prior acquisition function.
+    multimetric_promising_region_penalty_type: The type of multimetric promising
+      region penalty.
 
   Returns:
     The Pure-Exploration acquisition value.
@@ -394,6 +410,7 @@ class PEScoreFunction(eqx.Module):
   explore_ucb_coefficient: jt.Float[jt.Array, '']
   penalty_coefficient: jt.Float[jt.Array, '']
   trust_region: Optional[acquisitions.TrustRegion]
+  prior_acquisition: Callable[[types.ModelInput], jax.Array] | None
   multimetric_promising_region_penalty_type: (
       MultimetricPromisingRegionPenaltyType
   )
@@ -457,11 +474,16 @@ class PEScoreFunction(eqx.Module):
       acq_values = stddev_from_all + penalty
     if self.trust_region is not None:
       acq_values = _apply_trust_region(self.trust_region, xs, acq_values)
-    return acq_values, {
+    aux = {
         'mean': mean,
         'stddev': stddev,
         'stddev_from_all': stddev_from_all,
     }
+    if self.prior_acquisition is not None:
+      prior_acq_values = self.prior_acquisition(xs)
+      acq_values += prior_acq_values
+      aux['prior_acq_values'] = prior_acq_values
+    return acq_values, aux
 
 
 def _logdet(matrix: jax.Array):
@@ -486,8 +508,10 @@ class SetPEScoreFunction(eqx.Module):
   predicted covariance matrix evaluated at the points (eq. (8) in
   https://arxiv.org/pdf/1304.5350) based on all completed and active trials,
   plus a penalty term that grows linearly in the amount of violation of the
-  constraint `UCB(xs) >= threshold`. This class follows the
-  `acquisitions.ScoreFunction` protocol.
+  constraint `UCB(xs) >= threshold`. If `prior_acquisition` is not None, the
+  returned value is the sum of the prior acquisition value and the PE
+  acquisition value. This class follows the `acquisitions.ScoreFunction`
+  protocol.
 
   Attributes:
     predictive: Predictive model with cached Cholesky conditioned on completed
@@ -499,6 +523,7 @@ class SetPEScoreFunction(eqx.Module):
       values on `xs`.
     penalty_coefficient: Multiplier on the constraint violation penalty.
     trust_region:
+    prior_acquisition: An optional prior acquisition function.
 
   Returns:
     The Pure-Exploration acquisition value.
@@ -510,6 +535,7 @@ class SetPEScoreFunction(eqx.Module):
   explore_ucb_coefficient: jt.Float[jt.Array, '']
   penalty_coefficient: jt.Float[jt.Array, '']
   trust_region: Optional[acquisitions.TrustRegion]
+  prior_acquisition: Callable[[types.ModelInput], jax.Array] | None
 
   def score(
       self, xs: types.ModelInput, seed: Optional[jax.Array] = None
@@ -549,11 +575,16 @@ class SetPEScoreFunction(eqx.Module):
     )
     if self.trust_region is not None:
       acq_values = _apply_trust_region_to_set(self.trust_region, xs, acq_values)
-    return acq_values, {
+    aux = {
         'mean': mean,
         'stddev': stddev,
         'stddev_from_all': jnp.sqrt(jnp.diagonal(cov, axis1=1, axis2=2)),
     }
+    if self.prior_acquisition is not None:
+      prior_acq_values = self.prior_acquisition(xs)
+      acq_values += prior_acq_values
+      aux['prior_acq_values'] = prior_acq_values
+    return acq_values, aux
 
 
 def default_ard_optimizer() -> optimizers.Optimizer[types.ParameterDict]:
@@ -587,6 +618,14 @@ class VizierGPUCBPEBandit(vza.Designer):
       observed.
     rng: If not set, uses random numbers.
     clear_jax_cache: If True, every `suggest` call clears the Jax cache.
+    padding_schedule: Configures what inputs (trials, features, labels) to pad
+      with what schedule. Useful for reducing JIT compilation passes. (Default
+      implies no padding.)
+    prior_acquisition: An optional prior acquisition function. If provided, the
+      suggestions will be generated by maximizing the sum of the prior
+      acquisition value and the GP-based acquisition value (UCB or PE). Useful
+      for biasing the suggestions towards a prior, e.g., being close to some
+      known parameter values.
   """
 
   _problem: vz.ProblemStatement = attr.field(kw_only=False)
@@ -621,11 +660,12 @@ class VizierGPUCBPEBandit(vza.Designer):
       factory=lambda: jax.random.PRNGKey(random.getrandbits(32)), kw_only=True
   )
   _clear_jax_cache: bool = attr.field(default=False, kw_only=True)
-  # Whether to pad all inputs, and what type of schedule to use. This is to
-  # ensure fewer JIT compilation passes. (Default implies no padding.)
   # TODO: Check padding does not affect designer behavior.
   _padding_schedule: padding.PaddingSchedule = attr.field(
       factory=padding.PaddingSchedule, kw_only=True
+  )
+  _prior_acquisition: Callable[[types.ModelInput], jax.Array] | None = (
+      attr.field(factory=lambda: None, kw_only=True)
   )
 
   default_eagle_config = es.EagleStrategyConfig(
@@ -1003,6 +1043,7 @@ class VizierGPUCBPEBandit(vza.Designer):
           predictive_all_features,
           ucb_coefficient=self._config.ucb_coefficient,
           trust_region=tr if self._use_trust_region else None,
+          prior_acquisition=self._prior_acquisition,
           scalarization_weights_rng=scalarization_weights_rng,
           labels=data.labels,
       )
@@ -1014,6 +1055,7 @@ class VizierGPUCBPEBandit(vza.Designer):
           ucb_coefficient=self._config.ucb_coefficient,
           explore_ucb_coefficient=self._config.explore_region_ucb_coefficient,
           trust_region=tr if self._use_trust_region else None,
+          prior_acquisition=self._prior_acquisition,
           multimetric_promising_region_penalty_type=(
               self._config.multimetric_promising_region_penalty_type
           ),
@@ -1083,6 +1125,11 @@ class VizierGPUCBPEBandit(vza.Designer):
         'trust_radius': f'{tr.trust_radius}',
         'params': f'{model.params}',
     })
+    if 'prior_acq_values' in aux:
+      # Take the first element of the array because `aux` is computed only for
+      # the best candidate.
+      prior_acq_value = aux['prior_acq_values'][0]
+      metadata.ns('prior_acquisition').update({'value': f'{prior_acq_value}'})
     metadata.ns('timing').update(
         {'time': f'{datetime.datetime.now() - start_time}'}
     )
@@ -1118,6 +1165,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         ucb_coefficient=self._config.ucb_coefficient,
         explore_ucb_coefficient=self._config.explore_region_ucb_coefficient,
         trust_region=tr if self._use_trust_region else None,
+        prior_acquisition=self._prior_acquisition,
     )
 
     acquisition_optimizer = self._acquisition_optimizer_factory(self._converter)
@@ -1180,6 +1228,11 @@ class VizierGPUCBPEBandit(vza.Designer):
           'trust_radius': f'{tr.trust_radius}',
           'params': f'{model.params}',
       })
+      if 'prior_acq_values' in aux:
+        # Take the first element of the array because `aux` is computed only for
+        # the best candidate.
+        prior_acq_value = aux['prior_acq_values'][0]
+        metadata.ns('prior_acquisition').update({'value': f'{prior_acq_value}'})
       metadata.ns('timing').update({'time': f'{end_time - start_time}'})
       suggestions.append(
           vz.TrialSuggestion(
