@@ -559,11 +559,13 @@ class VizierConverter:
             vizier_trial.final_measurement
         ),
         status=self._to_tuner_trial_status(vizier_trial.status),
-        created_time=int(
+        created_time=int(  # pylint: disable=g-long-ternary
             vizier_trial.creation_time.replace(
                 tzinfo=datetime.timezone.utc
             ).timestamp()
-        ),
+        )
+        if vizier_trial.creation_time
+        else None,
         completed_time=int(  # pylint: disable=g-long-ternary
             vizier_trial.completion_time.replace(
                 tzinfo=datetime.timezone.utc

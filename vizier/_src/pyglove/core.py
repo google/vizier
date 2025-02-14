@@ -59,6 +59,10 @@ class VizierTrial(pg.tuning.Trial):
     completed_time = (
         int(trial.completion_time.timestamp()) if trial.completion_time else 0
     )
+    created_time = (
+        int(trial.creation_time.timestamp()) if trial.creation_time else 0
+    )
+
     super().__init__(
         dna=pg.DNA(None),
         id=trial.id,
@@ -67,7 +71,7 @@ class VizierTrial(pg.tuning.Trial):
             trial.final_measurement
         ),
         status=_trial_status_legacy_value(trial.status),
-        created_time=int(trial.creation_time.timestamp()),
+        created_time=created_time,
         completed_time=completed_time,
         infeasible=trial.infeasible,
         **kwargs,
