@@ -19,7 +19,7 @@ import dopamine.jax.agents.dqn.dqn_agent
 import dopamine.jax.agents.full_rainbow.full_rainbow_agent
 import dopamine.jax.networks
 import dopamine.labs.atari_100k.atari_100k_rainbow_agent
-import dopamine.replay_memory.prioritized_replay_buffer
+import dopamine.tf.replay_memory.prioritized_replay_buffer
 
 # Parameters specific to OTRainbow are higlighted by comments
 JaxDQNAgent.gamma = 0.99
