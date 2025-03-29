@@ -278,25 +278,28 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
     pytrials = []
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': 2.0})
+            pyvizier.Measurement(metrics={'max': 8.0, 'min': 0.0})
         )
     )
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 3.0, 'min': -1.0})
+            pyvizier.Measurement(metrics={'max': 6.0, 'min': -2.0})
         )
     )
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -4.0})
         )
     )
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(
-        curve.ys, [[0.0, 3.0, 8.0]], decimal=0.5
-    )
+    # After the sign of the minimization metric is flipped, the three metric
+    # points are (8, 0), (6, 2), (4, 4). After normalization, they become
+    # (4, 0), (3, 1), (2, 2). The origin is (0, 0). The sequence of hypervolume
+    # is expected to be (0, 3.5, 6.0). However, we allow a large error because
+    # the hypervolume computation is approximate.
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 3.5, 6.0]], decimal=0)
 
   def test_convert_with_reference(self):
     generator = convergence.HypervolumeCurveConverter(
@@ -313,25 +316,29 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
     pytrials = []
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': 2.0})
+            pyvizier.Measurement(metrics={'max': 8.0, 'min': 0.0})
         )
     )
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 3.0, 'min': -1.0})
+            pyvizier.Measurement(metrics={'max': 6.0, 'min': -2.0})
         )
     )
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+            pyvizier.Measurement(metrics={'max': 4.0, 'min': -4.0})
         )
     )
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(
-        curve.ys, [[0.0, 0.0, 2.0]], decimal=0.5
-    )
+    # After the sign of the minimization metric is flipped, the three metric
+    # points are (8, 0), (6, 2), (4, 4). After normalization, they become
+    # (4, 0), (3, 1), (2, 2). After accounting for the reference point (3, 0),
+    # they are (1, 0), (0, 1), (-1, 2). The sequence of hypervolume
+    # is expected to be (0, 0.5, 0.5). However, we allow a large error
+    # because the hypervolume computation is approximate.
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.5, 0.5]], decimal=0)
 
   def test_convert_with_none_reference(self):
     generator = convergence.HypervolumeCurveConverter([
@@ -361,9 +368,7 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(
-        curve.ys, [[0.0, 0.0, 1.0]], decimal=0.5
-    )
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 1.0]], decimal=0)
 
   def test_convert_with_inf_none_reference(self):
     generator = convergence.HypervolumeCurveConverter([
@@ -401,6 +406,7 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
             ),
         ],
         reference_value=np.array([0.0]),
+        disable_metric_normalization=True,
     )
     pytrials = []
     pytrials.append(
@@ -415,15 +421,13 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
     )
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': -2.0})
+            pyvizier.Measurement(metrics={'max': 3.0, 'min': -2.0})
         )
     )
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(
-        curve.ys, [[0.0, 5.0, 9.0]], decimal=0.5
-    )
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 5.0, 9.0]], decimal=0)
 
     pytrials = []
     pytrials.append(
@@ -439,7 +443,7 @@ class HypervolumeCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [4, 5])
-    np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=0.5)
+    np.testing.assert_array_almost_equal(curve.ys, [[9.0, 10.0]], decimal=0)
 
   def test_convert_factor_with_inf(self):
     generator = convergence.HypervolumeCurveConverter(
@@ -534,7 +538,7 @@ class MultiMetricCurveConverterTest(parameterized.TestCase):
     pytrials = []
     pytrials.append(
         pyvizier.Trial().complete(
-            pyvizier.Measurement(metrics={'max': 4.0, 'min': -1.0, 'safe': 1.0})
+            pyvizier.Measurement(metrics={'max': 2.0, 'min': 0.0, 'safe': 1.0})
         )
     )
     pytrials.append(
@@ -552,9 +556,7 @@ class MultiMetricCurveConverterTest(parameterized.TestCase):
 
     curve = generator.convert(pytrials)
     np.testing.assert_array_equal(curve.xs, [1, 2, 3])
-    np.testing.assert_array_almost_equal(
-        curve.ys, [[4.0, 4.0, 8.0]], decimal=0.5
-    )
+    np.testing.assert_array_almost_equal(curve.ys, [[0.0, 0.0, 2.0]], decimal=0)
 
 
 class RestartingCurveConverterTest(absltest.TestCase):
@@ -570,6 +572,7 @@ class RestartingCurveConverterTest(absltest.TestCase):
                   name='min', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE
               ),
           ],
+          disable_metric_normalization=True,
       )
 
     restart_converter = convergence.RestartingCurveConverter(
