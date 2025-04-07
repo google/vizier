@@ -79,16 +79,24 @@ def optimal_transformation(
   lambdas = preprocessing.PowerTransformer(
       method, standardize=False).fit(data).lambdas_.astype(dtype)
 
-  logging.info('Optimal lambda was: %s', lambdas)
+  logging.info('Optimal lambda was: %s, %s', lambdas, lambdas.dtype)
 
   if dimension == 1:
     # Make it a scalar, so we don't end up with batch_shape = [1] in the
     # bijector.
     lambdas = lambdas.item()
   if method == 'yeo-johnson':
-    warp = tfsb.YeoJohnson(lambdas)
+    # Cast the default values of `rho` and `shift` to the same dtype as `data`
+    # to avoid dtype mismatch errors.
+    warp = tfsb.YeoJohnson(
+        lambdas, rho=np.asarray(2.0, dtype=dtype), shift=np.asarray(1.0, dtype)
+    )
   elif method == 'box-cox':
-    warp = tfsb.YeoJohnson(lambdas, shift=.0)
+    # Cast the default values of `rho` and `shift` to the same dtype as `data`
+    # to avoid dtype mismatch errors.
+    warp = tfsb.YeoJohnson(
+        lambdas, rho=np.asarray(2.0, dtype), shift=np.asarray(0.0, dtype)
+    )
   else:
     raise ValueError(f'Unknown method: {method}')
 
