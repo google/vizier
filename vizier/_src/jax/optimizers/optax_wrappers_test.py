@@ -17,6 +17,7 @@ from __future__ import annotations
 """Tests for optimizers."""
 
 from absl.testing import parameterized
+import jax
 import optax
 from tensorflow_probability.substrates import jax as tfp
 from vizier._src.jax.optimizers.testing import sinusoidal
@@ -24,6 +25,7 @@ from vizier.jax import optimizers
 
 from absl.testing import absltest
 
+jax.config.update('jax_threefry_partitionable', False)
 
 tfb = tfp.bijectors
 

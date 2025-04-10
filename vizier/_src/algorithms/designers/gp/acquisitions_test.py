@@ -464,4 +464,5 @@ class TrustRegionTest(absltest.TestCase):
 
 if __name__ == '__main__':
   config.update('jax_enable_x64', True)
+  config.update('jax_threefry_partitionable', False)
   absltest.main()
