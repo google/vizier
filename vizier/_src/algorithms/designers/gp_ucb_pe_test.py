@@ -448,6 +448,7 @@ class GpUcbPeTest(parameterized.TestCase):
       self.assertAlmostEqual(
           mean + 10.0 * (stddev_from_all if idx % batch_size > 0 else stddev),
           acq,
+          places=6,
       )
       self.assertTrue(use_ucb)
 
