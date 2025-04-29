@@ -41,6 +41,18 @@ def flat_categorical_space() -> vz.SearchSpace:
   return space
 
 
+def flat_boolean_space() -> vz.SearchSpace:
+  """Search space with boolean parameter types, encoded as categorical."""
+
+  space = vz.SearchSpace()
+  root = space.root
+  root.add_bool_param('bool_0')
+  root.add_bool_param('bool_1')
+  root.add_bool_param('bool_2')
+  root.add_bool_param('bool_3')
+  return space
+
+
 def flat_continuous_space_with_scaling_trials(
     count: int = 1,
 ) -> list[vz.TrialSuggestion]:
