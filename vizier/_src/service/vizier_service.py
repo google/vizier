@@ -713,7 +713,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         if (
             output_operation.status
             == vizier_oss_pb2.EarlyStoppingOperation.Status.ACTIVE
-            or datetime.datetime.utcnow()
+            or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             - output_operation.completion_time.ToDatetime()
             < self._early_stop_recycle_period
         ):
