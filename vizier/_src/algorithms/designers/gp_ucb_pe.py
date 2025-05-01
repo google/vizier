@@ -667,6 +667,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   _prior_acquisition: Callable[[types.ModelInput], jax.Array] | None = (
       attr.field(factory=lambda: None, kw_only=True)
   )
+  _mixes_linear_kernel: bool = attr.field(default=False, kw_only=True)
 
   default_eagle_config = es.EagleStrategyConfig(
       visibility=3.6782451729470043,
@@ -798,6 +799,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
         data,
         multitask_type=self._config.multitask_type,
+        linear_coef=1.0 if self._mixes_linear_kernel else None,
     ).coroutine
     model = sp.CoroutineWithData(coroutine, data)
 
@@ -833,6 +835,15 @@ class VizierGPUCBPEBandit(vza.Designer):
             [[1.0] * data.features.categorical.padded_array.shape[-1]]
         ),
     }
+    if self._mixes_linear_kernel:
+      fixed_init_params.update({
+          'linear_slope_amplitude': jnp.array([0.0]),
+          'linear_shift': jnp.array([0.0]),
+          'mean_fn': jnp.zeros(
+              [1, 1]
+              + ([data.labels.shape[-1]] if data.labels.shape[-1] > 1 else [])
+          ),
+      })
     # Multitask GP models whose multitask type is not `INDEPENDENT` require
     # extra parameters for the task kernel priors, which are randomly sampled
     # and added to the fixed initialization parameters.

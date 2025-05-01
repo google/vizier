@@ -58,10 +58,16 @@ def _extract_predictions(
 class GpUcbPeTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      dict(iters=3, batch_size=5, num_seed_trials=5),
+      dict(iters=3, batch_size=5, num_seed_trials=5, mixes_linear_kernel=True),
       dict(iters=5, batch_size=1, num_seed_trials=2),
       dict(iters=5, batch_size=3, num_seed_trials=2, ensemble_size=3),
-      dict(iters=3, batch_size=5, num_seed_trials=5, applies_padding=True),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          applies_padding=True,
+          mixes_linear_kernel=True,
+      ),
       dict(iters=5, batch_size=1, num_seed_trials=2, pe_overwrite=True),
       dict(
           iters=3,
@@ -77,6 +83,7 @@ class GpUcbPeTest(parameterized.TestCase):
           applies_padding=True,
           optimize_set_acquisition_for_exploration=True,
           search_space=test_studies.flat_categorical_space(),
+          mixes_linear_kernel=True,
       ),
       dict(
           iters=3,
@@ -86,7 +93,13 @@ class GpUcbPeTest(parameterized.TestCase):
           ensemble_size=3,
           turns_on_high_noise_mode=True,
       ),
-      dict(iters=3, batch_size=5, num_seed_trials=5, num_metrics=2),
+      dict(
+          iters=3,
+          batch_size=5,
+          num_seed_trials=5,
+          num_metrics=2,
+          mixes_linear_kernel=True,
+      ),
       dict(
           iters=3,
           batch_size=3,
@@ -110,6 +123,7 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           num_metrics=2,
           multitask_type=mt_type.SEPARABLE_NORMAL_TASK_KERNEL_PRIOR,
+          mixes_linear_kernel=True,
       ),
       dict(
           iters=3,
@@ -124,6 +138,7 @@ class GpUcbPeTest(parameterized.TestCase):
           num_seed_trials=5,
           num_metrics=2,
           multitask_type=mt_type.SEPARABLE_DIAG_TASK_KERNEL_PRIOR,
+          mixes_linear_kernel=True,
       ),
   )
   def test_on_flat_space(
@@ -145,6 +160,7 @@ class GpUcbPeTest(parameterized.TestCase):
           gp_ucb_pe.MultimetricPromisingRegionPenaltyType
       ) = gp_ucb_pe.MultimetricPromisingRegionPenaltyType.AVERAGE,
       multitask_type: mt_type = mt_type.INDEPENDENT,
+      mixes_linear_kernel: bool = False,
   ):
     # We use string names so that test case names are readable. Convert them
     # to objects.
@@ -199,6 +215,7 @@ class GpUcbPeTest(parameterized.TestCase):
             else padding.PaddingType.NONE,
         ),
         rng=jax.random.PRNGKey(1),
+        mixes_linear_kernel=mixes_linear_kernel,
     )
 
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
