@@ -442,4 +442,5 @@ if __name__ == '__main__':
   # Jax disables float64 computations by default and will silently convert
   # float64s to float32s. We must explicitly enable float64.
   jax.config.update('jax_enable_x64', True)
+  jax.config.update('jax_threefry_partitionable', False)
   absltest.main()
