@@ -8,5 +8,8 @@ scikit-learn
 # For CMA-ES.
 evojax
 
+# For PyCMAES.
+cma
+
 # For regression utils.
 lightgbm
