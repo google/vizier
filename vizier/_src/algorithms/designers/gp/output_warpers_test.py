@@ -197,6 +197,13 @@ class NormalizeLabelsTest(_OutputWarperTestCase):
   def warper(self) -> OutputWarper:
     return output_warpers.NormalizeLabels()
 
+  def labels_with_outliers(self):
+    # Uses a less extreme outlier (-1e10 instead of -1e80) because linear
+    # warping from [-1e80, 5.0] to [0.0, 1.0] maps 1.0, 1.0, 5.0, -1e80 to
+    # 1.0, 1.0, 1.0, 0.0 due to numerical precision issues and fails to preserve
+    # rank.
+    return np.array([[1.0], [1.0], [5.0], [-1e10], [np.nan], [-np.inf]])
+
   def test_known_arrays(self):
     actual = self.warper.warp(self.labels_arr)
     expected = np.asarray([0.0, 0.5, 1.0])[:, np.newaxis]

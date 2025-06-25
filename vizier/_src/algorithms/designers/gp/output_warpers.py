@@ -338,7 +338,7 @@ class HalfRankComponent(OutputWarper):
     )
 
     # Rank sort.
-    ranks = stats.rankdata(labels_arr, method='dense')  # nans ranked last.
+    ranks = stats.rankdata(labels_arr, method='dense', nan_policy='omit')
     dedup_median_index = unique_labels.searchsorted(median, 'left')
     denominator = (
         dedup_median_index + (unique_labels[dedup_median_index] == median) * 0.5
