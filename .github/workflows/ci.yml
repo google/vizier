@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12"]  # 3.x disabled b/c of 3.13 test failures w/ JAX.
-        suffix: ["core", "benchmarks", "algorithms", "clients", "pyglove", "raytune"]
+        suffix: ["core", "algorithms", "clients", "pyglove", "raytune"]  # "benchmarks" disabled b/c of Tensorflow-protobuf conflicts.
         include:
           - suffix: "clients"
             python-version: "3.8"
