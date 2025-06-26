@@ -738,10 +738,15 @@ class LinearOutputWarper(equinox.Module):
   high_bound: types.Array  # shape: ()
   min_value: types.Array  # shape: (num_metrics,)
   max_value: types.Array  # shape: (num_metrics,)
+  min_range: types.Array  # shape: ()
 
   @classmethod
   def from_obs(
-      cls, y_obs: types.Array, low_bound: float = -2.0, high_bound: float = 2.0
+      cls,
+      y_obs: types.Array,
+      low_bound: float = -2.0,
+      high_bound: float = 2.0,
+      min_range: float = 1e-20,
   ) -> 'LinearOutputWarper':
     # y shape: (num_samples, num_metrics)
     min_value = jnp.min(y_obs, axis=0)
@@ -752,6 +757,7 @@ class LinearOutputWarper(equinox.Module):
         high_bound=jnp.asarray(high_bound, dtype=jnp.float64),
         min_value=min_value,
         max_value=max_value,
+        min_range=jnp.asarray(min_range, dtype=jnp.float64),
     )
 
   @property
@@ -768,7 +774,8 @@ class LinearOutputWarper(equinox.Module):
   @property
   def _slope_bijector(self) -> tfb.Bijector:
     return tfb.Scale(
-        (self.high_bound - self.low_bound) / (self.max_value - self.min_value),
+        (self.high_bound - self.low_bound)
+        / jnp.maximum(self.max_value - self.min_value, self.min_range),
     )
 
   def warp(self, y: types.Array) -> jax.Array:

@@ -578,6 +578,30 @@ class LinearOutputWarperTest(parameterized.TestCase):
         atol=1e-05,
     )
 
+  @parameterized.parameters(
+      {'dtype': 'numpy', 'label_value': 0.0},
+      {'dtype': 'jax', 'label_value': 123.0},
+      {'dtype': 'jax', 'label_value': -54321.0},
+  )
+  def test_warp_unwarp_constant_labels(self, dtype: str, label_value: float):
+    y = np.ones(shape=(10, 3)) * label_value
+    if dtype == 'jax':
+      y = jnp.asarray(y, dtype=np.float64)
+    output_warper = output_warpers.LinearOutputWarper.from_obs(
+        y_obs=y, low_bound=-2.0, high_bound=2.0
+    )
+    warped_y = output_warper.warp(y)
+    np.testing.assert_allclose(
+        warped_y,
+        -2.0,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        output_warper.unwarp(warped_y),
+        y,
+        atol=1e-5,
+    )
+
 
 if __name__ == '__main__':
   absltest.main()
