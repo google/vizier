@@ -277,6 +277,48 @@ class VectorizedBaseTest(parameterized.TestCase):
         -((0.4 - 0.52) ** 2),
     )
 
+  @parameterized.named_parameters(
+      ('score_nan_aux_ok', jnp.nan, 1.0), ('score_ok_aux_nan', -2.0, jnp.nan)
+  )
+  def test_best_candidates_to_trials_warnings_on_nans(
+      self, score_value: float, aux1_value: float
+  ):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 1.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 1.0)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_with_aux_fn = lambda x, seed: (
+        score_value * jnp.ones(x.continuous.padded_array.shape[0]),
+        {
+            'aux1': aux1_value * jnp.ones(x.continuous.padded_array.shape[0]),
+            'aux2': 5.0 * jnp.ones(x.continuous.padded_array.shape[0]),
+        },
+    )
+    optimizer = vb.VectorizedOptimizerFactory(
+        strategy_factory=fake_increment_strategy_factory,
+        suggestion_batch_size=5,
+        max_evaluations=10,
+    )(converter=converter)
+    best_candidates_array = optimizer(
+        score_fn=lambda x, seed: score_with_aux_fn(x, seed)[0],
+        score_with_aux_fn=score_with_aux_fn,
+        count=1,
+    )
+    best_candidates = vb.best_candidates_to_trials(
+        best_candidates_array, converter=converter
+    )
+    self.assertLen(best_candidates, 1)
+    self.assertIn(
+        vb.ACQUISITION_OPTIMIZATION_WARNING_KEY,
+        best_candidates[0].metadata.ns('devinfo'),
+    )
+    self.assertIn(
+        'NaN',
+        best_candidates[0].metadata.ns('devinfo')[
+            vb.ACQUISITION_OPTIMIZATION_WARNING_KEY
+        ],
+    )
+
   def test_vectorized_optimizer_factory(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)
