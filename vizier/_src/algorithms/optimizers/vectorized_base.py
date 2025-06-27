@@ -41,6 +41,9 @@ _S = TypeVar('_S')  # A container of optimizer state that works as a Pytree.
 VectorizedOptimizerInput = types.ContinuousAndCategorical[types.Array]
 
 
+ACQUISITION_OPTIMIZATION_WARNING_KEY = 'acquisition_optimization_warning'
+
+
 class RandomSampler(abc.ABC):
   """Random sampler for vectorized optimizer."""
 
@@ -622,13 +625,26 @@ def best_candidates_to_trials(
           )[0]
       )
       metadata = trial.metadata.ns('devinfo')
+      aux_tree = jax.tree.map(
+          lambda x, ind=ind: np.asarray(x[ind]), best_results.aux
+      )
       metadata['acquisition_optimization'] = json.dumps(
-          {'acquisition': best_results.rewards[ind]}
-          | jax.tree.map(
-              lambda x, ind=ind: np.asarray(x[ind]), best_results.aux
-          ),
+          {'acquisition': best_results.rewards[ind]} | aux_tree,
           cls=json_utils.NumpyEncoder,
       )
+      leaves, _ = jax.tree.flatten(
+          {
+              'acquisition': best_results.rewards[ind],
+              'aux': aux_tree,
+          },
+      )
+      any_nan = any([jnp.isnan(leaf).any() for leaf in leaves])
+      if any_nan:
+        metadata[ACQUISITION_OPTIMIZATION_WARNING_KEY] = (
+            'NaNs encountered in acquisition optimization. See the'
+            ' "acquisition_optimization" field in the metadata for more'
+            ' details.'
+        )
 
       trial.complete(vz.Measurement({'acquisition': reward}))
       trials.append(trial)
