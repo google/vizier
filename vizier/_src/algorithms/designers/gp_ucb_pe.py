@@ -106,7 +106,7 @@ class UCBPEConfig(eqx.Module):
   # is below this threshold, the designer considers the noise to be high and may
   # explore more aggressively. Set to 0.0 to disable this feature.
   signal_to_noise_threshold: jt.Float[jt.Array, ''] = eqx.field(
-      default=0.1, converter=jnp.asarray
+      default=0.7, converter=jnp.asarray
   )
   # Whether to optimize the set acquisition function for exploration.
   optimize_set_acquisition_for_exploration: bool = eqx.field(
