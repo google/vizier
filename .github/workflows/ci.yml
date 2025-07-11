@@ -48,6 +48,7 @@ jobs:
         # NOTE: grpcio-tools needs to be periodically updated to support later Python versions.
       - name: Install essential dependencies
         run: |
+          sudo apt-get update
           sudo apt-get install -y libprotobuf-dev
           python -m pip install --upgrade pip setuptools
           pip install wheel
