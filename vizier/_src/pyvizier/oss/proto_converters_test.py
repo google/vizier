@@ -332,7 +332,9 @@ class TrialConverterToProtoTest(absltest.TestCase):
 
     pytrial = proto_converters.TrialConverter.from_proto(proto)
     got = proto_converters.TrialConverter.to_proto(pytrial)
-    compare.assertProto2SameElements(self, proto, got, number_matters=True)
+    compare.assertProto2Equal(
+        self, proto, got, ignore_repeated_fields_order=True
+    )
 
   def testMeasurementBackToBackConversion(self):
     proto = study_pb2.Trial(
@@ -351,7 +353,9 @@ class TrialConverterToProtoTest(absltest.TestCase):
 
     pytrial = proto_converters.TrialConverter.from_proto(proto)
     got = proto_converters.TrialConverter.to_proto(pytrial)
-    compare.assertProto2SameElements(self, proto, got, number_matters=True)
+    compare.assertProto2Equal(
+        self, proto, got, ignore_repeated_fields_order=True
+    )
 
 
 class ParameterConfigConverterToProtoTest(absltest.TestCase):
