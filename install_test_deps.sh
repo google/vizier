@@ -14,37 +14,34 @@
 
 #!/bin/bash
 #
-# Usage: `run_tests.sh (test_name)`
+# Usage: `install_test_deps.sh (test_name)`
 #     where `test_name` can be the following case strings shown below.
-#
-# Note: you need to run `install_test_deps.sh (test_name)` first to install the
-# test-specific dependencies.
 #
 # In a GitHub workflow, the `test_name` will be supplied in the YAML file.
 
 case $1 in
   "core")
-    pytest -n auto vizier \
-    --ignore=vizier/_src/benchmarks/ \
-    --ignore=vizier/_src/algorithms/ \
-    --ignore=vizier/_src/pyglove/ \
-    --ignore=vizier/_src/jax/ \
-    --ignore=vizier/_src/raytune/
+    pip install -r requirements-jax.txt
     ;;
   "algorithms")
-    echo "These tests are too slow."
-    # pytest -n auto vizier/_src/algorithms/
+    pip install -r requirements-algorithms.txt -r requirements-jax.txt
     ;;
   "benchmarks")
-    pytest -n auto vizier/_src/benchmarks/
+    pip install \
+        -r requirements-jax.txt \
+        -r requirements-tf.txt \
+        -r requirements-benchmarks.txt
     ;;
   "clients")
-    python vizier/service/clients/__init__.py
     ;;
   "pyglove")
-    pytest -n auto vizier/_src/pyglove/
+    pip install -r requirements-jax.txt
+    pip install pyglove
     ;;
   "raytune")
-    pytest -n auto vizier/_src/raytune/
+    pip install -U ray[tune]
+    pip install -r requirements-jax.txt
+    pip install pyarrow
+    pip install pandas
     ;;
 esac

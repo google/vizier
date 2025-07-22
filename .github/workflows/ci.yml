@@ -59,6 +59,7 @@ jobs:
           pip install -r requirements-test.txt
       - name: Print installed dependencies
         run: pip list
-      - name: Install test-specific dependencies and run test
-      # TODO: Split install and run.
+      - name: Install test-specific dependencies
+        run: bash install_test_deps.sh ${{ matrix.suffix }}
+      - name: Run tests
         run: bash run_tests.sh ${{ matrix.suffix }}
