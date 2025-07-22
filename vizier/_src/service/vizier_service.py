@@ -844,7 +844,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         trial.state = study_pb2.Trial.STOPPING
         self.datastore.update_trial(trial)
       elif trial.state in (study_pb2.Trial.STOPPING, study_pb2.Trial.SUCCEEDED):
-        logging.warn(
+        logging.warning(
             'Trial %s has state %s. StopTrial will be a no-op.',
             request.name,
             study_pb2.Trial.State.Name(trial.state),
