@@ -85,8 +85,9 @@ class RandomDesigner(vza.Designer):
     sample = dict()
     for name, spec in self._converter.output_specs.items():
       if spec.type == converters.NumpyArraySpecType.DISCRETE:
-        sample[name] = self._rng.random_integers(
-            spec.bounds[0], spec.bounds[1] - spec.num_oovs, size=[count, 1])
+        sample[name] = self._rng.randint(
+            spec.bounds[0], spec.bounds[1] - spec.num_oovs + 1, size=[count, 1]
+        )
       elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:
         # Trial-Numpy converter was configured to scale values to [0, 1].
         # Sample uniformly in that range and convert back to Trials.
