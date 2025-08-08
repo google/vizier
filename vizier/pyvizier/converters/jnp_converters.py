@@ -21,6 +21,7 @@ from typing import Sequence, Tuple
 import attr
 import attrs
 import jax
+from jax import numpy as jnp
 import numpy as np
 from vizier import pyvizier as vz
 from vizier._src.jax import types as vt
@@ -147,6 +148,7 @@ class TrialToModelInputConverter:
   """Converts trials to arrays and pads / masks them."""
 
   _impl: 'TrialToContinuousAndCategoricalConverter'
+  _problem: vz.ProblemStatement
   _padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule()
 
   @classmethod
@@ -201,6 +203,7 @@ class TrialToModelInputConverter:
     )
     return cls(
         TrialToContinuousAndCategoricalConverter(converter),
+        problem=problem,
         padding_schedule=padding_schedule,
     )
 
@@ -242,6 +245,35 @@ class TrialToModelInputConverter:
   @property
   def metric_specs(self) -> Sequence[vz.MetricInformation]:
     return self._impl.metric_specs
+
+  @property
+  def continuous_feasible_values(self) -> list[jax.Array]:
+    """Returns a list of feasible values for each continuified parameter.
+
+    The list is ordered the same as the parameters in the search space. An empty
+    array means that the parameter is continuous and all values within its
+    range are feasible. The returned feasible values are in the scaled space.
+    Categorical parameters are ignored.
+    """
+
+    continuous_feasible_values = []
+    for param in self._problem.search_space.parameters:
+      if param.type in [vz.ParameterType.DISCRETE, vz.ParameterType.INTEGER]:
+        converted_feasible_values = self.to_features([
+            vz.TrialSuggestion(parameters={param.name: value})
+            for value in param.feasible_values
+        ]).continuous.unpad()
+        continuous_feasible_values.append(
+            # `self.to_features` returns NaNs for missing parameters (we call it
+            # with one specific parameter instead of all parameters in the
+            # search space), so we remove them here.
+            converted_feasible_values[~jnp.isnan(converted_feasible_values)]
+        )
+      elif param.type == vz.ParameterType.DOUBLE:
+        continuous_feasible_values.append(jnp.asarray([]))
+      elif param.type == vz.ParameterType.CUSTOM:
+        continuous_feasible_values.append(jnp.asarray([]))
+    return continuous_feasible_values
 
 
 @attr.define

@@ -109,6 +109,61 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
     )
     self.maxDiff = None
 
+  def test_continuous_feasible_values(self):
+    """Tests the `continuous_feasible_values` property.
+
+    The returned feasible values are expected to be in the scaled space, and
+    categorical parameters are ignored.
+    """
+    space = vz.SearchSpace()
+    root = space.root
+    root.add_discrete_param('discrete_double', [-0.4, -0.3, 0.4, 1.1, 1.15])
+    root.add_discrete_param('discrete_int', [5, 9])
+    root.add_categorical_param('categorical', ['b', 'c'])
+    root.add_discrete_param(
+        'discrete_logdouble', [1e-5, 1e-2, 1e-1], scale_type=vz.ScaleType.LOG
+    )
+    root.add_int_param('integer', -2, 2)
+    root.add_float_param('float', -3, 4)
+    converter = jnpc.TrialToModelInputConverter.from_problem(
+        vz.ProblemStatement(
+            search_space=space,
+            metric_information=[
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                )
+            ],
+        )
+    )
+    self.assertLen(converter.continuous_feasible_values, 5)
+    self.assertSequenceAlmostEqual(
+        converter.continuous_feasible_values[0],
+        # The original feasible values are linearly scaled to [0, 1].
+        (np.asarray([-0.4, -0.3, 0.4, 1.1, 1.15]) + 0.4) / 1.55,
+    )
+    self.assertSequenceAlmostEqual(
+        # The original feasible values [5, 9] are linearly scaled to [0, 1].
+        converter.continuous_feasible_values[1],
+        np.asarray([0.0, 1.0]),
+    )
+    self.assertSequenceAlmostEqual(
+        converter.continuous_feasible_values[2],
+        # The original feasible values [1e-5, 1e-2, 1e-1] are log-then-linearly
+        # scaled to [0, 1].
+        (
+            (np.log([1e-5, 1e-2, 1e-1]) - np.log(1e-5))
+            / (np.log(1e-1) - np.log(1e-5))
+        ),
+    )
+    self.assertSequenceAlmostEqual(
+        converter.continuous_feasible_values[3],
+        # The integer parameter with range [-2, 2] are internally scaled to
+        # evenly spaced values in [0, 1].
+        np.asarray([0.0, 0.25, 0.5, 0.75, 1.0]),
+    )
+    # Feasible values for float parameters are empty.
+    self.assertEmpty(converter.continuous_feasible_values[4])
+
   def test_back_to_back_conversion(self):
     converter = jnpc.TrialToContinuousAndCategoricalConverter.from_study_config(
         self._study_config

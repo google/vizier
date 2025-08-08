@@ -25,6 +25,8 @@ from vizier._src.algorithms.designers import scalarization
 from vizier._src.algorithms.designers.gp import acquisitions
 from vizier._src.jax import types
 from absl.testing import absltest
+from absl.testing import parameterized
+
 
 tfd = tfp.distributions
 tfpk = tfp.math.psd_kernels
@@ -178,7 +180,7 @@ class AcquisitionsTest(absltest.TestCase):
         0.46017216,
     )
 
-  def test_mes(self):
+  def test_max_value_entropy_search(self):
     num_obs = 10
     num_pred = 6
     labels = np.random.normal(size=([num_obs, 1]))
@@ -219,7 +221,14 @@ class AcquisitionsTest(absltest.TestCase):
         )
 
     score_fn = acquisitions.MaxValueEntropySearch.scoring_fn_factory(
-        data=data, predictive=_TestPredictive(), use_trust_region=True
+        data=data,
+        predictive=_TestPredictive(),
+        continuous_feasible_values=[
+            jnp.array([]),
+            jnp.array([]),
+            jnp.array([]),
+        ],
+        use_trust_region=True,
     )
     score = score_fn.score(init_features, seed=jax.random.PRNGKey(0))
     self.assertEqual(score.shape, (num_pred,))
@@ -337,7 +346,7 @@ class AcquisitionsTest(absltest.TestCase):
     np.testing.assert_allclose(acq_val, jnp.stack([ucb_val, ei_val]))
 
 
-class TrustRegionTest(absltest.TestCase):
+class TrustRegionTest(parameterized.TestCase):
 
   def test_trust_region_small(self):
     trusted = types.ModelInput(
@@ -346,7 +355,10 @@ class TrustRegionTest(absltest.TestCase):
         ),
         categorical=types.PaddedArray.as_padded(np.array([[0, 0], [1, 1]])),
     )
-    tr = acquisitions.TrustRegion(trusted=trusted)
+    tr = acquisitions.TrustRegion(
+        trusted=trusted,
+        continuous_feasible_values=[jnp.array([]), jnp.array([])],
+    )
 
     xs = types.ModelInput(
         continuous=types.PaddedArray.as_padded(
@@ -366,6 +378,66 @@ class TrustRegionTest(absltest.TestCase):
     )
     self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
 
+  @parameterized.named_parameters(
+      (
+          'no_padding',
+          (
+              2,
+              2,
+          ),
+      ),
+      (
+          'with_padding',
+          (
+              5,
+              10,
+          ),
+      ),
+  )
+  def test_trust_region_ignores_dimensions_with_sparse_feasible_values(
+      self, target_shape: tuple[int, ...]
+  ):
+    trusted = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            np.array([[0.0, 0.0], [0.6, 0.0]]),
+            target_shape=target_shape,
+            fill_value=np.nan,
+        ),
+        categorical=types.PaddedArray.as_padded(jnp.array([])),
+    )
+    tr = acquisitions.TrustRegion(
+        trusted=trusted,
+        continuous_feasible_values=[
+            # The first dimension has dense feasible values.
+            jnp.array(np.linspace(0.0, 1.0, 11)),
+            # The second dimension has "sparse" feasible values, i.e., there
+            # are large gaps in the feasible values, and this dimension should
+            # be ignored in the trust region computation.
+            jnp.array([0.0, 1.0]),
+        ],
+    )
+
+    xs = types.ModelInput(
+        continuous=types.PaddedArray.from_array(
+            np.array([
+                [0.5, 1.0],
+                [0.2, 1.0],
+            ]),
+            target_shape=target_shape,
+            fill_value=np.nan,
+        ),
+        categorical=types.PaddedArray.as_padded(jnp.array([])),
+    )
+    # The l-infinity distance should only depend on the first dimension.
+    num_padded_trials = target_shape[0] - xs.continuous.unpad().shape[0]
+    np.testing.assert_allclose(
+        tr.min_linf_distance(xs),
+        np.array(
+            [0.1, 0.2] + [0.0] * num_padded_trials,
+        ),
+    )
+    self.assertAlmostEqual(tr.trust_radius, 0.26, places=3)
+
   def test_trust_region_bigger(self):
     xs_cont = np.vstack(
         [
@@ -380,7 +452,9 @@ class TrustRegionTest(absltest.TestCase):
             np.ones(xs_cont.shape, dtype=types.INT_DTYPE),
         ),
     )
-    tr = acquisitions.TrustRegion(trusted=xs)
+    tr = acquisitions.TrustRegion(
+        trusted=xs, continuous_feasible_values=[jnp.array([]), jnp.array([])]
+    )
 
     xs_cont_test = np.array([[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]])
     xs_test = types.ModelInput(
@@ -414,6 +488,7 @@ class TrustRegionTest(absltest.TestCase):
     )
     tr = acquisitions.TrustRegion(
         trusted=xs,
+        continuous_feasible_values=[jnp.array([]), jnp.array([])],
     )
 
     xs_cont_test = np.array([
@@ -447,6 +522,7 @@ class TrustRegionTest(absltest.TestCase):
     )
     tr = acquisitions.TrustRegion(
         trusted=xs,
+        continuous_feasible_values=[],
     )
     xs_test = types.ModelInput(
         continuous=types.PaddedArray.as_padded(jnp.array([])),

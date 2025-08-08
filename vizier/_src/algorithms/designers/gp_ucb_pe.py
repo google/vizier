@@ -1388,7 +1388,10 @@ class VizierGPUCBPEBandit(vza.Designer):
             ),
         ),
     )
-    tr = acquisitions.TrustRegion(trusted=tr_features)
+    tr = acquisitions.TrustRegion(
+        trusted=tr_features,
+        continuous_feasible_values=self._converter.continuous_feasible_values,
+    )
 
     acquisition_problem = copy.deepcopy(self._problem)
     acquisition_problem.metric_information = [

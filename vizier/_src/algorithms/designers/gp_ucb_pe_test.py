@@ -602,6 +602,74 @@ class GpUcbPeTest(parameterized.TestCase):
           geometric_mean_of_pred_cov_eigs, arithmetic_mean_of_pred_cov_eigs
       )
 
+  @parameterized.parameters(
+      dict(num_iters=10, batch_size=1),
+      dict(num_iters=5, batch_size=2),
+  )
+  def test_discrete_parameters_are_explored(
+      self, num_iters: int, batch_size: int
+  ):
+    space = vz.SearchSpace()
+    root = space.root
+    root.add_discrete_param('discrete_double_0', [-1.0, 1.0])
+    root.add_discrete_param('discrete_double_1', [-3.0, 7.0])
+    root.add_float_param('double', min_value=-5.0, max_value=5.0)
+    problem = vz.ProblemStatement(space)
+    problem.metric_information.append(
+        vz.MetricInformation(
+            name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+        )
+    )
+    vectorized_optimizer_factory = vb.VectorizedOptimizerFactory(
+        strategy_factory=es.VectorizedEagleStrategyFactory(),
+        max_evaluations=100,
+    )
+    designer = gp_ucb_pe.VizierGPUCBPEBandit(
+        problem,
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        metadata_ns='gp_ucb_pe_bandit_test',
+        num_seed_trials=1,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10
+        ),
+        rng=jax.random.PRNGKey(1),
+    )
+    all_trials = []
+    trial_id = 1
+    discrete_double_0_count = {'-1.0': 0, '1.0': 0}
+    discrete_double_1_count = {'-3.0': 0, '7.0': 0}
+    for _ in range(num_iters):
+      suggestions = designer.suggest(count=batch_size)
+      self.assertLen(suggestions, batch_size)
+      completed_trials = []
+      for suggestion in suggestions:
+        problem.search_space.assert_contains(suggestion.parameters)
+        discrete_double_0_count[
+            str(suggestion.parameters['discrete_double_0'])
+        ] += 1
+        discrete_double_1_count[
+            str(suggestion.parameters['discrete_double_1'])
+        ] += 1
+        trial_id += 1
+        measurement = vz.Measurement()
+        for mi in problem.metric_information:
+          measurement.metrics[mi.name] = np.sum(
+              [val.as_float for val in suggestion.parameters.values()]
+          )
+        completed_trials.append(
+            suggestion.to_trial(trial_id).complete(measurement)
+        )
+      all_trials.extend(completed_trials)
+      designer.update(
+          completed=abstractions.CompletedTrials(completed_trials),
+          all_active=abstractions.ActiveTrials(),
+      )
+
+    for val, count in discrete_double_0_count.items():
+      self.assertGreater(count, 0, msg=f'discrete_double_0: {val}')
+    for val, count in discrete_double_1_count.items():
+      self.assertGreater(count, 0, msg=f'discrete_double_1: {val}')
+
 
 if __name__ == '__main__':
   jax.config.update('jax_enable_x64', True)

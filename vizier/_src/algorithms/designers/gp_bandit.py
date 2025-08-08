@@ -244,7 +244,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         eqx.filter_jit(model.precompute_predictive)(empty_data)
     )
     scoring_fn = self._scoring_function_factory(
-        empty_data, predictive, self._use_trust_region
+        empty_data,
+        predictive,
+        self._converter.continuous_feasible_values,
+        self._use_trust_region,
     )
     if (
         isinstance(scoring_fn, acq_lib.MaxValueEntropySearch)
@@ -527,7 +530,10 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     # Define acquisition function.
     scoring_fn = self._scoring_function_factory(
-        data, gp, self._use_trust_region
+        data,
+        gp,
+        self._converter.continuous_feasible_values,
+        self._use_trust_region,
     )
     logging.info('Optimizing acquisition: %s', scoring_fn)
     best_trials = self._optimize_acquisition(scoring_fn, count)

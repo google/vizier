@@ -16,7 +16,7 @@ from __future__ import annotations
 
 """Acquisition functions and builders implementations."""
 
-from typing import Callable, Mapping, Optional, Protocol
+from typing import Callable, Iterable, Mapping, Optional, Protocol
 
 import chex
 import equinox as eqx
@@ -73,6 +73,7 @@ class ScoringFunctionFactory(Protocol):
       self,
       data: types.ModelData,
       predictive: Predictive,
+      continuous_feasible_values: Iterable[jax.Array],
       use_trust_region: bool = False,
   ) -> ScoreFunction:
     pass
@@ -300,6 +301,7 @@ class MaxValueEntropySearch(eqx.Module):
       cls,
       data: types.ModelData,
       predictive: Predictive,
+      continuous_feasible_values: Iterable[jax.Array],
       use_trust_region: bool = False,
   ) -> 'MaxValueEntropySearch':
     """Builds a MaxValueEntropySearch scoring function."""
@@ -334,7 +336,11 @@ class MaxValueEntropySearch(eqx.Module):
         seed=jax.random.PRNGKey(123),
         num_max_value_samples=100,
     )
-    trust_region = TrustRegion(data.features) if use_trust_region else None
+    trust_region = (
+        TrustRegion(data.features, continuous_feasible_values)
+        if use_trust_region
+        else None
+    )
     return cls(tfp_mes, trust_region=trust_region)
 
   def score(self, xs: types.ModelInput, seed: jax.Array) -> jax.Array:
@@ -367,10 +373,15 @@ def bayesian_scoring_function_factory(
   def f(
       data: types.ModelData,
       predictive: Predictive,
+      continuous_feasible_values: Iterable[jax.Array],
       use_trust_region: bool = False,
   ) -> ScoreFunction:
     acquisition_fn = acquisition_fn_factory(data)
-    trust_region = TrustRegion(data.features) if use_trust_region else None
+    trust_region = (
+        TrustRegion(data.features, continuous_feasible_values)
+        if use_trust_region
+        else None
+    )
     return BayesianScoringFunction(predictive, acquisition_fn, trust_region)
 
   return f
@@ -682,14 +693,24 @@ class TrustRegion(eqx.Module):
 
   Limits the suggestion within the union of small L-inf norm balls around each
   of the trusted points, which are in most cases observed points. The radius
-  of the L-inf norm ball grows in the number of observed points.
+  of the L-inf norm ball grows in the number of observed points. Discrete
+  parameters that have large gaps in their feasible values are ignored from the
+  L-inf norm computation and the trust region computation to ensure all feasible
+  values can be explored.
 
-  Assumes that all points are in the unit hypercube.
+  Some hard-coded constants, e.g. min_radius, are determined based on the
+  assumption that all points are in the unit hypercube after embedding into
+  scaled space.
 
   The trust region can be used e.g. during acquisition optimization:
-    converter = converters.TrialToArrayConverter.from_study_config(problem)
-    features, labels = converter.to_xy(trials)
-    tr = TrustRegion(features, converter.output_specs)
+    converter = converters.TrialToModelInputConverter.from_problem(
+        problem,
+        scale=True,
+        max_discrete_indices=0,
+        flip_sign_for_minimization_metrics=True,
+    )
+    data = converter.to_xy(trials)
+    tr = TrustRegion(data.features, converter.continuous_feasible_values)
     # xs is a point in the search space.
     distance = tr.min_linf_distance(xs)
     if distance <= tr.trust_radius:
@@ -697,27 +718,55 @@ class TrustRegion(eqx.Module):
   """
 
   trusted: types.ModelInput
+  # A list of feasible values for each continuified parameter. An empty array
+  # means that the parameter is continuous and all values within the its range
+  # are feasible.
+  continuous_feasible_values: Iterable[jax.Array]
+  # A list of booleans indicating whether each continuous dimension should be
+  # used for trust region computation. True means that the dimension should be
+  # used. False means that the dimension should be ignored. This attribute is
+  # initialized in `__post_init__` using `continuous_feasible_values`, and not
+  # to be set by the user.
+  _continuous_dimensions_mask: list[bool] = eqx.field(
+      static=True, default_factory=list
+  )
+
+  def __post_init__(self):
+    for feasible_values in self.continuous_feasible_values:
+      if feasible_values.size > 0:
+        sorted_feasible_values = jnp.sort(feasible_values)
+        self._continuous_dimensions_mask.append(
+            bool(jnp.max(jnp.diff(sorted_feasible_values)) <= self.min_radius)
+        )
+      else:
+        self._continuous_dimensions_mask.append(True)
+
+  @property
+  def min_radius(self) -> float:
+    """Minimum radius of the trust region. Hyperparameter."""
+    return 0.2
 
   @property
   def trust_radius(self) -> jax.Array:
     # TODO: Make hyperparameters configurable.
-    min_radius = 0.2  # Hyperparameter
     dimension_factor = 5.0  # Hyperparameter
 
+    continuous_dof = jnp.sum(jnp.asarray(self._continuous_dimensions_mask))
+
     # pylint: disable=protected-access
-    dof = (
-        self.trusted.continuous._original_shape[-1]
-        + self.trusted.categorical._original_shape[-1]
-    )
+    categorical_dof = self.trusted.categorical._original_shape[-1]
+    dof = continuous_dof + categorical_dof
     # pylint: enable=protected-access
     num_obs = jnp.sum(~self.trusted.continuous.is_missing[0])
     # TODO: Discount the infeasible points. The 0.1 and 0.9 split
     # is associated with weights to feasible and infeasbile trials.
-    trust_level = (0.1 * num_obs + 0.9 * num_obs) / (
-        dimension_factor * (dof + 1)
-    )
+    original_num_obs = 0.1 * num_obs + 0.9 * num_obs
+    # `trust_level` can be an arbitrarily large positive float.
+    trust_level = original_num_obs / (dimension_factor * (dof + 1))
     return jnp.where(
-        num_obs == 0, 1.0, min_radius + (0.5 - min_radius) * trust_level
+        num_obs == 0,
+        1.0,
+        self.min_radius + (0.5 - self.min_radius) * trust_level,
     )
 
   def min_linf_distance(self, xs: types.ModelInput) -> jax.Array:
@@ -743,6 +792,14 @@ class TrustRegion(eqx.Module):
     distances = jnp.abs(
         trusted - xs[..., jnp.newaxis, :]
     )  # (M_0, M_1, ..,, N, D)
+    padded_dimension_mask = types.PaddedArray.from_array(
+        jnp.asarray(self._continuous_dimensions_mask),
+        target_shape=[trusted.shape[-1]],
+        fill_value=False,
+    ).padded_array
+    # Drop the dimensions that are not to be used for trust region by setting
+    # their distances to 0.
+    distances = jnp.where(padded_dimension_mask, distances, 0.0)
     # Mask out padded features. We set these distances to infinite since
     # they should never be considered.
     distances = jnp.where(
