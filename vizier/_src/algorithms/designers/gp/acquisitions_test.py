@@ -383,7 +383,7 @@ class TrustRegionTest(parameterized.TestCase):
           'no_padding',
           (
               2,
-              2,
+              3,
           ),
       ),
       (
@@ -399,7 +399,9 @@ class TrustRegionTest(parameterized.TestCase):
   ):
     trusted = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            np.array([[0.0, 0.0], [0.6, 0.0]]),
+            # The third dimension intentionally has infeasible values to test
+            # that the trust region computation ignores it.
+            np.array([[0.0, 0.0, 100.0], [0.6, 0.0, -120.0]]),
             target_shape=target_shape,
             fill_value=np.nan,
         ),
@@ -414,14 +416,17 @@ class TrustRegionTest(parameterized.TestCase):
             # are large gaps in the feasible values, and this dimension should
             # be ignored in the trust region computation.
             jnp.array([0.0, 1.0]),
+            # The third dimension has a single feasible value, and should
+            # still be ignored in the trust region computation.
+            jnp.array([5.0]),
         ],
     )
 
     xs = types.ModelInput(
         continuous=types.PaddedArray.from_array(
             np.array([
-                [0.5, 1.0],
-                [0.2, 1.0],
+                [0.5, 1.0, 5.0],
+                [0.2, 1.0, 5.0],
             ]),
             target_shape=target_shape,
             fill_value=np.nan,

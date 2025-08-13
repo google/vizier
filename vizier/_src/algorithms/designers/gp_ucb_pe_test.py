@@ -613,6 +613,7 @@ class GpUcbPeTest(parameterized.TestCase):
     root = space.root
     root.add_discrete_param('discrete_double_0', [-1.0, 1.0])
     root.add_discrete_param('discrete_double_1', [-3.0, 7.0])
+    root.add_discrete_param('discrete_double_single_feasible_value', [0.37])
     root.add_float_param('double', min_value=-5.0, max_value=5.0)
     problem = vz.ProblemStatement(space)
     problem.metric_information.append(

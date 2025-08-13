@@ -686,7 +686,7 @@ class MultiAcquisitionFunction(AcquisitionFunction):
     return jnp.stack(acquisitions, axis=0)
 
 
-# TODO: Support discretes and categoricals.
+# TODO: Support categoricals.
 # TODO: Support custom distances.
 class TrustRegion(eqx.Module):
   """L-inf norm based TrustRegion.
@@ -733,13 +733,20 @@ class TrustRegion(eqx.Module):
 
   def __post_init__(self):
     for feasible_values in self.continuous_feasible_values:
-      if feasible_values.size > 0:
+      if feasible_values.size == 0:
+        # Continuous dimension, always included in the trust region computation.
+        self._continuous_dimensions_mask.append(True)
+      elif feasible_values.size == 1:
+        # Discrete dimension with a single feasible value, always excluded from
+        # the trust region computation to avoid undesirable behavior when the
+        # trusted trials were generated with a larger set of feasible values
+        # for this dimension from an old study config.
+        self._continuous_dimensions_mask.append(False)
+      else:
         sorted_feasible_values = jnp.sort(feasible_values)
         self._continuous_dimensions_mask.append(
             bool(jnp.max(jnp.diff(sorted_feasible_values)) <= self.min_radius)
         )
-      else:
-        self._continuous_dimensions_mask.append(True)
 
   @property
   def min_radius(self) -> float:
