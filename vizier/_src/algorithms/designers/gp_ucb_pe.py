@@ -226,13 +226,13 @@ def _apply_trust_region(
     Acquisition function values with trust region applied.
   """
   distance = tr.min_linf_distance(xs)
-  # Due to output normalization, acquisition values can't be as low as -1e12.
+  # Due to output normalization, acquisition values can't be as low as -1e4.
   # We use a bad value that decreases in the distance to trust region so that
   # acquisition optimizer can follow the gradient and escape untrustred regions.
   return jnp.where(
       (distance < tr.trust_radius) | (tr.trust_radius > 0.5),
       acq_values,
-      -1e12 - distance,
+      -1e4 - distance,
   )
 
 
@@ -252,13 +252,13 @@ def _apply_trust_region_to_set(
     [batch_size].
   """
   distance = tr.min_linf_distance(xs)  # [batch_size, index_point_set_size]
-  # Due to output normalization, acquisition values can't be as low as -1e12.
+  # Due to output normalization, acquisition values can't be as low as -1e4.
   # We penalize the acquisition values by an amount that decreases in the
   # total distances to the trust region so that acquisition optimizer can follow
   # the gradient and escape untrustred regions.
   return acq_values + jnp.sum(
       ((distance > tr.trust_radius) & (tr.trust_radius <= 0.5))
-      * (-1e12 - distance),
+      * (-1e4 - distance),
       axis=1,
   )
 

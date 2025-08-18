@@ -238,7 +238,7 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi(data=data)
     self.assertAlmostEqual(
         acq(tfd.Normal(jnp.float64(0.1), 1)),
-        -1.0e12,
+        -1e4,
     )
 
   def test_acq_pi_tr_bad_point(self):
@@ -254,7 +254,7 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb(data=data)
     self.assertAlmostEqual(
         acq(tfd.Normal(jnp.float64(0.1), 1)),
-        jnp.array([-1e12]),
+        jnp.array([-1e4]),
         delta=2.0,
     )
 

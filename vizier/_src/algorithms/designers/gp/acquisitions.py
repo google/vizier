@@ -162,7 +162,7 @@ def _apply_trust_region(
   acquisition = jnp.where(
       ((distance <= region.trust_radius) | (region.trust_radius > 0.5)),
       acquisition,
-      -1e12 - distance,
+      -1e4 - distance,
   )
   aux = aux | {
       'mean': pred.mean(),
@@ -420,7 +420,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
     return cls(
         UCB(1.8),
         PI(best_labels),
-        bad_acq_value=-1e12,
+        bad_acq_value=-1e4,
         labels=data.labels,
         threshold=0.3,
         apply_tr_after=0,
@@ -432,7 +432,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
         UCB(1.8),
         LCB(1.8),
         labels=data.labels,
-        bad_acq_value=-1e12,
+        bad_acq_value=-1e4,
         threshold=None,
         apply_tr_after=0,
     )
@@ -445,7 +445,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
         UCB(1.8),
         LCB(2.5),
         labels=data.labels,
-        bad_acq_value=-1e12,
+        bad_acq_value=-1e4,
         threshold=None,
         apply_tr_after=0,
     )
@@ -458,7 +458,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
         UCB(1.8),
         LCB(1.8),
         labels=data.labels,
-        bad_acq_value=-1e12,
+        bad_acq_value=-1e4,
         threshold=None,
         apply_tr_after=5,
     )
