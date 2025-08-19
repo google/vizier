@@ -42,7 +42,7 @@ def stochastic_process_model_loss_fn(
       is_missing=data.labels.is_missing[0],
   ) + jax.tree_util.tree_reduce(jnp.add, mutables['losses'])
   if normalize:
-    loss /= data.labels.original_shape[0]
+    loss /= data.labels._original_shape[0]  # pylint: disable=protected-access
   return loss, dict()
 
 
