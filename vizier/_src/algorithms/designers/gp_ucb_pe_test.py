@@ -615,6 +615,10 @@ class GpUcbPeTest(parameterized.TestCase):
     root.add_discrete_param('discrete_double_1', [-3.0, 7.0])
     root.add_discrete_param('discrete_double_single_feasible_value', [0.37])
     root.add_float_param('double', min_value=-5.0, max_value=5.0)
+    root.add_int_param('integer_with_many_feasible_values', -1, 6 * 10**7)
+    root.add_discrete_param(
+        'discrete_double_many_feasible_values', np.linspace(-10.0, 10.0, 1000)
+    )
     problem = vz.ProblemStatement(space)
     problem.metric_information.append(
         vz.MetricInformation(

@@ -246,29 +246,52 @@ class TrialToModelInputConverter:
   def metric_specs(self) -> Sequence[vz.MetricInformation]:
     return self._impl.metric_specs
 
-  @property
-  def continuous_feasible_values(self) -> list[jax.Array]:
+  def continuous_feasible_values(
+      self, max_num_feasible_values: int | None = None
+  ) -> list[jax.Array]:
     """Returns a list of feasible values for each continuified parameter.
 
     The list is ordered the same as the parameters in the search space. An empty
     array means that the parameter is continuous and all values within its
     range are feasible. The returned feasible values are in the scaled space.
-    Categorical parameters are ignored.
+    Categorical parameters are ignored. If `max_num_feasible_values` is
+    specified, discrete or integer parameters with more than
+    `max_num_feasible_values` feasible values are considered continuous and
+    empty arrays are returned for them.
+
+    Args:
+      max_num_feasible_values: If specified, discrete or integer parameters with
+        more than this many feasible values are considered continuous and empty
+        arrays are returned for them.
+
+    Returns:
+      A list of feasible values for each continuified parameter. The list is
+      ordered the same as the parameters in the search space.
     """
 
     continuous_feasible_values = []
     for param in self._problem.search_space.parameters:
       if param.type in [vz.ParameterType.DISCRETE, vz.ParameterType.INTEGER]:
-        converted_feasible_values = self.to_features([
-            vz.TrialSuggestion(parameters={param.name: value})
-            for value in param.feasible_values
-        ]).continuous.unpad()
-        continuous_feasible_values.append(
-            # `self.to_features` returns NaNs for missing parameters (we call it
-            # with one specific parameter instead of all parameters in the
-            # search space), so we remove them here.
-            converted_feasible_values[~jnp.isnan(converted_feasible_values)]
-        )
+        if param.type == vz.ParameterType.INTEGER:
+          num_feasible_values = param.bounds[1] - param.bounds[0] + 1
+        else:
+          num_feasible_values = len(param.feasible_values)
+        if (
+            max_num_feasible_values is not None
+            and num_feasible_values > max_num_feasible_values
+        ):
+          continuous_feasible_values.append(jnp.asarray([]))
+        else:
+          converted_feasible_values = self.to_features([
+              vz.TrialSuggestion(parameters={param.name: value})
+              for value in param.feasible_values
+          ]).continuous.unpad()
+          continuous_feasible_values.append(
+              # `self.to_features` returns NaNs for missing parameters (we call
+              # it with one specific parameter instead of all parameters in the
+              # search space), so we remove them here.
+              converted_feasible_values[~jnp.isnan(converted_feasible_values)]
+          )
       elif param.type == vz.ParameterType.DOUBLE:
         continuous_feasible_values.append(jnp.asarray([]))
       elif param.type == vz.ParameterType.CUSTOM:

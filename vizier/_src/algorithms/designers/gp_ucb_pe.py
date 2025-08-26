@@ -54,6 +54,12 @@ from vizier.utils import profiler
 tfd = tfp.distributions
 
 
+# The maximum number of feasible values to use for the trust region. If a
+# discrete or integer parameter has more than this many feasible values, it is
+# considered continuous and always included in the trust region computation.
+_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION = 1000
+
+
 class MultimetricPromisingRegionPenaltyType(enum.Enum):
   """The type of penalty to apply to the points outside the promising region.
 
@@ -1390,7 +1396,9 @@ class VizierGPUCBPEBandit(vza.Designer):
     )
     tr = acquisitions.TrustRegion(
         trusted=tr_features,
-        continuous_feasible_values=self._converter.continuous_feasible_values,
+        continuous_feasible_values=self._converter.continuous_feasible_values(
+            max_num_feasible_values=_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION
+        ),
     )
 
     acquisition_problem = copy.deepcopy(self._problem)

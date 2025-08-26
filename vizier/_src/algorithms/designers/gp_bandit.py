@@ -50,6 +50,13 @@ from vizier.pyvizier import converters
 from vizier.pyvizier.converters import padding
 from vizier.utils import profiler
 
+
+# The maximum number of feasible values to use for the trust region. If a
+# discrete or integer parameter has more than this many feasible values, it is
+# considered continuous and always included in the trust region computation.
+_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION = 1000
+
+
 default_acquisition_optimizer_factory = vb.VectorizedOptimizerFactory(
     strategy_factory=es.VectorizedEagleStrategyFactory(
         eagle_config=es.EagleStrategyConfig()
@@ -246,7 +253,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     scoring_fn = self._scoring_function_factory(
         empty_data,
         predictive,
-        self._converter.continuous_feasible_values,
+        self._converter.continuous_feasible_values(
+            max_num_feasible_values=_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION
+        ),
         self._use_trust_region,
     )
     if (
@@ -532,7 +541,9 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     scoring_fn = self._scoring_function_factory(
         data,
         gp,
-        self._converter.continuous_feasible_values,
+        self._converter.continuous_feasible_values(
+            max_num_feasible_values=_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION
+        ),
         self._use_trust_region,
     )
     logging.info('Optimizing acquisition: %s', scoring_fn)
