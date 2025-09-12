@@ -67,6 +67,45 @@ def nsga2_on_all_types(
 
 class Nsga2Test(absltest.TestCase):
 
+  def test_pareto_rank_empty(self):
+    ys = np.array([]).reshape(0, 2)
+    ranks = nsga2._pareto_rank(ys)
+    self.assertEqual(ranks.shape, (0,))
+
+  def test_pareto_rank_single(self):
+    ys = np.array([[1.0, 2.0]])
+    ranks = nsga2._pareto_rank(ys)
+    np.testing.assert_array_equal(ranks, [0])
+
+  def test_pareto_rank_simple_dominance(self):
+    # P0 dominates P1
+    # P0 dominates P2
+    # P1 and P2 don't dominate each other
+    ys = np.array([[2.0, 3.0], [1.0, 3.0], [2.0, 2.0]])
+    ranks = nsga2._pareto_rank(ys)
+    np.testing.assert_array_equal(ranks, [0, 1, 1])
+
+  def test_pareto_rank_no_dominance(self):
+    ys = np.array([[1.0, 5.0], [2.0, 4.0], [3.0, 3.0]])
+    ranks = nsga2._pareto_rank(ys)
+    np.testing.assert_array_equal(ranks, [0, 0, 0])
+
+  def test_pareto_rank_duplicate_points_do_not_dominate_each_other(self):
+    ys = np.array([[2.0, 3.0], [1.0, 2.0], [2.0, 3.0]])
+    ranks = nsga2._pareto_rank(ys)
+    np.testing.assert_array_equal(ranks, [0, 2, 0])
+
+  def test_pareto_rank_larger_case(self):
+    ys = np.array([
+        [10, 5],  # 0
+        [8, 5],  # 1: (dominated by [10, 5])
+        [9, 4],  # 1: (dominated by [10, 5])
+        [8, 4],  # 3: (dominated by [10, 5], [8, 5], [9, 4])
+        [1, 10],  # 0
+    ])
+    ranks = nsga2._pareto_rank(ys)
+    np.testing.assert_array_equal(ranks, [0, 1, 1, 3, 0])
+
   def test_survival_by_pareto_rank(self):
     algorithm = nsga2_on_all_types(3)
     # Trial 0 is the only point on the frontier.
