@@ -19,7 +19,7 @@ from __future__ import annotations
 import collections
 import copy
 import dataclasses
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Literal, Optional, Sequence, Union
 
 from absl import logging
 import numpy as np
@@ -37,7 +37,7 @@ class TimedLabels:
     labels: (M, 1) arrays keyed by strings, corresponding to metrics.
   """
   times: np.ndarray
-  labels: Dict[str, np.ndarray]
+  labels: dict[str, np.ndarray]
 
 
 class TimedLabelsExtractor:
@@ -48,12 +48,14 @@ class TimedLabelsExtractor:
   CUMMAX_FIRSTONLY = 'cummax_firstonly'
   RAW = 'raw'
 
-  def __init__(self,
-               metric_converters: Sequence[core.ModelOutputConverter],
-               timestamp: str = 'steps',
-               *,
-               temporal_index_points: Sequence[float] = tuple(),
-               value_extraction: str = 'cummax_lastonly'):
+  def __init__(
+      self,
+      metric_converters: Sequence[core.ModelOutputConverter],
+      timestamp: Literal['steps', 'elapsed_secs', 'index'] = 'steps',
+      *,
+      temporal_index_points: Sequence[float] = tuple(),
+      value_extraction: str = 'cummax_lastonly',
+  ):
     """Init.
 
     Args:
@@ -88,6 +90,8 @@ class TimedLabelsExtractor:
                                 self.CUMMAX_FIRSTONLY):
       raise ValueError(
           'Bad value for value_extraction rule: {}'.format(value_extraction))
+    if timestamp not in ('steps', 'elapsed_secs', 'index'):
+      raise ValueError(f'Invalid timestamp: {timestamp}')
     if value_extraction in [self.CUMMAX_LASTONLY, self.CUMMAX_FIRSTONLY]:
       if len(metric_converters) > 1:
         raise ValueError(
@@ -104,7 +108,7 @@ class TimedLabelsExtractor:
     else:
       return np.minimum
 
-  def convert(self, trials: Sequence[pyvizier.Trial]) -> List[TimedLabels]:
+  def convert(self, trials: Sequence[pyvizier.Trial]) -> list[TimedLabels]:
     """Converts each trial into TimedLabels object."""
     timedlabels = []
     if self.temporal_index_points.size == 0:
@@ -193,15 +197,15 @@ class TimedLabelsExtractor:
   def to_timestamps(self,
                     measurements: Sequence[pyvizier.Measurement]) -> np.ndarray:
     """"Returns an arry of shape (len(measurements), 1)."""
-    timestamps = []
-
-    for idx, measurement in enumerate(measurements):
-      if self.timestamp == 'steps':
-        timestamps.append(measurement.steps)
-      if self.timestamp == 'elapsed_secs':
-        timestamps.append(measurement.elapsed_secs)
-      if self.timestamp == 'index':
-        timestamps.append(idx)
+    if self.timestamp == 'steps':
+      timestamps = [m.steps for m in measurements]
+    elif self.timestamp == 'elapsed_secs':
+      timestamps = [m.elapsed_secs for m in measurements]
+    elif self.timestamp == 'index':
+      timestamps = list(range(len(measurements)))
+    else:
+      # Should be unreachable given check in __init__.
+      raise ValueError(f'Invalid timestamp: {self.timestamp}')
     return np.asarray(timestamps)[:, np.newaxis]
 
   def extract_all_timestamps(
@@ -245,7 +249,7 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
 
   def to_xy(
       self, trials: Sequence[pyvizier.Trial]
-  ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+  ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """Returned values can be used as `x` and `y` for keras.Model.fit().
 
     Args:
@@ -280,7 +284,7 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
 
     return all_features, all_labels
 
-  def to_features(self, trial, temporal_index_points) -> Dict[str, np.ndarray]:
+  def to_features(self, trial, temporal_index_points) -> dict[str, np.ndarray]:
     """Converts a trial at the specified index points.
 
     Args:
@@ -306,14 +310,14 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
     return features
 
   @property
-  def features_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
+  def features_shape(self) -> dict[str, Sequence[Union[int, None]]]:
     """Returned value can be used as `input_shape` for keras.Model.build()."""
     shapes = copy.deepcopy(self.trial_converter.features_shape)
     shapes[self.timed_labels_extractor.timestamp] = (None, 1)
     return shapes
 
   @property
-  def output_specs(self) -> Dict[str, core.NumpyArraySpec]:
+  def output_specs(self) -> dict[str, core.NumpyArraySpec]:
     specs = copy.deepcopy(self.trial_converter.output_specs)
     name = self.timed_labels_extractor.timestamp
     # Can't use float32 max, because
@@ -325,11 +329,11 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
     return specs
 
   @property
-  def labels_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
+  def labels_shape(self) -> dict[str, Sequence[Union[int, None]]]:
     return self.trial_converter.labels_shape
 
   @property
-  def metric_information(self) -> Dict[str, pyvizier.MetricInformation]:
+  def metric_information(self) -> dict[str, pyvizier.MetricInformation]:
     return self.trial_converter.metric_information
 
 
@@ -358,8 +362,8 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
       self.temporal_index_points = temporal_index_points
 
   def _single_timedlabels_to_temporal_observations(
-      self, timed_labels: TimedLabels,
-      ts: Union[Sequence[float], Sequence[int]]) -> Dict[str, np.ndarray]:
+      self, timed_labels: TimedLabels, ts: Union[Sequence[float], Sequence[int]]
+  ) -> dict[str, np.ndarray]:
     """Subroutine of _to_temporal_observations().
 
     Args:
@@ -409,8 +413,10 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
     return {k: np.asarray(v) for k, v in this_labels.items()}
 
   def _to_temporal_observations(
-      self, timed_labels_sequence: Sequence[TimedLabels],
-      ts: Union[Sequence[float], Sequence[int]]) -> Dict[str, np.ndarray]:
+      self,
+      timed_labels_sequence: Sequence[TimedLabels],
+      ts: Union[Sequence[float], Sequence[int]],
+  ) -> dict[str, np.ndarray]:
     """Returns a dict of np arrays of temporal observations.
 
     Filters timed_labels.labels to leave only the time indices that appear in
@@ -437,7 +443,7 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
 
   def to_xy(
       self, trials: Sequence[pyvizier.Trial]
-  ) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+  ) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
     """Returned value can be used as `x`, `y` for keras.Model.fit()."""
     all_timed_labels = self.timed_labels_extractor.convert(trials)
     labels = self._to_temporal_observations(all_timed_labels,
@@ -446,16 +452,16 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
     return self.trial_converter.to_features(trials), labels
 
   @property
-  def features_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
+  def features_shape(self) -> dict[str, Sequence[Union[int, None]]]:
     """Returned value can be used as `input_shape` for keras.Model.build()."""
     return self.trial_converter.features_shape
 
   @property
-  def output_specs(self) -> Dict[str, core.NumpyArraySpec]:
+  def output_specs(self) -> dict[str, core.NumpyArraySpec]:
     return self.trial_converter.output_specs
 
   @property
-  def labels_shape(self) -> Dict[str, Sequence[Union[int, None]]]:
+  def labels_shape(self) -> dict[str, Sequence[Union[int, None]]]:
     shapes = dict()
     for mc in self.trial_converter.metric_converters:
       shapes[mc.metric_information.name] = (None,
@@ -463,16 +469,17 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
     return shapes
 
   @property
-  def metric_information(self) -> Dict[str, pyvizier.MetricInformation]:
+  def metric_information(self) -> dict[str, pyvizier.MetricInformation]:
     return self.trial_converter.metric_information
 
-  def to_features(self,
-                  trials: Sequence[pyvizier.Trial]) -> Dict[str, np.ndarray]:
+  def to_features(
+      self, trials: Sequence[pyvizier.Trial]
+  ) -> dict[str, np.ndarray]:
     return self.trial_converter.to_features(trials)
 
   def to_xty(
       self, trials: Sequence[pyvizier.Trial], temporal_selection: str = 'auto'
-  ) -> Tuple[Dict[str, np.ndarray], np.ndarray, Dict[str, np.ndarray]]:
+  ) -> tuple[dict[str, np.ndarray], np.ndarray, dict[str, np.ndarray]]:
     """Returns x, t, and y.
 
     Args:
@@ -490,8 +497,9 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
       observations: Dict of length equal to metrics, whose values
         have shape [len(trials), len(temporal_index_points)]. May contain NaNs.
     """
-    timed_labels: List[TimedLabels] = (
-        self.timed_labels_extractor.convert(trials))
+    timed_labels: list[TimedLabels] = self.timed_labels_extractor.convert(
+        trials
+    )
 
     if temporal_selection == 'default' or (temporal_selection == 'auto' and
                                            self.temporal_index_points.size):
