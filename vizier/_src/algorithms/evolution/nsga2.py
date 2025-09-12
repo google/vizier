@@ -29,7 +29,7 @@ Offspring = numpy_populations.Offspring
 Mutation = templates.Mutation
 
 
-def _pareto_rank(ys: np.ndarray) -> np.ndarray:
+def pareto_rank(ys: np.ndarray) -> np.ndarray:
   """Pareto rank, which is the number of points dominating it.
 
   Args:
@@ -44,7 +44,7 @@ def _pareto_rank(ys: np.ndarray) -> np.ndarray:
   return np.sum(np.stack(dominated), axis=0)
 
 
-def _crowding_distance(ys: np.ndarray) -> np.ndarray:
+def crowding_distance(ys: np.ndarray) -> np.ndarray:
   """Crowding distance.
 
   Args:
@@ -123,7 +123,7 @@ class NSGA2Survival(templates.Survival):
       self,
       target_size: int,
       *,
-      ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
+      ranking_fn: Callable[[np.ndarray], np.ndarray] = pareto_rank,
       eviction_limit: Optional[int] = None
   ):
     """Init.
@@ -183,7 +183,7 @@ class NSGA2Survival(templates.Survival):
     # Sort by the distance. Include the points that are already selected for
     # the computation.
     # Flip the sign so it works with ascending sort.
-    distance = -_crowding_distance((selected + population).ys)
+    distance = -crowding_distance((selected + population).ys)
     sids = np.argsort(distance)
     # Selected points have fewer constraint violations or better pareto rank.
     # Regardless of the distance, they remain selected. Rank the remainder only.
@@ -207,7 +207,7 @@ class NSGA2Designer(
       population_size: int = 50,
       first_survival_after: Optional[int] = None,
       *,
-      ranking_fn: Callable[[np.ndarray], np.ndarray] = _pareto_rank,
+      ranking_fn: Callable[[np.ndarray], np.ndarray] = pareto_rank,
       eviction_limit: Optional[int] = None,
       adaptation: Optional[Mutation[Population, Offspring]] = None,
       adaptation_callable: Optional[

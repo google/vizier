@@ -69,12 +69,12 @@ class Nsga2Test(absltest.TestCase):
 
   def test_pareto_rank_empty(self):
     ys = np.array([]).reshape(0, 2)
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     self.assertEqual(ranks.shape, (0,))
 
   def test_pareto_rank_single(self):
     ys = np.array([[1.0, 2.0]])
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     np.testing.assert_array_equal(ranks, [0])
 
   def test_pareto_rank_simple_dominance(self):
@@ -82,17 +82,17 @@ class Nsga2Test(absltest.TestCase):
     # P0 dominates P2
     # P1 and P2 don't dominate each other
     ys = np.array([[2.0, 3.0], [1.0, 3.0], [2.0, 2.0]])
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     np.testing.assert_array_equal(ranks, [0, 1, 1])
 
   def test_pareto_rank_no_dominance(self):
     ys = np.array([[1.0, 5.0], [2.0, 4.0], [3.0, 3.0]])
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     np.testing.assert_array_equal(ranks, [0, 0, 0])
 
   def test_pareto_rank_duplicate_points_do_not_dominate_each_other(self):
     ys = np.array([[2.0, 3.0], [1.0, 2.0], [2.0, 3.0]])
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     np.testing.assert_array_equal(ranks, [0, 2, 0])
 
   def test_pareto_rank_larger_case(self):
@@ -103,7 +103,7 @@ class Nsga2Test(absltest.TestCase):
         [8, 4],  # 3: (dominated by [10, 5], [8, 5], [9, 4])
         [1, 10],  # 0
     ])
-    ranks = nsga2._pareto_rank(ys)
+    ranks = nsga2.pareto_rank(ys)
     np.testing.assert_array_equal(ranks, [0, 1, 1, 3, 0])
 
   def test_survival_by_pareto_rank(self):
@@ -244,7 +244,7 @@ class Nsga2Test(absltest.TestCase):
     self.assertTrue(np.all(algorithm.population.ages <= 3))
 
     ys = algorithm.population.ys
-    pareto = algorithm.population[nsga2._pareto_rank(ys) == 0]
+    pareto = algorithm.population[nsga2.pareto_rank(ys) == 0]
     logging.info('Pareto frontier %s %s', pareto.xs, pareto.ys)
 
     # Smoke test dump-load.
