@@ -34,6 +34,27 @@ from absl.testing import absltest
 np.set_printoptions(precision=3)
 
 
+class CrowdingDistanceTest(absltest.TestCase):
+
+  def test_crowding_distance(self):
+    ys = np.array([
+        [0.5, 4.0],
+        [0.5, 4.0],
+        [0.5, 2.0],
+        [1.0, 2.0],
+        [1.0, 2.0],
+    ])
+    result = nsga2.crowding_distance(
+        ys, extra_tiebreakers=[nsga2.pareto_rank(ys)]
+    )
+    np.testing.assert_allclose(
+        # Only one of the duplicate pareto-optimal points should get
+        # infinity score.
+        np.isinf(result).sum(),
+        2,
+    )
+
+
 def nsga2_on_all_types(
     population_size: int = 50, eviction_limit: Optional[int] = None
 ) -> templates.CanonicalEvolutionDesigner[nsga2.Population, nsga2.Offspring]:
@@ -145,8 +166,9 @@ class Nsga2Test(absltest.TestCase):
         vz.Measurement({'m1': 1.001, 'm2': -1.001, 's1': 2.0, 's2': 0.0})
     )
 
-    # 4 safe trials with the same pareto rank. Crowding distance is computed
-    # among them to break ties. Trial 3 is less "crowded" than Trial 2.
+    # 4 safe trials with the same pareto rank. Ties are broken by their crowding
+    # distances, computed *with* the pareto optimal trials. Trial 1 is most
+    # crowded because of its proximity to trial 0.
     trial1 = vz.Trial(id=1)
     trial1.complete(
         vz.Measurement({'m1': 1.0, 'm2': 0.0, 's1': 2.0, 's2': 0.9})
@@ -166,7 +188,7 @@ class Nsga2Test(absltest.TestCase):
 
     trials = vza.CompletedTrials([trial0, trial1, trial2, trial3, trial4])
     algorithm.update(trials, vza.ActiveTrials())
-    self.assertSetEqual(set(algorithm.population.trial_ids), {0, 1, 3, 4})
+    self.assertSetEqual(set(algorithm.population.trial_ids), {0, 2, 3, 4})
 
   def test_survival_by_safety(self):
     algorithm = nsga2_on_all_types(3)

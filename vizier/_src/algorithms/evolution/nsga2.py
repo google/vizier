@@ -16,8 +16,9 @@ from __future__ import annotations
 
 """NSGA-II algorithm: https://ieeexplore.ieee.org/document/996017."""
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
+from absl import logging
 import attr
 import numpy as np
 from vizier import pyvizier as vz
@@ -44,30 +45,62 @@ def pareto_rank(ys: np.ndarray) -> np.ndarray:
   return np.sum(np.stack(dominated), axis=0)
 
 
-def crowding_distance(ys: np.ndarray) -> np.ndarray:
+def crowding_distance(
+    ys: np.ndarray, *, extra_tiebreakers: Sequence[np.ndarray] = tuple()
+) -> np.ndarray:
   """Crowding distance.
+
+  Reference:
+  https://medium.com/@rossleecooloh/optimization-algorithm-nsga-ii-and-python-package-deap-fca0be6b2ffc
+  except that the lower boundary does not get infinity crowding score.
 
   Args:
     ys: (number of population) x (number of metrics) array.
+    extra_tiebreakers: A sequence of (number of population) array of floating
+      numbers. If specified, they are used to break ties when sorting the
+      population. By default, a random number is always used to break ties
+      consistently across all metrics.
 
   Returns:
     (number of population) float32 array. Higher numbers mean less crowding
     and more desirable.
   """
   scores = np.zeros([ys.shape[0]], dtype=np.float32)
+
+  if ys.shape[0] <= 1:
+    return scores
+
+  rng = np.random.default_rng()
+  # Use a random number to break ties. But the same random number is used for
+  # all metrics.
+  random_tiebreaker = rng.random(ys.shape[0])
+  tiebreakers = list(extra_tiebreakers) + [random_tiebreaker]
+
   for m in range(ys.shape[1]):
     # Sort by the m-th metric.
-    yy = ys[:, m]  # Shape: (num_population,)
-    sid = np.argsort(yy)
+    sid = sorted(
+        np.arange(ys.shape[0]),
+        key=lambda i, m=m: (ys[i, m],)
+        + tuple(tiebreaker[i] for tiebreaker in tiebreakers),
+    )
 
-    # Boundary are assigned infinity.
-    scores[sid[0]] += np.inf
+    # Compute the range of the m-th metric.
+    yy = ys[:, m]  # Shape: (num_population,)
+    yrange = yy[sid[-1]] - yy[sid[0]] + np.finfo(np.float32).eps
+
+    # Lower boundary is assigned a one-sided score and does not automatically
+    # get infinity. This is different from the paper. The lower boundary means
+    # it's dominated by all other points in one dimension. There's no reason to
+    # favor it over other points.
+    scores[sid[0]] += (yy[sid[1]] - yy[sid[0]]) / yrange
+    # Upper boundary is assigned infinity. This point will survive anyways
+    # because it's pareto-optimal. But in case there are ties, it's useful to
+    # make only one of them stand out.
     scores[sid[-1]] += np.inf
 
-    # Compute the crowding distance.
-    yrange = yy[sid[-1]] - yy[sid[0]] + np.finfo(np.float32).eps
     scores[sid[1:-1]] += (yy[sid[2:]] - yy[sid[:-2]]) / yrange
-  return scores
+  # Normalize the score to [0, 1].
+  return scores / ys.shape[1]
 
 
 def _constraint_violation(ys: np.ndarray) -> np.ndarray:
@@ -163,6 +196,7 @@ class NSGA2Survival(templates.Survival):
       # return empty.
       return population
 
+    logging.info('Selecting %s from %s', self._target_size, len(population))
     selected = population.empty_like()
     # Sort by the safety constraint.
     if selected.cs.shape[1]:
@@ -171,19 +205,33 @@ class NSGA2Survival(templates.Survival):
       )
       selected += population[top]
       population = population[border]
-
+      logging.info(
+          'Selected %s by safety constraints, and will break ties among: %s',
+          len(selected),
+          len(population),
+      )
     # Sort by the pareto rank.
     pareto_ranks = self._ranking_fn(population.ys)
     top, border = _select_by(
         pareto_ranks, target=self._target_size - len(selected)
     )
+    considered_pareto_ranks = np.concatenate(
+        [-np.ones(len(selected)), pareto_ranks[top], pareto_ranks[border]]
+    )
     selected += population[top]
     population = population[border]
-
+    logging.info(
+        'Selected %s by pareto rank, and will break ties among: %s',
+        len(selected),
+        len(population),
+    )
     # Sort by the distance. Include the points that are already selected for
     # the computation.
     # Flip the sign so it works with ascending sort.
-    distance = -crowding_distance((selected + population).ys)
+    distance = -crowding_distance(
+        (selected + population).ys,
+        extra_tiebreakers=[considered_pareto_ranks],
+    )
     sids = np.argsort(distance)
     # Selected points have fewer constraint violations or better pareto rank.
     # Regardless of the distance, they remain selected. Rank the remainder only.
