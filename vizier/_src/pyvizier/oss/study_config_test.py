@@ -165,7 +165,13 @@ class StudyConfigTest(parameterized.TestCase):
     self.assertFalse(sc.is_single_objective)
 
     round_trip_proto = sc.to_proto()
-    compare.assertProto2SameElements(self, study_config_proto, round_trip_proto)
+    compare.assertProto2Equal(
+        self,
+        study_config_proto,
+        round_trip_proto,
+        ignore_repeated_fields_order=True,
+        dedup_repeated_fields=True,
+    )
 
     _ = vz.StudyConfig.from_problem(sc.to_problem())  # smoke test.
 
