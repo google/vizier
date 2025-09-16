@@ -267,6 +267,23 @@ class DenseSpatioTemporalConverterTest(absltest.TestCase):
         },
         err_msg=f'{labels}')
 
+  def test_xty_no_trials(self):
+    """Tests that to_xty returns empty temporal_index_points for no trials."""
+    trials = []
+    extractor = st.TimedLabelsExtractor(
+        _metric_converters, 'steps', value_extraction='raw'
+    )
+    parameter = core.DefaultModelInputConverter(
+        pyvizier.ParameterConfig.factory(name='x1', bounds=(0, 5))
+    )
+    converter = st.DenseSpatioTemporalConverter(
+        [parameter], extractor, temporal_index_points=None
+    )
+    _, temporal_index_points, _ = converter.to_xty(
+        trials, temporal_selection='infer'
+    )
+    self.assertEqual(temporal_index_points.size, 0)
+
 
 if __name__ == '__main__':
   absltest.main()

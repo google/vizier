@@ -215,7 +215,7 @@ class TimedLabelsExtractor:
     This is a cheaper alternative to:
     ```
     ts = np.concatenate([np.asarray(tl.times).flatten() for tl in timed_labels])
-    return sorted(list(set(ts)))
+    return sorted(set(ts))
     ```
     because it skips the label conversions.
 
@@ -225,9 +225,10 @@ class TimedLabelsExtractor:
     Returns:
       Sorted list of temporal indices.
     """
-    all_timestamps = np.concatenate(
-        [self.to_timestamps(t.measurements).flatten() for t in trials])
-    return sorted(list(set(all_timestamps)))
+    all_timestamps: set[float] = set()
+    for t in trials:
+      all_timestamps.update(self.to_timestamps(t.measurements).flatten())
+    return sorted(all_timestamps)
 
 
 class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
@@ -359,7 +360,7 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
       logging.info('Empty temporal_index_points.')
       self.temporal_index_points = np.zeros([0])
     else:
-      self.temporal_index_points = temporal_index_points
+      self.temporal_index_points = np.sort(temporal_index_points)
 
   def _single_timedlabels_to_temporal_observations(
       self, timed_labels: TimedLabels, ts: Union[Sequence[float], Sequence[int]]
@@ -493,7 +494,8 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
       3-tuple of (input, temporal_index_points, observations).
       input: A Dict whose values correspond to parameters.
       temporal_index_points: 1-D array of temporal index points. If provided
-        as input, then it's the same as the input value.
+        as input, then it's the same as the input value.  The return value is
+        np.array([]) if there are no labels.
       observations: Dict of length equal to metrics, whose values
         have shape [len(trials), len(temporal_index_points)]. May contain NaNs.
     """
@@ -506,12 +508,10 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
       temporal_index_points = self.temporal_index_points
     elif temporal_selection == 'infer' or (temporal_selection == 'auto' and
                                            not self.temporal_index_points.size):
-      temporal_index_points = sorted(
-          list(
-              set(
-                  np.concatenate([
-                      np.asarray(tl.times).flatten() for tl in timed_labels
-                  ]))))
+      tmp: set[float | int] = set()
+      for tl in timed_labels:
+        tmp.update(tl.times.flatten())
+      temporal_index_points = sorted(tmp)  # [] when tmp is the empty set.
     else:
       raise ValueError('Invalid value for temporal_index_points: '
                        f'{temporal_selection}.')
