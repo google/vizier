@@ -42,6 +42,23 @@ class LBFGSBOptimizer(parameterized.TestCase):
     res = optimizer(score_fn=score_fn)
     self.assertLen(res.rewards, 1)
 
+  def test_singleton_constraints_are_respected(self):
+    problem = vz.ProblemStatement()
+    problem.search_space.root.add_float_param('f1', 0.0, 10.0)
+    problem.search_space.root.add_float_param('f2', 0.0, 10.0)
+    problem.search_space.root.add_float_param('f3', 5.0, 5.0)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    score_fn = lambda x, _: jnp.sum(x.continuous.padded_array, axis=-1)
+    optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
+        converter
+    )
+    res = optimizer(score_fn=score_fn)
+    best_candidates = vb.best_candidates_to_trials(res, converter)
+    best_score = score_fn(converter.to_features(best_candidates), None)
+    # Evaluating the score function being optimized on the best candidate should
+    # result in the same value as the output of the optimizer.
+    self.assertSequenceAlmostEqual(best_score, res.rewards)
+
   def test_best_candidates_count_is_1(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('f1', 0.0, 1.0)

@@ -16,7 +16,8 @@ from __future__ import annotations
 
 """L-BFGS-B Strategy optimizer."""
 
-from typing import Callable, Optional, Union
+import itertools
+from typing import Callable, Optional, Sequence, Union
 
 import attr
 from flax import struct
@@ -50,6 +51,9 @@ class LBFGSBOptimizer:
   n_feature_dimensions: types.ContinuousAndCategorical[jax.Array]
   n_feature_dimensions_with_padding: types.ContinuousAndCategorical[int] = (
       struct.field(pytree_node=False)
+  )
+  continuous_features_bounds: Sequence[tuple[float, float]] = struct.field(
+      pytree_node=False
   )
   # Number of parallel runs of L-BFGS-B.
   random_restarts: int = struct.field(pytree_node=False, default=25)
@@ -144,10 +148,23 @@ class LBFGSBOptimizer:
     def setup(rng):
       return jax.random.uniform(rng, shape=feature_shape)
 
-    # Constraints are [0, 1].
-    constraints = sp.Constraint(
-        bounds=(np.zeros(feature_shape), np.ones(feature_shape))
+    continuous_features_min, continuous_features_max = itertools.zip_longest(
+        *self.continuous_features_bounds
     )
+    bounds = []
+    for bound, fill_value in (
+        (continuous_features_min, 0.0),
+        (continuous_features_max, 1.0),
+    ):
+      # Pad the bound with fill_value to the length of the feature dimension
+      # with padding and account for the parallel dimension, so the shape of the
+      # bound is the same as `feature_shape` above.
+      padded_bound = bound + (fill_value,) * (
+          self.n_feature_dimensions_with_padding.continuous - len(bound)
+      )
+      bounds.append(np.stack([padded_bound] * parallel_dim, axis=0))
+
+    constraints = sp.Constraint(bounds=(bounds[0], bounds[1]))
 
     new_features, _ = optimize(
         jax.vmap(setup)(jax.random.split(init_seed, self.random_restarts)),
@@ -199,9 +216,15 @@ class LBFGSBOptimizerFactory:
         empty_features.continuous.shape[-1],
         empty_features.categorical.shape[-1],
     )
+    continous_features_bounds = [
+        (float(spec.bounds[0]), float(spec.bounds[1]))
+        for spec in converter.output_specs.continuous
+    ]
+
     return LBFGSBOptimizer(
         n_feature_dimensions=n_feature_dimensions,
         n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
+        continuous_features_bounds=continous_features_bounds,
         random_restarts=self.random_restarts,
         maxiter=self.maxiter,
     )
