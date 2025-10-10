@@ -515,6 +515,30 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         results.features.continuous.shape, (1, n_parallel, 3)
     )
 
+  def test_singleton_constraints_are_respected(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 10.0)
+    root.add_float_param('x2', 0.0, 10.0)
+    root.add_float_param('x3', 0.35, 0.35)
+    converter = converters.TrialToModelInputConverter.from_problem(problem)
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        converter
+    )
+    score_fn = lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1,))
+    results = optimizer(
+        score_fn=score_fn,
+        count=1,
+    )
+    self.assertSequenceEqual(results.features.continuous.shape, (1, 1, 3))
+    best_candidates = vb.best_candidates_to_trials(results, converter)
+    # Evaluating the score function being optimized on the best candidate should
+    # result in the same value as the output of the optimizer.
+    self.assertSequenceAlmostEqual(
+        score_fn(converter.to_features(best_candidates), None), results.rewards
+    )
+
   def test_optimize_with_eagle_padding(self):
     problem = vz.ProblemStatement()
     root = problem.search_space.select_root()
@@ -540,6 +564,38 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     self.assertSequenceEqual(
         results.features.continuous.shape, (1, n_parallel, 4)
+    )
+
+  def test_singleton_constraints_are_respected_with_padding(self):
+    problem = vz.ProblemStatement()
+    root = problem.search_space.select_root()
+    root.add_float_param('x1', 0.0, 10.0)
+    root.add_float_param('x2', 0.0, 10.0)
+    root.add_float_param('x3', 7.5, 7.5)
+    converter = converters.TrialToModelInputConverter.from_problem(
+        problem,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.POWERS_OF_2,
+            num_features=padding.PaddingType.POWERS_OF_2,
+        ),
+    )
+    eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
+    optimizer = vb.VectorizedOptimizerFactory(strategy_factory=eagle_factory)(
+        converter
+    )
+    score_fn = lambda x, _: -jnp.sum(
+        x.continuous.replace_fill_value(0).padded_array, axis=(1,)
+    )
+    results = optimizer(
+        score_fn=score_fn,
+        count=1,
+    )
+    self.assertSequenceEqual(results.features.continuous.shape, (1, 1, 4))
+    best_candidates = vb.best_candidates_to_trials(results, converter)
+    # Evaluating the score function being optimized on the best candidate should
+    # result in the same value as the output of the optimizer.
+    self.assertSequenceAlmostEqual(
+        score_fn(converter.to_features(best_candidates), None), results.rewards
     )
 
   @parameterized.parameters(
