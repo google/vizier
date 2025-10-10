@@ -230,19 +230,41 @@ class DefaultProjection(vb.Projection):
       self,
       converter: converters.TrialToModelInputConverter,
   ):
-    del converter
+    # Extracts the bounds of the continuous features from the converter.
+    continuous_features_min = [
+        float(spec.bounds[0]) for spec in converter.output_specs.continuous
+    ]
+    continuous_features_max = [
+        float(spec.bounds[1]) for spec in converter.output_specs.continuous
+    ]
+    empty_features = converter.to_features([])
+    continuous_feature_dimensions_with_padding = (
+        empty_features.continuous.shape[-1]
+    )
+    bounds = []
+    # Pad the bounds with fill-values to the length of the feature dimension
+    # with padding.
+    for bound, fill_value in (
+        (continuous_features_min, 0.0),
+        (continuous_features_max, 1.0),
+    ):
+      padded_bound = bound + [fill_value] * (
+          continuous_feature_dimensions_with_padding - len(bound)
+      )
+      bounds.append(jnp.array(padded_bound))
+    self._bounds = tuple(bounds)
 
   def __call__(
       self,
       x: vb.VectorizedOptimizerInput,
   ) -> vb.VectorizedOptimizerInput:
-    # TODO: The range of features is not always [0, 1].
-    #   Specifically, for features that are single-point, it can be [0, 0]; we
-    #   also want this code to be aware of the feature's bounds to enable
-    #   contextual bandit operation.  Note that if a parameter's bound changes,
-    #   we might also want to change the firefly noise or normalizations.
     return vb.VectorizedOptimizerInput(
-        continuous=jnp.clip(x.continuous, 0.0, 1.0), categorical=x.categorical
+        continuous=jnp.clip(
+            x.continuous,
+            jnp.broadcast_to(self._bounds[0], x.continuous.shape),
+            jnp.broadcast_to(self._bounds[1], x.continuous.shape),
+        ),
+        categorical=x.categorical,
     )
 
 
