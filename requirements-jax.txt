@@ -7,6 +7,6 @@ optax>=0.2.3
 chex>=0.1.87
 tfp-nightly[jax]
 # equinox 0.11.8 and above produces an error with HyperVolumeScalarization.
-equinox==0.11.7
+equinox
 jaxtyping>=0.2.34
 typeguard<=2.13.3
