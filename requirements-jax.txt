@@ -1,12 +1,11 @@
 # Optional Jax library.
-jax>=0.4.34,<=0.5.3
+jax>=0.4.34
 jaxlib>=0.4.34
 jaxopt>=0.8.3
 flax>=0.10.0
 optax>=0.2.3
 chex>=0.1.87
 tfp-nightly[jax]
-# equinox 0.11.8 and above produces an error with HyperVolumeScalarization.
 equinox
 jaxtyping>=0.2.34
 typeguard<=2.13.3

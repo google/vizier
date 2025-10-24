@@ -114,7 +114,7 @@ class HyperVolumeScalarization(Scalarization):
 class LinearAugmentedScalarization(Scalarization):
   """Scalarization augmented with a linear sum.
 
-  See https://arxiv.org/pdf/1904.05760.pdf
+  See https://arxiv.org/pdf/1904.05760.pdf.
   """
 
   weights: jt.Float[jax.Array, '*Num #Obj'] = eqx.field(converter=jnp.asarray)
