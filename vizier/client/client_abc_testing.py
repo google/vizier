@@ -384,7 +384,7 @@ class TestCase(
           )
       )
 
-    study: _S = study_factory(problem)
+    study: _S = study_factory(problem)  # pytype: disable=wrong-keyword-args
 
     def learning_curve_simulator(learning_rate: float) -> list[float]:
       return [learning_rate * step for step in range(10)]
