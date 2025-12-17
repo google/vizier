@@ -312,8 +312,12 @@ class _GibbsLinearRegressor:
     x_all = np.append(1, self._order_effects(x))
 
     # check if previous x led to Inf output (if so, barrier=Inf)
-    barrier = 0.
-    if self._X_inf.shape[0] != 0 and np.equal(x, self._X_inf).all(axis=1).any():
+    barrier = 0.0
+    if (
+        self._X_inf is not None
+        and self._X_inf.shape[0] != 0
+        and np.equal(x, self._X_inf).all(axis=1).any()
+    ):
       barrier = np.inf
 
     return np.dot(x_all, self._alpha) + barrier
