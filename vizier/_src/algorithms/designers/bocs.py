@@ -313,6 +313,8 @@ class _GibbsLinearRegressor:
 
     # check if previous x led to Inf output (if so, barrier=Inf)
     barrier = 0.
+    if self._X_inf is None:
+      raise ValueError('You first need to call `regress()` on the data.')
     if self._X_inf.shape[0] != 0 and np.equal(x, self._X_inf).all(axis=1).any():
       barrier = np.inf
 
