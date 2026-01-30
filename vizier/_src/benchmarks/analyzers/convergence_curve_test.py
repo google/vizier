@@ -811,7 +811,7 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         max_score=max_score,
     ).curve()
     self.assertEqual(short_efficiency.ys.shape, (1, baseline_length))
-    self.assertEqual(float(short_efficiency.ys[:, -1]), -max_score)
+    self.assertEqual(float(short_efficiency.ys[:, -1].item()), -max_score)
 
   def test_get_efficiency_score(self):
     # Higher compared quantile should increase score. Higher baseline

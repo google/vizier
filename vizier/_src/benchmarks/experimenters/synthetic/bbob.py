@@ -207,6 +207,9 @@ def Rastrigin(arr: np.ndarray, seed: int = 0) -> float:
   z = np.matmul(_R(dim, seed, b"Q"), z)
   z = np.matmul(LambdaAlpha(10.0, dim), z)
   z = np.matmul(_R(dim, seed, b"R"), z)
+  if z.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z.shape}")
+  z = z[:, 0]
   return float(10 * (dim - np.sum(np.cos(2 * math.pi * z))) +
                np.sum(z * z, axis=0))
 
@@ -231,6 +234,9 @@ def LinearSlope(arr: np.ndarray, seed: int = 0) -> float:
   arr.shape = (dim, 1)
   r = _R(dim, seed, b"R")
   z = np.matmul(r, arr)
+  if z.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z.shape}")
+  z = z[:, 0]
   result = 0.0
   for i in range(dim):
     s = 10**(i / float(dim - 1) if dim > 1 else 1)
@@ -308,6 +314,9 @@ def Discus(arr: np.ndarray, seed: int = 0) -> float:
   arr.shape = (dim, 1)
   r_x = np.matmul(_R(dim, seed, b"R"), arr)
   z_vec = ArrayMap(r_x, Tosz)
+  if z_vec.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z_vec.shape}")
+  z_vec = z_vec[:, 0]
   return float(10**6 * z_vec[0] * z_vec[0]) + sum(
       [z * z for z in z_vec[1:].flat])
 
@@ -319,6 +328,9 @@ def BentCigar(arr: np.ndarray, seed: int = 0) -> float:
   z_vec = np.matmul(_R(dim, seed, b"R"), arr)
   z_vec = Tasy(z_vec, 0.5)
   z_vec = np.matmul(_R(dim, seed, b"R"), z_vec)
+  if z_vec.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z_vec.shape}")
+  z_vec = z_vec[:, 0]
   return float(z_vec[0]**2) + 10**6 * np.sum(z_vec[1:]**2)
 
 
@@ -352,6 +364,9 @@ def Weierstrass(arr: np.ndarray, seed: int = 0) -> float:
   z = ArrayMap(z, Tosz)
   z = np.matmul(_R(dim, seed, b"Q"), z)
   z = np.matmul(LambdaAlpha(1.0 / 100.0, dim), z)
+  if z.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z.shape}")
+  z = z[:, 0]
   f0 = sum([0.5**k * math.cos(math.pi * 3**k) for k in range(k_order)])
 
   s = 0.0
@@ -372,6 +387,9 @@ def SchaffersF7(arr: np.ndarray, seed: int = 0) -> float:
   z = Tasy(z, 0.5)
   z = np.matmul(_R(dim, seed, b"Q"), z)
   z = np.matmul(LambdaAlpha(10.0, dim), z)
+  if z.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z.shape}")
+  z = z[:, 0]
 
   s_arr = np.zeros(dim - 1)
   for i in range(dim - 1):
@@ -393,6 +411,9 @@ def SchaffersF7IllConditioned(arr: np.ndarray, seed: int = 0) -> float:
   z = Tasy(z, 0.5)
   z = np.matmul(_R(dim, seed, b"Q"), z)
   z = np.matmul(LambdaAlpha(1000.0, dim), z)
+  if z.shape != (dim, 1):
+    raise ValueError(f"z_vec should have shape (dim, 1), but got {z.shape}")
+  z = z[:, 0]
 
   s_arr = np.zeros(dim - 1)
   for i in range(dim - 1):
@@ -512,7 +533,7 @@ def Gallagher101Me(arr: np.ndarray, seed: int = 0) -> float:
     w = 10 if i == 0 else (1.1 + 8.0 * (i - 1.0) / (num_optima - 2.0))
     diff = np.matmul(rotation, arr - optima_list[i])
     e = np.matmul(diff.transpose(), np.matmul(c_list[i], diff))
-    max_value = max(max_value, w * math.exp(-float(e) / (2.0 * dim)))
+    max_value = max(max_value, w * math.exp(-float(e.item()) / (2.0 * dim)))
 
   return Tosz(10.0 - max_value)**2 + Fpen(arr)
 
