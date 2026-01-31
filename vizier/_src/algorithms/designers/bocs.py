@@ -440,7 +440,7 @@ class SimulatedAnnealing(AcquisitionOptimizer):
 
       # Save solution
       model_iter[t, :] = best_x
-      obj_iter[t] = best_obj
+      obj_iter[t] = float(np.squeeze(best_obj))
 
     return model_iter, obj_iter
 
