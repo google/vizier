@@ -35,6 +35,8 @@ rm -rf "$TMPDIR"
 
 # No need to copy over well known types. They're linked into protoc.
 
+pip install grpcio-tools
+
 # Generates the *.py files from the protos.
 for proto_name in *.proto
 do

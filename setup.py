@@ -107,6 +107,10 @@ setup(
         include=['vizier*'], exclude=['*_test.py', 'examples']
     ),
     install_requires=_parse_requirements('requirements.txt'),
+    setup_requires=[
+        # grpcio-tools is required to build the protobufs in BuildCmd.
+        'grpcio-tools',
+    ],
     extras_require=extras_require,
     python_requires='>=3.8',
     include_package_data=True,
