@@ -98,7 +98,7 @@ class NumpyExperimenter(experimenter.Experimenter):
     # Features has shape (num_trials, num_features).
     features = self._converter.to_features(suggestions)
     for idx, suggestion in enumerate(suggestions):
-      val = self.impl(features[idx])
+      val = np.squeeze(self.impl(features[idx]))
       if math.isfinite(val):
         suggestion.complete(vz.Measurement(metrics={self._metric_name: val}))
       else:
