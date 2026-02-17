@@ -300,7 +300,7 @@ def Ellipsoidal(arr: np.ndarray, seed: int = 0) -> float:
   del seed
   dim = len(arr)
   arr.shape = (dim, 1)
-  z_vec = ArrayMap(arr, Tosz)
+  z_vec = np.squeeze(ArrayMap(arr, Tosz))
   s = 0.0
   for i in range(dim):
     exp = 6.0 * i / (dim - 1) if dim > 1 else 6.0
@@ -565,7 +565,7 @@ def Gallagher21Me(arr: np.ndarray, seed: int = 0) -> float:
   for i in range(num_optima):
     w = 10 if i == 0 else (1.1 + 8.0 * (i - 1.0) / (num_optima - 2.0))
     diff = np.matmul(rotation, arr - optima_list[i])
-    e = np.matmul(diff.transpose(), np.matmul(c_list[i], diff))
+    e = np.squeeze(np.matmul(diff.transpose(), np.matmul(c_list[i], diff)))
     max_value = max(max_value, w * math.exp(-float(e) / (2.0 * dim)))
 
   return Tosz(10.0 - max_value)**2 + Fpen(arr)
@@ -578,7 +578,7 @@ def NegativeSphere(arr: np.ndarray, seed: int = 0) -> float:
   """Implementation for BBOB Sphere function."""
   dim = len(arr)
   arr.shape = (dim, 1)
-  z = np.matmul(_R(dim, seed, b"R"), arr)
+  z = np.squeeze(np.matmul(_R(dim, seed, b"R"), arr))
   return float(100 + np.sum(z * z) - 2 * (z[0]**2))
 
 
@@ -589,8 +589,8 @@ def NegativeMinDifference(arr: np.ndarray, seed: int = 0) -> float:
   z = np.matmul(_R(dim, seed, b"R"), arr)
   min_difference = 10000
   for i in range(len(z) - 1):
-    min_difference = min(min_difference, z[i + 1] - z[i])
-  return 10.0 - float(min_difference) + 1e-8 * float(sum(arr))
+    min_difference = np.squeeze(min(min_difference, z[i + 1] - z[i]))
+  return 10.0 - float(min_difference) + 1e-8 * float(np.squeeze(sum(arr)))
 
 
 def FonsecaFleming(arr: np.ndarray, seed: int = 0) -> float:
