@@ -349,6 +349,7 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
       reference_value: Optional[np.ndarray] = None,
       num_vectors: int = 10000,
       infer_origin_factor: float = 0.0,
+      disable_metric_normalization: bool = False,
   ):
     """Init.
 
@@ -361,6 +362,7 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
       num_vectors: Number of vectors from which hypervolume is computed.
       infer_origin_factor: When inferring the reference point, set origin to be
         minimum value - factor * (range).
+      disable_metric_normalization: If True, disable metric normalization.
     """
     if len(metric_informations) < 2:
       raise ValueError(
@@ -386,8 +388,9 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
     self._origin_value = reference_value
     # TODO: Speed this up with hypervolume vector tracking.
     self._min_trial_idx = 1
-    self._pareto_frontier = np.empty(shape=(0, len(metric_informations)))
     self._infer_origin_factor = infer_origin_factor
+    self._disable_metric_normalization = disable_metric_normalization
+    self._all_metrics = np.empty(shape=(0, len(metric_informations)))
 
   def convert(self, trials: Sequence[pyvizier.Trial]) -> ConvergenceCurve:
     """Returns ConvergenceCurve with a curve of shape 1 x len(trials)."""
@@ -396,6 +399,28 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
       raise ValueError(f'No trials provided {trials}')
 
     metrics = self._converter.to_labels_array(trials)
+    self._all_metrics = np.vstack([self._all_metrics, metrics])
+    if self._disable_metric_normalization:
+      normalizer = 1.0
+    else:
+      normalizer = np.nanmedian(
+          np.absolute(
+              self._all_metrics
+              - np.nanmedian(self._all_metrics, axis=0, keepdims=True)
+          ),
+          axis=0,
+          keepdims=True,
+      )
+      if np.any(normalizer <= 0):
+        raise ValueError(
+            'Some metric normalizers are zero. This is likely due to some'
+            ' metrics being identical or contain a lot of duplicates across'
+            f' trials. Normalizers: {normalizer}'
+        )
+    metrics = metrics / normalizer
+    # shape is [num_existing_points + num_new_points, num_metrics]
+    all_metrics = self._all_metrics / normalizer
+
     if self._origin_value is None:
       # Set origin to the minimum of finite values.
       origin = np.zeros(shape=(metrics.shape[1],))
@@ -428,10 +453,6 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
           )
         origin = self._origin_value
 
-    # Calculate cumulative hypervolume with the Pareto frontier.
-    all_metrics = np.vstack(
-        [self._pareto_frontier, metrics]
-    )  # shape is [num_pareto_points + num_points, feature dimension]
     front = multimetric.ParetoFrontier(
         points=all_metrics,
         origin=origin,
@@ -440,17 +461,12 @@ class HypervolumeCurveConverter(StatefulCurveConverter):
     )
     all_hv_curve = front.hypervolume(is_cumulative=True)
 
-    # Remove the Pareto frontier add-in and update state.
-    hv_curve = all_hv_curve[len(self._pareto_frontier) :]
+    # Extracts the hv points for the new trials.
+    hv_curve = all_hv_curve[-metrics.shape[0] :]
     xs = np.asarray(
         range(self._min_trial_idx, len(hv_curve) + self._min_trial_idx)
     )
     self._min_trial_idx += len(hv_curve)
-    algo = multimetric.FastParetoOptimalAlgorithm(
-        xla_pareto.JaxParetoOptimalAlgorithm()
-    )
-    pareto_points = algo.is_pareto_optimal(points=all_metrics)
-    self._pareto_frontier = all_metrics[pareto_points]
 
     return ConvergenceCurve(
         xs=xs,
