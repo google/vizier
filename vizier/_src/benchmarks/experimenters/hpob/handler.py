@@ -129,7 +129,7 @@ class HPOBHandler:
   @classmethod
   @functools.lru_cache(maxsize=128)
   def _cached_surrogates_stats(cls, surrogates_dir: str):
-    surrogates_file = surrogates_dir + "summary-stats.json"
+    surrogates_file = f"{surrogates_dir}summary-stats.json"
     if (Exists(surrogates_file) and not IsDir(surrogates_file)):
       with Open(surrogates_file, "rt") as f:
         surrogates_stats = json.load(f)
@@ -262,9 +262,9 @@ class HPOBHandler:
     assert seed != None, ("Provide a valid initialization. Valid options are: "
                           "test0, test1, test2, test3, test4.")
 
-    surrogate_name = "surrogate-" + search_space_id + "-" + dataset_id
+    surrogate_name = f"surrogate-{search_space_id}-{dataset_id}"
     bst_surrogate = xgb.Booster()
-    bst_surrogate.load_model(self.surrogates_dir + surrogate_name + ".json")
+    bst_surrogate.load_model(f"{self.surrogates_dir}{surrogate_name}.json")
 
     n_initial_evaluations = 5
     X = np.array(self.meta_test_data[search_space_id][dataset_id]["X"])
