@@ -245,6 +245,8 @@ class Nsga2Test(absltest.TestCase):
             )
         )
         tid += 1
+      for t in trials:
+        self.assertIsNone(t.creation_time)
       tick = datetime.datetime.now()
       logging.info(
           'Suggesitons evaluated: %s', '\n'.join(repr(t) for t in trials)
