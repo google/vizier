@@ -336,9 +336,9 @@ class StudyConfig(base_study_config.ProblemStatement):
       ValueError: If the trial contains duplicate parameters.
     """
     pytrial = proto_converters.TrialConverter.from_proto(proto)
-    return self._pytrial_parameters(pytrial)
+    return self.pytrial_parameters(pytrial)
 
-  def _pytrial_parameters(
+  def pytrial_parameters(
       self, pytrial: trial.Trial
   ) -> Dict[str, ParameterValueSequence]:
     """Returns the trial values, cast to external types, if they exist.

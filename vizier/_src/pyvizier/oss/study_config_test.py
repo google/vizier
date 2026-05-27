@@ -371,7 +371,7 @@ class StudyConfigTest(parameterized.TestCase):
         'learning_rate': vz.ParameterValue(value=0.5),
         'units': vz.ParameterValue(value=50),
     }
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     expected = {
         'learning_rate': 0.5,
         'units': 50,
@@ -581,7 +581,7 @@ class StudyConfigTest(parameterized.TestCase):
         'batch_size[1]': vz.ParameterValue(value=8.0),
         'floating_point_param': vz.ParameterValue(value=16.0),
     }
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     expected = {
         'learning_rate': [0.5, 0.1],
         'units': [50, 200],
@@ -709,7 +709,7 @@ class StudyConfigTest(parameterized.TestCase):
             'activation': vz.ParameterValue(value='relu'),
         },
     )
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     expected = {
         'model_type': 'dnn',
         'learning_rate': 2.1,
@@ -813,7 +813,7 @@ class StudyConfigTest(parameterized.TestCase):
             steps=101,
         ),
     )
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     metrics = py_study_config._pytrial_metrics(pytrial)
     self.assertEqual({'objective': 77.7}, metrics)
@@ -904,7 +904,7 @@ class StudyConfigTest(parameterized.TestCase):
             steps=101,
         ),
     )
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     self.assertEmpty(py_study_config._pytrial_metrics(pytrial))
     self.assertEmpty(
@@ -978,7 +978,7 @@ class StudyConfigTest(parameterized.TestCase):
             steps=101,
         ),
     )
-    parameters = py_study_config._pytrial_parameters(pytrial)
+    parameters = py_study_config.pytrial_parameters(pytrial)
     self.assertEqual({'learning_rate': 0.5}, parameters)
     metrics = py_study_config._pytrial_metrics(pytrial)
     self.assertEqual({'objective': 77.7, 'objective2': -0.2}, metrics)
