@@ -47,8 +47,8 @@ class PerformanceUtilsTest(absltest.TestCase):
 
     @profiler.record_runtime(name='return_two', also_log=True)
     def return_two():
-      one = eqx.filter_jit(MyModule().add_one)(jnp.array(0.0))
-      two = eqx.filter_jit(MyModule().add_one)(one)
+      one = eqx.filter_jit(MyModule().add_one)(jnp.array(0.0))  # pyrefly: ignore[missing-attribute]
+      two = eqx.filter_jit(MyModule().add_one)(one)  # pyrefly: ignore[missing-attribute]
       return two
 
     with profiler.collect_events() as events:

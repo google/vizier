@@ -112,7 +112,7 @@ class _Storage:
     Returns:
       Newly added event.
     """
-    event = ProfileEvent(etype, self.scope, data)
+    event = ProfileEvent(etype, self.scope, data)  # pyrefly: ignore[bad-argument-type]
     if self.active:
       self.events.append(event)
     return event

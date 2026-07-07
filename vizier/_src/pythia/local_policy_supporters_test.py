@@ -157,7 +157,7 @@ class LocalPolicySupportersGetBestTrialsTest(parameterized.TestCase):
     trials = [
         vz.Trial().complete(vz.Measurement({'objective': i})) for i in range(10)
     ]
-    np.random.shuffle(trials)
+    np.random.shuffle(trials)  # pyrefly: ignore[bad-argument-type]
     runner.AddTrials(trials)
 
     objectives = np.array([

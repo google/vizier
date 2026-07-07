@@ -88,7 +88,7 @@ class OptaxTrain(core.Optimizer[core.Params]):
           bijector.inverse(init_params) if bijector is not None else init_params
       )
       opt_state = self.optimizer.init(params)
-      return params, opt_state
+      return params, opt_state  # pyrefly: ignore[bad-return]
 
     def _train_step(
         params: core.Params, opt_state: OptState
@@ -96,8 +96,8 @@ class OptaxTrain(core.Optimizer[core.Params]):
       """One train step."""
       (loss, metrics), grads = grad_fn(params)
       logging.log_if(logging.INFO, 'gradients: %s', self.verbose >= 2, grads)
-      updates, opt_state = self.optimizer.update(grads, opt_state, params)
-      params = optax.apply_updates(params, updates)
+      updates, opt_state = self.optimizer.update(grads, opt_state, params)  # pyrefly: ignore[bad-assignment]
+      params = optax.apply_updates(params, updates)  # pyrefly: ignore[bad-assignment]
       metrics['loss'] = loss
       return params, opt_state, metrics
 
@@ -138,4 +138,4 @@ class OptaxTrain(core.Optimizer[core.Params]):
     best_params = core.get_best_params(final_losses, params, best_n=best_n)
     if bijector is not None:
       best_params = bijector(best_params)
-    return (best_params, metrics)
+    return (best_params, metrics)  # pyrefly: ignore[bad-return]

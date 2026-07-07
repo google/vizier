@@ -42,7 +42,7 @@ class OptaxWrapperTest(parameterized.TestCase, sinusoidal.ConvergenceTestMixin):
     constraints = sinusoidal.bounds_to_constraints(bounds, nest_constraint=True)
     self.assert_converges(
         optimizers.OptaxTrain(optax.adam(5e-2), epochs=100, verbose=True),
-        constraints=constraints,
+        constraints=constraints,  # pyrefly: ignore[bad-argument-type]
         threshold=5e-3 if bounds is None else 1.0,
         random_restarts=200,
     )

@@ -91,8 +91,8 @@ def _get_bounds(
   if constraints is None:
     return None
   else:
-    lb = _none_to_inf(constraints.bounds[0], -jnp.inf, params)
-    ub = _none_to_inf(constraints.bounds[1], jnp.inf, params)
+    lb = _none_to_inf(constraints.bounds[0], -jnp.inf, params)  # pyrefly: ignore[bad-argument-type, unsupported-operation]
+    ub = _none_to_inf(constraints.bounds[1], jnp.inf, params)  # pyrefly: ignore[bad-argument-type, unsupported-operation]
     logging.info(
         'constraints\n: %s converted to bounds:\n %s', constraints, (lb, ub)
     )
@@ -155,15 +155,15 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     params = []
     metrics = {}
 
-    init_params = _unbatch_params(init_params)
-    bounds = _get_bounds(init_params[0], constraints)
+    init_params = _unbatch_params(init_params)  # pyrefly: ignore[bad-assignment]
+    bounds = _get_bounds(init_params[0], constraints)  # pyrefly: ignore[bad-index]
 
     logging.info(
         'Using SCIPY L-BFGS-B w/ %d initializations: %s',
-        len(init_params),
+        len(init_params),  # pyrefly: ignore[bad-argument-type]
         init_params,
     )
-    for p in init_params:
+    for p in init_params:  # pyrefly: ignore[not-iterable]
       if self._max_duration is not None and train_times:
         expected_worst_case_duration = max(train_times) + sum(train_times)
         if expected_worst_case_duration >= self._max_duration.total_seconds():
@@ -172,7 +172,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
               ' Completed only %s initializations out of %s.',
               self._max_duration,
               len(params),
-              len(init_params),
+              len(init_params),  # pyrefly: ignore[bad-argument-type]
           )
           break
       start_time = time.time()
@@ -192,7 +192,7 @@ class JaxoptScipyLbfgsB(core.Optimizer[core.Params]):
     metrics['loss'] = losses[jnp.newaxis, :]
     if self._speed_test:
       metrics['train_time'] = train_times
-    return (
+    return (  # pyrefly: ignore[bad-return]
         core.get_best_params(losses, all_params, best_n=best_n),
         metrics,
     )
@@ -287,7 +287,7 @@ class JaxoptLbfgsB(core.Optimizer[core.Params]):
     losses = jnp.asarray(opt_states.value)
     metrics['train_time'] = time.time() - start_time
     metrics['loss'] = losses[jnp.newaxis, :]
-    return (
+    return (  # pyrefly: ignore[bad-return]
         core.get_best_params(losses, all_params, best_n=best_n),
         metrics,
     )

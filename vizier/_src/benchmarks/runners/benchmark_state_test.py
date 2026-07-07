@@ -53,7 +53,7 @@ class BenchmarkStateTest(absltest.TestCase):
         self.completed = []
         self.all_active = []
 
-      def suggest(self, count):
+      def suggest(self, count):  # pyrefly: ignore[bad-override]
         return self._designer.suggest(count)
 
       def update(self, completed, all_active):
@@ -62,7 +62,7 @@ class BenchmarkStateTest(absltest.TestCase):
 
     designer = DummyDesigner(problem)
     suggester = benchmark_state.PolicySuggester.from_designer_factory(
-        problem, lambda _, **kwargs: designer, supporter=policy_supporter
+        problem, lambda _, **kwargs: designer, supporter=policy_supporter  # pyrefly: ignore[bad-argument-type]
     )
 
     suggestions = list(suggester.suggest(batch_size=5))

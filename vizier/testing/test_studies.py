@@ -60,7 +60,7 @@ def flat_continuous_space_with_scaling_trials(
   trials = []
   for _ in range(count):
     trials.append(
-        vz.Trial({
+        vz.Trial({  # pyrefly: ignore[bad-argument-count]
             'lineardouble': np.random.uniform(low=-1.0, high=2.0),
             'logdouble': np.random.uniform(low=1e-4, high=1e2),
         })
@@ -151,48 +151,48 @@ def conditional_automl_space() -> vz.SearchSpace:
 
 def metrics_objective_goals() -> List[vz.MetricInformation]:
   return [
-      vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
-      vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
+      vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
+      vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
       vz.MetricInformation(
-          'auc',
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-          min_value=0.0,
-          max_value=1.0),
+          'auc',  # pyrefly: ignore[bad-argument-count]
+          goal=vz.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+          min_value=0.0,  # pyrefly: ignore[unexpected-keyword]
+          max_value=1.0),  # pyrefly: ignore[unexpected-keyword]
       vz.MetricInformation(
-          'crossentropy', goal=vz.ObjectiveMetricGoal.MINIMIZE, min_value=0.0),
+          'crossentropy', goal=vz.ObjectiveMetricGoal.MINIMIZE, min_value=0.0),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
   ]
 
 
 def metrics_all_unconstrained() -> List[vz.MetricInformation]:
   return [
-      vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
-      vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
+      vz.MetricInformation('gain', goal=vz.ObjectiveMetricGoal.MAXIMIZE),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
+      vz.MetricInformation('loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
       vz.MetricInformation(
-          'gt2', goal=vz.ObjectiveMetricGoal.MAXIMIZE, safety_threshold=2.0),
+          'gt2', goal=vz.ObjectiveMetricGoal.MAXIMIZE, safety_threshold=2.0),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
       vz.MetricInformation(
-          'lt2', goal=vz.ObjectiveMetricGoal.MINIMIZE, safety_threshold=2.0),
+          'lt2', goal=vz.ObjectiveMetricGoal.MINIMIZE, safety_threshold=2.0),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
   ]
 
 
 def metrics_all_constrained() -> List[vz.MetricInformation]:
   return [
       vz.MetricInformation(
-          'auc',
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-          min_value=0.0,
-          max_value=1.0),
+          'auc',  # pyrefly: ignore[bad-argument-count]
+          goal=vz.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+          min_value=0.0,  # pyrefly: ignore[unexpected-keyword]
+          max_value=1.0),  # pyrefly: ignore[unexpected-keyword]
       vz.MetricInformation(
-          'crossentropy', goal=vz.ObjectiveMetricGoal.MINIMIZE, min_value=0.0),
+          'crossentropy', goal=vz.ObjectiveMetricGoal.MINIMIZE, min_value=0.0),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
       vz.MetricInformation(
-          'gt2',
-          goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-          safety_threshold=2.0,
-          min_value=-1.0,
-          max_value=5.0),
+          'gt2',  # pyrefly: ignore[bad-argument-count]
+          goal=vz.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+          safety_threshold=2.0,  # pyrefly: ignore[unexpected-keyword]
+          min_value=-1.0,  # pyrefly: ignore[unexpected-keyword]
+          max_value=5.0),  # pyrefly: ignore[unexpected-keyword]
       vz.MetricInformation(
-          'lt2',
-          goal=vz.ObjectiveMetricGoal.MINIMIZE,
-          safety_threshold=2.0,
-          min_value=-1.0,
-          max_value=5.0),
+          'lt2',  # pyrefly: ignore[bad-argument-count]
+          goal=vz.ObjectiveMetricGoal.MINIMIZE,  # pyrefly: ignore[unexpected-keyword]
+          safety_threshold=2.0,  # pyrefly: ignore[unexpected-keyword]
+          min_value=-1.0,  # pyrefly: ignore[unexpected-keyword]
+          max_value=5.0),  # pyrefly: ignore[unexpected-keyword]
   ]

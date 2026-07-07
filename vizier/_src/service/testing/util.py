@@ -28,7 +28,7 @@ def generate_study(owner_id: str = 'my_username',
                    study_id: str = '1234',
                    display_name: str = 'cifar10',
                    **study_kwargs) -> study_pb2.Study:
-  study_name = resources.StudyResource(owner_id, study_id).name
+  study_name = resources.StudyResource(owner_id, study_id).name  # pyrefly: ignore[bad-argument-count]
   return study_pb2.Study(
       name=study_name, display_name=display_name, **study_kwargs)
 
@@ -41,7 +41,7 @@ def generate_trials(trial_id_list: Sequence[int],
   trials = []
   for trial_id in trial_id_list:
     trial = study_pb2.Trial(
-        name=resources.TrialResource(owner_id, study_id, trial_id).name,
+        name=resources.TrialResource(owner_id, study_id, trial_id).name,  # pyrefly: ignore[bad-argument-count]
         id=str(trial_id),
         **trial_kwargs)
     trials.append(trial)
@@ -57,7 +57,7 @@ def generate_all_states_trials(start_trial_index: int,
   for i, state in enumerate(study_pb2.Trial.State.keys()):
     trial_id = start_trial_index + i
     trial = study_pb2.Trial(
-        name=resources.TrialResource(owner_id, study_id, trial_id).name,
+        name=resources.TrialResource(owner_id, study_id, trial_id).name,  # pyrefly: ignore[bad-argument-count]
         id=str(trial_id),
         state=state,
         **trial_kwargs)
@@ -75,7 +75,7 @@ def generate_suggestion_operations(
   operations = []
   for operation_number in operation_numbers:
     operation = operations_pb2.Operation(
-        name=resources.SuggestionOperationResource(owner_id, study_id,
+        name=resources.SuggestionOperationResource(owner_id, study_id,  # pyrefly: ignore[bad-argument-count]
                                                    client_id,
                                                    operation_number).name,
         **operation_kwargs)
@@ -92,7 +92,7 @@ def generate_early_stopping_operations(
   operations = []
   for trial_id in trial_id_list:
     operation = vizier_oss_pb2.EarlyStoppingOperation(
-        name=resources.EarlyStoppingOperationResource(owner_id, study_id,
+        name=resources.EarlyStoppingOperationResource(owner_id, study_id,  # pyrefly: ignore[bad-argument-count]
                                                       trial_id).name,
         **operation_kwargs)
     operations.append(operation)

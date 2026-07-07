@@ -59,7 +59,7 @@ def main(argv: Sequence[str]) -> None:
     raise app.UsageError('Too many command-line arguments.')
 
   server = servers.DefaultVizierServer(
-      host=FLAGS.host, database_url=FLAGS.database_url
+      host=FLAGS.host, database_url=FLAGS.database_url  # pyrefly: ignore[unexpected-keyword]
   )
   logging.info('Address to Vizier Server is: %s', server.endpoint)
 

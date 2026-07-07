@@ -124,8 +124,8 @@ class ParameterConfigConverter:
   ):
     """Sets the proto's min_value and max_value fields."""
     if parameter_type == ParameterType.INTEGER:
-      proto.integer_value_spec.min_value = lower
-      proto.integer_value_spec.max_value = upper
+      proto.integer_value_spec.min_value = lower  # pyrefly: ignore[bad-assignment]
+      proto.integer_value_spec.max_value = upper  # pyrefly: ignore[bad-assignment]
     elif parameter_type == ParameterType.DOUBLE:
       proto.double_value_spec.min_value = lower
       proto.double_value_spec.max_value = upper
@@ -304,15 +304,15 @@ class ParameterConfigConverter:
       )
 
       if parent_proto.HasField('discrete_value_spec'):
-        conditional_parameter_spec.parent_discrete_values.values[:] = (
+        conditional_parameter_spec.parent_discrete_values.values[:] = (  # pyrefly: ignore[unsupported-operation]
             parent_values
         )
       elif parent_proto.HasField('categorical_value_spec'):
-        conditional_parameter_spec.parent_categorical_values.values[:] = (
+        conditional_parameter_spec.parent_categorical_values.values[:] = (  # pyrefly: ignore[unsupported-operation]
             parent_values
         )
       elif parent_proto.HasField('integer_value_spec'):
-        conditional_parameter_spec.parent_int_values.values[:] = parent_values
+        conditional_parameter_spec.parent_int_values.values[:] = parent_values  # pyrefly: ignore[unsupported-operation]
       else:
         raise ValueError('DOUBLE type cannot have child parameters')
       if child.child_parameter_configs:
@@ -330,7 +330,7 @@ class ParameterConfigConverter:
     if pc.type == ParameterType.DISCRETE:
       cls._set_feasible_points(proto, [float(v) for v in pc.feasible_values])
     elif pc.type == ParameterType.CATEGORICAL:
-      cls._set_categories(proto, pc.feasible_values)
+      cls._set_categories(proto, pc.feasible_values)  # pyrefly: ignore[bad-argument-type]
     elif pc.type in (ParameterType.INTEGER, ParameterType.DOUBLE):
       cls._set_bounds(proto, pc.bounds[0], pc.bounds[1], pc.type)
     else:
@@ -410,7 +410,7 @@ class MeasurementConverter:
           metric.metric_id in metrics
           and metrics[metric.metric_id].value != metric.value
       ):
-        logging.log_first_n(
+        logging.log_first_n(  # pyrefly: ignore[missing-attribute]
             logging.ERROR,
             (
                 'Duplicate metric of name "%s".'
@@ -440,7 +440,7 @@ class MeasurementConverter:
     for name, metric in measurement.metrics.items():
       proto.metrics.add(metric_id=name, value=metric.value)
 
-    proto.step_count = measurement.steps
+    proto.step_count = measurement.steps  # pyrefly: ignore[bad-assignment]
     int_seconds = int(measurement.elapsed_secs)
     proto.elapsed_duration.seconds = int_seconds
     proto.elapsed_duration.nanos = int(
@@ -471,12 +471,12 @@ class MetricInformationConverter:
       )
 
     return base_study_config.MetricInformation(
-        name=proto.metric_id,
-        goal=proto.goal,
-        safety_threshold=safety_threshold,
-        desired_min_safe_trials_fraction=desired_min_safe_trials_fraction,
-        min_value=None,
-        max_value=None,
+        name=proto.metric_id,  # pyrefly: ignore[unexpected-keyword]
+        goal=proto.goal,  # pyrefly: ignore[unexpected-keyword]
+        safety_threshold=safety_threshold,  # pyrefly: ignore[unexpected-keyword]
+        desired_min_safe_trials_fraction=desired_min_safe_trials_fraction,  # pyrefly: ignore[unexpected-keyword]
+        min_value=None,  # pyrefly: ignore[unexpected-keyword]
+        max_value=None,  # pyrefly: ignore[unexpected-keyword]
     )
 
   @classmethod
@@ -486,11 +486,11 @@ class MetricInformationConverter:
     """Returns this object as a proto."""
 
     proto = study_pb2.StudySpec.MetricSpec(
-        metric_id=obj.name, goal=obj.goal.value
+        metric_id=obj.name, goal=obj.goal.value  # pyrefly: ignore[bad-argument-type]
     )
 
     if obj.type == base_study_config.MetricType.SAFETY:
-      proto.safety_config.safety_threshold = obj.safety_threshold
+      proto.safety_config.safety_threshold = obj.safety_threshold  # pyrefly: ignore[bad-assignment]
       if obj.desired_min_safe_trials_fraction is not None:
         proto.safety_config.desired_min_safe_trials_fraction = (
             obj.desired_min_safe_trials_fraction
@@ -527,7 +527,7 @@ class MetricsConfigConverter:
       cls, protos: Iterable[study_pb2.StudySpec.MetricSpec]
   ) -> base_study_config.MetricsConfig:
     return base_study_config.MetricsConfig(
-        [MetricInformationConverter.from_proto(m) for m in protos]
+        [MetricInformationConverter.from_proto(m) for m in protos]  # pyrefly: ignore[bad-argument-count]
     )
 
   @classmethod
@@ -633,22 +633,22 @@ class TrialConverter:
       creation_ts = proto.start_time.seconds + 1e-9 * proto.start_time.nanos
       creation_time = datetime.datetime.fromtimestamp(creation_ts)
     return trial.Trial(
-        id=int(proto.id),
-        description=proto.name,
-        assigned_worker=proto.client_id or None,
-        is_requested=proto.state == proto.REQUESTED,
-        stopping_reason=(
+        id=int(proto.id),  # pyrefly: ignore[unexpected-keyword]
+        description=proto.name,  # pyrefly: ignore[unexpected-keyword]
+        assigned_worker=proto.client_id or None,  # pyrefly: ignore[unexpected-keyword]
+        is_requested=proto.state == proto.REQUESTED,  # pyrefly: ignore[unexpected-keyword]
+        stopping_reason=(  # pyrefly: ignore[unexpected-keyword]
             'stopping reason not supported yet'
             if proto.state == proto.STOPPING
             else None
         ),
-        parameters=parameters,
-        creation_time=creation_time,
-        completion_time=completion_time,
-        infeasibility_reason=infeasibility_reason,
-        final_measurement=final_measurement,
-        measurements=measurements,
-        metadata=metadata,
+        parameters=parameters,  # pyrefly: ignore[unexpected-keyword]
+        creation_time=creation_time,  # pyrefly: ignore[unexpected-keyword]
+        completion_time=completion_time,  # pyrefly: ignore[unexpected-keyword]
+        infeasibility_reason=infeasibility_reason,  # pyrefly: ignore[unexpected-keyword]
+        final_measurement=final_measurement,  # pyrefly: ignore[unexpected-keyword]
+        measurements=measurements,  # pyrefly: ignore[unexpected-keyword]
+        metadata=metadata,  # pyrefly: ignore[unexpected-keyword]
     )  # pytype: disable=wrong-arg-types
 
   @classmethod
@@ -731,7 +731,7 @@ class TrialSuggestionConverter:
           kv.proto if kv.HasField('proto') else kv.value
       )
 
-    return trial.TrialSuggestion(parameters=parameters, metadata=metadata)
+    return trial.TrialSuggestion(parameters=parameters, metadata=metadata)  # pyrefly: ignore[unexpected-keyword]
 
   @classmethod
   def from_protos(
@@ -835,9 +835,9 @@ class ProblemStatementConverter:
     )
     metadata = metadata_util.from_key_value_list(proto.metadata)
     return base_study_config.ProblemStatement(
-        search_space=search_space,
-        metric_information=metric_information,
-        metadata=metadata,
+        search_space=search_space,  # pyrefly: ignore[unexpected-keyword]
+        metric_information=metric_information,  # pyrefly: ignore[unexpected-keyword]
+        metadata=metadata,  # pyrefly: ignore[unexpected-keyword]
     )
 
 
@@ -860,9 +860,9 @@ class StudyDescriptorConverter:
       cls, proto: pythia_service_pb2.StudyDescriptor
   ) -> study.StudyDescriptor:
     return study.StudyDescriptor(
-        config=ProblemStatementConverter.from_proto(proto.config),
-        guid=proto.guid,
-        max_trial_id=proto.max_trial_id,
+        config=ProblemStatementConverter.from_proto(proto.config),  # pyrefly: ignore[unexpected-keyword]
+        guid=proto.guid,  # pyrefly: ignore[unexpected-keyword]
+        max_trial_id=proto.max_trial_id,  # pyrefly: ignore[unexpected-keyword]
     )
 
 
@@ -894,9 +894,9 @@ class SuggestConverter:
         proto.study_descriptor
     )
     return policy.SuggestRequest(
-        study_descriptor=study_descriptor,
-        count=proto.count,
-        checkpoint_dir=proto.checkpoint_dir,
+        study_descriptor=study_descriptor,  # pyrefly: ignore[unexpected-keyword]
+        count=proto.count,  # pyrefly: ignore[unexpected-keyword]
+        checkpoint_dir=proto.checkpoint_dir,  # pyrefly: ignore[unexpected-keyword]
     )
 
   @classmethod
@@ -921,7 +921,7 @@ class SuggestConverter:
     """Conversion from proto to PyVizier."""
     suggestions = TrialSuggestionConverter.from_protos(proto.suggestions)
     metadata = MetadataDeltaConverter.from_protos(proto.metadata)
-    return policy.SuggestDecision(suggestions=suggestions, metadata=metadata)
+    return policy.SuggestDecision(suggestions=suggestions, metadata=metadata)  # pyrefly: ignore[unexpected-keyword]
 
 
 class EarlyStopConverter:
@@ -951,9 +951,9 @@ class EarlyStopConverter:
         proto.study_descriptor
     )
     return policy.EarlyStopRequest(
-        study_descriptor=study_descriptor,
-        trial_ids=proto.trial_ids,
-        checkpoint_dir=proto.checkpoint_dir,
+        study_descriptor=study_descriptor,  # pyrefly: ignore[unexpected-keyword]
+        trial_ids=proto.trial_ids,  # pyrefly: ignore[unexpected-keyword]
+        checkpoint_dir=proto.checkpoint_dir,  # pyrefly: ignore[unexpected-keyword]
     )
 
   @classmethod
@@ -990,13 +990,13 @@ class EarlyStopConverter:
     decisions = []
     for decision_proto in proto.decisions:
       decision = policy.EarlyStopDecision(
-          id=decision_proto.id,
-          reason=decision_proto.reason,
-          should_stop=decision_proto.should_stop,
-          predicted_final_measurement=MeasurementConverter.from_proto(
+          id=decision_proto.id,  # pyrefly: ignore[unexpected-keyword]
+          reason=decision_proto.reason,  # pyrefly: ignore[unexpected-keyword]
+          should_stop=decision_proto.should_stop,  # pyrefly: ignore[unexpected-keyword]
+          predicted_final_measurement=MeasurementConverter.from_proto(  # pyrefly: ignore[unexpected-keyword]
               decision_proto.predicted_final_measurement
           ),
       )
       decisions.append(decision)
     metadata = MetadataDeltaConverter.from_protos(proto.metadata)
-    return policy.EarlyStopDecisions(decisions=decisions, metadata=metadata)
+    return policy.EarlyStopDecisions(decisions=decisions, metadata=metadata)  # pyrefly: ignore[unexpected-keyword]

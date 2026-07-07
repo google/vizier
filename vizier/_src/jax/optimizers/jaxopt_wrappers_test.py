@@ -46,15 +46,15 @@ class JaxoptWrappersTest(
     constraints = sinusoidal.bounds_to_constraints(bounds, nest_constraint)
     self.assert_converges(
         cls(jw.LbfgsBOptions()),
-        constraints=constraints,
+        constraints=constraints,  # pyrefly: ignore[bad-argument-type]
         threshold=1.0,
         random_restarts=20,
     )
 
   def test_max_duration(self):
     optimizer = jw.JaxoptScipyLbfgsB(
-        max_duration=datetime.timedelta(seconds=0),
-        speed_test=True,
+        max_duration=datetime.timedelta(seconds=0),  # pyrefly: ignore[unexpected-keyword]
+        speed_test=True,  # pyrefly: ignore[unexpected-keyword]
     )
     random_restarts = 3
     rngs = jax.random.split(jax.random.PRNGKey(1), random_restarts + 1)
@@ -64,7 +64,7 @@ class JaxoptWrappersTest(
         rng=rngs[0],
     )
     # Check that there's only one training instead of 3.
-    self.assertLen(metrics['train_time'], 1)
+    self.assertLen(metrics['train_time'], 1)  # pyrefly: ignore[bad-index]
 
 
 if __name__ == '__main__':

@@ -80,7 +80,7 @@ class TrialRegressionUtilsTest(absltest.TestCase):
         value_extraction='raw',
     )
     trial = _create_trial_for_testing(
-        0.3, steps, seconds, values, None, 1, _METRIC_NAME
+        0.3, steps, seconds, values, None, 1, _METRIC_NAME  # pyrefly: ignore[bad-argument-type]
     )
     conv2 = converters.TimedLabelsExtractor(
         [
@@ -114,7 +114,7 @@ class TrialRegressionUtilsTest(absltest.TestCase):
     steps = [10, 20]
     values = [0.1, 0.2]
     actual_steps, actual_values = (
-        trial_regression_utils._sort_dedupe_measurements(steps, values)
+        trial_regression_utils._sort_dedupe_measurements(steps, values)  # pyrefly: ignore[bad-argument-type]
     )
     self.assertListEqual(steps, actual_steps)
     self.assertListEqual(values, actual_values)
@@ -125,7 +125,7 @@ class TrialRegressionUtilsTest(absltest.TestCase):
     expected_steps = [10, 20]
     expected_values = [0.2, 0.2]
     actual_steps, actual_values = (
-        trial_regression_utils._sort_dedupe_measurements(steps, values)
+        trial_regression_utils._sort_dedupe_measurements(steps, values)  # pyrefly: ignore[bad-argument-type]
     )
     self.assertListEqual(expected_steps, actual_steps)
     self.assertListEqual(expected_values, actual_values)
@@ -245,7 +245,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
       pytrial1 = _create_trial_for_testing(
           learning_rate=0.1,
           steps=steps,
-          seconds=steps,
+          seconds=steps,  # pyrefly: ignore[bad-argument-type]
           values=values1,
           trial_id=1,
           stop_reason=None,
@@ -261,7 +261,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
       pytrial2 = _create_trial_for_testing(
           learning_rate=0.3,
           steps=steps,
-          seconds=steps,
+          seconds=steps,  # pyrefly: ignore[bad-argument-type]
           values=values2,
           trial_id=2,
           stop_reason=None,
@@ -277,7 +277,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
       pytrial3 = _create_trial_for_testing(
           learning_rate=0.2,
           steps=steps,
-          seconds=steps,
+          seconds=steps,  # pyrefly: ignore[bad-argument-type]
           values=values3,
           trial_id=3,
           stop_reason=None,
@@ -320,7 +320,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
       pytrial_pred = _create_trial_for_testing(
           learning_rate=0.1,
           steps=steps,
-          seconds=steps,
+          seconds=steps,  # pyrefly: ignore[bad-argument-type]
           values=values,
           trial_id=2,
           stop_reason=None,
@@ -338,7 +338,7 @@ class GBMAutoRegressorTest(absltest.TestCase):
     pytrial = _create_trial_for_testing(
         learning_rate=0.1,
         steps=steps,
-        seconds=steps,
+        seconds=steps,  # pyrefly: ignore[bad-argument-type]
         values=values,
         trial_id=1,
         stop_reason=None,

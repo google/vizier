@@ -276,8 +276,8 @@ class InRamPolicySupporter(policy_supporter.PolicySupporter):
     """Suggest and add new trials."""
 
     decisions = algorithm.suggest(
-        policy.SuggestRequest(
-            study_descriptor=self.study_descriptor(), count=count))
+        policy.SuggestRequest(  # pyrefly: ignore[missing-argument]
+            study_descriptor=self.study_descriptor(), count=count))  # pyrefly: ignore[unexpected-keyword]
     self._UpdateMetadata(decisions.metadata)
     return self.AddSuggestions([
         vz.TrialSuggestion(d.parameters, metadata=d.metadata)

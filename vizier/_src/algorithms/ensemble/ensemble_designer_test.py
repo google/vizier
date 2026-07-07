@@ -63,7 +63,7 @@ class EnsembleDesignerTest(parameterized.TestCase):
 
     benchmark_state_factory = (
         benchmarks.ExperimenterDesignerBenchmarkStateFactory(
-            designer_factory=ensemble_designer_factory,
+            designer_factory=ensemble_designer_factory,  # pyrefly: ignore[bad-argument-type]
             experimenter_factory=exptr_factory,
         )
     )
@@ -133,8 +133,8 @@ class EnsembleDesignerTest(parameterized.TestCase):
 
       scalarized_eagle = scalarizing_designer.ScalarizingDesigner(
           config,
-          eagle_designer_factory,
-          scalarizer=scalarization.HyperVolumeScalarization(
+          eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+          scalarizer=scalarization.HyperVolumeScalarization(  # pyrefly: ignore[bad-argument-type]
               weights=jnp.ones(len(config.metric_information))
           ),
       )
@@ -149,7 +149,7 @@ class EnsembleDesignerTest(parameterized.TestCase):
       )
 
     benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=ensemble_designer_factory,
+        designer_factory=ensemble_designer_factory,  # pyrefly: ignore[bad-argument-type]
         experimenter=exptr,
     )
     bench_state = benchmark_state_factory()

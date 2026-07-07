@@ -89,9 +89,9 @@ def _sample_value(
 ) -> vz.ParameterValueTypes:
   """Samples random value based on the parameter type."""
   if param_config.type == vz.ParameterType.CATEGORICAL:
-    return sample_categorical(rng, param_config.feasible_values)
+    return sample_categorical(rng, param_config.feasible_values)  # pyrefly: ignore[bad-argument-type]
   elif param_config.type == vz.ParameterType.DISCRETE:
-    return sample_discrete(rng, param_config.feasible_values)
+    return sample_discrete(rng, param_config.feasible_values)  # pyrefly: ignore[bad-argument-type]
   else:
     min_value, max_value = param_config.bounds
     if param_config.type == vz.ParameterType.INTEGER:

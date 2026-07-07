@@ -146,7 +146,7 @@ class EnsembleDesigner(vza.Designer):
     self._reward_generator = reward_generator
     self._use_separate_update = use_separate_update
 
-  def suggest(self, num_suggestions: int) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, num_suggestions: int) -> Sequence[vz.TrialSuggestion]:  # pyrefly: ignore[bad-override]
     """Randomly chooses a designer and Suggests from the chosen designer.
 
     Args:

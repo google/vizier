@@ -86,9 +86,9 @@ def evaluate_trial(trial: vz.Trial) -> vz.Measurement:
   learning_rate = trial.parameters.get_value('learning_rate')
   num_layers = trial.parameters.get_value('num_layers')
   m = vz.Measurement()
-  m.metrics = {'accuracy': learning_rate * num_layers}  # dummy accuracy
+  m.metrics = {'accuracy': learning_rate * num_layers}  # dummy accuracy  # pyrefly: ignore[unsupported-operation]
   if FLAGS.multiobjective:
-    m.metrics['latency'] = 0.5 * num_layers
+    m.metrics['latency'] = 0.5 * num_layers  # pyrefly: ignore[unsupported-operation]
   return m
 
 

@@ -85,7 +85,7 @@ class EXP3IXEnsembleDesign(EnsembleDesign):
   def ensemble_probs(self) -> np.ndarray:
     return softmax(self._log_weights)
 
-  def update(self, observation: IndexWithReward):
+  def update(self, observation: IndexWithReward):  # pyrefly: ignore[bad-override]
     expert_idx, reward = observation
     reward = min(self.max_reward, reward)
     gamma = 1.0 / np.sqrt(1.0 + len(self._history))

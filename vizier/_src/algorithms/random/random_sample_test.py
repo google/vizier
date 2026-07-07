@@ -99,7 +99,7 @@ class RandomSampleTest(parameterized.TestCase):
   def test_sample_value_float(self):
     float_param = vz.ParameterConfig.factory('float', bounds=(0.0, 1.0))
     value = random_sample._sample_value(self.rng, float_param)
-    self.assertTrue(0.0 <= value <= 1.0)
+    self.assertTrue(0.0 <= value <= 1.0)  # pyrefly: ignore[unsupported-operation]
 
   def test_sample_value_categorical(self):
     categorical_param = vz.ParameterConfig.factory(
@@ -119,8 +119,8 @@ class RandomSampleTest(parameterized.TestCase):
     parameter_dict = random_sample.sample_parameters(self.rng, space)
     self.assertIn(parameter_dict['b1'].value, ['True', 'False'])
     self.assertIn(parameter_dict['d1'].value, [1.0, 2.0, 10.0])
-    self.assertTrue(0.0 <= parameter_dict['f1'].value <= 15.0)
-    self.assertTrue(100.0 <= parameter_dict['f2'].value <= 200.0)
+    self.assertTrue(0.0 <= parameter_dict['f1'].value <= 15.0)  # pyrefly: ignore[unsupported-operation]
+    self.assertTrue(100.0 <= parameter_dict['f2'].value <= 200.0)  # pyrefly: ignore[unsupported-operation]
     self.assertIn(parameter_dict['i1'].value, list(range(0, 11)))
     self.assertIn(parameter_dict['c1'].value, ['a', 'b', 'c'])
 

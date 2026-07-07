@@ -129,7 +129,7 @@ class RandomMetricsRunner:
     policy = InRamDesignerPolicy(
         self.problem,
         supporter=supporter,
-        designer_factory=lambda _, **kwargs: designer,
+        designer_factory=lambda _, **kwargs: designer,  # pyrefly: ignore[bad-argument-type]
     )
     return self._run(benchmarks.PolicySuggester(policy, supporter))
 

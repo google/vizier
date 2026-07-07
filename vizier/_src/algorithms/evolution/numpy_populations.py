@@ -134,7 +134,7 @@ class Offspring(serializable.Serializable):
     if ids is None:
       ids = np.zeros([xs.shape[0]])
 
-    self.__attrs_init__(xs, ids, generations)
+    self.__attrs_init__(xs, ids, generations)  # pyrefly: ignore[missing-attribute]
 
   def __len__(self) -> int:
     return self.generations.shape[0]
@@ -153,7 +153,7 @@ class Offspring(serializable.Serializable):
   def load(cls: Type['Offspring'], metadata: vz.Metadata) -> 'Offspring':
     encoded = metadata.get('values', cls=str)
     try:
-      decoded = json.loads(encoded, object_hook=json_utils.numpy_hook)
+      decoded = json.loads(encoded, object_hook=json_utils.numpy_hook)  # pyrefly: ignore[bad-argument-type]
     except Exception as e:
       raise serializable.DecodeError('Failed to decode') from e
     return cls(**decoded)

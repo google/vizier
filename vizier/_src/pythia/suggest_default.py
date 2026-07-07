@@ -85,14 +85,14 @@ def seed_with_default(suggest_fn: _T) -> _T:
   """
 
   if hasattr(suggest_fn, '__self__'):
-    unbound = seed_with_default(suggest_fn.__func__)
-    return types.MethodType(unbound, suggest_fn.__self__)
+    unbound = seed_with_default(suggest_fn.__func__)  # pyrefly: ignore[missing-attribute]
+    return types.MethodType(unbound, suggest_fn.__self__)  # pyrefly: ignore[bad-return]
 
-  @functools.wraps(suggest_fn)
+  @functools.wraps(suggest_fn)  # pyrefly: ignore[bad-argument-type]
   def wrapper_fn(self: Policy, request: SuggestRequest) -> SuggestDecision:
     """If study is empty, suggests a default trial before using the policy."""
     if request.max_trial_id > 0:
-      return suggest_fn(self, request)
+      return suggest_fn(self, request)  # pyrefly: ignore[not-callable]
 
     default_parameters = get_default_parameters(
         request.study_config.search_space
@@ -100,7 +100,7 @@ def seed_with_default(suggest_fn: _T) -> _T:
     decision = SuggestDecision([vz.TrialSuggestion(default_parameters)])
 
     if request.count > 1:
-      more_suggestions = suggest_fn(
+      more_suggestions = suggest_fn(  # pyrefly: ignore[not-callable]
           self, attrs.evolve(request, count=request.count - 1)
       )
       decision.suggestions.extend(more_suggestions.suggestions)
@@ -108,4 +108,4 @@ def seed_with_default(suggest_fn: _T) -> _T:
 
     return decision
 
-  return wrapper_fn
+  return wrapper_fn  # pyrefly: ignore[bad-return]

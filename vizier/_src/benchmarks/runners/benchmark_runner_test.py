@@ -34,7 +34,7 @@ def _get_designer_benchmark_state_factory():
     return random.RandomDesigner(config.search_space, seed=seed)
 
   benchmark_state_factory = benchmark_state.DesignerBenchmarkStateFactory(
-      designer_factory=_designer_factory, experimenter=experimenter
+      designer_factory=_designer_factory, experimenter=experimenter  # pyrefly: ignore[bad-argument-type]
   )
 
   return benchmark_state_factory
@@ -163,7 +163,7 @@ class BaseRunnerTest(parameterized.TestCase):
 
     prior_benchmark_state_factory = (
         benchmark_state.ExperimenterDesignerBenchmarkStateFactory(
-            designer_factory=_designer_factory,
+            designer_factory=_designer_factory,  # pyrefly: ignore[bad-argument-type]
             experimenter_factory=exptr_factory,
         )
     )

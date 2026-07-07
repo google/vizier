@@ -34,12 +34,12 @@ class AutomatedStoppingConfig:
   def default_stopping_spec(cls) -> 'AutomatedStoppingConfig':
     """Use Vizier's default early stopping."""
     config = study_pb2.StudySpec.DefaultEarlyStoppingSpec()
-    return cls(proto=config)
+    return cls(proto=config)  # pyrefly: ignore[missing-argument, unexpected-keyword]
 
   @classmethod
   def from_proto(
       cls, proto: AutomatedStoppingConfigProto) -> 'AutomatedStoppingConfig':
-    return cls(proto=proto)
+    return cls(proto=proto)  # pyrefly: ignore[missing-argument, unexpected-keyword]
 
   def to_proto(self) -> AutomatedStoppingConfigProto:
     """Returns this object as a proto."""

@@ -85,7 +85,7 @@ class PolicySuggester:
         designer_factory=designer_factory,
         seed=seed,
     )
-    return PolicySuggester(policy=policy, local_supporter=supporter)
+    return PolicySuggester(policy=policy, local_supporter=supporter)  # pyrefly: ignore[missing-argument, unexpected-keyword]
 
 
 @attr.define
@@ -162,8 +162,8 @@ class PolicyBenchmarkStateFactory(BenchmarkStateFactory):
     problem = self.experimenter.problem_statement()
     return BenchmarkState(
         experimenter=self.experimenter,
-        algorithm=PolicySuggester(
-            policy=self.policy_factory(problem, seed),
-            local_supporter=pythia.InRamPolicySupporter(problem),
+        algorithm=PolicySuggester(  # pyrefly: ignore[missing-argument]
+            policy=self.policy_factory(problem, seed),  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
+            local_supporter=pythia.InRamPolicySupporter(problem),  # pyrefly: ignore[unexpected-keyword]
         ),
     )

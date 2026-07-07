@@ -199,7 +199,7 @@ class StudyConfig(base_study_config.ProblemStatement):
     algorithm = proto.algorithm
 
     metric_information = base_study_config.MetricsConfig(
-        sorted(
+        sorted(  # pyrefly: ignore[bad-argument-count]
             [
                 proto_converters.MetricInformationConverter.from_proto(m)
                 for m in proto.metrics
@@ -234,14 +234,14 @@ class StudyConfig(base_study_config.ProblemStatement):
       pass  # Pythia endpoint doesn't exist.
 
     return cls(
-        search_space=proto_converters.SearchSpaceConverter.from_proto(proto),
-        algorithm=algorithm,
-        pythia_endpoint=pythia_endpoint,
-        metric_information=metric_information,
-        observation_noise=ObservationNoise(proto.observation_noise),
-        automated_stopping_config=automated_stopping_config,
-        study_config=copy.deepcopy(proto),
-        metadata=metadata)
+        search_space=proto_converters.SearchSpaceConverter.from_proto(proto),  # pyrefly: ignore[unexpected-keyword]
+        algorithm=algorithm,  # pyrefly: ignore[unexpected-keyword]
+        pythia_endpoint=pythia_endpoint,  # pyrefly: ignore[unexpected-keyword]
+        metric_information=metric_information,  # pyrefly: ignore[unexpected-keyword]
+        observation_noise=ObservationNoise(proto.observation_noise),  # pyrefly: ignore[unexpected-keyword]
+        automated_stopping_config=automated_stopping_config,  # pyrefly: ignore[unexpected-keyword]
+        study_config=copy.deepcopy(proto),  # pyrefly: ignore[unexpected-keyword]
+        metadata=metadata)  # pyrefly: ignore[unexpected-keyword]
 
   def to_proto(self) -> study_pb2.StudySpec:
     """Serializes this object to a StudyConfig proto."""

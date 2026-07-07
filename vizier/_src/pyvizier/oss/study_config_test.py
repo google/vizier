@@ -71,9 +71,9 @@ class StudyConfigTest(parameterized.TestCase):
     # Test all proprties.
     sc = vz.StudyConfig.from_proto(study_config_proto)
     expected = vz.MetricsConfig(
-        [
+        [  # pyrefly: ignore[bad-argument-count]
             vz.MetricInformation(
-                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -154,10 +154,10 @@ class StudyConfigTest(parameterized.TestCase):
     # Test all proprties.
     sc = vz.StudyConfig.from_proto(study_config_proto)
 
-    expected = vz.MetricsConfig([
-        vz.MetricInformation(name='loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),
+    expected = vz.MetricsConfig([  # pyrefly: ignore[bad-argument-count]
+        vz.MetricInformation(name='loss', goal=vz.ObjectiveMetricGoal.MINIMIZE),  # pyrefly: ignore[unexpected-keyword]
         vz.MetricInformation(
-            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         ),
     ])
     self.assertEqual(sc.metric_information, expected)
@@ -190,15 +190,15 @@ class StudyConfigTest(parameterized.TestCase):
     study_config_proto.parameters.extend(self.pconfigs)
     # Test all proprties.
     sc = vz.StudyConfig.from_proto(study_config_proto)
-    expected = vz.MetricsConfig([
+    expected = vz.MetricsConfig([  # pyrefly: ignore[bad-argument-count]
         vz.MetricInformation(
-            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         ),
         vz.MetricInformation(
-            name='privacy-safety',
-            goal=vz.ObjectiveMetricGoal.MINIMIZE,
-            safety_threshold=0.2,
-            desired_min_safe_trials_fraction=0.8,
+            name='privacy-safety',  # pyrefly: ignore[unexpected-keyword]
+            goal=vz.ObjectiveMetricGoal.MINIMIZE,  # pyrefly: ignore[unexpected-keyword]
+            safety_threshold=0.2,  # pyrefly: ignore[unexpected-keyword]
+            desired_min_safe_trials_fraction=0.8,  # pyrefly: ignore[unexpected-keyword]
         ),
     ])
     self.assertEqual(sc.metric_information, expected)
@@ -224,7 +224,7 @@ class StudyConfigTest(parameterized.TestCase):
     sc = vz.StudyConfig()
     sc.metric_information.append(
         vz.MetricInformation(
-            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         )
     )
     sc.metadata.abs_ns(['ns'])['key'] = 'ns-value'
@@ -256,10 +256,10 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testCreation(self):
     sc = vz.StudyConfig()
-    sc.algorithm = vz.Algorithm.RANDOM_SEARCH
+    sc.algorithm = vz.Algorithm.RANDOM_SEARCH  # pyrefly: ignore[bad-assignment]
     sc.metric_information.append(
         vz.MetricInformation(
-            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         )
     )
     root = sc.search_space.root
@@ -275,9 +275,9 @@ class StudyConfigTest(parameterized.TestCase):
     # Test all proprties.
     self.assertEqual(sc.algorithm, 'RANDOM_SEARCH')
     expected = vz.MetricsConfig(
-        [
+        [  # pyrefly: ignore[bad-argument-count]
             vz.MetricInformation(
-                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='pr-auc', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -302,9 +302,9 @@ class StudyConfigTest(parameterized.TestCase):
   @absltest.skip('???')
   def testTrialToDict(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -347,9 +347,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDict(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -362,8 +362,8 @@ class StudyConfigTest(parameterized.TestCase):
     root.add_categorical_param('activation', ['tanh', 'relu'])
     root.add_bool_param('synchronous')
 
-    pytrial = vz.Trial(id=1)
-    pytrial.parameters = {
+    pytrial = vz.Trial(id=1)  # pyrefly: ignore[unexpected-keyword]
+    pytrial.parameters = {  # pyrefly: ignore[bad-assignment]
         'activation': vz.ParameterValue(value='relu'),
         'synchronous': vz.ParameterValue(value=True),
         'batch_size': vz.ParameterValue(value=32),
@@ -487,9 +487,9 @@ class StudyConfigTest(parameterized.TestCase):
   @absltest.skip('???')
   def testTrialToDictMultidimensional(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -549,9 +549,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDictMultidimensional(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -567,8 +567,8 @@ class StudyConfigTest(parameterized.TestCase):
     root.add_discrete_param(
         'floating_point_param', [8., 16., 32.], auto_cast=False)
 
-    pytrial = vz.Trial(id=2)
-    pytrial.parameters = {
+    pytrial = vz.Trial(id=2)  # pyrefly: ignore[unexpected-keyword]
+    pytrial.parameters = {  # pyrefly: ignore[bad-assignment]
         'learning_rate[0]': vz.ParameterValue(value=0.5),
         'learning_rate[1]': vz.ParameterValue(value=0.1),
         'units[0]': vz.ParameterValue(value=50),
@@ -594,9 +594,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testGinConfigMultiDimensional(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -641,9 +641,9 @@ class StudyConfigTest(parameterized.TestCase):
   @absltest.skip('???')
   def testTrialToDictConditional(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -682,9 +682,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDictConditional(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -700,8 +700,8 @@ class StudyConfigTest(parameterized.TestCase):
                              ]).add_float_param('learning_rate', 0.01, 1.0)
 
     pytrial = vz.Trial(
-        id=1,
-        parameters={
+        id=1,  # pyrefly: ignore[unexpected-keyword]
+        parameters={  # pyrefly: ignore[unexpected-keyword]
             'model_type': vz.ParameterValue(value='dnn'),
             'learning_rate': vz.ParameterValue(value=2.1),
             'units[0]': vz.ParameterValue(value=49),
@@ -720,9 +720,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testTrialToDictRaisesDuplicateParameters(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -740,9 +740,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testTrialToDictRaisesInvalidTrial(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -760,9 +760,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testTrialToDictWithFinalMetricsSingleObjective(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -789,9 +789,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDictWithFinalMetricsSingleObjective(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -799,12 +799,12 @@ class StudyConfigTest(parameterized.TestCase):
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = vz.Trial(
-        id=1,
-        completion_time=datetime.datetime(
+        id=1,  # pyrefly: ignore[unexpected-keyword]
+        completion_time=datetime.datetime(  # pyrefly: ignore[unexpected-keyword]
             year=2021, month=12, day=2, hour=7, minute=31
         ),
-        parameters={'learning_rate': vz.ParameterValue(0.5)},
-        final_measurement=vz.Measurement(
+        parameters={'learning_rate': vz.ParameterValue(0.5)},  # pyrefly: ignore[unexpected-keyword]
+        final_measurement=vz.Measurement(  # pyrefly: ignore[unexpected-keyword]
             metrics={
                 'loss': vz.Metric(value=56.8),
                 'objective': vz.Metric(value=77.7),
@@ -826,9 +826,9 @@ class StudyConfigTest(parameterized.TestCase):
     # (ACTIVE but has final measurement).
     # Pyvizier fixes the state.
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -852,9 +852,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testTrialToDictWithFinalMetricsInfeasible(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -879,9 +879,9 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDictWithFinalMetricsInfeasible(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             )
         ]
     )
@@ -889,13 +889,13 @@ class StudyConfigTest(parameterized.TestCase):
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = vz.Trial(
-        id=1,
-        infeasibility_reason='just because',
-        completion_time=datetime.datetime(
+        id=1,  # pyrefly: ignore[unexpected-keyword]
+        infeasibility_reason='just because',  # pyrefly: ignore[unexpected-keyword]
+        completion_time=datetime.datetime(  # pyrefly: ignore[unexpected-keyword]
             year=2021, month=12, day=2, hour=7, minute=31
         ),
-        parameters={'learning_rate': vz.ParameterValue(0.5)},
-        final_measurement=vz.Measurement(
+        parameters={'learning_rate': vz.ParameterValue(0.5)},  # pyrefly: ignore[unexpected-keyword]
+        final_measurement=vz.Measurement(  # pyrefly: ignore[unexpected-keyword]
             metrics={
                 'loss': vz.Metric(value=56.8),
                 'other': vz.Metric(value=77.7),
@@ -912,12 +912,12 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testTrialToDictWithFinalMetricsMultiObjective(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             ),
             vz.MetricInformation(
-                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE
+                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE  # pyrefly: ignore[unexpected-keyword]
             ),
         ]
     )
@@ -950,12 +950,12 @@ class StudyConfigTest(parameterized.TestCase):
 
   def testPyTrialToDictWithFinalMetricsMultiObjective(self):
     py_study_config = vz.StudyConfig(
-        metric_information=[
+        metric_information=[  # pyrefly: ignore[unexpected-keyword]
             vz.MetricInformation(
-                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                name='objective', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
             ),
             vz.MetricInformation(
-                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE
+                name='objective2', goal=vz.ObjectiveMetricGoal.MINIMIZE  # pyrefly: ignore[unexpected-keyword]
             ),
         ]
     )
@@ -963,12 +963,12 @@ class StudyConfigTest(parameterized.TestCase):
     root.add_float_param('learning_rate', 0.01, 3.0)
 
     pytrial = vz.Trial(
-        id=1,
-        completion_time=datetime.datetime(
+        id=1,  # pyrefly: ignore[unexpected-keyword]
+        completion_time=datetime.datetime(  # pyrefly: ignore[unexpected-keyword]
             year=2021, month=12, day=2, hour=7, minute=31
         ),
-        parameters={'learning_rate': vz.ParameterValue(0.5)},
-        final_measurement=vz.Measurement(
+        parameters={'learning_rate': vz.ParameterValue(0.5)},  # pyrefly: ignore[unexpected-keyword]
+        final_measurement=vz.Measurement(  # pyrefly: ignore[unexpected-keyword]
             metrics={
                 'loss': vz.Metric(value=56.8),
                 'objective': vz.Metric(value=77.7),

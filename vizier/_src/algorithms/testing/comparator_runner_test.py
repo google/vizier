@@ -172,10 +172,10 @@ class EfficiencyConvergenceTest(absltest.TestCase):
     )
     comparator.assert_better_efficiency(
         benchmarks.DesignerBenchmarkStateFactory(
-            experimenter=experimenter, designer_factory=_good_designer
+            experimenter=experimenter, designer_factory=_good_designer  # pyrefly: ignore[bad-argument-type]
         ),
         benchmarks.DesignerBenchmarkStateFactory(
-            experimenter=experimenter, designer_factory=_baseline_designer
+            experimenter=experimenter, designer_factory=_baseline_designer  # pyrefly: ignore[bad-argument-type]
         ),
         score_threshold=0.3,
     )
@@ -184,10 +184,10 @@ class EfficiencyConvergenceTest(absltest.TestCase):
     with self.assertRaises(comparator_runner.FailedComparisonTestError):  # pylint: disable=g-error-prone-assert-raises
       comparator.assert_better_efficiency(
           benchmarks.DesignerBenchmarkStateFactory(
-              experimenter=experimenter, designer_factory=_baseline_designer
+              experimenter=experimenter, designer_factory=_baseline_designer  # pyrefly: ignore[bad-argument-type]
           ),
           benchmarks.DesignerBenchmarkStateFactory(
-              experimenter=experimenter, designer_factory=_good_designer
+              experimenter=experimenter, designer_factory=_good_designer  # pyrefly: ignore[bad-argument-type]
           ),
           score_threshold=-0.1,
       )
@@ -276,13 +276,13 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
 
     baseline_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
         experimenter=self.experimenter,
-        designer_factory=_baseline_designer_factory,
+        designer_factory=_baseline_designer_factory,  # pyrefly: ignore[bad-argument-type]
     )
 
     candidate_benchmark_state_factory = (
         benchmarks.DesignerBenchmarkStateFactory(
             experimenter=self.experimenter,
-            designer_factory=_better_designer_factory,
+            designer_factory=_better_designer_factory,  # pyrefly: ignore[bad-argument-type]
         )
     )
 
@@ -368,7 +368,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
     if should_pass:
       simple_regret_test.assert_optimizer_better_simple_regret(
           self.converter,
-          score_fn,
+          score_fn,  # pyrefly: ignore[bad-argument-type]
           _baseline_strategy_factory,
           _candidate_strategy_factory,
       )
@@ -378,7 +378,7 @@ class SimpleRegretConvergenceRunnerTest(parameterized.TestCase):
       ):
         simple_regret_test.assert_optimizer_better_simple_regret(
             self.converter,
-            score_fn,
+            score_fn,  # pyrefly: ignore[bad-argument-type]
             _baseline_strategy_factory,
             _candidate_strategy_factory,
         )

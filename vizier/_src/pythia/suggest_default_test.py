@@ -93,7 +93,7 @@ class SuggestDefaultTest(absltest.TestCase):
         return pythia.EarlyStopDecisions()
 
     FakeDecoratedPolicy().suggest(
-        pythia.SuggestRequest(count=3, study_descriptor=empty_study_descriptor)
+        pythia.SuggestRequest(count=3, study_descriptor=empty_study_descriptor)  # pyrefly: ignore[missing-argument, unexpected-keyword]
     )
 
   def test_init_override(self):
@@ -119,7 +119,7 @@ class SuggestDefaultTest(absltest.TestCase):
         return pythia.EarlyStopDecisions()
 
     FakeInitOverridePolicy().suggest(
-        pythia.SuggestRequest(count=3, study_descriptor=empty_study_descriptor)
+        pythia.SuggestRequest(count=3, study_descriptor=empty_study_descriptor)  # pyrefly: ignore[missing-argument, unexpected-keyword]
     )
 
 

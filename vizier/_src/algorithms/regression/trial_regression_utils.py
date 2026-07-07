@@ -30,7 +30,7 @@ import lightgbm.sklearn as lightgbm
 import numpy as np
 from scipy.interpolate.fitpack2 import InterpolatedUnivariateSpline
 import six
-from six.moves import range
+from six.moves import range  # pyrefly: ignore[missing-source-for-stubs]
 from sklearn import model_selection
 from vizier import algorithms as vza
 from vizier import pyvizier
@@ -201,7 +201,7 @@ class GBMAutoRegressor(object):
     self._cv = cv
     self._random_state = random_state
     self._model: lightgbm.LGBMRegressor = None  # place holder for trained model
-    self._best_params: Dict[str, Any] = None  # place holder for best parameters
+    self._best_params: Dict[str, Any] = None  # place holder for best parameters  # pyrefly: ignore[bad-assignment]
 
   @property
   def is_trained(self) -> bool:
@@ -244,14 +244,14 @@ class GBMAutoRegressor(object):
           trialc.steps, trialc.objective_values
       )
       trial_inter_func = _generate_interpolation_fn_from_trial(
-          tc_steps, tc_values
+          tc_steps, tc_values  # pyrefly: ignore[bad-argument-type]
       )
       for i, step in enumerate(trialc.steps):
         if i < self._min_points - 1 or step >= self._target_step:
           continue
         features = self._create_features_from_trial(trialc, i)
         feature_matrix.append(features)
-        targets.append(trial_inter_func(self._target_step))
+        targets.append(trial_inter_func(self._target_step))  # pyrefly: ignore[bad-argument-type]
     feature_matrix = np.array(feature_matrix)
     logging.info("Feature matrix shape: %s", feature_matrix.shape)
     if feature_matrix.shape[0] <= (self._min_points + 1) / (
@@ -505,15 +505,15 @@ class GBMTrialHallucinator:
         value=auto_prediction
     )
     if self._options.use_steps:
-      final_measurement.steps = self._max_steps
+      final_measurement.steps = self._max_steps  # pyrefly: ignore[bad-assignment]
       # Increase the elapsed_secs for the final_measurement to
       # make sure new measurements won't have newer timestamps.
       final_measurement.elapsed_secs = (
-          pytrial.measurements[-1].elapsed_secs
+          pytrial.measurements[-1].elapsed_secs  # pyrefly: ignore[unsupported-operation]
           + self._options.elapsed_seconds_gap
       )
     else:
-      final_measurement.elapsed_secs = self._max_steps
+      final_measurement.elapsed_secs = self._max_steps  # pyrefly: ignore[bad-assignment]
       # Increase the steps for the final_measurement to ensure it's the last
       # step. Note that the gap does not effect vizier's suggestion policy
       # and therefore is a safe operation.

@@ -104,8 +104,8 @@ class EfficiencyComparisonTester:
     candidate_curve = analyzers.ConvergenceCurve.align_xs(
         candidate_curves, interpolate_repeats=True
     )[0]
-    comparator = analyzers.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=baseline_curve, compared_curve=candidate_curve
+    comparator = analyzers.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=baseline_curve, compared_curve=candidate_curve  # pyrefly: ignore[unexpected-keyword]
     )
 
     if (log_eff_score := comparator.score()) < score_threshold:
@@ -135,9 +135,9 @@ class SimpleRegretComparisonTester:
   candidate_suggestion_batch_size: int
   baseline_num_repeats: int
   candidate_num_repeats: int
-  alpha: float = attr.field(
+  alpha: float = attr.field(  # pyrefly: ignore[no-matching-overload]
       validator=attr.validators.and_(
-          attr.validators.ge(0), attr.validators.le(0.1)),
+          attr.validators.ge(0), attr.validators.le(0.1)),  # pyrefly: ignore[bad-argument-type]
       default=0.05)
   goal: vz.ObjectiveMetricGoal
 

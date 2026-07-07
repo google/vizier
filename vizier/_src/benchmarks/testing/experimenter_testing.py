@@ -35,7 +35,7 @@ def assert_evaluates_random_suggestions(
   state = benchmark_state.BenchmarkState(
       experimenter=experimenter,
       algorithm=benchmark_state.PolicySuggester.from_designer_factory(
-          experimenter.problem_statement(), random.RandomDesigner.from_problem
+          experimenter.problem_statement(), random.RandomDesigner.from_problem  # pyrefly: ignore[bad-argument-type]
       ),
   )
 

@@ -270,7 +270,7 @@ class Nsga2Test(absltest.TestCase):
     logging.info('Pareto frontier %s %s', pareto.xs, pareto.ys)
 
     # Smoke test dump-load.
-    algorithm.load(dumped)
+    algorithm.load(dumped)  # pyrefly: ignore[unbound-name]
 
   def test_seeding(self):
     algorithm_1 = nsga2_on_all_types(10)

@@ -63,7 +63,7 @@ class TestCase(
     problem.search_space.root.add_float_param('float', 0.0, 1.0)
     problem.metric_information.append(
         vz.MetricInformation(
-            name='maximize_metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='maximize_metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         )
     )
     study = self.create_study(problem, name)
@@ -95,19 +95,19 @@ class TestCase(
     trials = [
         # Completed trial.
         vz.Trial(
-            parameters={'float': 0.5},
+            parameters={'float': 0.5},  # pyrefly: ignore[unexpected-keyword]
         ).complete(vz.Measurement({'maximize_metric': 1.0})),
         # Completed trial.
         vz.Trial(
-            parameters={'float': 0.5},
+            parameters={'float': 0.5},  # pyrefly: ignore[unexpected-keyword]
         ).complete(vz.Measurement({'maximize_metric': 0.5})),
         # Requested trial, which will be made active below.
         vz.Trial(
-            parameters={'float': 0.5},
-            measurements=[vz.Measurement({'maximize_metric': 0.7})],
+            parameters={'float': 0.5},  # pyrefly: ignore[unexpected-keyword]
+            measurements=[vz.Measurement({'maximize_metric': 0.7})],  # pyrefly: ignore[unexpected-keyword]
         ),
         # Requested trial.
-        vz.Trial(parameters={'float': 0.5}, is_requested=True),
+        vz.Trial(parameters={'float': 0.5}, is_requested=True),  # pyrefly: ignore[unexpected-keyword]
     ]
     for idx, t in enumerate(trials):
       t.metadata['future_id'] = str(idx + 1)  # id to be assigned
@@ -172,7 +172,7 @@ class TestCase(
     # Given the same client id, should return the same trials.
     study = self.create_test_study(self.id())
     requested_parameters = {'float': 0.11112}
-    requested_trial = study.request(vz.TrialSuggestion(requested_parameters))
+    requested_trial = study.request(vz.TrialSuggestion(requested_parameters))  # pyrefly: ignore[bad-argument-count]
     self.assertCountEqual(
         requested_trial.parameters.items(), requested_parameters.items()
     )
@@ -214,7 +214,7 @@ class TestCase(
 
   def test_get_trials(self):
     study = self.create_test_study_with_trials(self.id())
-    completed = study.trials(vz.TrialFilter(status={vz.TrialStatus.COMPLETED}))
+    completed = study.trials(vz.TrialFilter(status={vz.TrialStatus.COMPLETED}))  # pyrefly: ignore[unexpected-keyword]
     self.assertLen(list(completed), 2)
 
   def test_parameters(self):
@@ -372,15 +372,15 @@ class TestCase(
     problem.search_space.root.add_int_param(
         'num_layers', min_value=1, max_value=5
     )
-    problem.metric_information = [
+    problem.metric_information = [  # pyrefly: ignore[bad-assignment]
         vz.MetricInformation(
-            name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+            name='accuracy', goal=vz.ObjectiveMetricGoal.MAXIMIZE  # pyrefly: ignore[unexpected-keyword]
         )
     ]
     if multi_objective:
       problem.metric_information.append(
           vz.MetricInformation(
-              name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE
+              name='latency', goal=vz.ObjectiveMetricGoal.MINIMIZE  # pyrefly: ignore[unexpected-keyword]
           )
       )
 

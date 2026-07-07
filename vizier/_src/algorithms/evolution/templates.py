@@ -188,13 +188,13 @@ class CanonicalEvolutionDesigner(vza.PartiallySerializableDesigner,
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:
-    completed = completed.trials
-    self._num_trials_seen += len(completed)
-    candidates = self._population + self._converter.to_population(completed)
+    completed = completed.trials  # pyrefly: ignore[bad-assignment]
+    self._num_trials_seen += len(completed)  # pyrefly: ignore[bad-argument-type]
+    candidates = self._population + self._converter.to_population(completed)  # pyrefly: ignore[bad-argument-type, unsupported-operation]
     self._population = self._survival.select(candidates)
 
   def load(self, metadata: vz.Metadata):
-    self._population = type(self._population).recover(metadata)
+    self._population = type(self._population).recover(metadata)  # pyrefly: ignore[missing-attribute]
 
   def dump(self) -> vz.Metadata:
-    return self._population.dump()
+    return self._population.dump()  # pyrefly: ignore[missing-attribute]

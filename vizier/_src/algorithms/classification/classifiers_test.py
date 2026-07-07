@@ -45,11 +45,11 @@ class SklearnClassifierTest(parameterized.TestCase):
 
   def test_raise_error_invalid_labels(self):
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=gpc_classifier,
-        features=self.features_train,
-        labels=self.labels_train_invalid,
-        features_test=self.features_test,
-        eval_metric='probability')
+        classifier=gpc_classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=self.labels_train_invalid,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_test,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric='probability')  # pyrefly: ignore[unexpected-keyword]
     with self.assertRaises(ValueError):
       classifier_instance._check_labels_values()
 
@@ -59,11 +59,11 @@ class SklearnClassifierTest(parameterized.TestCase):
   ])
   def test_scores_shape(self, classifier, eval_metric):
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
-        features_test=self.features_test,
-        eval_metric=eval_metric)
+        classifier=classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=self.labels_train,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_test,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric=eval_metric)  # pyrefly: ignore[unexpected-keyword]
     scores = classifier_instance()
     self.assertEqual(scores.shape[0], self.features_test.shape[0])
 
@@ -73,11 +73,11 @@ class SklearnClassifierTest(parameterized.TestCase):
   ])
   def test_labels_shape(self, classifier, eval_metric, threshold):
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
-        features_test=self.features_test,
-        eval_metric=eval_metric)
+        classifier=classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=self.labels_train,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_test,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric=eval_metric)  # pyrefly: ignore[unexpected-keyword]
     scores = classifier_instance()
     labels_test_pred = (scores >= threshold).astype(float)
     labels_test_real = np.array([0, 1, 0, 1])
@@ -88,11 +88,11 @@ class SklearnClassifierTest(parameterized.TestCase):
     labels_train_identical = np.ones(
         (self.features_train.shape[0],)) * label_val
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=gpc_classifier,
-        features=self.features_train,
-        labels=labels_train_identical,
-        features_test=self.features_test,
-        eval_metric='probability')
+        classifier=gpc_classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=labels_train_identical,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_test,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric='probability')  # pyrefly: ignore[unexpected-keyword]
     with self.assertRaises(ValueError):
       classifier_instance._check_labels_values()
 
@@ -102,11 +102,11 @@ class SklearnClassifierTest(parameterized.TestCase):
   ])
   def test_scores_range(self, classifier, eval_metric):
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
-        features_test=self.features_test,
-        eval_metric=eval_metric)
+        classifier=classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=self.labels_train,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_test,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric=eval_metric)  # pyrefly: ignore[unexpected-keyword]
     scores = classifier_instance()
     if eval_metric == 'probability':
       self.assertGreaterEqual(scores.min(), 0.)
@@ -124,11 +124,11 @@ class SklearnClassifierTest(parameterized.TestCase):
   ])
   def test_prediction_on_train_data(self, classifier, eval_metric, threshold):
     classifier_instance = classifiers.SklearnClassifier(
-        classifier=classifier,
-        features=self.features_train,
-        labels=self.labels_train,
-        features_test=self.features_train,
-        eval_metric=eval_metric)
+        classifier=classifier,  # pyrefly: ignore[unexpected-keyword]
+        features=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        labels=self.labels_train,  # pyrefly: ignore[unexpected-keyword]
+        features_test=self.features_train,  # pyrefly: ignore[unexpected-keyword]
+        eval_metric=eval_metric)  # pyrefly: ignore[unexpected-keyword]
     scores = classifier_instance()
     labels_test_pred = (scores >= threshold).astype(float)
     self.assertTrue((labels_test_pred == self.labels_train).all())

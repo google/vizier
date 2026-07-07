@@ -36,9 +36,9 @@ class NumpyEncoder(json.JSONEncoder):
       # Shape must be dumped and restored, in case that the array has shape
       # that includes 0-sized dimensions.
       return {
-          'dtype': np.dtype(o.dtype).name,
-          'value': o.tolist(),
-          'shape': o.shape
+          'dtype': np.dtype(o.dtype).name,  # pyrefly: ignore[missing-attribute]
+          'value': o.tolist(),  # pyrefly: ignore[missing-attribute]
+          'shape': o.shape  # pyrefly: ignore[missing-attribute]
       }
     else:
       return o
@@ -68,7 +68,7 @@ class MetadataEncoder(json.JSONEncoder):
   def default(self, o: Any) -> Any:
     if isinstance(o, vz.Metadata):
       d = dict(o)
-      d |= {ns.encode(): o.ns(ns) for ns in o.subnamespaces()}
+      d |= {ns.encode(): o.ns(ns) for ns in o.subnamespaces()}  # pyrefly: ignore[bad-argument-type]
       return d
     elif not isinstance(o, dict) and isinstance(o, Mapping):
       # Handles FrozenDict and any dict-like structures.
