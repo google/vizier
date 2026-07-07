@@ -49,7 +49,7 @@ class SimpleKDExperimenterTest(parameterized.TestCase):
         experimenter,
         benchmark_state.PolicySuggester.from_designer_factory(
             experimenter.problem_statement(),
-            grid.GridSearchDesigner.from_problem,
+            grid.GridSearchDesigner.from_problem,  # pyrefly: ignore[bad-argument-type]
         ),
     )
     runner.run(state)
@@ -79,7 +79,7 @@ class SimpleKDExperimenterTest(parameterized.TestCase):
                 'int': [int_value],
                 'float': [cont_value],
             }
-            opt_value = np.nanmax([exptr_simple4d._compute(values), opt_value])
+            opt_value = np.nanmax([exptr_simple4d._compute(values), opt_value])  # pyrefly: ignore[bad-argument-type]
 
     self.assertAlmostEqual(opt_value, exptr_simple4d.optimal_objective)
 

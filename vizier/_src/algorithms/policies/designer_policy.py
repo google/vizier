@@ -181,7 +181,7 @@ class _SerializableDesignerPolicyBase(
     self._ns_root = ns_root
     self._cache: trial_caches.IdDeduplicatingTrialLoader = (
         trial_caches.IdDeduplicatingTrialLoader(
-            supporter, include_intermediate_measurements=False
+            supporter, include_intermediate_measurements=False  # pyrefly: ignore[unexpected-keyword]
         )
     )
     self._problem_statement = problem_statement
@@ -214,7 +214,7 @@ class _SerializableDesignerPolicyBase(
         request.max_trial_id
     )
     active_trials = self._cache.get_active_trials()
-    self.designer.update(
+    self.designer.update(  # pyrefly: ignore[missing-attribute]
         completed=vza.CompletedTrials(new_completed_trials),
         all_active=vza.ActiveTrials(active_trials),
     )
@@ -231,7 +231,7 @@ class _SerializableDesignerPolicyBase(
     # During the 'suggest' call the designer's state could be changed, therefore
     # the state is dumped and stored only after 'suggest' was called.
     suggestions = pythia.SuggestDecision(
-        self.designer.suggest(request.count), metadata=metadata_delta
+        self.designer.suggest(request.count), metadata=metadata_delta  # pyrefly: ignore[missing-attribute]
     )
     metadata_delta.on_study.ns(self._ns_root).attach(self.dump())
     return suggestions
@@ -329,7 +329,7 @@ class _SerializableDesignerPolicyBase(
           state.
     """
     md = vz.Metadata()
-    md.ns(self._ns_designer).attach(self.designer.dump())
+    md.ns(self._ns_designer).attach(self.designer.dump())  # pyrefly: ignore[missing-attribute]
     md.ns(self._ns_cache).attach(self._cache.dump())
     return md
 

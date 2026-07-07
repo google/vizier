@@ -66,7 +66,7 @@ def _setup_lambda_search(
   problem = vz.ProblemStatement(
       search_space=search_space,
       metric_information=vz.MetricsConfig(
-          metrics=[
+          metrics=[  # pyrefly: ignore[unexpected-keyword]
               vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
           ]
       ),
@@ -85,7 +85,7 @@ def _setup_lambda_search(
     for idx, suggestion in enumerate(suggestions):
       trial = suggestion.to_trial(idx)
       x = suggestions[idx].parameters['x0'].value
-      trial.complete(vz.Measurement(metrics={'obj': f(x)}))
+      trial.complete(vz.Measurement(metrics={'obj': f(x)}))  # pyrefly: ignore[bad-argument-type]
       obs_trials.append(trial)
 
     model_data = converter.to_xy(obs_trials)
@@ -102,7 +102,7 @@ def _setup_lambda_search(
       ard_random_restarts=optimizers.DEFAULT_RANDOM_RESTARTS,
   )
   test_data, _ = create_model_data(num_entries=num_test)
-  return train_spec, train_data, test_data
+  return train_spec, train_data, test_data  # pyrefly: ignore[bad-return]
 
 
 def _compute_mse(
@@ -378,7 +378,7 @@ class StackedResidualGPTest(parameterized.TestCase):
     problem = vz.ProblemStatement(
         search_space=search_space,
         metric_information=vz.MetricsConfig(
-            metrics=[
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
                 vz.MetricInformation(
                     'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),
@@ -399,7 +399,7 @@ class StackedResidualGPTest(parameterized.TestCase):
     for idx, suggestion in enumerate(suggestions):
       trial = suggestion.to_trial(idx)
       x = suggestions[idx].parameters['x0'].value
-      trial.complete(vz.Measurement(metrics={'obj1': x + 1, 'obj2': 2 * x - 1}))
+      trial.complete(vz.Measurement(metrics={'obj1': x + 1, 'obj2': 2 * x - 1}))  # pyrefly: ignore[unsupported-operation]
       obs_trials.append(trial)
 
     train_entries = 60
@@ -413,7 +413,7 @@ class StackedResidualGPTest(parameterized.TestCase):
             data=model_data, multitask_type=multitask_type
         ),
     )
-    gp = gp_models.train_gp(train_spec, model_data)
+    gp = gp_models.train_gp(train_spec, model_data)  # pyrefly: ignore[bad-argument-type]
 
     test_data = converter.to_xy(test_trials)
     pred_dist, _ = gp.predict_with_aux(test_data.features)

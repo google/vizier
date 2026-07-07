@@ -79,7 +79,7 @@ class PaddedArray(eqx.Module):
     if self._nopadding_done:
       return self
     else:
-      return PaddedArray(
+      return PaddedArray(  # pyrefly: ignore[bad-return]
           jnp.where(self._mask, self.padded_array, fill_value),
           fill_value=fill_value,
           _original_shape=self._original_shape,
@@ -119,7 +119,7 @@ class PaddedArray(eqx.Module):
         jnp.ones_like(array, dtype=bool), spec, constant_values=False
     )
     new_array = jnp.pad(array, spec, constant_values=fill_value)
-    return PaddedArray(
+    return PaddedArray(  # pyrefly: ignore[bad-return]
         padded_array=new_array,
         fill_value=fill_value,
         _original_shape=array.shape,

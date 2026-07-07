@@ -45,7 +45,7 @@ def _branin(x: np.ndarray) -> float:
   x2 = x[..., 1]
 
   y = a * (x2 - b * x1**2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s
-  return y
+  return y  # pyrefly: ignore[bad-return]
 
 
 class Branin2DExperimenter(experimenter.Experimenter):

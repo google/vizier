@@ -48,10 +48,10 @@ class EagleStrategyConvergenceTest(parameterized.TestCase):
       return eagle_strategy.EagleStrategyDesigner(problem, seed=seed)
 
     random_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=_random_designer_factory, experimenter=exptr)
+        designer_factory=_random_designer_factory, experimenter=exptr)  # pyrefly: ignore[bad-argument-type]
 
     eagle_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=_eagle_designer_factory,
+        designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
         experimenter=exptr,
     )
     evaluations = 1000

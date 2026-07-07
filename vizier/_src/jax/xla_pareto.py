@@ -89,11 +89,11 @@ def is_frontier(
   frontier = np.ones(ys.shape[0], dtype=np.bool_)
 
   for begin, end in zip(idx[1:], idx[:-1]):
-    candidates = ys[frontier]
+    candidates = ys[frontier]  # pyrefly: ignore[bad-index]
     # Filter candidates by comparing against the slice.
     if verbose:
       print(f"Compare {len(candidates)} against {begin}:{end}.")
-    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
+    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)  # pyrefly: ignore[bad-index]
     frontier[frontier] = tt
   return frontier
 
@@ -105,7 +105,7 @@ class JaxParetoOptimalAlgorithm(pareto_optimal.BaseParetoOptimalAlgorithm):
     """Jax-enabled Pareto frontier algorithm. See base class."""
     return np.array(is_frontier(points), dtype=bool)
 
-  def is_pareto_optimal_against(self, points: np.ndarray,
+  def is_pareto_optimal_against(self, points: np.ndarray,  # pyrefly: ignore[bad-override]
                                 dominating_points: np.ndarray,
                                 strict: bool) -> np.ndarray:
     """Jax-enabled optimality/domination algorithm. See base class."""
@@ -146,7 +146,7 @@ def get_frontier(
     if verbose:
       # Use print. This method won't run in production anyways.
       print(f"Compare {len(candidates)} against {begin}:{end}.")
-    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
+    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)  # pyrefly: ignore[bad-index]
     candidates = candidates[tt]
   return candidates
 

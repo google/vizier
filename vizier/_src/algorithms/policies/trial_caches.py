@@ -122,7 +122,7 @@ class IdDeduplicatingTrialLoader(serializable.PartiallySerializable):
       try:
         # We don't store/load ACTIVE trials as we always pass all of them.
         self._incorporated_completed_trial_ids = set(
-            json.loads(md[_INCOPORATED_COMPLETED_TRIALS_IDS])
+            json.loads(md[_INCOPORATED_COMPLETED_TRIALS_IDS])  # pyrefly: ignore[bad-argument-type]
         )
       except json.JSONDecodeError as e:
         raise serializable.HarmlessDecodeError from e

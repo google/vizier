@@ -213,7 +213,7 @@ class VizierMultitaskGaussianProcess(
       unif = jax.random.uniform(key, shape, dtype=jnp.float64)
       return jnp.exp(unif * jnp.log(high / low) + jnp.log(low))
 
-    return sample
+    return sample  # pyrefly: ignore[bad-return]
 
   def __call__(
       self, inputs: Optional[types.ModelInput] = None
@@ -259,7 +259,7 @@ class VizierMultitaskGaussianProcess(
     kernel = tfpk.MaternFiveHalves(amplitude=jnp.sqrt(signal_variance))
     continuous_length_scale_squared = yield sp.ModelParameter(
         init_fn=self._log_uniform_init(
-            *continuous_length_scale_bounds,
+            *continuous_length_scale_bounds,  # pyrefly: ignore[bad-argument-type]
             shape=(self._feature_dim.continuous,),
         ),
         constraint=sp.Constraint(
@@ -271,7 +271,7 @@ class VizierMultitaskGaussianProcess(
     )
     categorical_length_scale_squared = yield sp.ModelParameter(
         init_fn=self._log_uniform_init(
-            *categorical_length_scale_bounds,
+            *categorical_length_scale_bounds,  # pyrefly: ignore[bad-argument-type]
             shape=(self._feature_dim.categorical,),
         ),
         constraint=sp.Constraint(
@@ -346,8 +346,8 @@ class VizierMultitaskGaussianProcess(
       kernel = mask_features.MaskFeatures(
           kernel,
           dimension_is_missing=tfpke.ContinuousAndCategoricalValues(
-              continuous=inputs.continuous.is_missing[1],
-              categorical=inputs.categorical.is_missing[1],
+              continuous=inputs.continuous.is_missing[1],  # pyrefly: ignore[bad-index]
+              categorical=inputs.categorical.is_missing[1],  # pyrefly: ignore[bad-index]
           ),
       )
 

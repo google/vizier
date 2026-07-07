@@ -31,7 +31,7 @@ def _default_multiarm_problem(arms: Sequence[str]) -> vz.ProblemStatement:
   """Returns default multi-arm problem statement."""
   problem = vz.ProblemStatement()
   problem.metric_information.append(
-      vz.MetricInformation(name="reward", goal=vz.ObjectiveMetricGoal.MAXIMIZE)
+      vz.MetricInformation(name="reward", goal=vz.ObjectiveMetricGoal.MAXIMIZE)  # pyrefly: ignore[unexpected-keyword]
   )
   problem.search_space.root.add_categorical_param("arm", feasible_values=arms)
   return problem
@@ -53,7 +53,7 @@ class BernoulliMultiArmExperimenter(experimenter.Experimenter):
     """Each arm has a fixed probability of outputting 0 or 1 reward."""
     for suggestion in suggestions:
       arm = suggestion.parameters["arm"].value
-      prob = self._arms_to_probs[arm]
+      prob = self._arms_to_probs[arm]  # pyrefly: ignore[bad-index]
       reward = self._rng.choice([0, 1], p=[1 - prob, prob])
       suggestion.final_measurement = vz.Measurement(metrics={"reward": reward})
 
@@ -70,5 +70,5 @@ class FixedMultiArmExperimenter(experimenter.Experimenter):
   def evaluate(self, suggestions: Sequence[vz.Trial]) -> None:
     for suggestion in suggestions:
       arm = suggestion.parameters["arm"].value
-      reward = self._arms_to_rewards[arm]
+      reward = self._arms_to_rewards[arm]  # pyrefly: ignore[bad-index]
       suggestion.final_measurement = vz.Measurement(metrics={"reward": reward})

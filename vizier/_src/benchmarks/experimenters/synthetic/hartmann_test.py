@@ -32,7 +32,7 @@ class Hartmann3DExperimenterTest(absltest.TestCase):
         }
     )
     hartmann.HartmannExperimenter.from_3d().evaluate([trial])
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         -3.86278,
         places=5,
@@ -56,7 +56,7 @@ class Hartmann6DExperimenterTest(absltest.TestCase):
         }
     )
     hartmann.HartmannExperimenter.from_6d().evaluate([trial])
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         -3.32237,
         places=5,

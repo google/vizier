@@ -218,7 +218,7 @@ class EagleStrategyUtils:
         if max_value == min_value:
           dist = 0
         else:
-          dist = (p1_value - p2_value) / (max_value - min_value)
+          dist = (p1_value - p2_value) / (max_value - min_value)  # pyrefly: ignore[unsupported-operation]
         dist_squared_by_type[param_config.type] += dist * dist
 
     return dist_squared_by_type
@@ -278,7 +278,7 @@ class EagleStrategyUtils:
       else:  # param1_weight >= 1.0
         new_value = value1
     else:
-      weighted_param_value = value1 * param1_weight + value2 * (
+      weighted_param_value = value1 * param1_weight + value2 * (  # pyrefly: ignore[unsupported-operation]
           1 - param1_weight
       )
       if param_config.type == vz.ParameterType.DOUBLE:
@@ -287,7 +287,7 @@ class EagleStrategyUtils:
         new_value = round(weighted_param_value)
       elif param_config.type == vz.ParameterType.DISCRETE:
         new_value = random_sample.get_closest_element(
-            param_config.feasible_values, weighted_param_value)
+            param_config.feasible_values, weighted_param_value)  # pyrefly: ignore[bad-argument-type]
       else:
         raise ValueError('Invalid parameter type: %s' % param_config.type)
       new_value = min(new_value, param_config.bounds[1])
@@ -335,15 +335,15 @@ class EagleStrategyUtils:
     if param_config.type == vz.ParameterType.CATEGORICAL:
       if random_sample.sample_uniform(self.rng) < abs(perturbation):
         return random_sample.sample_categorical(self.rng,
-                                                param_config.feasible_values)
+                                                param_config.feasible_values)  # pyrefly: ignore[bad-argument-type]
       else:
         return value
 
     min_value, max_value = param_config.bounds
-    perturb_val = value + perturbation * (max_value - min_value)
+    perturb_val = value + perturbation * (max_value - min_value)  # pyrefly: ignore[unsupported-operation]
 
     if param_config.type == vz.ParameterType.DISCRETE:
-      return random_sample.get_closest_element(param_config.feasible_values,
+      return random_sample.get_closest_element(param_config.feasible_values,  # pyrefly: ignore[bad-argument-type]
                                                perturb_val)
 
     perturb_val = min(perturb_val, param_config.bounds[1])
@@ -413,7 +413,7 @@ class EagleStrategyUtils:
     if trial.final_measurement is None:
       raise ValueError('Trial is not completed.')
     value = trial.final_measurement.metrics[self._original_metric_name].value
-    new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)
+    new_trial = vz.Trial(parameters=trial.parameters, metadata=trial.metadata)  # pyrefly: ignore[unexpected-keyword]
     new_trial.complete(
         measurement=vz.Measurement(metrics={OBJECTIVE_NAME: value}))
     return new_trial
@@ -527,7 +527,7 @@ class FireflyPool:
     Returns:
       Firefly or None.
     """
-    parent_fly = self._pool.get(parent_fly_id, None)
+    parent_fly = self._pool.get(parent_fly_id, None)  # pyrefly: ignore[no-matching-overload]
     return parent_fly
 
   def find_closest_parent(self, trial: vz.Trial) -> Firefly:
@@ -572,10 +572,10 @@ class FireflyPool:
     if parent_fly_id not in self._pool:
       # Create a new Firefly in pool.
       new_fly = Firefly(
-          id_=parent_fly_id,
-          perturbation=self._utils.config.perturbation,
-          generation=1,
-          trial=trial,
+          id_=parent_fly_id,  # pyrefly: ignore[unexpected-keyword]
+          perturbation=self._utils.config.perturbation,  # pyrefly: ignore[unexpected-keyword]
+          generation=1,  # pyrefly: ignore[unexpected-keyword]
+          trial=trial,  # pyrefly: ignore[unexpected-keyword]
       )
       self._pool[parent_fly_id] = new_fly
       if trial.infeasible:

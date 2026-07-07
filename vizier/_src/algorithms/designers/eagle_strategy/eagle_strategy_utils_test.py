@@ -163,21 +163,21 @@ class UtilsTest(parameterized.TestCase):
   def test_combine_two_parameters_integer(self):
     int_param_config = _get_parameter_config(self.search_space, 'i1')
     new_value = self.utils.combine_two_parameters(
-        int_param_config, self.param_dict1, self.param_dict2, 0.1
+        int_param_config, self.param_dict1, self.param_dict2, 0.1  # pyrefly: ignore[bad-argument-type]
     )
     self.assertEqual(new_value, round(3 * 0.1 + 1 * 0.9))
 
   def test_combine_two_parameters_float(self):
     float_param_config = _get_parameter_config(self.search_space, 'f1')
     new_value = self.utils.combine_two_parameters(
-        float_param_config, self.param_dict1, self.param_dict2, 0.1
+        float_param_config, self.param_dict1, self.param_dict2, 0.1  # pyrefly: ignore[bad-argument-type]
     )
     self.assertEqual(new_value, 5.0 * 0.1 + 2.0 * 0.9)
 
   def test_combine_two_parameters_discrete(self):
     float_param_config = _get_parameter_config(self.search_space, 'd1')
     new_value = self.utils.combine_two_parameters(
-        float_param_config, self.param_dict1, self.param_dict2, 0.1
+        float_param_config, self.param_dict1, self.param_dict2, 0.1  # pyrefly: ignore[bad-argument-type]
     )
     self.assertEqual(new_value, 2.0)
 
@@ -190,14 +190,14 @@ class UtilsTest(parameterized.TestCase):
   def test_combine_two_parameters_categorical1(self, prob, target):
     categorical_param_config = _get_parameter_config(self.search_space, 'c1')
     new_value = self.utils.combine_two_parameters(
-        categorical_param_config, self.param_dict1, self.param_dict2, prob
+        categorical_param_config, self.param_dict1, self.param_dict2, prob  # pyrefly: ignore[bad-argument-type]
     )
     self.assertEqual(new_value, target)
 
   def test_combine_two_parameters_categorical2(self):
     categorical_param_config = _get_parameter_config(self.search_space, 'c1')
     new_value = self.utils.combine_two_parameters(
-        categorical_param_config, self.param_dict1, self.param_dict2, 0.5
+        categorical_param_config, self.param_dict1, self.param_dict2, 0.5  # pyrefly: ignore[bad-argument-type]
     )
     self.assertIn(new_value, ['a', 'b'])
 

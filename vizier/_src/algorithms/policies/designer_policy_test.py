@@ -36,13 +36,13 @@ class _FakeDesigner(vza.Designer):
   def suggest(
       self, count: Optional[int] = None
   ) -> Sequence[vz.TrialSuggestion]:
-    return [vz.TrialSuggestion(vz.ParameterDict())] * count
+    return [vz.TrialSuggestion(vz.ParameterDict())] * count  # pyrefly: ignore[unsupported-operation]
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ) -> None:
-    self.last_completed = completed.trials
-    self.last_active = all_active.trials
+    self.last_completed = completed.trials  # pyrefly: ignore[bad-assignment]
+    self.last_active = all_active.trials  # pyrefly: ignore[bad-assignment]
     self.num_incorporated_completed_trials += len(completed.trials)
     self._num_incorporated_active_trials += len(all_active.trials)
 
@@ -61,13 +61,13 @@ class _FakeSerializableDesigner(vza.PartiallySerializableDesigner,
 
   def suggest(self,
               count: Optional[int] = None) -> Sequence[vz.TrialSuggestion]:
-    return [vz.TrialSuggestion(vz.ParameterDict())] * count
+    return [vz.TrialSuggestion(vz.ParameterDict())] * count  # pyrefly: ignore[unsupported-operation]
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
   ):
     self.last_completed = completed.trials
-    self.last_active = all_active.trials
+    self.last_active = all_active.trials  # pyrefly: ignore[bad-assignment]
     self.num_incorporated_completed_trials += len(completed.trials)
     self.num_incorporated_active_trials += len(all_active.trials)
 
@@ -85,7 +85,7 @@ class _FakeSerializableDesigner(vza.PartiallySerializableDesigner,
     try:
       designer = cls()
       designer.num_incorporated_completed_trials = int(
-          md['num_incorporated_completed_trials']
+          md['num_incorporated_completed_trials']  # pyrefly: ignore[bad-argument-type]
       )
       return designer
     except KeyError as e:
@@ -94,7 +94,7 @@ class _FakeSerializableDesigner(vza.PartiallySerializableDesigner,
   def load(self, md: vz.Metadata):
     try:
       self.num_incorporated_completed_trials = int(
-          md['num_incorporated_completed_trials']
+          md['num_incorporated_completed_trials']  # pyrefly: ignore[bad-argument-type]
       )
     except KeyError as e:
       raise serializable.DecodeError(f'Cannot find in {md}') from e
@@ -130,7 +130,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.SerializableDesignerPolicy(
         problem_statement=vz.ProblemStatement(),
         supporter=runner,
-        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),
+        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),  # pyrefly: ignore[bad-argument-type]
         designer_cls=_FakeSerializableDesigner,
         ns_root='test',
         verbose=2,
@@ -141,7 +141,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     restored_policy = dp.SerializableDesignerPolicy(
         problem_statement=vz.ProblemStatement(metadata=metadata),
         supporter=runner,
-        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),
+        designer_factory=lambda _, **kwargs: _FakeSerializableDesigner(),  # pyrefly: ignore[bad-argument-type]
         designer_cls=_FakeSerializableDesigner,
         ns_root='test',
         verbose=2,
@@ -158,7 +158,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _, **kwargs: _FakeSerializableDesigner(),
+        lambda _, **kwargs: _FakeSerializableDesigner(),  # pyrefly: ignore[bad-argument-type]
         ns_root='test',
         verbose=2,
     )
@@ -168,7 +168,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     restored_policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _, **kwargs: _FakeSerializableDesigner(),
+        lambda _, **kwargs: _FakeSerializableDesigner(),  # pyrefly: ignore[bad-argument-type]
         ns_root='test',
         verbose=2,
     )
@@ -185,7 +185,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
   def test_update_stateless_designer(self):
     runner = _create_runner()
     designer = _FakeDesigner()
-    policy = dp.DesignerPolicy(runner, lambda _, **kwargs: designer)
+    policy = dp.DesignerPolicy(runner, lambda _, **kwargs: designer)  # pyrefly: ignore[bad-argument-type]
     runner.SuggestTrials(policy, 5)
     self.assertLen(
         designer.last_completed,
@@ -215,7 +215,7 @@ class DesignerPolicyNormalOperationTest(absltest.TestCase):
     policy = dp.PartiallySerializableDesignerPolicy(
         vz.ProblemStatement(),
         runner,
-        lambda _, **kwargs: designer,
+        lambda _, **kwargs: designer,  # pyrefly: ignore[bad-argument-type]
         ns_root='test',
         verbose=2,
     )

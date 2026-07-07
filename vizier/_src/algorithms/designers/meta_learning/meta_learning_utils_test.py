@@ -29,11 +29,11 @@ class MetaLearningUtilsTest(parameterized.TestCase):
     super().setUp()
     space = vz.SearchSpace()
     space.root.add_int_param('tuned_param', 0, 100, default_value=55)
-    self.utils = meta_learning_utils.MetaLearningUtils(
-        goal=vz.ObjectiveMetricGoal.MAXIMIZE,
-        tuned_metric_name='tuned_obj',
-        meta_metric_name='meta_obj',
-        tuning_params=space,
+    self.utils = meta_learning_utils.MetaLearningUtils(  # pyrefly: ignore[missing-argument]
+        goal=vz.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+        tuned_metric_name='tuned_obj',  # pyrefly: ignore[unexpected-keyword]
+        meta_metric_name='meta_obj',  # pyrefly: ignore[unexpected-keyword]
+        tuning_params=space,  # pyrefly: ignore[unexpected-keyword]
     )
     self.meta_trials = []
     for i in range(10):

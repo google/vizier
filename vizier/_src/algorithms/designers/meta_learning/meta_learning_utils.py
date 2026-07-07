@@ -38,7 +38,7 @@ class MetaLearningUtils:
     """Create meta problem."""
     problem = vz.ProblemStatement(search_space=self._tuning_params)
     problem.metric_information = vz.MetricsConfig(
-        metrics=[vz.MetricInformation(self._meta_metric_name, goal=self._goal)]
+        metrics=[vz.MetricInformation(self._meta_metric_name, goal=self._goal)]  # pyrefly: ignore[unexpected-keyword]
     )
     return problem
 

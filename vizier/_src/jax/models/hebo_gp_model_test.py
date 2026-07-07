@@ -88,24 +88,24 @@ class VizierHeboGaussianProcessTest(absltest.TestCase):
         hebo_gp_model.VizierHeboGaussianProcess(), data=data
     )
     key, init_key, init_keys = jax.random.split(jax.random.PRNGKey(2), 3)
-    init_params = model.setup(init_key)
+    init_params = model.setup(init_key)  # pyrefly: ignore[missing-attribute]
     optimize = optimizers.OptaxTrain(optax.adam(5e-3), epochs=500, verbose=True)
-    constraints = sp.get_constraints(model)
+    constraints = sp.get_constraints(model)  # pyrefly: ignore[bad-argument-type]
     params, metrics = optimize(
-        init_params=jax.vmap(model.setup)(jax.random.split(init_keys, 20)),
-        loss_fn=model.loss_with_aux,
+        init_params=jax.vmap(model.setup)(jax.random.split(init_keys, 20)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=key,
         constraints=constraints,
     )
 
     self.assertGreater(
-        model.loss_with_aux(init_params), model.loss_with_aux(params)
+        model.loss_with_aux(init_params), model.loss_with_aux(params)  # pyrefly: ignore[missing-attribute]
     )
-    losses_every_50 = metrics['loss'][::50]
-    self.assertTrue((losses_every_50[1:] < losses_every_50[:-1]).all())
+    losses_every_50 = metrics['loss'][::50]  # pyrefly: ignore[bad-index]
+    self.assertTrue((losses_every_50[1:] < losses_every_50[:-1]).all())  # pyrefly: ignore[bad-index, missing-attribute, unsupported-operation]
 
     logging.info('Optimal parameters: %s', params)
-    final_loss = model.loss_with_aux(params)[0]
+    final_loss = model.loss_with_aux(params)[0]  # pyrefly: ignore[missing-attribute]
     logging.info('Optimal loss fn: %s', final_loss)
     self.assertLess(final_loss, 0.3)
 

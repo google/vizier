@@ -117,8 +117,8 @@ class MetaLearningDesignerTest(parameterized.TestCase):
     meta_learning_designer = MetaLearningDesigner(
         problem=self.problem,
         tuning_hyperparams=self.tuning_params,
-        tuned_designer_factory=_eagle_designer_factory,
-        meta_designer_factory=_quasirandom_designer_factory,
+        tuned_designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+        meta_designer_factory=_quasirandom_designer_factory,  # pyrefly: ignore[bad-argument-type]
         config=self.meta_config,
     )
     self.assertEqual(
@@ -126,10 +126,10 @@ class MetaLearningDesignerTest(parameterized.TestCase):
     )
     # type: ignore[attribute-error]  # pylint: disable=protected-access
     self.assertEqual(
-        meta_learning_designer._curr_tuned_designer._config.visibility, 2.22
+        meta_learning_designer._curr_tuned_designer._config.visibility, 2.22  # pyrefly: ignore[missing-attribute]
     )
     self.assertEqual(
-        meta_learning_designer._curr_tuned_designer._config.gravity, 3.33
+        meta_learning_designer._curr_tuned_designer._config.gravity, 3.33  # pyrefly: ignore[missing-attribute]
     )
 
   @parameterized.parameters([1, 5])
@@ -137,8 +137,8 @@ class MetaLearningDesignerTest(parameterized.TestCase):
     meta_learning_designer = MetaLearningDesigner(
         problem=self.problem,
         tuning_hyperparams=self.tuning_params,
-        tuned_designer_factory=_eagle_designer_factory,
-        meta_designer_factory=_quasirandom_designer_factory,
+        tuned_designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+        meta_designer_factory=_quasirandom_designer_factory,  # pyrefly: ignore[bad-argument-type]
         config=self.meta_config,
     )
     self.assertEqual(

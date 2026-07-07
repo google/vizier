@@ -165,7 +165,7 @@ class MultitaskTunedGpModelsTest(parameterized.TestCase):
                 x_obs, target_shape=(10, continuous_dim), fill_value=1.0
             ),
             categorical=types.PaddedArray.from_array(
-                np.zeros((9, 0), dtype=types.INT_DTYPE),
+                np.zeros((9, 0), dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
                 target_shape=(10, categorical_dim),
                 fill_value=1,
             ),
@@ -186,10 +186,10 @@ class MultitaskTunedGpModelsTest(parameterized.TestCase):
 
     modified_data = types.ModelData(
         features=types.ModelInput(
-            continuous=data.features.continuous.replace_fill_value(np.nan),
-            categorical=data.features.categorical.replace_fill_value(-1),
+            continuous=data.features.continuous.replace_fill_value(np.nan),  # pyrefly: ignore[missing-attribute]
+            categorical=data.features.categorical.replace_fill_value(-1),  # pyrefly: ignore[missing-attribute]
         ),
-        labels=data.labels,
+        labels=data.labels,  # pyrefly: ignore[missing-attribute]
     )
     model2 = sp.CoroutineWithData(
         multitask_tuned_gp_models.VizierMultitaskGaussianProcess(
@@ -207,16 +207,16 @@ class MultitaskTunedGpModelsTest(parameterized.TestCase):
     optimize = optimizers.JaxoptScipyLbfgsB()
     rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params1, _ = optimize(
-        init_params=jax.vmap(model1.setup)(jax.random.split(init_rng, 1)),
-        loss_fn=model1.loss_with_aux,
+        init_params=jax.vmap(model1.setup)(jax.random.split(init_rng, 1)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model1.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
-        constraints=sp.get_constraints(model1),
+        constraints=sp.get_constraints(model1),  # pyrefly: ignore[bad-argument-type]
     )
     optimal_params2, _ = optimize(
-        init_params=jax.vmap(model2.setup)(jax.random.split(init_rng, 1)),
-        loss_fn=model2.loss_with_aux,
+        init_params=jax.vmap(model2.setup)(jax.random.split(init_rng, 1)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model2.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
-        constraints=sp.get_constraints(model2),
+        constraints=sp.get_constraints(model2),  # pyrefly: ignore[bad-argument-type]
     )
 
     for key in optimal_params1:
@@ -225,8 +225,8 @@ class MultitaskTunedGpModelsTest(parameterized.TestCase):
           msg=f'{key} parameters were not equal.',
       )
     self.assertEqual(
-        model1.loss_with_aux(optimal_params1)[0],
-        model2.loss_with_aux(optimal_params2)[0],
+        model1.loss_with_aux(optimal_params1)[0],  # pyrefly: ignore[missing-attribute]
+        model2.loss_with_aux(optimal_params2)[0],  # pyrefly: ignore[missing-attribute]
     )
 
 

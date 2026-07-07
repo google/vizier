@@ -44,7 +44,7 @@ def DefaultBBOBProblemStatement(
     )
   problem_statement.metric_information.append(
       pyvizier.MetricInformation(
-          name=metric_name, goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+          name=metric_name, goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
   return problem_statement
 
 
@@ -142,7 +142,7 @@ def SIndex(dim: int, to_sz) -> float:
       s[i] = 10**0.5
     if i % 2 == 0 and to_sz[i] > 0:
       s[i] *= 10
-  return s
+  return s  # pyrefly: ignore[bad-return]
 
 
 def Fpen(vector: np.ndarray) -> float:
@@ -220,7 +220,7 @@ def BuecheRastrigin(arr: np.ndarray, seed: int = 0) -> float:
   dim = len(arr)
   arr.shape = (dim, 1)
   t = ArrayMap(arr, Tosz)
-  l = SIndex(dim, arr) * t.flat
+  l = SIndex(dim, arr) * t.flat  # pyrefly: ignore[unsupported-operation]
 
   term1 = 10 * (dim - np.sum(np.cos(2 * math.pi * l), axis=0))
   term2 = np.sum(l * l, axis=0)

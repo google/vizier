@@ -58,7 +58,7 @@ class RandomPolicy(pythia.Policy):
           )
       )
 
-    for trial_id in list(request.trial_ids):
+    for trial_id in list(request.trial_ids):  # pyrefly: ignore[bad-argument-type]
       if trial_id != trial_to_stop_id:
         decisions.append(
             pythia.EarlyStopDecision(

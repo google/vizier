@@ -182,7 +182,7 @@ class VizierGpTest(parameterized.TestCase):
                 x_obs, target_shape=(num_obs, 9), fill_value=1.0
             ),
             categorical=types.PaddedArray.from_array(
-                np.zeros((9, 0), dtype=types.INT_DTYPE),
+                np.zeros((9, 0), dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
                 target_shape=(num_obs, 2),
                 fill_value=1,
             ),
@@ -202,10 +202,10 @@ class VizierGpTest(parameterized.TestCase):
 
     modified_data = types.ModelData(
         features=types.ModelInput(
-            continuous=data.features.continuous.replace_fill_value(np.nan),
-            categorical=data.features.categorical.replace_fill_value(-1),
+            continuous=data.features.continuous.replace_fill_value(np.nan),  # pyrefly: ignore[missing-attribute]
+            categorical=data.features.categorical.replace_fill_value(-1),  # pyrefly: ignore[missing-attribute]
         ),
-        labels=data.labels,
+        labels=data.labels,  # pyrefly: ignore[missing-attribute]
     )
     model2 = sp.CoroutineWithData(
         tuned_gp_models.VizierGaussianProcess(
@@ -221,16 +221,16 @@ class VizierGpTest(parameterized.TestCase):
     optimize = optimizers.JaxoptScipyLbfgsB()
     rng, init_rng = jax.random.split(jax.random.PRNGKey(2), 2)
     optimal_params1, _ = optimize(
-        init_params=jax.vmap(model1.setup)(jax.random.split(init_rng, 1)),
-        loss_fn=model1.loss_with_aux,
+        init_params=jax.vmap(model1.setup)(jax.random.split(init_rng, 1)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model1.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
-        constraints=sp.get_constraints(model1),
+        constraints=sp.get_constraints(model1),  # pyrefly: ignore[bad-argument-type]
     )
     optimal_params2, _ = optimize(
-        init_params=jax.vmap(model2.setup)(jax.random.split(init_rng, 1)),
-        loss_fn=model2.loss_with_aux,
+        init_params=jax.vmap(model2.setup)(jax.random.split(init_rng, 1)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model2.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
-        constraints=sp.get_constraints(model2),
+        constraints=sp.get_constraints(model2),  # pyrefly: ignore[bad-argument-type]
     )
 
     for key in optimal_params1:
@@ -239,8 +239,8 @@ class VizierGpTest(parameterized.TestCase):
           msg=f'{key} parameters were not equal.',
       )
     self.assertEqual(
-        model1.loss_with_aux(optimal_params1)[0],
-        model2.loss_with_aux(optimal_params2)[0],
+        model1.loss_with_aux(optimal_params1)[0],  # pyrefly: ignore[missing-attribute]
+        model2.loss_with_aux(optimal_params2)[0],  # pyrefly: ignore[missing-attribute]
     )
 
   @parameterized.parameters(
@@ -307,16 +307,16 @@ class VizierGpTest(parameterized.TestCase):
         data=data,
     )
     optimize = optimizers.JaxoptScipyLbfgsB()
-    constraints = sp.get_constraints(model)
+    constraints = sp.get_constraints(model)  # pyrefly: ignore[bad-argument-type]
     optimal_params, metrics = optimize(
-        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
-        loss_fn=model.loss_with_aux,
+        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
         constraints=constraints,
     )
     logging.info('Optimal: %s', optimal_params)
-    logging.info('Loss: %s', metrics['loss'])
-    self.assertLess(np.min(metrics['loss']), target_loss)
+    logging.info('Loss: %s', metrics['loss'])  # pyrefly: ignore[bad-index]
+    self.assertLess(np.min(metrics['loss']), target_loss)  # pyrefly: ignore[bad-index, no-matching-overload]
 
   @parameterized.parameters(
       # Pads two observations.
@@ -393,23 +393,23 @@ class VizierGpTest(parameterized.TestCase):
     optimize = optimizers.JaxoptScipyLbfgsB(
         optimizers.LbfgsBOptions(maxiter=100)
     )
-    constraints = sp.get_constraints(model)
+    constraints = sp.get_constraints(model)  # pyrefly: ignore[bad-argument-type]
     best_n = 7
     optimal_params, metrics = optimize(
-        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),
-        loss_fn=model.loss_with_aux,
+        init_params=jax.vmap(model.setup)(jax.random.split(init_rng, 50)),  # pyrefly: ignore[missing-attribute]
+        loss_fn=model.loss_with_aux,  # pyrefly: ignore[missing-attribute]
         rng=rng,
         constraints=constraints,
         best_n=best_n,
     )
     logging.info('Optimal: %s', optimal_params)
-    logging.info('Loss: %s', metrics['loss'])
-    self.assertLess(np.min(metrics['loss']), target_loss)
+    logging.info('Loss: %s', metrics['loss'])  # pyrefly: ignore[bad-index]
+    self.assertLess(np.min(metrics['loss']), target_loss)  # pyrefly: ignore[bad-index, no-matching-overload]
 
     best_models = sp.StochasticProcessWithCoroutine(
-        coroutine=model.coroutine, params=optimal_params
+        coroutine=model.coroutine, params=optimal_params  # pyrefly: ignore[missing-attribute]
     )
-    predictive = eqx.filter_jit(best_models.precompute_predictive)(data)
+    predictive = eqx.filter_jit(best_models.precompute_predictive)(data)  # pyrefly: ignore[missing-attribute]
     n_pred_features = 6
     cont_pred_feature_dim = 6
     cont_pred_feature_dim_padded = 9
@@ -417,12 +417,12 @@ class VizierGpTest(parameterized.TestCase):
     cat_pred_feature_dim_padded = 5
     pred_features = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            np.random.normal(size=(n_pred_features, cont_pred_feature_dim)),
+            np.random.normal(size=(n_pred_features, cont_pred_feature_dim)),  # pyrefly: ignore[bad-argument-type]
             target_shape=(n_pred_features, cont_pred_feature_dim_padded),
             fill_value=np.nan,
         ),
         categorical=types.PaddedArray.from_array(
-            np.random.randint(
+            np.random.randint(  # pyrefly: ignore[bad-argument-type]
                 3,
                 size=(n_pred_features, cat_pred_feature_dim),
                 dtype=types.INT_DTYPE,

@@ -105,7 +105,7 @@ def get_best_labels(labels: types.PaddedArray) -> jax.Array:
   Returns: Maximum label values for each metric.
   """
   if jnp.size(labels.padded_array) == 0:
-    return -np.inf
+    return -np.inf  # pyrefly: ignore[bad-return]
   return jnp.max(labels.replace_fill_value(-np.inf).padded_array, axis=-2)
 
 
@@ -125,7 +125,7 @@ def get_worst_labels(labels: types.PaddedArray) -> jax.Array:
   Returns: Minimum label values for each metric.
   """
   if jnp.size(labels.padded_array) == 0:
-    return np.inf
+    return np.inf  # pyrefly: ignore[bad-return]
   return jnp.min(labels.replace_fill_value(np.inf).padded_array, axis=-2)
 
 
@@ -164,7 +164,7 @@ def _apply_trust_region(
       acquisition,
       -1e4 - distance,
   )
-  aux = aux | {
+  aux = aux | {  # pyrefly: ignore[unsupported-operation]
       'mean': pred.mean(),
       'stddev': pred.stddev(),
       'raw_acquisition': raw_acquisition,
@@ -341,7 +341,7 @@ class MaxValueEntropySearch(eqx.Module):
         if use_trust_region
         else None
     )
-    return cls(tfp_mes, trust_region=trust_region)
+    return cls(tfp_mes, trust_region=trust_region)  # pyrefly: ignore[bad-argument-type]
 
   def score(self, xs: types.ModelInput, seed: jax.Array) -> jax.Array:
     return self.score_with_aux(xs, seed)[0]
@@ -382,7 +382,7 @@ def bayesian_scoring_function_factory(
         if use_trust_region
         else None
     )
-    return BayesianScoringFunction(predictive, acquisition_fn, trust_region)
+    return BayesianScoringFunction(predictive, acquisition_fn, trust_region)  # pyrefly: ignore[bad-return]
 
   return f
 
@@ -481,7 +481,7 @@ class AcquisitionTrustRegion(AcquisitionFunction):
       threshold = jnp.minimum(
           jnp.nanmean(labels_padded), jnp.nanmedian(labels_padded)
       )
-      apply_tr = self.labels._original_shape[0] <= self.apply_tr_after
+      apply_tr = self.labels._original_shape[0] <= self.apply_tr_after  # pyrefly: ignore[unsupported-operation]
     if self.threshold is not None:
       threshold = self.threshold
     cond = jnp.isnan(threshold) | (threshold_values >= threshold) | apply_tr
@@ -795,9 +795,9 @@ class TrustRegion(eqx.Module):
     trusted = self.trusted.continuous.replace_fill_value(
         0.0
     ).padded_array  # (N, D)
-    xs = xs.continuous.replace_fill_value(0.0).padded_array
+    xs = xs.continuous.replace_fill_value(0.0).padded_array  # pyrefly: ignore[bad-assignment]
     distances = jnp.abs(
-        trusted - xs[..., jnp.newaxis, :]
+        trusted - xs[..., jnp.newaxis, :]  # pyrefly: ignore[bad-index]
     )  # (M_0, M_1, ..,, N, D)
     padded_dimension_mask = types.PaddedArray.from_array(
         jnp.asarray(self._continuous_dimensions_mask),
@@ -815,6 +815,6 @@ class TrustRegion(eqx.Module):
         distances,
     )
     if distances.size == 0:
-      return -np.inf * jnp.ones_like(xs, shape=xs.shape[:-1])
+      return -np.inf * jnp.ones_like(xs, shape=xs.shape[:-1])  # pyrefly: ignore[bad-argument-type, missing-attribute]
     linf_distance = jnp.max(distances, axis=-1)  # (M_0, M_1, ..., N)
     return jnp.min(linf_distance, axis=-1)  # (M_0, M_1, ...)

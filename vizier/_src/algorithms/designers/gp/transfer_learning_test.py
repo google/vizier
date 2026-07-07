@@ -45,7 +45,7 @@ class GoogleGpBanditTest(absltest.TestCase):
     )  # Try one case with `training_data_count` < `num_hyperparameters`.
 
     comb_pred, comb_aux = vtl.combine_predictions_with_aux(
-        top_pred=top_pred, base_pred=prior_pred
+        top_pred=top_pred, base_pred=prior_pred  # pyrefly: ignore[bad-argument-type]
     )
 
     # The sum of means should be precisely `0.1 + 0.1` and `0.2 + 0.2`.

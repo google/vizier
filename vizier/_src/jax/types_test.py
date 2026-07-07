@@ -82,7 +82,7 @@ class PaddedArrayTest(parameterized.TestCase):
     np.testing.assert_array_equal(
         parr.is_missing[0], [False, False, False, True, True]
     )
-    np.testing.assert_array_equal(parr.is_missing[1], [False, False, True])
+    np.testing.assert_array_equal(parr.is_missing[1], [False, False, True])  # pyrefly: ignore[bad-index]
     np.testing.assert_array_equal(
         parr.replace_fill_value(-999).padded_array == -999, ~parr._mask
     )

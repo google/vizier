@@ -134,7 +134,7 @@ class StackedResidualGP(GPState):
     # TODO: Decide what to do with
     # `expected_base_stddev_mismatch` - currently set to default.
     comb_dist, aux = vtl.combine_predictions_with_aux(
-        top_pred=top_pred, base_pred=base_pred
+        top_pred=top_pred, base_pred=base_pred  # pyrefly: ignore[bad-argument-type]
     )
 
     return comb_dist, aux
@@ -200,10 +200,10 @@ def _train_gp(spec: GPTrainingSpec, data: types.ModelData) -> GPState:
   ard_rngs = jax.random.split(spec.ard_rng, spec.ard_random_restarts + 1)
   best_n = spec.ensemble_size or 1
   best_params, _ = spec.ard_optimizer(
-      eqx.filter_jit(eqx.filter_vmap(model.setup))(ard_rngs[1:]),
-      model.loss_with_aux,
+      eqx.filter_jit(eqx.filter_vmap(model.setup))(ard_rngs[1:]),  # pyrefly: ignore[missing-attribute]
+      model.loss_with_aux,  # pyrefly: ignore[missing-attribute]
       ard_rngs[0],
-      constraints=model.constraints(),
+      constraints=model.constraints(),  # pyrefly: ignore[missing-attribute]
       best_n=best_n,
   )
   if best_n == 1 and all(x.shape[0] == 1 for x in best_params.values()):
@@ -218,9 +218,9 @@ def _train_gp(spec: GPTrainingSpec, data: types.ModelData) -> GPState:
       'Best models: %s', eqx.tree_pformat(best_models, short_arrays=False)
   )
   predictive = sp.UniformEnsemblePredictive(
-      eqx.filter_jit(best_models.precompute_predictive)(data)
+      eqx.filter_jit(best_models.precompute_predictive)(data)  # pyrefly: ignore[missing-attribute]
   )
-  return GPState(predictive=predictive, data=data)
+  return GPState(predictive=predictive, data=data)  # pyrefly: ignore[bad-return]
 
 
 @jax.jit
@@ -291,8 +291,8 @@ def train_stacked_residual_gp(
       features=data.features, labels=residual_labels
   )
 
-  top_gp = _train_gp(spec=spec, data=data_with_residuals)
-  return StackedResidualGP(
+  top_gp = _train_gp(spec=spec, data=data_with_residuals)  # pyrefly: ignore[bad-argument-type]
+  return StackedResidualGP(  # pyrefly: ignore[bad-return]
       predictive=top_gp.predictive,
       data=top_gp.data,
       base_gp=base_gp,
@@ -334,17 +334,18 @@ def train_gp(
     )
 
   if is_singleton_spec and is_singleton_data:
-    return _train_gp(spec=spec, data=data)
+    return _train_gp(spec=spec, data=data)  # pyrefly: ignore[bad-argument-type]
 
-  if len(spec) != len(data):
+  if len(spec) != len(data):  # pyrefly: ignore[bad-argument-type]
     raise ValueError(
+        # pyrefly: ignore[bad-argument-type]
         '`train_gp` expected the shapes of `spec` and `data` to be identical.'
         f' Instead got `spec` of length {len(spec)} but `data` of length'
         f' {len(data)}. `spec` was {spec} and `data` was {data}.'
     )
 
   curr_gp: Optional[GPState] = None
-  for curr_spec, curr_data in zip(spec, data):
+  for curr_spec, curr_data in zip(spec, data):  # pyrefly: ignore[bad-argument-type]
     if curr_gp is None:
       # We are on the first iteration.
       curr_gp = _train_gp(spec=curr_spec, data=curr_data)

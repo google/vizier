@@ -36,7 +36,7 @@ class Branin2DExperimenterTest(absltest.TestCase):
   def test_experimenter_argmin(self):
     trial = vz.Trial(parameters={'x1': -np.pi, 'x2': 12.275})
     branin.Branin2DExperimenter().evaluate([trial])
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         trial.final_measurement_or_die.metrics.get_value('value', np.nan),
         0.397887,
         places=5,

@@ -96,7 +96,7 @@ class OutputWarper(abc.ABC):
       warped_unpadded_list.append(self.warp(unpadded[:, metric_id]))
 
     warped_unpadded = np.concatenate(warped_unpadded_list, axis=-1)
-    return labels.replace_array(warped_unpadded)
+    return labels.replace_array(warped_unpadded)  # pyrefly: ignore[bad-argument-type]
 
 
 @attr.define
@@ -357,10 +357,10 @@ class HalfRankComponent(OutputWarper):
         labels_arr[i] = rank_ppf * estimated_std + median
 
     # Save information needed for unwarping.
-    self._unwarper = _HalfRankUnwarper(
-        original_labels=unique_labels,
-        warped_labels=labels_arr[is_finite][unique_idx],
-        original_label_median=unique_labels[len(unique_labels) // 2],
+    self._unwarper = _HalfRankUnwarper(  # pyrefly: ignore[missing-argument]
+        original_labels=unique_labels,  # pyrefly: ignore[unexpected-keyword]
+        warped_labels=labels_arr[is_finite][unique_idx],  # pyrefly: ignore[unexpected-keyword]
+        original_label_median=unique_labels[len(unique_labels) // 2],  # pyrefly: ignore[unexpected-keyword]
     )
     return labels_arr[:, np.newaxis]
 
@@ -373,7 +373,7 @@ class HalfRankComponent(OutputWarper):
       raise ValueError('unwarp does not support nan values.')
 
     for i in range(len(labels_arr)):
-      labels_arr[i] = self._unwarper.unwarp(labels_arr[i])
+      labels_arr[i] = self._unwarper.unwarp(labels_arr[i])  # pyrefly: ignore[bad-argument-type]
     return labels_arr[:, np.newaxis]
 
 

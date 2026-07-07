@@ -70,19 +70,19 @@ class EagleEagleMetaLearningConvergenceTest(parameterized.TestCase):
       )
       return meta_learning.MetaLearningDesigner(
           problem=problem,
-          tuned_designer_factory=_eagle_designer_factory,
-          meta_designer_factory=_eagle_designer_factory,
+          tuned_designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+          meta_designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
           tuning_hyperparams=eagle_meta_learning.meta_eagle_search_space(),
           config=meta_config,
           seed=seed,
       )
 
     random_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=_random_designer_factory, experimenter=exptr
+        designer_factory=_random_designer_factory, experimenter=exptr  # pyrefly: ignore[bad-argument-type]
     )
 
     meta_benchmark_state_factory = benchmarks.DesignerBenchmarkStateFactory(
-        designer_factory=_meta_eagle_eagle_designer_factory,
+        designer_factory=_meta_eagle_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
         experimenter=exptr,
     )
     evaluations = 1_500

@@ -52,17 +52,17 @@ class AcquisitionsTest(absltest.TestCase):
 
   def test_ucb(self):
     acq = acquisitions.UCB(coefficient=2.0)
-    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 2.1)
+    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), 2.1)  # pyrefly: ignore[no-matching-overload]
 
   def test_lcb(self):
     acq = acquisitions.LCB(coefficient=2.0)
-    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), -1.9)
+    self.assertAlmostEqual(acq(tfd.Normal(0.1, 1)), -1.9)  # pyrefly: ignore[no-matching-overload]
 
   def test_ei(self):
     labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
     best_labels = acquisitions.get_best_labels(labels)
     acq = acquisitions.EI(best_labels)
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(
             tfd.Normal(jnp.float64(0.1), 1),
         ),
@@ -79,16 +79,16 @@ class AcquisitionsTest(absltest.TestCase):
         weights=jnp.array([0.1, 0.2]), reference_point=reference_point
     )
 
-    acq = acquisitions.ScalarizeOverAcquisitions(ucb, scalarizer)
+    acq = acquisitions.ScalarizeOverAcquisitions(ucb, scalarizer)  # pyrefly: ignore[bad-argument-type]
     self.assertAlmostEqual(
         acq(tfd.Normal([0.1, 0.2], [0.1, 0.1])), jnp.array([1.0]), delta=1e-2
     )
 
     # Tests that the scalarized acquisition is larger with max_scalarized.
-    scalarized_labels = scalarizer(labels.unpad())
+    scalarized_labels = scalarizer(labels.unpad())  # pyrefly: ignore[not-callable]
     max_scalarized = jnp.max(scalarized_labels, axis=-1)
     acq = acquisitions.ScalarizeOverAcquisitions(
-        ucb, scalarizer, max_scalarized=max_scalarized
+        ucb, scalarizer, max_scalarized=max_scalarized  # pyrefly: ignore[bad-argument-type]
     )
     self.assertAlmostEqual(
         acq(tfd.Normal([0.1, 0.2], [0.1, 0.1])), jnp.array([2.10]), delta=1e-2
@@ -108,7 +108,7 @@ class AcquisitionsTest(absltest.TestCase):
     # and uses constant rescaling of pi/4 for num_objs=2.
     hypervolume = acquisitions.ScalarizeOverAcquisitions(
         acquisitions.UCB(coefficient=0.0),
-        scalarizer,
+        scalarizer,  # pyrefly: ignore[bad-argument-type]
         reduction_fn=lambda x: jnp.mean(x, axis=0),
         max_scalarized=jnp.zeros(shape=(num_scalarizations,)),
     )
@@ -134,7 +134,7 @@ class AcquisitionsTest(absltest.TestCase):
     # Tests that the scalarizer gives the approximate hypervolume with mean
     # and uses constant rescaling of pi/4 for num_objs=2.
     hypervolume = acquisitions.AcquisitionOverScalarized(
-        acquisitions.UCB(coefficient=0.0), scalarizer
+        acquisitions.UCB(coefficient=0.0), scalarizer  # pyrefly: ignore[bad-argument-type]
     )
     # Expected hypervolume should be 2 * 1.5 = 3.0.
     dist = tfd.Normal(jnp.array([2, 1.5]), jnp.ones(num_obj))
@@ -158,7 +158,7 @@ class AcquisitionsTest(absltest.TestCase):
     # and uses constant rescaling of pi/4 for num_objs=2.
     hypervolume = acquisitions.ScalarizeOverAcquisitions(
         acquisitions.Sample(num_samples=100),
-        scalarizer,
+        scalarizer,  # pyrefly: ignore[bad-argument-type]
         reduction_fn=lambda x: jnp.mean(jax.nn.relu(x)),
     )
     # Expected hypervolume should be close to 2 * 1.5 = 3.0.
@@ -173,7 +173,7 @@ class AcquisitionsTest(absltest.TestCase):
     labels = types.PaddedArray.as_padded(jnp.array([[0.2]]))
     best_labels = acquisitions.get_best_labels(labels)
     acq = acquisitions.PI(best_labels)
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(
             tfd.Normal(jnp.float64(0.1), 1),
         ),
@@ -222,7 +222,7 @@ class AcquisitionsTest(absltest.TestCase):
 
     score_fn = acquisitions.MaxValueEntropySearch.scoring_fn_factory(
         data=data,
-        predictive=_TestPredictive(),
+        predictive=_TestPredictive(),  # pyrefly: ignore[bad-argument-type]
         continuous_feasible_values=[
             jnp.array([]),
             jnp.array([]),
@@ -236,7 +236,7 @@ class AcquisitionsTest(absltest.TestCase):
   def test_acq_pi_tr_good_point(self):
     data = _make_test_model_data((jnp.array([[100.0]])))
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi(data=data)
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(tfd.Normal(jnp.float64(0.1), 1)),
         -1e4,
     )
@@ -244,7 +244,7 @@ class AcquisitionsTest(absltest.TestCase):
   def test_acq_pi_tr_bad_point(self):
     data = _make_test_model_data((jnp.array([[-100.0]])))
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_pi(data=data)
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(tfd.Normal(jnp.float64(0.1), 1)),
         1.9,
     )
@@ -261,7 +261,7 @@ class AcquisitionsTest(absltest.TestCase):
   def test_acq_lcb_tr_good_point(self):
     data = _make_test_model_data((jnp.array([[-100.0]])))
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb(data=data)
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(tfd.Normal(jnp.float64(0.1), 1)),
         1.9,
     )
@@ -271,7 +271,7 @@ class AcquisitionsTest(absltest.TestCase):
     acq = acquisitions.AcquisitionTrustRegion.default_ucb_lcb_delay_tr(
         data=data
     )
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         acq(tfd.Normal(jnp.float64(0.1), 1)),
         jnp.array([1.9]),
     )
@@ -351,9 +351,9 @@ class TrustRegionTest(parameterized.TestCase):
   def test_trust_region_small(self):
     trusted = types.ModelInput(
         continuous=types.PaddedArray.as_padded(
-            np.array([[0.0, 0.0], [1.0, 1.0]]),
+            np.array([[0.0, 0.0], [1.0, 1.0]]),  # pyrefly: ignore[bad-argument-type]
         ),
-        categorical=types.PaddedArray.as_padded(np.array([[0, 0], [1, 1]])),
+        categorical=types.PaddedArray.as_padded(np.array([[0, 0], [1, 1]])),  # pyrefly: ignore[bad-argument-type]
     )
     tr = acquisitions.TrustRegion(
         trusted=trusted,
@@ -362,21 +362,21 @@ class TrustRegionTest(parameterized.TestCase):
 
     xs = types.ModelInput(
         continuous=types.PaddedArray.as_padded(
-            np.array([
+            np.array([  # pyrefly: ignore[bad-argument-type]
                 [0.0, 0.3],
                 [0.9, 0.8],
                 [1.0, 1.0],
             ]),
         ),
         categorical=types.PaddedArray.as_padded(
-            np.array([[0, 0], [1, 1], [0, 1]]),
+            np.array([[0, 0], [1, 1], [0, 1]]),  # pyrefly: ignore[bad-argument-type]
         ),
     )
     np.testing.assert_allclose(
-        tr.min_linf_distance(xs),
+        tr.min_linf_distance(xs),  # pyrefly: ignore[missing-attribute]
         np.array([0.3, 0.2, 0.0]),
     )
-    self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
+    self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)  # pyrefly: ignore[missing-attribute]
 
   @parameterized.named_parameters(
       (
@@ -401,7 +401,7 @@ class TrustRegionTest(parameterized.TestCase):
         continuous=types.PaddedArray.from_array(
             # The third dimension intentionally has infeasible values to test
             # that the trust region computation ignores it.
-            np.array([[0.0, 0.0, 100.0], [0.6, 0.0, -120.0]]),
+            np.array([[0.0, 0.0, 100.0], [0.6, 0.0, -120.0]]),  # pyrefly: ignore[bad-argument-type]
             target_shape=target_shape,
             fill_value=np.nan,
         ),
@@ -424,7 +424,7 @@ class TrustRegionTest(parameterized.TestCase):
 
     xs = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            np.array([
+            np.array([  # pyrefly: ignore[bad-argument-type]
                 [0.5, 1.0, 5.0],
                 [0.2, 1.0, 5.0],
             ]),
@@ -436,12 +436,12 @@ class TrustRegionTest(parameterized.TestCase):
     # The l-infinity distance should only depend on the first dimension.
     num_padded_trials = target_shape[0] - xs.continuous.unpad().shape[0]
     np.testing.assert_allclose(
-        tr.min_linf_distance(xs),
+        tr.min_linf_distance(xs),  # pyrefly: ignore[missing-attribute]
         np.array(
             [0.1, 0.2] + [0.0] * num_padded_trials,
         ),
     )
-    self.assertAlmostEqual(tr.trust_radius, 0.26, places=3)
+    self.assertAlmostEqual(tr.trust_radius, 0.26, places=3)  # pyrefly: ignore[missing-attribute]
 
   def test_trust_region_bigger(self):
     xs_cont = np.vstack(
@@ -452,9 +452,9 @@ class TrustRegionTest(parameterized.TestCase):
         * 10
     )
     xs = types.ModelInput(
-        continuous=types.PaddedArray.as_padded(xs_cont),
+        continuous=types.PaddedArray.as_padded(xs_cont),  # pyrefly: ignore[bad-argument-type]
         categorical=types.PaddedArray.as_padded(
-            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),
+            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
         ),
     )
     tr = acquisitions.TrustRegion(
@@ -463,16 +463,16 @@ class TrustRegionTest(parameterized.TestCase):
 
     xs_cont_test = np.array([[0.0, 0.3], [0.9, 0.8], [1.0, 1.0]])
     xs_test = types.ModelInput(
-        continuous=types.PaddedArray.as_padded(xs_cont_test),
+        continuous=types.PaddedArray.as_padded(xs_cont_test),  # pyrefly: ignore[bad-argument-type]
         categorical=types.PaddedArray.as_padded(
-            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),
+            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
         ),
     )
     np.testing.assert_allclose(
-        tr.min_linf_distance(xs_test),
+        tr.min_linf_distance(xs_test),  # pyrefly: ignore[missing-attribute]
         np.array([0.3, 0.2, 0.0]),
     )
-    self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)
+    self.assertAlmostEqual(tr.trust_radius, 0.44, places=3)  # pyrefly: ignore[missing-attribute]
 
   def test_trust_region_padded_small(self):
     # Test that padding still retrieves the same distance computations as
@@ -483,10 +483,10 @@ class TrustRegionTest(parameterized.TestCase):
     ])
     xs = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            xs_cont, target_shape=(4, 6), fill_value=0.0
+            xs_cont, target_shape=(4, 6), fill_value=0.0  # pyrefly: ignore[bad-argument-type]
         ),
         categorical=types.PaddedArray.from_array(
-            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),
+            np.ones(xs_cont.shape, dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
             target_shape=(4, 5),
             fill_value=0,
         ),
@@ -502,25 +502,25 @@ class TrustRegionTest(parameterized.TestCase):
     ])
     xs_test = types.ModelInput(
         continuous=types.PaddedArray.from_array(
-            xs_cont_test, target_shape=(3, 3, 6), fill_value=-100.0
+            xs_cont_test, target_shape=(3, 3, 6), fill_value=-100.0  # pyrefly: ignore[bad-argument-type]
         ),
         categorical=types.PaddedArray.from_array(
-            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),
+            np.ones(xs_cont_test.shape, dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
             target_shape=(3, 3, 5),
             fill_value=-100,
         ),
     )
     np.testing.assert_allclose(
-        tr.min_linf_distance(xs_test),
+        tr.min_linf_distance(xs_test),  # pyrefly: ignore[missing-attribute]
         np.array([[0.3, 0.2, 0.0], [0.0, 0.3, 0.2], [0.0, 0.0, 0.0]]),
     )
-    self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)
+    self.assertAlmostEqual(tr.trust_radius, 0.224, places=3)  # pyrefly: ignore[missing-attribute]
 
   def test_trust_region_padded_all_categorical_multi_batch_dims(self):
     xs = types.ModelInput(
         continuous=types.PaddedArray.as_padded(jnp.array([])),
         categorical=types.PaddedArray.from_array(
-            np.ones((2, 2), dtype=types.INT_DTYPE),
+            np.ones((2, 2), dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
             target_shape=(4, 5),
             fill_value=0,
         ),
@@ -532,13 +532,13 @@ class TrustRegionTest(parameterized.TestCase):
     xs_test = types.ModelInput(
         continuous=types.PaddedArray.as_padded(jnp.array([])),
         categorical=types.PaddedArray.from_array(
-            np.ones((2, 3, 2), dtype=types.INT_DTYPE),
+            np.ones((2, 3, 2), dtype=types.INT_DTYPE),  # pyrefly: ignore[bad-argument-type]
             target_shape=(3, 3, 5),
             fill_value=-100,
         ),
     )
     np.testing.assert_allclose(
-        tr.min_linf_distance(xs_test),
+        tr.min_linf_distance(xs_test),  # pyrefly: ignore[missing-attribute]
         np.ones((3, 3)) * -np.inf,
     )
 

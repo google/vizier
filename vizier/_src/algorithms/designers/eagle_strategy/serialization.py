@@ -58,7 +58,7 @@ class PartialFireflyPoolEncoder(json.JSONEncoder):
     elif isinstance(o, vz.Trial):
       return {
           'parameters': o.parameters.as_dict(),
-          'objective': o.final_measurement.metrics[
+          'objective': o.final_measurement.metrics[  # pyrefly: ignore[missing-attribute]
               eagle_strategy_utils.OBJECTIVE_NAME
           ].value,
           'infeasibility_reason': o.infeasibility_reason,
@@ -94,7 +94,7 @@ class FireflyPoolDecoder:
 
     # Restore FireFly objects in the pool.
     for id_, fly in obj_dict['_pool'].items():
-      trial = vz.Trial(parameters=fly['trial']['parameters'])
+      trial = vz.Trial(parameters=fly['trial']['parameters'])  # pyrefly: ignore[unexpected-keyword]
       trial.complete(
           measurement=vz.Measurement(
               metrics={'objective': fly['trial'][OBJECTIVE_NAME]}
@@ -102,15 +102,15 @@ class FireflyPoolDecoder:
           infeasibility_reason=fly['trial']['infeasibility_reason'],
       )
       restored_pool[int(id_)] = Firefly(
-          id_=fly['id_'],
-          perturbation=fly['perturbation'],
-          generation=fly['generation'],
-          trial=trial,
+          id_=fly['id_'],  # pyrefly: ignore[unexpected-keyword]
+          perturbation=fly['perturbation'],  # pyrefly: ignore[unexpected-keyword]
+          generation=fly['generation'],  # pyrefly: ignore[unexpected-keyword]
+          trial=trial,  # pyrefly: ignore[unexpected-keyword]
       )
 
     restored_capacity = int(obj_dict['capacity'])
     restored_firefly_pool = FireflyPool(
-        capacity=restored_capacity, utils=self._utils
+        capacity=restored_capacity, utils=self._utils  # pyrefly: ignore[unexpected-keyword]
     )
     # pylint: disable=protected-access
     restored_firefly_pool._pool = restored_pool
@@ -126,7 +126,7 @@ def partially_serialize_firefly_pool(firefly_pool: FireflyPool) -> str:
 
 def restore_firefly_pool(utils: EagleStrategyUtils, obj: str) -> FireflyPool:
   """Fully restore the FireflyPool."""
-  return FireflyPoolDecoder(utils).decode(obj)
+  return FireflyPoolDecoder(utils).decode(obj)  # pyrefly: ignore[bad-argument-count]
 
 
 def serialize_rng(rng: np.random.Generator) -> str:

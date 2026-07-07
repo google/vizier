@@ -42,8 +42,8 @@ class RandomPolicyTest(absltest.TestCase):
     num_suggestions = 5
     num_params = len(self.study_config.search_space.parameters)
 
-    suggest_request = pythia.SuggestRequest(
-        study_descriptor=self.policy_supporter.study_descriptor(),
+    suggest_request = pythia.SuggestRequest(  # pyrefly: ignore[missing-argument]
+        study_descriptor=self.policy_supporter.study_descriptor(),  # pyrefly: ignore[unexpected-keyword]
         count=num_suggestions,
     )
     decisions = self.policy.suggest(suggest_request)
@@ -60,8 +60,8 @@ class RandomPolicyTest(absltest.TestCase):
     request_trial_ids = [1, 2]
     trial_ids_stopped = set()
     for _ in range(count):
-      request = pythia.EarlyStopRequest(
-          study_descriptor=self.policy_supporter.study_descriptor(),
+      request = pythia.EarlyStopRequest(  # pyrefly: ignore[missing-argument]
+          study_descriptor=self.policy_supporter.study_descriptor(),  # pyrefly: ignore[unexpected-keyword]
           trial_ids=request_trial_ids,
       )
       early_stop_decisions = self.policy.early_stop(request)

@@ -79,8 +79,8 @@ def _test_coroutine(
     kernel = mask_features.MaskFeatures(
         kernel,
         dimension_is_missing=tfpke.ContinuousAndCategoricalValues(
-            continuous=inputs.continuous.is_missing[1],
-            categorical=inputs.categorical.is_missing[1],
+            continuous=inputs.continuous.is_missing[1],  # pyrefly: ignore[bad-index]
+            categorical=inputs.categorical.is_missing[1],  # pyrefly: ignore[bad-index]
         ),
     )
     inputs = tfpke.ContinuousAndCategoricalValues(
@@ -280,7 +280,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
         y_observed,
         method=model.posterior_predictive,
     )
-    pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))
+    pp_log_prob = pp_dist.log_prob(pp_dist.sample(seed=sample_key))  # pyrefly: ignore[missing-attribute]
     self.assertTrue(np.isfinite(pp_log_prob).all())
     self.assertEqual(pp_log_prob.dtype, dtype)
 
@@ -388,7 +388,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
       # with the given constructor kwarg(s) replaced.
       return stp.copy(cholesky_fn=mock_cholesky_fn)
 
-    model = sp_model.StochasticProcessModel(coroutine=_coro_with_mock_cholesky)
+    model = sp_model.StochasticProcessModel(coroutine=_coro_with_mock_cholesky)  # pyrefly: ignore[bad-argument-type]
     keys = jax.random.split(jax.random.PRNGKey(0), num=8)
     params = jax.vmap(lambda k: model.init(k, x_obs))(keys)
     _, pp_state = jax.vmap(
@@ -408,7 +408,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     state = {**params, **pp_state}
     _ = jax.jit(
         jax.vmap(
-            lambda s: model.apply(  # pylint: disable=g-long-lambda
+            lambda s: model.apply(  # pylint: disable=g-long-lambda  # pyrefly: ignore[missing-attribute]
                 s, x, x_obs, y_obs, method=model.posterior_predictive
             ).sample(seed=jax.random.PRNGKey(0))
         )
@@ -429,7 +429,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
         mutable=('predictive',),
     )
     _ = jax.jit(
-        lambda s: model.apply(  # pylint: disable=g-long-lambda
+        lambda s: model.apply(  # pylint: disable=g-long-lambda  # pyrefly: ignore[missing-attribute]
             s, x2, x_obs2, y_obs2, method=model.posterior_predictive
         ).sample(seed=jax.random.PRNGKey(0))
     )({**params2, **pp_state2})
@@ -442,7 +442,7 @@ class StochasticProcessModelTest(parameterized.TestCase):
     state = {**params, **pp_state}
     _ = jax.jit(
         jax.vmap(
-            lambda s: model.apply(  # pylint: disable=g-long-lambda
+            lambda s: model.apply(  # pylint: disable=g-long-lambda  # pyrefly: ignore[missing-attribute]
                 s, x, x_obs, y_obs, method=model.posterior_predictive
             ).sample(seed=jax.random.PRNGKey(0))
         )
@@ -464,16 +464,16 @@ class StochasticProcessModelTest(parameterized.TestCase):
     # `mean_fn`, so that it has shape `(num_observed,)`.
     mean_fn = MeanFn()
     model = sp_model.StochasticProcessModel(
-        coroutine=_test_coroutine, mean_fn=mean_fn)
+        coroutine=_test_coroutine, mean_fn=mean_fn)  # pyrefly: ignore[bad-argument-type]
 
     init_state = model.init(init_key, x_observed)
     stp = model.apply(init_state, x_observed, mutable=False)
-    lp = stp.log_prob(y_observed.padded_array[:, 0])
+    lp = stp.log_prob(y_observed.padded_array[:, 0])  # pyrefly: ignore[missing-attribute]
     self.assertTrue(np.isfinite(lp))
 
     # The mean of the GP should equal `mean_fn` evaluated at the index points.
-    np.testing.assert_allclose(
-        stp.mean(),
+    np.testing.assert_allclose(  # pyrefly: ignore[no-matching-overload]
+        stp.mean(),  # pyrefly: ignore[missing-attribute]
         mean_fn.apply({'params': init_state['params']['mean_fn']}, x_observed))
 
     _, pp_state = model.apply({'params': init_state['params']},
@@ -490,11 +490,11 @@ class StochasticProcessModelTest(parameterized.TestCase):
         y_observed,
         method=model.posterior_predictive,
     )
-    pp_mean = pp_dist.mean()
+    pp_mean = pp_dist.mean()  # pyrefly: ignore[missing-attribute]
 
     self.assertTrue(
         np.isfinite(
-            pp_dist.log_prob(x_predictive.continuous.padded_array.sum(axis=-1))
+            pp_dist.log_prob(x_predictive.continuous.padded_array.sum(axis=-1))  # pyrefly: ignore[missing-attribute]
         ).all()
     )
     self.assertSequenceEqual(pp_mean.shape, (50,))
@@ -544,7 +544,7 @@ class ModelParameterTest(absltest.TestCase):
     self.assertTrue(np.isfinite(regularization))
     self.assertEmpty(regularization.shape)
     self.assertNotEqual(regularization, 0.)
-    self.assertTrue((param.constraint.bijector(x) > 0.0).all())
+    self.assertTrue((param.constraint.bijector(x) > 0.0).all())  # pyrefly: ignore[missing-attribute]
 
 
 class ConstraintTest(parameterized.TestCase):
@@ -566,7 +566,7 @@ class ConstraintTest(parameterized.TestCase):
     )
     x_part = jnp.linspace(-5.0, 5.0, 10)
     x = tree.map_structure(lambda _: x_part, lower or upper)
-    y = constraint.bijector(x)
+    y = constraint.bijector(x)  # pyrefly: ignore[not-callable]
     for y_, b_ in zip(tree.flatten(y), tree.flatten(lower)):
       if b_ is not None:
         self.assertTrue((y_ > b_).all())
@@ -581,13 +581,13 @@ class ConstraintTest(parameterized.TestCase):
 
     x, *_ = _make_inputs(jax.random.PRNGKey(0))
     model = sp_model.StochasticProcessModel(
-        coroutine=_test_coroutine, mean_fn=mean_fn
+        coroutine=_test_coroutine, mean_fn=mean_fn  # pyrefly: ignore[bad-argument-type]
     )
 
     constraint = sp_model.get_constraints(model, x=x)
     unconstrained_p = model.lazy_init(jax.random.PRNGKey(0), x)['params']
-    p = constraint.bijector(unconstrained_p)
-    lower, upper = constraint.bounds
+    p = constraint.bijector(unconstrained_p)  # pyrefly: ignore[not-callable]
+    lower, upper = constraint.bounds  # pyrefly: ignore[not-iterable]
 
     tree.assert_same_structure(p, unconstrained_p)
     for y_, b_ in zip(tree.flatten(p), tree.flatten(lower)):
@@ -609,7 +609,7 @@ def _test_data() -> tuple[types.ModelData, types.ModelInput]:
       pad_continuous_dim=2,
       pad_categorical_dim=3,
   )
-  return types.ModelData(features=x_observed, labels=y_observed), x_predictive
+  return types.ModelData(features=x_observed, labels=y_observed), x_predictive  # pyrefly: ignore[bad-return]
 
 
 class EquinoxModulesTest(absltest.TestCase):
@@ -626,11 +626,11 @@ class EquinoxModulesTest(absltest.TestCase):
     wrapper = sp_model.CoroutineWithData(_test_coroutine, data)
 
     # Test setup and loss
-    params = wrapper.setup(jax.random.PRNGKey(0))
-    self.assertTrue(np.all(np.isfinite(wrapper.loss_with_aux(params)[0])))
+    params = wrapper.setup(jax.random.PRNGKey(0))  # pyrefly: ignore[missing-attribute]
+    self.assertTrue(np.all(np.isfinite(wrapper.loss_with_aux(params)[0])))  # pyrefly: ignore[missing-attribute]
 
     # Test constraint
-    constraint = wrapper.constraints()
+    constraint = wrapper.constraints()  # pyrefly: ignore[missing-attribute]
     p = constraint.bijector(params)
     lower, upper = constraint.bounds
 
@@ -644,7 +644,7 @@ class EquinoxModulesTest(absltest.TestCase):
 
   def testStochasticProcessWithCoroutine(self):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
-        _test_coroutine, rng=jax.random.PRNGKey(0)
+        _test_coroutine, rng=jax.random.PRNGKey(0)  # pyrefly: ignore[bad-argument-type]
     )
     dist, _ = model.call_with_aux(_test_data()[0].features)
     self.assertSequenceEqual(dist.event_shape, (13,))
@@ -665,7 +665,7 @@ class EquinoxModulesTest(absltest.TestCase):
 
   def testPrecomputePredictive(self):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
-        _test_coroutine, rng=jax.random.PRNGKey(0)
+        _test_coroutine, rng=jax.random.PRNGKey(0)  # pyrefly: ignore[bad-argument-type]
     )
     predictive = model.precompute_predictive(_test_data()[0])
     dist = predictive.predict(_test_data()[1])
@@ -687,7 +687,7 @@ class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
 
   def test_no_batch_shape(self):
     model = sp_model.StochasticProcessWithCoroutine.initialize(
-        _test_coroutine, rng=jax.random.PRNGKey(0)
+        _test_coroutine, rng=jax.random.PRNGKey(0)  # pyrefly: ignore[bad-argument-type]
     )
     predictive = model.precompute_predictive(_test_data()[0])
     dist = predictive.predict(_test_data()[1])
@@ -710,7 +710,7 @@ class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
 
     # Put it in the UniformEnsemblePredictive and the batch dimension is gone.
     ensemble = sp_model.UniformEnsemblePredictive(predictive)
-    dist = ensemble.predict(_test_data()[1])
+    dist = ensemble.predict(_test_data()[1])  # pyrefly: ignore[missing-attribute]
     self.assertSequenceEqual(dist.event_shape, (7,))
     self.assertSequenceEqual(dist.batch_shape, tuple())
 

@@ -181,23 +181,23 @@ class SimpleKDExperimenter(experimenter.Experimenter):
     if params['categorical'][0] == 'corner':
       return (
           _categorical_term(params['categorical'][0], self.best_category)
-          + 0.8 * _float_term(params['float'])
-          + _discrete_term(params['discrete'])
-          + _int_term(params['int'])
+          + 0.8 * _float_term(params['float'])  # pyrefly: ignore[bad-argument-type]
+          + _discrete_term(params['discrete'])  # pyrefly: ignore[bad-argument-type]
+          + _int_term(params['int'])  # pyrefly: ignore[bad-argument-type]
       )
     elif params['categorical'][0] == 'center':
       return (
           _categorical_term(params['categorical'][0], self.best_category)
-          - _float_term(params['float'])
-          - _discrete_term(params['discrete'])
-          - _int_term(params['int'])
+          - _float_term(params['float'])  # pyrefly: ignore[bad-argument-type]
+          - _discrete_term(params['discrete'])  # pyrefly: ignore[bad-argument-type]
+          - _int_term(params['int'])  # pyrefly: ignore[bad-argument-type]
       )
     elif params['categorical'][0] == 'mixed':
       return (
           _categorical_term(params['categorical'][0], self.best_category)
-          + 0.8 * _float_term(params['float'])
-          + _discrete_term(params['discrete'])
-          - _int_term(params['int'])
+          + 0.8 * _float_term(params['float'])  # pyrefly: ignore[bad-argument-type]
+          + _discrete_term(params['discrete'])  # pyrefly: ignore[bad-argument-type]
+          - _int_term(params['int'])  # pyrefly: ignore[bad-argument-type]
       )
     else:
       raise NotImplementedError(

@@ -146,13 +146,13 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     self._rng = np.random.default_rng(seed=seed)
     self._config = config or FireflyAlgorithmConfig()
     self._utils = EagleStrategyUtils(self._problem, self._config, self._rng)
-    self._firefly_pool = FireflyPool(
-        utils=self._utils, capacity=self._utils.compute_pool_capacity()
+    self._firefly_pool = FireflyPool(  # pyrefly: ignore[missing-argument]
+        utils=self._utils, capacity=self._utils.compute_pool_capacity()  # pyrefly: ignore[unexpected-keyword]
     )
 
     if initial_designer_factory is None:
-      initial_designer_factory = quasi_random.QuasiRandomDesigner.from_problem
-    self._initial_designer = initial_designer_factory(self._problem, seed=seed)
+      initial_designer_factory = quasi_random.QuasiRandomDesigner.from_problem  # pyrefly: ignore[bad-assignment]
+    self._initial_designer = initial_designer_factory(self._problem, seed=seed)  # pyrefly: ignore[not-callable]
 
     logging.info(
         (
@@ -204,7 +204,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       )
     else:
       try:
-        self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])
+        self._rng = serialization.restore_rng(metadata.ns('eagle')['rng'])  # pyrefly: ignore[bad-argument-type]
       except Exception as e:
         raise serializable.FatalDecodeError(
             "Couldn't load random generator from metadata."
@@ -214,7 +214,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       try:
         firefly_pool = metadata.ns('eagle')['firefly_pool']
         self._firefly_pool = serialization.restore_firefly_pool(
-            self._utils, firefly_pool
+            self._utils, firefly_pool  # pyrefly: ignore[bad-argument-type]
         )
       except Exception as e:
         raise serializable.HarmlessDecodeError(
@@ -240,7 +240,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
           self._firefly_pool.size,
       )
 
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:  # pyrefly: ignore[bad-override]
     """Suggests trials."""
     scaled_suggestions = [self._suggest_one() for _ in range(count)]
     #  Unscale suggestion parameters to the original search space.
@@ -376,7 +376,7 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
       infeasible_firefly_id = self._firefly_pool.generate_new_fly_id()
       self._firefly_pool.create_or_update_fly(trial, infeasible_firefly_id)
 
-    parent_fly_id = int(trial.metadata.ns('eagle').get('parent_fly_id'))
+    parent_fly_id = int(trial.metadata.ns('eagle').get('parent_fly_id'))  # pyrefly: ignore[bad-argument-type]
     parent_fly = self._firefly_pool.find_parent_fly(parent_fly_id)
     if parent_fly is None:
       if trial.infeasible:

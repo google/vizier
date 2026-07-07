@@ -118,7 +118,7 @@ class Constraint:
     if all(
         tree_util.treedef_is_leaf(tree_util.tree_structure(x)) for x in bounds
     ):
-      bijector = bijector_fn(*bounds)
+      bijector = bijector_fn(*bounds)  # pyrefly: ignore[bad-argument-type]
     else:
       lb, ub = bounds
       if lb is None:
@@ -188,7 +188,7 @@ class ModelParameter:
     sample = lambda seed: prior.sample(seed=seed)
     init_fn = sample
     if bounds is not None:
-      init_fn = lambda s: jnp.clip(sample(s), *bounds)
+      init_fn = lambda s: jnp.clip(sample(s), *bounds)  # pyrefly: ignore[bad-argument-type]
     return ModelParameter(
         init_fn=init_fn,
         name=prior.name,
@@ -412,7 +412,7 @@ class StochasticProcessModel(nn.Module):
         def tfp_mean_fn(x_: tfpke.ContinuousAndCategoricalValues):
           return self.mean_fn(
               types.ModelInput(
-                  types.PaddedArray(
+                  types.PaddedArray(  # pyrefly: ignore[bad-argument-type]
                       x_.continuous,
                       fill_value=x.continuous.fill_value,
                       _original_shape=(
@@ -422,7 +422,7 @@ class StochasticProcessModel(nn.Module):
                       _mask=x.continuous._mask,
                       _nopadding_done=x.continuous._nopadding_done,
                   ),
-                  types.PaddedArray(
+                  types.PaddedArray(  # pyrefly: ignore[bad-argument-type]
                       x_.categorical,
                       fill_value=x.categorical.fill_value,
                       _original_shape=(
@@ -925,10 +925,10 @@ class StochasticProcessWithCoroutine(eqx.Module):
       p: ModelParameter = next(gen)
       while True:
         if p.regularizer:
-          params_loss[p.name] = p.regularizer(params[p.name])
+          params_loss[p.name] = p.regularizer(params[p.name])  # pyrefly: ignore[bad-argument-type, bad-index]
         # "params" is the name that `nn.Module` gives to the collection of read-
         # only variables.
-        p = gen.send(params[p.name])
+        p = gen.send(params[p.name])  # pyrefly: ignore[bad-argument-type, bad-index]
     except StopIteration as e:
       # After the generator is exhausted, it raises a `StopIteration` error. The
       # `StopIteration` object has a property `value` of type `_D`.
@@ -962,7 +962,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
       nll_data = -dist.log_prob(
           labels, is_missing=data.labels.is_missing[0], **log_prob_kwargs
       )
-    loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])
+    loss = nll_data + jax.tree_util.tree_reduce(jnp.add, aux['losses'])  # pyrefly: ignore[bad-index]
     return loss, aux
 
   def precompute_predictive(
@@ -989,7 +989,7 @@ class StochasticProcessWithCoroutine(eqx.Module):
         observations_is_missing=observations_is_missing,
     )
     # pylint: disable=protected-access
-    return PrecomputedPredictive(
+    return PrecomputedPredictive(  # pyrefly: ignore[bad-return]
         self,
         data,
         predictive._precomputed_divisor_matrix_cholesky,
@@ -1021,6 +1021,6 @@ class CoroutineWithData(eqx.Module):
     jax.monitoring.record_event(
         '/vizier/jax/coroutine_with_data/loss_with_aux/traced'
     )
-    return StochasticProcessWithCoroutine(self.coroutine, params).loss_with_aux(
+    return StochasticProcessWithCoroutine(self.coroutine, params).loss_with_aux(  # pyrefly: ignore[missing-attribute]
         self.data, seed=seed
     )

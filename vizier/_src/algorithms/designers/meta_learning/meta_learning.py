@@ -154,14 +154,14 @@ class MetaLearningDesigner(vza.Designer):
 
     if self.seed is None:
       # JAX random seed doesn't accept None, so generating random integer.
-      self.seed = np.random.randint(low=0, high=1e6)
+      self.seed = np.random.randint(low=0, high=1e6)  # pyrefly: ignore[no-matching-overload]
 
     # Instantiate an MetaLearningUtils.
-    self._utils = utils.MetaLearningUtils(
-        goal=self.problem.metric_information.item().goal,
-        tuned_metric_name=self.problem.metric_information.item().name,
-        meta_metric_name=self._meta_designer_metric_name,
-        tuning_params=self.tuning_hyperparams,
+    self._utils = utils.MetaLearningUtils(  # pyrefly: ignore[missing-argument]
+        goal=self.problem.metric_information.item().goal,  # pyrefly: ignore[unexpected-keyword]
+        tuned_metric_name=self.problem.metric_information.item().name,  # pyrefly: ignore[unexpected-keyword]
+        meta_metric_name=self._meta_designer_metric_name,  # pyrefly: ignore[unexpected-keyword]
+        tuning_params=self.tuning_hyperparams,  # pyrefly: ignore[unexpected-keyword]
     )
     # Instantiated 'tuned' designer the with default hyper-parameters.
     self._curr_tuned_hyperparams = self._utils.get_default_hyperparameters()
@@ -176,7 +176,7 @@ class MetaLearningDesigner(vza.Designer):
     self.config = self.config or MetaLearningConfig()
     self._state = MetaLearningState.INITIALIZE
 
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:  # pyrefly: ignore[bad-override]
     """Suggests trials."""
     return self._curr_tuned_designer.suggest(count)
 
@@ -212,11 +212,11 @@ class MetaLearningDesigner(vza.Designer):
     )
 
     # Check if enough trials already accumulated to start meta learning.
-    if len(self._trials) < self.config.tuning_min_num_trials:
+    if len(self._trials) < self.config.tuning_min_num_trials:  # pyrefly: ignore[missing-attribute]
       return
 
     # Check if the meta-learning process should be terminated.
-    elif len(self._trials) >= self.config.tuning_max_num_trials:
+    elif len(self._trials) >= self.config.tuning_max_num_trials:  # pyrefly: ignore[missing-attribute]
       # Check if the meta-learning has just terminated. If so, finalize it.
       if self._state == MetaLearningState.TUNE:
         # Find the best meta-learn result.
@@ -233,7 +233,7 @@ class MetaLearningDesigner(vza.Designer):
     else:
       self._state = MetaLearningState.TUNE
       # Check if there's enough trials to summarize meta iteration.
-      if len(self._curr_trials) >= self.config.num_trials_per_tuning:
+      if len(self._curr_trials) >= self.config.num_trials_per_tuning:  # pyrefly: ignore[missing-attribute]
         # Get best score for the current iteration.
         meta_trial = self._utils.complete_meta_suggestion(
             meta_suggestion=self._curr_tuned_hyperparams,
