@@ -61,7 +61,7 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
       return dp.PartiallySerializableDesignerPolicy(
           problem_statement,
           policy_supporter,
-          quasi_random.QuasiRandomDesigner.from_problem,
+          quasi_random.QuasiRandomDesigner.from_problem,  # pyrefly: ignore[bad-argument-type]
       )
     elif algorithm == 'GRID_SEARCH':
       from vizier._src.algorithms.designers import grid
@@ -69,7 +69,7 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
       return dp.PartiallySerializableDesignerPolicy(
           problem_statement,
           policy_supporter,
-          grid.GridSearchDesigner.from_problem,
+          grid.GridSearchDesigner.from_problem,  # pyrefly: ignore[bad-argument-type]
       )
     elif algorithm == 'SHUFFLED_GRID_SEARCH':
       from vizier._src.algorithms.designers import grid

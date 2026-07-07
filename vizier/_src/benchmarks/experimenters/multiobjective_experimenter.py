@@ -69,7 +69,7 @@ class MultiObjectiveExperimenter(experimenter.Experimenter):
       metric_infos.append(metric_info)
 
     self._problem_statement.metric_information = pyvizier.MetricsConfig(
-        metric_infos
+        metric_infos  # pyrefly: ignore[bad-argument-count]
     )
 
   def problem_statement(self) -> pyvizier.ProblemStatement:

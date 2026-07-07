@@ -72,7 +72,7 @@ class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
     study_config = vz.SuggestConverter.from_request_proto(request).study_config
     study_name = request.study_descriptor.guid
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        study_name, self._vizier_service
+        study_name, self._vizier_service  # pyrefly: ignore[bad-argument-type]
     )
     pythia_policy = self._policy_factory(
         study_config, request.algorithm, policy_supporter, study_name
@@ -105,7 +105,7 @@ class PythiaServicer(pythia_service_pb2_grpc.PythiaServiceServicer):
     ).study_config
     study_name = request.study_descriptor.guid
     policy_supporter = service_policy_supporter.ServicePolicySupporter(
-        study_name, self._vizier_service
+        study_name, self._vizier_service  # pyrefly: ignore[bad-argument-type]
     )
     pythia_policy = self._policy_factory(
         study_config, request.algorithm, policy_supporter, study_name

@@ -178,10 +178,10 @@ class DataStoreTestCase(parameterized.TestCase):
 
     output_op = ds.get_suggestion_operation(
         resources.SuggestionOperationResource(
-            study_resource.owner_id,
+            study_resource.owner_id,  # pyrefly: ignore[bad-argument-count]
             study_resource.study_id,
             client_id,
-            operation_number=1,
+            operation_number=1,  # pyrefly: ignore[unexpected-keyword]
         ).name
     )
     self.assertEqual(output_op, suggestion_ops[0])
@@ -190,10 +190,10 @@ class DataStoreTestCase(parameterized.TestCase):
     with self.assertRaises(custom_errors.NotFoundError):
       ds.get_suggestion_operation(
           resources.SuggestionOperationResource(
-              study_resource.owner_id,
+              study_resource.owner_id,  # pyrefly: ignore[bad-argument-count]
               study_resource.study_id,
               client_id + 'does_not_exist',  # Client doesn't exist.
-              operation_number=1,
+              operation_number=1,  # pyrefly: ignore[unexpected-keyword]
           ).name
       )
 
@@ -204,10 +204,10 @@ class DataStoreTestCase(parameterized.TestCase):
 
     wrong_output_op = copy.deepcopy(output_op)
     wrong_output_op.name = resources.SuggestionOperationResource(
-        study_resource.owner_id,
+        study_resource.owner_id,  # pyrefly: ignore[bad-argument-count]
         study_resource.study_id,
         client_id + 'does_not_exist',  # Client doesn't exist.
-        operation_number=1,
+        operation_number=1,  # pyrefly: ignore[unexpected-keyword]
     ).name
     with self.assertRaises(custom_errors.NotFoundError):
       ds.update_suggestion_operation(wrong_output_op)
@@ -233,14 +233,14 @@ class DataStoreTestCase(parameterized.TestCase):
 
     output_op = ds.get_early_stopping_operation(
         resources.EarlyStoppingOperationResource(
-            study_resource.owner_id, study_resource.study_id, 1
+            study_resource.owner_id, study_resource.study_id, 1  # pyrefly: ignore[bad-argument-count]
         ).name
     )
     self.assertEqual(output_op, early_stopping_ops[0])
     self.assertIsNot(output_op, early_stopping_ops[0])  # Check pass-by-value.
 
     wrong_op_name = resources.EarlyStoppingOperationResource(
-        study_resource.owner_id,
+        study_resource.owner_id,  # pyrefly: ignore[bad-argument-count]
         study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
         1,
     ).name
@@ -254,7 +254,7 @@ class DataStoreTestCase(parameterized.TestCase):
 
     wrong_output_op = copy.deepcopy(output_op)
     wrong_output_op.name = resources.EarlyStoppingOperationResource(
-        study_resource.owner_id,
+        study_resource.owner_id,  # pyrefly: ignore[bad-argument-count]
         study_resource.study_id + 'does_not_exist',  # Study doesn't exist.
         1,
     ).name

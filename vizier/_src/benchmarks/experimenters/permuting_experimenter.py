@@ -93,7 +93,7 @@ class PermutingExperimenter(experimenter.Experimenter):
           new_parameters[name] = permutation_dict[parameter.value]
         else:
           new_parameters[name] = parameter
-      suggestion.parameters = new_parameters
+      suggestion.parameters = new_parameters  # pyrefly: ignore[bad-assignment]
 
   def __repr__(self):
     return f'PermutingExperimenter on {str(self._exptr)}'

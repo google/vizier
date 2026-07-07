@@ -64,7 +64,7 @@ class SignFlipExperimenterTest(parameterized.TestCase):
         ].value,
     )
 
-    aux_metric_name = metric_name + '_before_noise'
+    aux_metric_name = metric_name + '_before_noise'  # pyrefly: ignore[unsupported-operation]
     if flip_objectives_only:
       self.assertEqual(
           suggestion_for_original.final_measurement_or_die.metrics[

@@ -25,10 +25,10 @@ class SwitchExperimenterTest(absltest.TestCase):
 
   def test_switch_experimenter(self):
     exptr0 = numpy_experimenter.NumpyExperimenter(
-        lambda x: 0.0 * x, bbob.DefaultBBOBProblemStatement(1, metric_name='0')
+        lambda x: 0.0 * x, bbob.DefaultBBOBProblemStatement(1, metric_name='0')  # pyrefly: ignore[bad-argument-type]
     )
     exptr1 = numpy_experimenter.NumpyExperimenter(
-        lambda x: 1.0 * x, bbob.DefaultBBOBProblemStatement(1, metric_name='1')
+        lambda x: 1.0 * x, bbob.DefaultBBOBProblemStatement(1, metric_name='1')  # pyrefly: ignore[bad-argument-type]
     )
     switch_exptr = switch_experimenter.SwitchExperimenter([exptr0, exptr1])
 

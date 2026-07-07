@@ -106,6 +106,6 @@ class NASBench101Experimenter(experimenter.Experimenter):
     # 'test_accuracy' also can be used for objective value.
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='validation_accuracy',
-            goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
+            name='validation_accuracy',  # pyrefly: ignore[unexpected-keyword]
+            goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement

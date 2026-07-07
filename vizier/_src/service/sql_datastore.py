@@ -134,7 +134,7 @@ class SQLDataStore(datastore.DataStore):
 
   def load_study(self, study_name: str) -> study_pb2.Study:
     query = sqla.select(self._studies_table)
-    query = query.where(self._studies_table.c.study_name == study_name)
+    query = query.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       row = self._connection.execute(query).fetchone()
@@ -149,12 +149,12 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._studies_table)
-    eq = eq.where(self._studies_table.c.study_name == study.name)
+    eq = eq.where(self._studies_table.c.study_name == study.name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Update query
     uq = sqla.update(self._studies_table)
-    uq = uq.where(self._studies_table.c.study_name == study.name)
+    uq = uq.where(self._studies_table.c.study_name == study.name)  # pyrefly: ignore[missing-attribute]
     uq = uq.values(
         study_name=study.name,
         owner_id=study_resource.owner_id,
@@ -175,17 +175,17 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._studies_table)
-    eq = eq.where(self._studies_table.c.study_name == study_name)
+    eq = eq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Delete study query
     dsq = self._studies_table.delete()
-    dsq = dsq.where(self._studies_table.c.study_name == study_name)
+    dsq = dsq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
 
     # Delete trials query
     dtq = self._trials_table.delete()
-    dtq = dtq.where(self._trials_table.c.owner_id == study_resource.owner_id)
-    dtq = dtq.where(self._trials_table.c.study_id == study_resource.study_id)
+    dtq = dtq.where(self._trials_table.c.owner_id == study_resource.owner_id)  # pyrefly: ignore[missing-attribute]
+    dtq = dtq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -199,12 +199,12 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._owners_table)
-    eq = eq.where(self._owners_table.c.owner_name == owner_name)
+    eq = eq.where(self._owners_table.c.owner_name == owner_name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # List query
     lq = sqla.select(self._studies_table)
-    lq = lq.where(self._studies_table.c.owner_id == owner_id)
+    lq = lq.where(self._studies_table.c.owner_id == owner_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -239,7 +239,7 @@ class SQLDataStore(datastore.DataStore):
 
   def get_trial(self, trial_name: str) -> study_pb2.Trial:
     query = sqla.select(self._trials_table)
-    query = query.where(self._trials_table.c.trial_name == trial_name)
+    query = query.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       result = self._connection.execute(query)
@@ -256,12 +256,12 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._trials_table)
-    eq = eq.where(self._trials_table.c.trial_name == trial.name)
+    eq = eq.where(self._trials_table.c.trial_name == trial.name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Update query
     uq = sqla.update(self._trials_table)
-    uq = uq.where(self._trials_table.c.trial_name == trial.name)
+    uq = uq.where(self._trials_table.c.trial_name == trial.name)  # pyrefly: ignore[missing-attribute]
     uq = uq.values(
         trial_name=trial.name,
         owner_id=trial_resource.owner_id,
@@ -283,13 +283,13 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._studies_table)
-    eq = eq.where(self._studies_table.c.study_name == study_name)
+    eq = eq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # List query
     lq = sqla.select(self._trials_table)
-    lq = lq.where(self._trials_table.c.owner_id == study_resource.owner_id)
-    lq = lq.where(self._trials_table.c.study_id == study_resource.study_id)
+    lq = lq.where(self._trials_table.c.owner_id == study_resource.owner_id)  # pyrefly: ignore[missing-attribute]
+    lq = lq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -304,12 +304,12 @@ class SQLDataStore(datastore.DataStore):
   def delete_trial(self, trial_name: str) -> None:
     # Exist query
     eq = sqla.select(self._trials_table)
-    eq = eq.where(self._trials_table.c.trial_name == trial_name)
+    eq = eq.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Delete query
     dq = self._trials_table.delete()
-    dq = dq.where(self._trials_table.c.trial_name == trial_name)
+    dq = dq.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -322,14 +322,14 @@ class SQLDataStore(datastore.DataStore):
 
     # Exist query
     eq = sqla.select(self._studies_table)
-    eq = eq.where(self._studies_table.c.study_name == study_name)
+    eq = eq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Trial ID query
-    tq = sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)
+    tq = sqla.func.max(self._trials_table.c.trial_id, type_=sqla.INT)  # pyrefly: ignore[missing-attribute]
     tq = sqla.select(tq)
-    tq = tq.where(self._trials_table.c.owner_id == study_resource.owner_id)
-    tq = tq.where(self._trials_table.c.study_id == study_resource.study_id)
+    tq = tq.where(self._trials_table.c.owner_id == study_resource.owner_id)  # pyrefly: ignore[missing-attribute]
+    tq = tq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -367,7 +367,7 @@ class SQLDataStore(datastore.DataStore):
   ) -> operations_pb2.Operation:
     q = sqla.select(self._suggestion_operations_table)
     q = q.where(
-        self._suggestion_operations_table.c.operation_name == operation_name
+        self._suggestion_operations_table.c.operation_name == operation_name  # pyrefly: ignore[missing-attribute]
     )
 
     with self._lock:
@@ -389,14 +389,14 @@ class SQLDataStore(datastore.DataStore):
     # Exist query
     eq = sqla.select(self._suggestion_operations_table)
     eq = eq.where(
-        self._suggestion_operations_table.c.operation_name == operation.name
+        self._suggestion_operations_table.c.operation_name == operation.name  # pyrefly: ignore[missing-attribute]
     )
     eq = sqla.exists(eq).select()
 
     # Update query
     uq = sqla.update(self._suggestion_operations_table)
     uq = uq.where(
-        self._suggestion_operations_table.c.operation_name == operation.name
+        self._suggestion_operations_table.c.operation_name == operation.name  # pyrefly: ignore[missing-attribute]
     )
     uq = uq.values(
         operation_name=operation.name,
@@ -424,12 +424,12 @@ class SQLDataStore(datastore.DataStore):
     study_resource = resources.StudyResource.from_name(study_name)
     q = sqla.select(self._suggestion_operations_table)
     q = q.where(
-        self._suggestion_operations_table.c.owner_id == study_resource.owner_id
+        self._suggestion_operations_table.c.owner_id == study_resource.owner_id  # pyrefly: ignore[missing-attribute]
     )
     q = q.where(
-        self._suggestion_operations_table.c.study_id == study_resource.study_id
+        self._suggestion_operations_table.c.study_id == study_resource.study_id  # pyrefly: ignore[missing-attribute]
     )
-    q = q.where(self._suggestion_operations_table.c.client_id == client_id)
+    q = q.where(self._suggestion_operations_table.c.client_id == client_id)  # pyrefly: ignore[missing-attribute]
 
     eq = sqla.exists(q).select()
     with self._lock:
@@ -456,27 +456,27 @@ class SQLDataStore(datastore.DataStore):
     # Exist query
     eq = sqla.select(self._suggestion_operations_table)
     eq = eq.where(
-        self._suggestion_operations_table.c.owner_id == resource.owner_id
+        self._suggestion_operations_table.c.owner_id == resource.owner_id  # pyrefly: ignore[missing-attribute]
     )
     eq = eq.where(
-        self._suggestion_operations_table.c.study_id == resource.study_id
+        self._suggestion_operations_table.c.study_id == resource.study_id  # pyrefly: ignore[missing-attribute]
     )
-    eq = eq.where(self._suggestion_operations_table.c.client_id == client_id)
+    eq = eq.where(self._suggestion_operations_table.c.client_id == client_id)  # pyrefly: ignore[missing-attribute]
     eq = sqla.exists(eq).select()
 
     # Max query
     mq = sqla.func.max(
-        self._suggestion_operations_table.c.operation_number,
+        self._suggestion_operations_table.c.operation_number,  # pyrefly: ignore[missing-attribute]
         type_=sqla.INT,
     )
     mq = sqla.select(mq)
     mq = mq.where(
-        self._suggestion_operations_table.c.owner_id == resource.owner_id
+        self._suggestion_operations_table.c.owner_id == resource.owner_id  # pyrefly: ignore[missing-attribute]
     )
     mq = mq.where(
-        self._suggestion_operations_table.c.study_id == resource.study_id
+        self._suggestion_operations_table.c.study_id == resource.study_id  # pyrefly: ignore[missing-attribute]
     )
-    mq = mq.where(self._suggestion_operations_table.c.client_id == client_id)
+    mq = mq.where(self._suggestion_operations_table.c.client_id == client_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       if not self._connection.execute(eq).fetchone()[0]:
@@ -517,7 +517,7 @@ class SQLDataStore(datastore.DataStore):
   ) -> vizier_oss_pb2.EarlyStoppingOperation:
     q = sqla.select(self._early_stopping_operations_table)
     q = q.where(
-        self._early_stopping_operations_table.c.operation_name == operation_name
+        self._early_stopping_operations_table.c.operation_name == operation_name  # pyrefly: ignore[missing-attribute]
     )
 
     with self._lock:
@@ -544,14 +544,14 @@ class SQLDataStore(datastore.DataStore):
     # Exist query
     eq = sqla.select(self._early_stopping_operations_table)
     eq = eq.where(
-        self._early_stopping_operations_table.c.operation_name == operation.name
+        self._early_stopping_operations_table.c.operation_name == operation.name  # pyrefly: ignore[missing-attribute]
     )
     eq = sqla.exists(eq).select()
 
     # Update query
     uq = sqla.update(self._early_stopping_operations_table)
     uq = uq.where(
-        self._early_stopping_operations_table.c.operation_name == operation.name
+        self._early_stopping_operations_table.c.operation_name == operation.name  # pyrefly: ignore[missing-attribute]
     )
     uq = uq.values(
         operation_name=operation.name,
@@ -582,7 +582,7 @@ class SQLDataStore(datastore.DataStore):
     logging.debug('database.update_metadata s_resource= %s', s_resource)
     # Obtain original study.
     sq = sqla.select(self._studies_table)
-    sq = sq.where(self._studies_table.c.study_name == study_name)
+    sq = sq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
       row = self._connection.execute(sq).fetchone()
@@ -596,7 +596,7 @@ class SQLDataStore(datastore.DataStore):
       )
 
       usq = sqla.update(self._studies_table)
-      usq = usq.where(self._studies_table.c.study_name == study_name)
+      usq = usq.where(self._studies_table.c.study_name == study_name)  # pyrefly: ignore[missing-attribute]
       usq = usq.values(serialized_study=original_study.SerializeToString())
       self._write_or_rollback(usq)
 
@@ -612,7 +612,7 @@ class SQLDataStore(datastore.DataStore):
 
         # Obtain original trial.
         otq = sqla.select(self._trials_table)
-        otq = otq.where(self._trials_table.c.trial_name == trial_name)
+        otq = otq.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
         row = self._connection.execute(otq).fetchone()
         if not row:
           self._connection.rollback()
@@ -622,7 +622,7 @@ class SQLDataStore(datastore.DataStore):
         # Update Trial.
         vz.metadata_util.merge_trial_metadata(original_trial, md_list)
         utq = sqla.update(self._trials_table)
-        utq = utq.where(self._trials_table.c.trial_name == trial_name)
+        utq = utq.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
         utq = utq.values(serialized_trial=original_trial.SerializeToString())
         self._write_or_rollback(utq)
 

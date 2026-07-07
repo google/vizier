@@ -43,7 +43,7 @@ class VizierClientTest(parameterized.TestCase):
 
     # Setup Vizier Server and some pre-stored data.
     self.local_server = vizier_server.DefaultVizierServer(
-        database_url=constants.SQL_MEMORY_URL
+        database_url=constants.SQL_MEMORY_URL  # pyrefly: ignore[unexpected-keyword]
     )
     self.servicer = self.local_server._servicer
     self.owner_id = 'my_username'
@@ -56,8 +56,8 @@ class VizierClientTest(parameterized.TestCase):
     vizier_client.environment_variables.server_endpoint = (
         self.local_server.endpoint
     )
-    self.client = vizier_client.VizierClient(
-        study_resource_name=self.study_resource_name, client_id='my_client'
+    self.client = vizier_client.VizierClient(  # pyrefly: ignore[missing-argument]
+        study_resource_name=self.study_resource_name, client_id='my_client'  # pyrefly: ignore[unexpected-keyword]
     )
 
     # Store initial data in the vizier service.
@@ -269,12 +269,12 @@ class VizierClientTest(parameterized.TestCase):
       for trial in suggestions:
         learning_rate = trial.parameters.get_value('learning_rate')
         num_layers = trial.parameters.get_value('num_layers')
-        curve = learning_curve_generator(learning_rate)
+        curve = learning_curve_generator(learning_rate)  # pyrefly: ignore[bad-argument-type]
         for i in range(len(curve)):
           cifar10_client.report_intermediate_objective_value(
               step=i,
               elapsed_secs=0.1 * i,
-              metric_list=[{'accuracy': curve[i], 'latency': 0.5 * num_layers}],
+              metric_list=[{'accuracy': curve[i], 'latency': 0.5 * num_layers}],  # pyrefly: ignore[unsupported-operation]
               trial_id=trial.id,
           )
         cifar10_client.complete_trial(trial_id=trial.id)
@@ -326,16 +326,16 @@ class VizierClientTest(parameterized.TestCase):
     )
 
     # Check if the local server is shared.
-    local_client2 = vizier_client.VizierClient(
-        study_resource_name=study_resource_name, client_id='local_client2'
+    local_client2 = vizier_client.VizierClient(  # pyrefly: ignore[missing-argument]
+        study_resource_name=study_resource_name, client_id='local_client2'  # pyrefly: ignore[unexpected-keyword]
     )
     self.assertEqual(local_client1._service, local_client2._service)
 
     # Same server still exists globally in cache after clients are deleted.
     del local_client1
     del local_client2
-    local_client3 = vizier_client.VizierClient(
-        study_resource_name=study_resource_name, client_id='local_client3'
+    local_client3 = vizier_client.VizierClient(  # pyrefly: ignore[missing-argument]
+        study_resource_name=study_resource_name, client_id='local_client3'  # pyrefly: ignore[unexpected-keyword]
     )
     self.assertLen(local_client3.list_studies(), 1)
 

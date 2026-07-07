@@ -85,7 +85,7 @@ class NumpyExperimenterTest(parameterized.TestCase):
 
   def testNotInSearchSpace(self):
     exptr = numpy_experimenter.NumpyExperimenter(
-        impl=lambda x: x,
+        impl=lambda x: x,  # pyrefly: ignore[bad-argument-type]
         problem_statement=bbob.DefaultBBOBProblemStatement(1),
     )
 

@@ -89,7 +89,7 @@ class DefaultVizierServer:
 
     # Re-set the default Pythia Service to allow custom policy factories.
     default_pythia_service = pythia_service.PythiaServicer(
-        self._servicer, policy_factory=self._policy_factory
+        self._servicer, policy_factory=self._policy_factory  # pyrefly: ignore[unexpected-keyword]
     )
     self._servicer.default_pythia_service = default_pythia_service
 
@@ -125,7 +125,7 @@ class DistributedPythiaVizierServer(DefaultVizierServer):
     super().__attrs_post_init__()
     # Setup Pythia server.
     self._pythia_servicer = pythia_service.PythiaServicer(
-        policy_factory=self._policy_factory
+        policy_factory=self._policy_factory  # pyrefly: ignore[unexpected-keyword]
     )
     # `max_workers=1` is used since we can only run one Pythia thread at a time.
     self._pythia_server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))

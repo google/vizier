@@ -50,7 +50,7 @@ class NoisyExperimenter(experimenter.Experimenter):
         dimension=dim,
         seed=seed,
     )
-    return cls(exptr, noise_fn)
+    return cls(exptr, noise_fn)  # pyrefly: ignore[bad-argument-count]
 
   def problem_statement(self) -> pyvizier.ProblemStatement:
     return self.exptr.problem_statement()

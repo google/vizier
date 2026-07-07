@@ -30,7 +30,7 @@ class L1CategoricalExperimenterTest(parameterized.TestCase):
     optimum = [0, 1]
     exptr = l1_categorical_experimenter.L1CategorialExperimenter(
         num_categories=[2, 2], optimum=optimum)
-    suggestion = vz.Trial(parameters={'c0': '0', 'c1': '1'})
+    suggestion = vz.Trial(parameters={'c0': '0', 'c1': '1'})  # pyrefly: ignore[unexpected-keyword]
     exptr.evaluate([suggestion])
     self.assertEqual(
         suggestion.final_measurement_or_die.metrics['objective'].value, 0
@@ -40,7 +40,7 @@ class L1CategoricalExperimenterTest(parameterized.TestCase):
     optimum = [0, 1]
     exptr = l1_categorical_experimenter.L1CategorialExperimenter(
         num_categories=[2, 2], optimum=optimum)
-    suggestion = vz.Trial(parameters={'c0': '1', 'c1': '0'})
+    suggestion = vz.Trial(parameters={'c0': '1', 'c1': '0'})  # pyrefly: ignore[unexpected-keyword]
     exptr.evaluate([suggestion])
     self.assertEqual(
         suggestion.final_measurement_or_die.metrics['objective'].value, 2

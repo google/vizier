@@ -36,23 +36,23 @@ class UtilTest(parameterized.TestCase):
 
   def test_parsing_correct(self):
     """Tests for correct resource strings only."""
-    owner_resource = resources.OwnerResource(self.owner_id)
+    owner_resource = resources.OwnerResource(self.owner_id)  # pyrefly: ignore[bad-argument-count]
     same_owner_resource = resources.OwnerResource.from_name(owner_resource.name)
     self.assertEqual(owner_resource, same_owner_resource)
 
-    study_resource = resources.StudyResource(self.owner_id, self.study_id)
+    study_resource = resources.StudyResource(self.owner_id, self.study_id)  # pyrefly: ignore[bad-argument-count]
     same_study_resource = resources.StudyResource.from_name(study_resource.name)
     self.assertEqual(study_resource, same_study_resource)
 
     trial_resource = resources.TrialResource(
-        self.owner_id, self.study_id, self.trial_id
+        self.owner_id, self.study_id, self.trial_id  # pyrefly: ignore[bad-argument-count]
     )
     same_trial_resource = resources.TrialResource.from_name(trial_resource.name)
     self.assertEqual(trial_resource, same_trial_resource)
     self.assertEqual(trial_resource.study_resource, study_resource)
 
     early_stopping_op_resource = resources.EarlyStoppingOperationResource(
-        self.owner_id, self.study_id, self.trial_id
+        self.owner_id, self.study_id, self.trial_id  # pyrefly: ignore[bad-argument-count]
     )
     same_early_stopping_op_resource = (
         resources.EarlyStoppingOperationResource.from_name(
@@ -69,7 +69,7 @@ class UtilTest(parameterized.TestCase):
     )
 
     suggestion_op_resource = resources.SuggestionOperationResource(
-        self.owner_id, self.study_id, self.client_id, self.operation_number
+        self.owner_id, self.study_id, self.client_id, self.operation_number  # pyrefly: ignore[bad-argument-count]
     )
     same_suggestion_op_resource = (
         resources.SuggestionOperationResource.from_name(

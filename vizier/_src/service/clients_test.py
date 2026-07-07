@@ -80,7 +80,7 @@ class VizierClientTestOnDefaultServer(VizierClientTest):
     logging.info('Test setup started.')
     super().setUpClass()
     cls._server = vizier_server.DefaultVizierServer(
-        database_url=constants.SQL_MEMORY_URL
+        database_url=constants.SQL_MEMORY_URL  # pyrefly: ignore[unexpected-keyword]
     )
     clients.environment_variables.server_endpoint = cls._server.endpoint
     logging.info('Test setup finished.')
@@ -99,7 +99,7 @@ class VizierClientTestOnDistributedPythiaServer(VizierClientTest):
     logging.info('Test setup started.')
     super().setUpClass()
     cls._server = vizier_server.DistributedPythiaVizierServer(
-        database_url=constants.SQL_MEMORY_URL
+        database_url=constants.SQL_MEMORY_URL  # pyrefly: ignore[unexpected-keyword]
     )
     clients.environment_variables.server_endpoint = cls._server.endpoint
     logging.info('Test setup finished.')

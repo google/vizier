@@ -49,7 +49,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
 
   def GetStudyConfig(self, study_guid: str) -> vz.ProblemStatement:
     request = vizier_service_pb2.GetStudyRequest(name=study_guid)
-    study = self._vizier_service.GetStudy(request)
+    study = self._vizier_service.GetStudy(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.StudyConfig.from_proto(study.study_spec).to_problem()
 
   # TODO: Support filters in ListTrialsRequest.
@@ -68,7 +68,7 @@ class ServicePolicySupporter(pythia.PolicySupporter):
     if study_guid is None:
       study_guid = self._study_guid
     request = vizier_service_pb2.ListTrialsRequest(parent=study_guid)
-    trials = self._vizier_service.ListTrials(request).trials
+    trials = self._vizier_service.ListTrials(request).trials  # pyrefly: ignore[missing-argument]
     all_pytrials = pyvizier.TrialConverter.from_protos(trials)
 
     trial_filter = vz.TrialFilter(

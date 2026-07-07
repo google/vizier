@@ -48,7 +48,7 @@ class PredictorExperimenter(experimenter.Experimenter):
   def evaluate(self, suggestions: Sequence[vz.Trial]):
     prediction = self._predictor.predict(suggestions, self._rng)
     for i, suggestion in enumerate(suggestions):
-      evaluation = prediction.mean[i]
+      evaluation = prediction.mean[i]  # pyrefly: ignore[bad-index]
       suggestion.complete(
           vz.Measurement(metrics={self._objective_name: evaluation})
       )

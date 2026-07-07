@@ -45,7 +45,7 @@ class OwnerResource:
     owner_match = re.match(r'^owners\/(?P<owner_id>[^\/]+)$', resource_name)
 
     if owner_match:
-      return OwnerResource(owner_id=owner_match.group('owner_id'))
+      return OwnerResource(owner_id=owner_match.group('owner_id'))  # pyrefly: ignore[unexpected-keyword]
     else:
       raise ValueError(f'Incorrect resource name sent: {resource_name}')
 
@@ -75,7 +75,7 @@ class StudyResource:
 
     if study_match:
       return StudyResource(
-          study_match.group('owner_id'), study_match.group('study_id')
+          study_match.group('owner_id'), study_match.group('study_id')  # pyrefly: ignore[bad-argument-count]
       )
     else:
       raise ValueError(
@@ -84,7 +84,7 @@ class StudyResource:
 
   @property
   def owner_resource(self) -> OwnerResource:
-    return OwnerResource(owner_id=self.owner_id)
+    return OwnerResource(owner_id=self.owner_id)  # pyrefly: ignore[unexpected-keyword]
 
   @property
   def name(self) -> str:
@@ -95,7 +95,7 @@ class StudyResource:
     int_id = int(trial_id)
     if int_id <= 0:
       raise ValueError('Invalid trial_id: "{trial_id}"')
-    return TrialResource(self.owner_id, self.study_id, int_id)
+    return TrialResource(self.owner_id, self.study_id, int_id)  # pyrefly: ignore[bad-argument-count]
 
 
 @attr.define(init=True, frozen=True)
@@ -122,7 +122,7 @@ class TrialResource:
 
     if trial_match:
       return TrialResource(
-          trial_match.group('owner_id'),
+          trial_match.group('owner_id'),  # pyrefly: ignore[bad-argument-count]
           trial_match.group('study_id'),
           int(trial_match.group('trial_id')),
       )
@@ -133,14 +133,14 @@ class TrialResource:
 
   @property
   def study_resource(self) -> StudyResource:
-    return StudyResource(owner_id=self.owner_id, study_id=self.study_id)
+    return StudyResource(owner_id=self.owner_id, study_id=self.study_id)  # pyrefly: ignore[unexpected-keyword]
 
   @property
   def early_stopping_operation_resource(
       self,
   ) -> 'EarlyStoppingOperationResource':
     return EarlyStoppingOperationResource(
-        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id
+        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id  # pyrefly: ignore[unexpected-keyword]
     )
 
   @property
@@ -181,7 +181,7 @@ class EarlyStoppingOperationResource:
     )
     if operation_match:
       return EarlyStoppingOperationResource(
-          operation_match.group('owner_id'),
+          operation_match.group('owner_id'),  # pyrefly: ignore[bad-argument-count]
           operation_match.group('study_id'),
           int(operation_match.group('trial_id')),
       )
@@ -191,7 +191,7 @@ class EarlyStoppingOperationResource:
   @property
   def trial_resource(self) -> TrialResource:
     return TrialResource(
-        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id
+        owner_id=self.owner_id, study_id=self.study_id, trial_id=self.trial_id  # pyrefly: ignore[unexpected-keyword]
     )
 
 
@@ -229,7 +229,7 @@ class SuggestionOperationResource:
     )
     if operation_match:
       return SuggestionOperationResource(
-          operation_match.group('owner_id'),
+          operation_match.group('owner_id'),  # pyrefly: ignore[bad-argument-count]
           operation_match.group('study_id'),
           operation_match.group('client_id'),
           int(operation_match.group('operation_number')),

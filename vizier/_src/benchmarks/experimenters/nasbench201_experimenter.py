@@ -65,7 +65,7 @@ class NASBench201Experimenter(experimenter.Experimenter):
     ops = [
         trial.parameters['op_{}'.format(i)].value for i in range(self._op_spots)
     ]
-    return _model_tss_spc(ops, self._num_nodes)
+    return _model_tss_spc(ops, self._num_nodes)  # pyrefly: ignore[bad-argument-type]
 
   def evaluate(self, suggestions: Sequence[pyvizier.Trial]):
     for trial in suggestions:
@@ -89,5 +89,5 @@ class NASBench201Experimenter(experimenter.Experimenter):
           name='op_{}'.format(i), feasible_values=self._allowed_ops)
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='valid_acc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))
+            name='valid_acc', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement

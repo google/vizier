@@ -36,8 +36,8 @@ class DummyPredictor(vza.Predictor):
       num_samples: Optional[int] = None,
   ) -> vza.Prediction:
     num_trials = len(trials)
-    mean = jax.random.normal(key=rng, shape=(num_trials,))
-    stddev = jax.random.normal(key=rng, shape=(num_trials,))
+    mean = jax.random.normal(key=rng, shape=(num_trials,))  # pyrefly: ignore[bad-argument-type]
+    stddev = jax.random.normal(key=rng, shape=(num_trials,))  # pyrefly: ignore[bad-argument-type]
     return vza.Prediction(mean=mean, stddev=stddev)
 
 

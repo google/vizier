@@ -69,20 +69,20 @@ def handle_exception(
     LocalRpcError: If in the local case (when context is None).
   """
   if context is None:
-    context = LocalRpcError(e)
+    context = LocalRpcError(e)  # pyrefly: ignore[bad-assignment]
 
   if isinstance(
       e, (custom_errors.ImmutableStudyError, custom_errors.ImmutableTrialError)
   ):
-    context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+    context.set_code(grpc.StatusCode.FAILED_PRECONDITION)  # pyrefly: ignore[missing-attribute]
   elif isinstance(e, custom_errors.NotFoundError):
-    context.set_code(grpc.StatusCode.NOT_FOUND)
+    context.set_code(grpc.StatusCode.NOT_FOUND)  # pyrefly: ignore[missing-attribute]
   elif isinstance(e, custom_errors.AlreadyExistsError):
-    context.set_code(grpc.StatusCode.ALREADY_EXISTS)
+    context.set_code(grpc.StatusCode.ALREADY_EXISTS)  # pyrefly: ignore[missing-attribute]
   else:
-    context.set_code(grpc.StatusCode.UNKNOWN)
+    context.set_code(grpc.StatusCode.UNKNOWN)  # pyrefly: ignore[missing-attribute]
 
-  context.set_details(str(e))
+  context.set_details(str(e))  # pyrefly: ignore[missing-attribute]
 
   if isinstance(context, LocalRpcError):
     raise context

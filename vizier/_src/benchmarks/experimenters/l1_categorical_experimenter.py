@@ -70,7 +70,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
 
     self._problem.metric_information.append(
         vz.MetricInformation(
-            name='objective', goal=vz.ObjectiveMetricGoal.MINIMIZE))
+            name='objective', goal=vz.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     if verbose:
       logging.info('L1CategoricalExperimenter optimum point: %s', self._optimum)
 
@@ -86,7 +86,7 @@ class L1CategorialExperimenter(experimenter.Experimenter):
   @property
   def optimal_trial(self) -> vz.Trial:
     """Evaluates and returns the optimal trial."""
-    optimal_trial = vz.Trial(parameters=self._optimum)
+    optimal_trial = vz.Trial(parameters=self._optimum)  # pyrefly: ignore[unexpected-keyword]
     self.evaluate([optimal_trial])
     return optimal_trial
 

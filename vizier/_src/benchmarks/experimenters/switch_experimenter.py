@@ -49,13 +49,13 @@ class SwitchExperimenter(experimenter.Experimenter):
       exptr_index = trial.parameters[self._switch_param_name].value
 
       trial_copy = copy.deepcopy(trial)
-      self.experimenters[exptr_index].evaluate([trial_copy])
+      self.experimenters[exptr_index].evaluate([trial_copy])  # pyrefly: ignore[bad-index]
 
       if trial_copy.final_measurement is None:
         continue
 
       val = trial_copy.final_measurement.metrics[
-          self._exptr_objective_names[exptr_index]
+          self._exptr_objective_names[exptr_index]  # pyrefly: ignore[bad-index]
       ]
       trial.complete(vz.Measurement(metrics={self._metric_name: val}))
 

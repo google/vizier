@@ -37,7 +37,7 @@ class PerformanceTest(parameterized.TestCase):
   def setUpClass(cls):
     super().setUpClass()
     cls.server = vizier_server.DefaultVizierServer(
-        database_url=constants.SQL_MEMORY_URL
+        database_url=constants.SQL_MEMORY_URL  # pyrefly: ignore[unexpected-keyword]
     )
     vizier_client.environment_variables.server_endpoint = cls.server.endpoint
 

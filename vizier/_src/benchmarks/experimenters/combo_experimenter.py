@@ -84,7 +84,7 @@ class IsingExperimenter(experimenter.Experimenter):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement
 
   def _bocs_consistency_mapping(self,
@@ -138,7 +138,7 @@ class ContaminationExperimenter(experimenter.Experimenter):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement
 
   def _contamination(self, x: np.ndarray, cost: np.ndarray, init_z: np.ndarray,
@@ -252,7 +252,7 @@ class CentroidExperimenter(experimenter.Experimenter):
           feasible_values=[str(j) for j in range(self._centroid_n_choice)])
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement
 
   def _edge_choice(
@@ -304,7 +304,7 @@ class PestControlExperimenter(experimenter.Experimenter):
           feasible_values=[str(j) for j in range(self._pest_control_n_choice)])
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement
 
   def _pest_spread(self, curr_pest_frac: float, spread_rate: float,
@@ -350,8 +350,8 @@ class PestControlExperimenter(experimenter.Experimenter):
       if do_control:
         control_rate = np.random.RandomState(self._random_seed).beta(
             control_alpha, control_beta[x[i]], size=(n_simulations,))
-        next_pest_frac = self._pest_spread(curr_pest_frac, spread_rate,
-                                           control_rate, True)
+        next_pest_frac = self._pest_spread(curr_pest_frac, spread_rate,  # pyrefly: ignore[bad-argument-type]
+                                           control_rate, True)  # pyrefly: ignore[bad-argument-type]
         # Tolerance has been developed for pesticide type 1.
         control_beta[x[i]] += tolerance_develop_rate[x[i]] / float(n_stages)
         # You will get a discount.
@@ -359,7 +359,7 @@ class PestControlExperimenter(experimenter.Experimenter):
             1.0 - control_price_max_discount[x[i]] / float(n_stages) *
             float(np.sum(x == x[i])))
       else:
-        next_pest_frac = self._pest_spread(curr_pest_frac, spread_rate, 0,
+        next_pest_frac = self._pest_spread(curr_pest_frac, spread_rate, 0,  # pyrefly: ignore[bad-argument-type]
                                            False)
         payed_price = 0
       payed_price_sum += payed_price
@@ -429,5 +429,5 @@ class MAXSATExperimenter(experimenter.Experimenter):
       root.add_bool_param(name=f'x_{i}')
     problem_statement.metric_information.append(
         pyvizier.MetricInformation(
-            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='main_objective', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
     return problem_statement

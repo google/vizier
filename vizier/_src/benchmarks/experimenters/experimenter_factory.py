@@ -102,7 +102,7 @@ class BBOBExperimenterFactory(SerializableExperimenterFactory):
 
   @classmethod
   def recover(cls, metadata: vz.Metadata) -> 'BBOBExperimenterFactory':
-    metadata_dict = json.loads(metadata[BBOB_FACTORY_KEY])
+    metadata_dict = json.loads(metadata[BBOB_FACTORY_KEY])  # pyrefly: ignore[bad-argument-type]
     return cls(**metadata_dict)
 
 
@@ -234,7 +234,7 @@ class SingleObjectiveExperimenterFactory(SerializableExperimenterFactory):
       )
 
     metadata_dict = json.loads(
-        metadata[SINGLE_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder
+        metadata[SINGLE_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder  # pyrefly: ignore[bad-argument-type]
     )
 
     # Turn string keys back to int for discrete/categorical dicts.
@@ -281,7 +281,7 @@ class CombinedExperimenterFactory(SerializableExperimenterFactory):
   def recover(cls, metadata: vz.Metadata) -> 'CombinedExperimenterFactory':
     # TODO: Use generics to make this work.
     metadata_dict = json.loads(
-        metadata[MULTI_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder
+        metadata[MULTI_OBJECTIVE_FACTORY_KEY], cls=json_utils.NumpyDecoder  # pyrefly: ignore[bad-argument-type]
     )
     return CombinedExperimenterFactory(
         base_factories={

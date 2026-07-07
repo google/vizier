@@ -83,7 +83,7 @@ class SparseExperimenter(experimenter.Experimenter):
     original_params = []
     for trial in suggestions:
       original_params.append(trial.parameters)
-      trial.parameters = {
+      trial.parameters = {  # pyrefly: ignore[bad-assignment]
           param_name: param_value
           for param_name, param_value in trial.parameters.items()
           if not param_name.startswith(self._sparse_param_prefix)
@@ -140,13 +140,13 @@ class SparseExperimenter(experimenter.Experimenter):
     for idx in range(int_count):
       sparse_search_space.root.add_int_param(
           name='INT' + str(idx),
-          min_value=float_min_value or _DEFAULT_INT_BOUNDS[0],
-          max_value=float_max_value or _DEFAULT_INT_BOUNDS[1],
+          min_value=float_min_value or _DEFAULT_INT_BOUNDS[0],  # pyrefly: ignore[bad-argument-type]
+          max_value=float_max_value or _DEFAULT_INT_BOUNDS[1],  # pyrefly: ignore[bad-argument-type]
       )
     for idx in range(discrete_count):
       sparse_search_space.root.add_discrete_param(
           name='DISCRETE' + str(idx),
-          feasible_values=categorical_feasible_values
+          feasible_values=categorical_feasible_values  # pyrefly: ignore[bad-argument-type]
           or _DEFAULT_DISCRETE_FEASIBLE_VALUES,
       )
     for idx in range(categorical_count):

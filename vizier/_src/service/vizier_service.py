@@ -96,7 +96,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
     # By default, uses a local PythiaServicer instance.
     self.default_pythia_service: types.PythiaService = (
         default_pythia_service
-        or pythia_service.PythiaServicer(vizier_service=self)
+        or pythia_service.PythiaServicer(vizier_service=self)  # pyrefly: ignore[unexpected-keyword]
     )
 
     if database_url is None:
@@ -369,8 +369,8 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name),
       )
-      suggest_request = pythia.SuggestRequest(
-          study_descriptor=study_descriptor,
+      suggest_request = pythia.SuggestRequest(  # pyrefly: ignore[missing-argument]
+          study_descriptor=study_descriptor,  # pyrefly: ignore[unexpected-keyword]
           count=request.suggestion_count - len(output_trials),
       )
 
@@ -384,7 +384,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
         temp_pythia_service = self._select_pythia_service(
             study_config.pythia_endpoint
         )
-        suggest_decision_proto = temp_pythia_service.Suggest(
+        suggest_decision_proto = temp_pythia_service.Suggest(  # pyrefly: ignore[missing-argument]
             suggest_request_proto
         )
       # Pythia can raise any exception, captured inside grpc.RpcError.
@@ -737,8 +737,8 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
           guid=study_name,
           max_trial_id=self.datastore.max_trial_id(study_name),
       )
-      early_stop_request = pythia.EarlyStopRequest(
-          study_descriptor=study_descriptor, trial_ids=[trial_resource.trial_id]
+      early_stop_request = pythia.EarlyStopRequest(  # pyrefly: ignore[missing-argument]
+          study_descriptor=study_descriptor, trial_ids=[trial_resource.trial_id]  # pyrefly: ignore[unexpected-keyword]
       )
       early_stop_request_proto = svz.EarlyStopConverter.to_request_proto(
           early_stop_request
@@ -759,7 +759,7 @@ class VizierServicer(vizier_service_pb2_grpc.VizierServiceServicer):
       temp_pythia_service = self._select_pythia_service(
           study_config.pythia_endpoint
       )
-      early_stopping_decisions_proto = temp_pythia_service.EarlyStop(
+      early_stopping_decisions_proto = temp_pythia_service.EarlyStop(  # pyrefly: ignore[missing-argument]
           early_stop_request_proto
       )
       early_stopping_decisions = svz.EarlyStopConverter.from_decisions_proto(

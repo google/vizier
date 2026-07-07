@@ -136,11 +136,11 @@ class Study(client_abc.StudyInterface):
     """Returns the client for the vz.Trial object."""
     return Trial(self._client, trial.id)
 
-  def suggest(
+  def suggest(  # pyrefly: ignore[bad-override]
       self, *, count: Optional[int] = None, client_id: str = 'default_client_id'
   ) -> List[Trial]:
     suggestions = self._client.get_suggestions(
-        count, client_id_override=client_id
+        count, client_id_override=client_id  # pyrefly: ignore[bad-argument-type]
     )
     return [self._trial_client(t) for t in suggestions]
 
@@ -205,7 +205,7 @@ class Study(client_abc.StudyInterface):
     return self._client.get_study_state()
 
   @classmethod
-  def from_resource_name(cls: Type['Study'], name: str) -> 'Study':
+  def from_resource_name(cls: Type['Study'], name: str) -> 'Study':  # pyrefly: ignore[bad-override]
     client = vizier_client.VizierClient(name, UNUSED_CLIENT_ID)
     try:
       _ = client.get_study_config()  # Make sure study exists.

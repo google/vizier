@@ -155,7 +155,7 @@ class VizierClient:
         client_id=client_id,
     )
     try:
-      operation = self._service.SuggestTrials(request)
+      operation = self._service.SuggestTrials(request)  # pyrefly: ignore[missing-argument]
     except grpc.RpcError as rpc_error:
       # If ImmutableStudyError occurs, we simply return empty suggestion list.
       # Otherwise, halt the client and raise error.
@@ -174,7 +174,7 @@ class VizierClient:
       )
       time.sleep(sleep_time.total_seconds())
 
-      operation = self._service.GetOperation(
+      operation = self._service.GetOperation(  # pyrefly: ignore[missing-argument]
           operations_pb2.GetOperationRequest(name=operation.name)
       )
 
@@ -221,7 +221,7 @@ class VizierClient:
         ).name,
         measurement=measurement,
     )
-    trial = self._service.AddTrialMeasurement(request)
+    trial = self._service.AddTrialMeasurement(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_proto(trial)
 
   def should_trial_stop(self, trial_id: int) -> bool:
@@ -230,7 +230,7 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    early_stopping_response = self._service.CheckTrialEarlyStoppingState(
+    early_stopping_response = self._service.CheckTrialEarlyStoppingState(  # pyrefly: ignore[missing-argument]
         request
     )
     return early_stopping_response.should_stop
@@ -241,7 +241,7 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    self._service.StopTrial(request)
+    self._service.StopTrial(request)  # pyrefly: ignore[missing-argument]
     logging.info('Trial with id %s stopped.', trial_id)
 
   def complete_trial(
@@ -266,7 +266,7 @@ class VizierClient:
           pyvizier.MeasurementConverter.to_proto(final_measurement)
       )
 
-    trial = self._service.CompleteTrial(request)
+    trial = self._service.CompleteTrial(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_proto(trial)
 
   def get_trial(self, trial_id: int) -> pyvizier.Trial:
@@ -276,21 +276,21 @@ class VizierClient:
             self._owner_id, self._study_id, trial_id
         ).name
     )
-    trial = self._service.GetTrial(request)
+    trial = self._service.GetTrial(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_proto(trial)
 
   def list_trials(self) -> List[pyvizier.Trial]:
     """List all trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListTrialsRequest(parent=parent)
-    response = self._service.ListTrials(request)
+    response = self._service.ListTrials(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_protos(response.trials)
 
   def list_optimal_trials(self) -> List[pyvizier.Trial]:
     """List only the optimal completed trials."""
     parent = resources.StudyResource(self._owner_id, self._study_id).name
     request = vizier_service_pb2.ListOptimalTrialsRequest(parent=parent)
-    response = self._service.ListOptimalTrials(request)
+    response = self._service.ListOptimalTrials(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_protos(response.optimal_trials)
 
   def list_studies(self) -> List[Dict[str, Any]]:
@@ -298,7 +298,7 @@ class VizierClient:
     request = vizier_service_pb2.ListStudiesRequest(
         parent=resources.OwnerResource(self._owner_id).name
     )
-    list_studies_response = self._service.ListStudies(request)
+    list_studies_response = self._service.ListStudies(request)  # pyrefly: ignore[missing-argument]
     # TODO: Use PyVizier StudyDescriptor instead.
     return [
         json_format.MessageToJson(study)
@@ -320,7 +320,7 @@ class VizierClient:
         parent=resources.StudyResource(self._owner_id, self._study_id).name,
         trial=pyvizier.TrialConverter.to_proto(trial),
     )
-    trial_proto = self._service.CreateTrial(request)
+    trial_proto = self._service.CreateTrial(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.TrialConverter.from_proto(trial_proto)
 
   def delete_trial(self, trial_id: int) -> None:
@@ -329,7 +329,7 @@ class VizierClient:
         self._owner_id, self._study_id, trial_id
     ).name
     request = vizier_service_pb2.DeleteTrialRequest(name=request_trial_name)
-    self._service.DeleteTrial(request)
+    self._service.DeleteTrial(request)  # pyrefly: ignore[missing-argument]
     logging.info('Trial deleted: %s', trial_id)
 
   def delete_study(self, study_resource_name: Optional[str] = None) -> None:
@@ -338,7 +338,7 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.DeleteStudyRequest(name=study_resource_name)
-    self._service.DeleteStudy(request)
+    self._service.DeleteStudy(request)  # pyrefly: ignore[missing-argument]
     logging.info('Study deleted: %s', study_resource_name)
 
   def get_study_config(
@@ -349,7 +349,7 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
-    study = self._service.GetStudy(request)
+    study = self._service.GetStudy(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.StudyConfig.from_proto(study.study_spec)
 
   def get_study_state(
@@ -359,7 +359,7 @@ class VizierClient:
         resources.StudyResource(self._owner_id, self._study_id).name
     )
     request = vizier_service_pb2.GetStudyRequest(name=study_resource_name)
-    study = self._service.GetStudy(request)
+    study = self._service.GetStudy(request)  # pyrefly: ignore[missing-argument]
     return pyvizier.StudyStateConverter.from_proto(study.state)
 
   def set_study_state(
@@ -375,7 +375,7 @@ class VizierClient:
     request = vizier_service_pb2.SetStudyStateRequest(
         parent=study_resource_name, state=proto_state
     )
-    self._service.SetStudyState(request)
+    self._service.SetStudyState(request)  # pyrefly: ignore[missing-argument]
     logging.info(
         'Study with resource name %s set to %s state.',
         study_resource_name,
@@ -408,7 +408,7 @@ class VizierClient:
     request = pyvizier.metadata_util.to_request_proto(
         study_resource_name, delta
     )
-    response = self._service.UpdateMetadata(request)
+    response = self._service.UpdateMetadata(request)  # pyrefly: ignore[missing-argument]
 
     if response.error_details:
       raise RuntimeError(response.error_details)
@@ -461,7 +461,7 @@ def create_or_load_study(
   )
   # The response study contains a service assigned `name`, and may have been
   # created by this RPC or a previous RPC from another client.
-  study = vizier_stub.CreateStudy(request)
+  study = vizier_stub.CreateStudy(request)  # pyrefly: ignore[missing-argument]
   return VizierClient(study.name, client_id, vizier_stub)
 
 
