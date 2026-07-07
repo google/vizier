@@ -556,7 +556,7 @@ class SearchSpaceAddParamtest(parameterized.TestCase):
     space = pc.SearchSpace()
     root = space.select_root()
     with self.assertRaises(ValueError):
-      root.add_categorical_param('categorical', ['3.2', '2', 5])
+      root.add_categorical_param('categorical', ['3.2', '2', 5])  # pyrefly: ignore[bad-argument-type]
 
 
 class FlattenAndMergeTest(absltest.TestCase):

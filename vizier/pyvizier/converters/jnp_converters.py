@@ -41,8 +41,8 @@ class PaddedTrialToArrayConverter:
       experimental_override: str = '',
       *,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,
-          num_features=padding.PaddingType.NONE,
+          num_trials=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+          num_features=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
       ),
   ):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
@@ -89,8 +89,8 @@ class PaddedTrialToArrayConverter:
       *,
       scale: bool = True,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,
-          num_features=padding.PaddingType.NONE,
+          num_trials=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+          num_features=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
       ),
       pad_oovs: bool = True,
       max_discrete_indices: int = 0,
@@ -201,10 +201,10 @@ class TrialToModelInputConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information],
     )
-    return cls(
+    return cls(  # pyrefly: ignore[missing-argument]
         TrialToContinuousAndCategoricalConverter(converter),
-        problem=problem,
-        padding_schedule=padding_schedule,
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding_schedule,  # pyrefly: ignore[unexpected-keyword]
     )
 
   def to_features(self, trials: Sequence[vz.TrialSuggestion]) -> vt.ModelInput:
@@ -220,7 +220,7 @@ class TrialToModelInputConverter:
     return self._padding_schedule.pad_labels(labels)
 
   def to_xy(self, trials: Sequence[vz.Trial]) -> vt.ModelData:
-    return vt.ModelData(self.to_features(trials), self.to_labels(trials))
+    return vt.ModelData(self.to_features(trials), self.to_labels(trials))  # pyrefly: ignore[bad-return]
 
   def to_parameters(self, arr: vt.ModelInput) -> Sequence[vz.ParameterDict]:
     """Convert to nearest feasible parameter value. NaNs are preserved."""
@@ -236,7 +236,7 @@ class TrialToModelInputConverter:
     )
     unpadded_labels = data.labels.unpad()
 
-    return self._impl.to_trials(unpadded_features, unpadded_labels)
+    return self._impl.to_trials(unpadded_features, unpadded_labels)  # pyrefly: ignore[bad-argument-type]
 
   @property
   def output_specs(self):  # TODO: Add back pytype

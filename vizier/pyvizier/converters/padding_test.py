@@ -30,9 +30,9 @@ class PaddingTest(parameterized.TestCase):
     labels = np.random.randn(13, 3)
 
     schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.MULTIPLES_OF_10,
-        num_features=padding.PaddingType.POWERS_OF_2,
-        num_metrics=padding.PaddingType.POWERS_OF_2,
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+        num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+        num_metrics=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
     )
 
     padded = schedule.pad_features(features)
@@ -49,9 +49,9 @@ class PaddingTest(parameterized.TestCase):
     labels = np.random.randn(13, 3)
 
     schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.NONE,
-        num_features=padding.PaddingType.NONE,
-        num_metrics=padding.PaddingType.NONE,
+        num_trials=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+        num_features=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+        num_metrics=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
     )
 
     padded = schedule.pad_features(features)

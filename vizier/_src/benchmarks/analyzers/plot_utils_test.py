@@ -85,7 +85,7 @@ class PlotUtilsTest(absltest.TestCase):
       for algo_name, algo_factory in algorithms.items():
         benchmark_state_factory = vzb.ExperimenterDesignerBenchmarkStateFactory(
             experimenter_factory=experimenter_factory,
-            designer_factory=algo_factory,
+            designer_factory=algo_factory,  # pyrefly: ignore[bad-argument-type]
         )
         states = []
         for _ in range(num_repeats):

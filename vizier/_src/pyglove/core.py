@@ -351,7 +351,7 @@ class Result(pg.tuning.Result):
     return self._best_trial
 
   @property
-  def trials(self) -> Sequence[pg.tuning.Trial]:
+  def trials(self) -> Sequence[pg.tuning.Trial]:  # pyrefly: ignore[bad-override]
     """Returns trials."""
     return self._trials
 

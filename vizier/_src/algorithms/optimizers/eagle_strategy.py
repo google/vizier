@@ -713,7 +713,7 @@ class VectorizedEagleStrategy(
     )
 
   @property
-  def suggestion_batch_size(self) -> int | None:
+  def suggestion_batch_size(self) -> int | None:  # pyrefly: ignore[bad-override]
     """The number of suggestions returned at each call of 'suggest'."""
     return self.batch_size
 
@@ -744,17 +744,17 @@ class VectorizedEagleStrategy(
       suggested batch features: (batch_size, n_parallel, n_features)
     """
     # Take the batch of fireflies based on which new features are generated.
-    batch_id = state.iterations % (self.pool_size // self.batch_size)
-    start = batch_id * self.batch_size
+    batch_id = state.iterations % (self.pool_size // self.batch_size)  # pyrefly: ignore[unsupported-operation]
+    start = batch_id * self.batch_size  # pyrefly: ignore[unsupported-operation]
     features_batch = jax.tree_util.tree_map(
-        lambda f: jax.lax.dynamic_slice_in_dim(f, start, self.batch_size),
+        lambda f: jax.lax.dynamic_slice_in_dim(f, start, self.batch_size),  # pyrefly: ignore[bad-argument-type]
         state.features,
     )
     rewards_batch = jax.lax.dynamic_slice_in_dim(
-        state.rewards, start, self.batch_size
+        state.rewards, start, self.batch_size  # pyrefly: ignore[bad-argument-type]
     )
     perturbations_batch = jax.lax.dynamic_slice_in_dim(
-        state.perturbations, start, self.batch_size
+        state.perturbations, start, self.batch_size  # pyrefly: ignore[bad-argument-type]
     )
     features_seed, perturbations_seed = jax.random.split(seed)
 
@@ -773,7 +773,7 @@ class VectorizedEagleStrategy(
 
     # If the strategy is still initializing, return the random/prior features.
     new_features = jax.lax.cond(
-        state.iterations < self.pool_size // self.batch_size,
+        state.iterations < self.pool_size // self.batch_size,  # pyrefly: ignore[unsupported-operation]
         lambda x: x,
         _mutate_features,
         features_batch,
@@ -936,7 +936,7 @@ class VectorizedEagleStrategy(
     if self.max_categorical_size > 0:
       features_categorical_logits = (
           self._create_categorical_feature_logits(
-              features.categorical, features_batch.categorical, scale
+              features.categorical, features_batch.categorical, scale  # pyrefly: ignore[bad-argument-type]
           )
           + perturbations_batch.categorical
       )
@@ -1032,7 +1032,7 @@ class VectorizedEagleStrategy(
     # Generate normalized noise for each batch.
     batch_noise_continuous = jax.random.laplace(
         cont_seed,
-        shape=(
+        shape=(  # pyrefly: ignore[bad-argument-type]
             self.batch_size,
             n_parallel,
             self.n_feature_dimensions_with_padding.continuous,
@@ -1052,7 +1052,7 @@ class VectorizedEagleStrategy(
     batch_noise_categorical = (
         jax.random.laplace(
             cat_seed,
-            shape=(
+            shape=(  # pyrefly: ignore[bad-argument-type]
                 self.batch_size,
                 n_parallel,
                 self.n_feature_dimensions_with_padding.categorical,
@@ -1091,10 +1091,10 @@ class VectorizedEagleStrategy(
       new_state: Updated state.
     """
     new_best_reward = jnp.maximum(state.best_reward, jnp.max(batch_rewards))
-    batch_id = state.iterations % (self.pool_size // self.batch_size)
-    batch_start_ind = batch_id * self.batch_size
+    batch_id = state.iterations % (self.pool_size // self.batch_size)  # pyrefly: ignore[unsupported-operation]
+    batch_start_ind = batch_id * self.batch_size  # pyrefly: ignore[unsupported-operation]
     batch_perturbations = jax.lax.dynamic_slice_in_dim(
-        state.perturbations, batch_start_ind, self.batch_size
+        state.perturbations, batch_start_ind, self.batch_size  # pyrefly: ignore[bad-argument-type]
     )
 
     def _update(batch_features, batch_rewards, batch_perturbations):
@@ -1105,12 +1105,12 @@ class VectorizedEagleStrategy(
               batch_rewards,
               jax.tree_util.tree_map(
                   lambda f: jax.lax.dynamic_slice_in_dim(
-                      f, batch_start_ind, self.batch_size
+                      f, batch_start_ind, self.batch_size  # pyrefly: ignore[bad-argument-type]
                   ),
                   state.features,
               ),
               jax.lax.dynamic_slice_in_dim(
-                  state.rewards, batch_start_ind, self.batch_size
+                  state.rewards, batch_start_ind, self.batch_size  # pyrefly: ignore[bad-argument-type]
               ),
               batch_perturbations,
           )
@@ -1126,7 +1126,7 @@ class VectorizedEagleStrategy(
     # If the strategy is still initializing, return the random/prior values.
     (new_batch_features, new_batch_rewards, new_batch_perturbations) = (
         jax.lax.cond(
-            state.iterations < self.pool_size // self.batch_size,
+            state.iterations < self.pool_size // self.batch_size,  # pyrefly: ignore[unsupported-operation]
             lambda *args: args,
             _update,
             batch_features,
@@ -1230,7 +1230,7 @@ class VectorizedEagleStrategy(
 
     # Replace fireflies with random features and evaluate rewards.
     random_features = self.random_sampler(
-        self.batch_size,
+        self.batch_size,  # pyrefly: ignore[bad-argument-type]
         n_parallel=batch_features.continuous.shape[1],
         seed=seed,
     )

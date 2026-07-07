@@ -39,7 +39,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
         converter
     )
-    res = optimizer(score_fn=score_fn)
+    res = optimizer(score_fn=score_fn)  # pyrefly: ignore[bad-argument-type]
     self.assertLen(res.rewards, 1)
 
   def test_singleton_constraints_are_respected(self):
@@ -52,7 +52,7 @@ class LBFGSBOptimizer(parameterized.TestCase):
     optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
         converter
     )
-    res = optimizer(score_fn=score_fn)
+    res = optimizer(score_fn=score_fn)  # pyrefly: ignore[bad-argument-type]
     best_candidates = vb.best_candidates_to_trials(res, converter)
     best_score = score_fn(converter.to_features(best_candidates), None)
     # Evaluating the score function being optimized on the best candidate should
@@ -70,14 +70,14 @@ class LBFGSBOptimizer(parameterized.TestCase):
     score_fn = lambda x, _: -jnp.sum(  # pylint: disable=g-long-lambda
         jnp.square(x.continuous.padded_array - 0.52), axis=-1
     )
-    results = optimizer(score_fn=score_fn)
+    results = optimizer(score_fn=score_fn)  # pyrefly: ignore[bad-argument-type]
     candidates = vb.best_candidates_to_trials(results, converter)
     # check the best candidate
     self.assertLessEqual(
-        np.abs(candidates[0].parameters['f1'].value - 0.52), 1e-6
+        np.abs(candidates[0].parameters['f1'].value - 0.52), 1e-6  # pyrefly: ignore[unsupported-operation]
     )
     self.assertLessEqual(
-        np.abs(candidates[0].parameters['f2'].value - 0.52), 1e-6
+        np.abs(candidates[0].parameters['f2'].value - 0.52), 1e-6  # pyrefly: ignore[unsupported-operation]
     )
     self.assertIsNotNone(candidates[0].final_measurement)
     if candidates[0].final_measurement:
@@ -100,13 +100,13 @@ class LBFGSBOptimizer(parameterized.TestCase):
     optimizer = lo.LBFGSBOptimizerFactory(random_restarts=10, maxiter=20)(
         converter
     )
-    best_results = optimizer(score_fn=score_fn, count=1, n_parallel=3)
+    best_results = optimizer(score_fn=score_fn, count=1, n_parallel=3)  # pyrefly: ignore[bad-argument-type]
     best_candidates = vb.best_candidates_to_trials(best_results, converter)
     self.assertLen(best_candidates, 3)
     # check the best candidates
     for b in best_candidates:
-      self.assertLessEqual(np.abs(b.parameters['f1'].value - 0.52), 1e-6)
-      self.assertLessEqual(np.abs(b.parameters['f2'].value - 0.52), 1e-6)
+      self.assertLessEqual(np.abs(b.parameters['f1'].value - 0.52), 1e-6)  # pyrefly: ignore[unsupported-operation]
+      self.assertLessEqual(np.abs(b.parameters['f2'].value - 0.52), 1e-6)  # pyrefly: ignore[unsupported-operation]
       self.assertIsNotNone(b.final_measurement)
       if b.final_measurement:
         self.assertLessEqual(

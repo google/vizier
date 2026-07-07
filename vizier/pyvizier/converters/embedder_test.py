@@ -56,8 +56,8 @@ class ProblemStatementTest(absltest.TestCase):
     problem.search_space.root.add_categorical_param('c1', ['a', 'b', 'c'])
     converter = embedder.ProblemAndTrialsScaler(problem)
 
-    trial1 = vz.Trial(parameters={'f1': 1.0, 'i1': 0, 'd1': 10, 'c1': 'b'})
-    trial2 = vz.Trial(parameters={'f1': 4.0, 'i1': 8, 'd1': 0, 'c1': 'a'})
+    trial1 = vz.Trial(parameters={'f1': 1.0, 'i1': 0, 'd1': 10, 'c1': 'b'})  # pyrefly: ignore[unexpected-keyword]
+    trial2 = vz.Trial(parameters={'f1': 4.0, 'i1': 8, 'd1': 0, 'c1': 'a'})  # pyrefly: ignore[unexpected-keyword]
     trial1.final_measurement = vz.Measurement(metrics={'o': 1.0})
     trial2.final_measurement = vz.Measurement(metrics={'o': 2.0})
     suggestion_trials = [trial1, trial2]
@@ -65,18 +65,18 @@ class ProblemStatementTest(absltest.TestCase):
     trial2_copy = copy.deepcopy(trial2)
 
     mapped_trials = converter.map(suggestion_trials)
-    self.assertAlmostEqual(mapped_trials[0].parameters['f1'].value, 0.1)
-    self.assertAlmostEqual(mapped_trials[0].parameters['i1'].value, 0.0)
-    self.assertAlmostEqual(mapped_trials[0].parameters['d1'].value, 0.5)
+    self.assertAlmostEqual(mapped_trials[0].parameters['f1'].value, 0.1)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(mapped_trials[0].parameters['i1'].value, 0.0)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(mapped_trials[0].parameters['d1'].value, 0.5)  # pyrefly: ignore[no-matching-overload]
     self.assertEqual(mapped_trials[0].parameters['c1'].value, 'b')
     # Check that the trial measurement remains the same.
-    self.assertEqual(mapped_trials[0].final_measurement.metrics['o'].value, 1.0)
-    self.assertAlmostEqual(mapped_trials[1].parameters['f1'].value, 0.4)
-    self.assertAlmostEqual(mapped_trials[1].parameters['i1'].value, 0.8)
-    self.assertAlmostEqual(mapped_trials[1].parameters['d1'].value, 0.0)
+    self.assertEqual(mapped_trials[0].final_measurement.metrics['o'].value, 1.0)  # pyrefly: ignore[missing-attribute]
+    self.assertAlmostEqual(mapped_trials[1].parameters['f1'].value, 0.4)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(mapped_trials[1].parameters['i1'].value, 0.8)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(mapped_trials[1].parameters['d1'].value, 0.0)  # pyrefly: ignore[no-matching-overload]
     self.assertEqual(mapped_trials[1].parameters['c1'].value, 'a')
     # Check that the trial measurement remains the same.
-    self.assertEqual(mapped_trials[1].final_measurement.metrics['o'].value, 2.0)
+    self.assertEqual(mapped_trials[1].final_measurement.metrics['o'].value, 2.0)  # pyrefly: ignore[missing-attribute]
     # Check that the original trials weren't change during map.
     self.assertEqual(trial1, trial1_copy)
     self.assertEqual(trial2, trial2_copy)
@@ -89,10 +89,10 @@ class ProblemStatementTest(absltest.TestCase):
     problem.search_space.root.add_categorical_param('c1', ['a', 'b', 'c'])
     converter = embedder.ProblemAndTrialsScaler(problem)
 
-    trial1 = vz.Trial(parameters={'f1': 1.0, 'i1': 0, 'd1': 10, 'c1': 'b'})
-    trial2 = vz.Trial(parameters={'f1': 4.0, 'i1': 8, 'd1': 0, 'c1': 'c'})
-    trial3 = vz.Trial(parameters={'f1': 0.0, 'i1': 8, 'd1': 20, 'c1': 'b'})
-    trial4 = vz.Trial(parameters={'f1': 10.0, 'i1': 2, 'd1': 10, 'c1': 'a'})
+    trial1 = vz.Trial(parameters={'f1': 1.0, 'i1': 0, 'd1': 10, 'c1': 'b'})  # pyrefly: ignore[unexpected-keyword]
+    trial2 = vz.Trial(parameters={'f1': 4.0, 'i1': 8, 'd1': 0, 'c1': 'c'})  # pyrefly: ignore[unexpected-keyword]
+    trial3 = vz.Trial(parameters={'f1': 0.0, 'i1': 8, 'd1': 20, 'c1': 'b'})  # pyrefly: ignore[unexpected-keyword]
+    trial4 = vz.Trial(parameters={'f1': 10.0, 'i1': 2, 'd1': 10, 'c1': 'a'})  # pyrefly: ignore[unexpected-keyword]
     suggestion_trials = [trial1, trial2, trial3, trial4]
     suggestion_trials_copy = copy.deepcopy(suggestion_trials)
     recovered_trials = converter.unmap(converter.map(suggestion_trials))
@@ -106,7 +106,7 @@ class ProblemStatementTest(absltest.TestCase):
               recovered_trials[i].parameters[name].value,
           )
         else:
-          self.assertAlmostEqual(
+          self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
               trial.parameters[name].value,
               recovered_trials[i].parameters[name].value,
               places=5,
@@ -120,7 +120,7 @@ class ProblemStatementTest(absltest.TestCase):
     problem.search_space.root.add_float_param(
         'f1', 1.0, 100.0, scale_type=vz.ScaleType.LOG
     )
-    trial = vz.Trial(parameters={'f1': 10.0})
+    trial = vz.Trial(parameters={'f1': 10.0})  # pyrefly: ignore[unexpected-keyword]
     converter = embedder.ProblemAndTrialsScaler(problem)
     new_space = converter.problem_statement.search_space
     self.assertEqual(new_space.get('f1').type, vz.ParameterType.DOUBLE)
@@ -130,7 +130,7 @@ class ProblemStatementTest(absltest.TestCase):
         mapped_trial.parameters['f1'].value, np.log(10.0) / np.log(100.0)
     )
     unmapped_trial = converter.unmap([mapped_trial])[0]
-    self.assertAlmostEqual(
+    self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
         unmapped_trial.parameters['f1'].value, 10.0, places=5
     )
 

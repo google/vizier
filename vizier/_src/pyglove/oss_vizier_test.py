@@ -33,9 +33,9 @@ class OSSVizierSampleTest(vizier_test_lib.SampleTest):
   def setUpClass(cls):
     super().setUpClass()
     server = vizier_server.DefaultVizierServer(
-        host=os.uname()[1],
-        database_url=constants.SQL_MEMORY_URL,
-        early_stop_recycle_period=datetime.timedelta(seconds=0.0),
+        host=os.uname()[1],  # pyrefly: ignore[unexpected-keyword]
+        database_url=constants.SQL_MEMORY_URL,  # pyrefly: ignore[unexpected-keyword]
+        early_stop_recycle_period=datetime.timedelta(seconds=0.0),  # pyrefly: ignore[unexpected-keyword]
     )
     logging.info(server.endpoint)
     vizier._services.reset_for_testing()

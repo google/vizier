@@ -37,7 +37,7 @@ class RandomVectorizedOptimizerTest(absltest.TestCase):
     random_optimizer = rvo.create_random_optimizer(
         converter=converter, max_evaluations=100, suggestion_batch_size=10
     )
-    res = random_optimizer(score_fn=score_fn, count=5, n_parallel=n_parallel)
+    res = random_optimizer(score_fn=score_fn, count=5, n_parallel=n_parallel)  # pyrefly: ignore[bad-argument-type]
     self.assertLen(res.rewards, 5)
     self.assertSequenceEqual(res.features.continuous.shape, (5, n_parallel, 2))
 

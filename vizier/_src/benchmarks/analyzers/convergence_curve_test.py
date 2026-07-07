@@ -699,16 +699,16 @@ class WinRateConvergenceCurveComparatorAllComparisonsModeTest(
 
   def test_higher_quantile_curve(self):
     baseline_length = len(self._baseline_curve.xs)
-    median_score = convergence.WinRateConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    median_score = convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves  # pyrefly: ignore[unexpected-keyword]
     ).curve()
-    reverse_median_score = convergence.WinRateConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._worse_curves
+    reverse_median_score = convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._worse_curves  # pyrefly: ignore[unexpected-keyword]
     ).curve()
-    higher_quantile_score = convergence.WinRateConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve,
-        compared_curve=self._better_curves,
-        compared_quantile=0.9,
+    higher_quantile_score = convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+        compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+        compared_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
     ).curve()
 
     self.assertEqual(median_score.ys.shape, (1, baseline_length))
@@ -722,22 +722,22 @@ class WinRateConvergenceCurveComparatorAllComparisonsModeTest(
   def test_get_winrate_score(self):
     # Higher compared quantile should increase score. Higher baseline
     # quantile should decrease score.
-    median_score = convergence.WinRateConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    median_score = convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves  # pyrefly: ignore[unexpected-keyword]
     ).score()
     self.assertGreaterEqual(
-        convergence.WinRateConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve,
-            compared_curve=self._better_curves,
-            compared_quantile=0.9,
+        convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+            compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+            compared_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         median_score,
     )
     self.assertLessEqual(
-        convergence.WinRateConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve,
-            compared_curve=self._better_curves,
-            baseline_quantile=0.9,
+        convergence.WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+            compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+            baseline_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         median_score,
     )
@@ -768,13 +768,13 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
 
   def test_get_relative_efficiency_curve(self):
     baseline_length = len(self._baseline_curve.xs)
-    rel_effiency = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    rel_effiency = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves  # pyrefly: ignore[unexpected-keyword]
     ).curve()
-    higher_quantile = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve,
-        compared_curve=self._better_curves,
-        compared_quantile=0.9,
+    higher_quantile = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+        compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+        compared_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
     ).curve()
 
     self.assertEqual(rel_effiency.ys.shape, (1, baseline_length))
@@ -790,8 +790,8 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         ys=np.array([4.0, 3.0, 2.0] + [1.5] * 17).reshape(1, 20),
         trend=convergence.ConvergenceCurve.YTrend.DECREASING,
     )
-    self_eff = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=flat_curve, compared_curve=flat_curve
+    self_eff = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=flat_curve, compared_curve=flat_curve  # pyrefly: ignore[unexpected-keyword]
     ).curve()
     # Relative efficiency of a curve on itself is close to 0.
     self.assertAlmostEqual(np.linalg.norm(self_eff.ys), 0.0, delta=0.1)
@@ -805,9 +805,9 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         trend=convergence.ConvergenceCurve.YTrend.DECREASING,
     )
     max_score = 10.3
-    short_efficiency = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve,
-        compared_curve=short_curve,
+    short_efficiency = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+        compared_curve=short_curve,  # pyrefly: ignore[unexpected-keyword]
         max_score=max_score,
     ).curve()
     self.assertEqual(short_efficiency.ys.shape, (1, baseline_length))
@@ -816,32 +816,32 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
   def test_get_efficiency_score(self):
     # Higher compared quantile should increase score. Higher baseline
     # quantile should decrease score.
-    median_score = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    median_score = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves  # pyrefly: ignore[unexpected-keyword]
     ).score()
     self.assertGreater(
-        convergence.LogEfficiencyConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve,
-            compared_curve=self._better_curves,
-            compared_quantile=0.9,
+        convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+            compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+            compared_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         median_score,
     )
     self.assertLess(
-        convergence.LogEfficiencyConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve,
-            compared_curve=self._better_curves,
-            baseline_quantile=0.9,
+        convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve,  # pyrefly: ignore[unexpected-keyword]
+            compared_curve=self._better_curves,  # pyrefly: ignore[unexpected-keyword]
+            baseline_quantile=0.9,  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         median_score,
     )
 
   def test_effiency_score_symmetry(self):
-    base_score = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._baseline_curve, compared_curve=self._better_curves
+    base_score = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._baseline_curve, compared_curve=self._better_curves  # pyrefly: ignore[unexpected-keyword]
     ).score()
-    reversed_score = convergence.LogEfficiencyConvergenceCurveComparator(
-        baseline_curve=self._better_curves, compared_curve=self._baseline_curve
+    reversed_score = convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+        baseline_curve=self._better_curves, compared_curve=self._baseline_curve  # pyrefly: ignore[unexpected-keyword]
     ).score()
     self.assertAlmostEqual(base_score, -reversed_score, delta=0.01)
 
@@ -862,14 +862,14 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
     # Efficiency score for exponential curves can be approximated.
 
     self.assertGreater(
-        convergence.LogEfficiencyConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve, compared_curve=better_curves
+        convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve, compared_curve=better_curves  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         0.4,
     )
     self.assertLess(
-        convergence.LogEfficiencyConvergenceCurveComparator(
-            baseline_curve=self._baseline_curve, compared_curve=worse_curves
+        convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+            baseline_curve=self._baseline_curve, compared_curve=worse_curves  # pyrefly: ignore[unexpected-keyword]
         ).score(),
         -0.4,
     )
@@ -879,8 +879,8 @@ class LogEfficiencyConvergenceComparatorTest(absltest.TestCase):
         xs=self._baseline_curve.xs, ys=self._baseline_curve.ys
     )
     with self.assertRaisesRegex(ValueError, 'increasing or decreasing'):
-      convergence.LogEfficiencyConvergenceCurveComparator(
-          baseline_curve=unknown_curve, compared_curve=self._baseline_curve
+      convergence.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
+          baseline_curve=unknown_curve, compared_curve=self._baseline_curve  # pyrefly: ignore[unexpected-keyword]
       )
 
 

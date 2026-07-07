@@ -123,11 +123,11 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
     return path.path if path else constants.PARAMETER_NAME_ROOT
 
   def _categories(spec: pg.geno.Choices) -> List[str]:
-    return [spec.format_candidate(i) for i in range(len(spec.candidates))]
+    return [spec.format_candidate(i) for i in range(len(spec.candidates))]  # pyrefly: ignore[bad-return]
 
   def _category_value(spec: pg.geno.Choices, index: int) -> str:
     assert index < len(spec.candidates)
-    return spec.format_candidate(index)
+    return spec.format_candidate(index)  # pyrefly: ignore[bad-return]
 
   def _add_dna_spec(root: vz.SearchSpaceSelector, path: pg.KeyPath,
                     spec: pg.DNASpec) -> None:
@@ -171,14 +171,14 @@ def _to_search_space(dna_spec: pg.DNASpec) -> vz.SearchSpace:
                 spec.literal_values,
                 unique_feasible_points)
         else:
-          new_parameter: vz.SearchSpaceSelector = root.add_categorical_param(
+          new_parameter: vz.SearchSpaceSelector = root.add_categorical_param(  # pyrefly: ignore[bad-assignment]
               name=_parameter_name(choice_path),
               feasible_values=_categories(spec))
           for candidate_idx, candidate in enumerate(spec.candidates):
             candidate_path = choice_path + pg.geno.ConditionalKey(
                 candidate_idx, len(spec.candidates)
             )
-            child: vz.SearchSpaceSelector = new_parameter.select_values(
+            child: vz.SearchSpaceSelector = new_parameter.select_values(  # pyrefly: ignore[missing-attribute]
                 [_category_value(spec, candidate_idx)])
             _add_dna_spec(child, candidate_path, candidate)
     elif isinstance(spec, pg.geno.Float):
@@ -417,7 +417,7 @@ class VizierConverter:
       decision_dict.update(custom_decisions)
 
     dna = pg.DNA.from_dict(
-        decision_dict, self.dna_spec, use_ints_as_literals=True)
+        decision_dict, self.dna_spec, use_ints_as_literals=True)  # pyrefly: ignore[bad-argument-type]
 
     # Restore DNA metadata if present
     dna_metadata = trial.metadata.ns(constants.METADATA_NAMESPACE).get(
@@ -508,7 +508,7 @@ class VizierConverter:
       # Force converting literal values to float to match DISCRETE parameter
       # expectation.
       discrete_parameters = {
-          k: float(v)
+          k: float(v)  # pyrefly: ignore[bad-argument-type]
           for k, v in dna.to_dict(
               key_type=key_type, value_type='literal', filter_fn=is_discrete
           ).items()
@@ -521,7 +521,7 @@ class VizierConverter:
         )
 
       for name, value in configured_parameters.items():
-        trial.parameters[name or constants.PARAMETER_NAME_ROOT] = (
+        trial.parameters[name or constants.PARAMETER_NAME_ROOT] = (  # pyrefly: ignore[unsupported-operation]
             vz.ParameterValue(value)
         )
     return trial

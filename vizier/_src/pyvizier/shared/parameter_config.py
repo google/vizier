@@ -316,11 +316,11 @@ class ParameterConfig:
       if all(isinstance(v, (float, int)) for v in feasible_values):
         inferred_type = ParameterType.DISCRETE
         feasible_values, bounds = _get_feasible_points_and_bounds(
-            feasible_values
+            feasible_values  # pyrefly: ignore[bad-argument-type]
         )
       elif all(isinstance(v, str) for v in feasible_values):
         inferred_type = ParameterType.CATEGORICAL
-        feasible_values = _get_categories(feasible_values)
+        feasible_values = _get_categories(feasible_values)  # pyrefly: ignore[bad-argument-type]
       else:
         raise ValueError(
             'Feasible values must all be numeric or strings. Given {}'.format(
@@ -344,15 +344,15 @@ class ParameterConfig:
     if default_value is not None:
       default_value = _get_default_value(inferred_type, default_value)
 
-    pc = cls(
-        name=name,
-        type=inferred_type,
-        bounds=bounds,
-        feasible_values=feasible_values,
-        scale_type=scale_type,
-        default_value=default_value,
+    pc = cls(  # pyrefly: ignore[missing-argument]
+        name=name,  # pyrefly: ignore[unexpected-keyword]
+        type=inferred_type,  # pyrefly: ignore[unexpected-keyword]
+        bounds=bounds,  # pyrefly: ignore[unexpected-keyword]
+        feasible_values=feasible_values,  # pyrefly: ignore[unexpected-keyword]
+        scale_type=scale_type,  # pyrefly: ignore[unexpected-keyword]
+        default_value=default_value,  # pyrefly: ignore[unexpected-keyword]
         fidelity_config=fidelity_config,
-        external_type=external_type,
+        external_type=external_type,  # pyrefly: ignore[unexpected-keyword]
     )
     if children:
       pc = pc._add_children(children)
@@ -399,7 +399,7 @@ class ParameterConfig:
     """Returns the matching parent values, if this is a child parameter."""
     if not self._matching_parent_values:
       return []
-    return list(self._matching_parent_values)
+    return list(self._matching_parent_values)  # pyrefly: ignore[bad-return]
 
   # TODO: TO BE DEPRECATED. Replace with
   # def subspaces() -> Iterator[Value, 'SearchSpace'] which lets users
@@ -437,7 +437,7 @@ class ParameterConfig:
         return []
       return copy.copy(self._feasible_values)
     elif self.type == ParameterType.INTEGER:
-      return list(range(self.bounds[0], self.bounds[1] + 1))
+      return list(range(self.bounds[0], self.bounds[1] + 1))  # pyrefly: ignore[bad-argument-type]
     raise ValueError('feasible_values is invalid for type: %s' % self.type)
 
   @property
@@ -579,7 +579,7 @@ class ParameterConfig:
       )
       return ParameterConfig.factory(
           name=one.name,
-          feasible_values=new_feasible_values,
+          feasible_values=new_feasible_values,  # pyrefly: ignore[bad-argument-type]
           scale_type=one.scale_type,
       )
     elif one.type in (ParameterType.INTEGER, ParameterType.DOUBLE):
@@ -644,7 +644,7 @@ class ParameterConfig:
       return len(self.feasible_values)
 
   def _assert_bounds(self, value: trial.ParameterValueTypes) -> None:
-    if not self.bounds[0] <= value <= self.bounds[1]:
+    if not self.bounds[0] <= value <= self.bounds[1]:  # pyrefly: ignore[unsupported-operation]
       raise ValueError(
           f'Parameter {self.name} has bounds: {self.bounds}. Given: {value}'
       )
@@ -652,7 +652,7 @@ class ParameterConfig:
   def _assert_in_feasible_values(
       self, value: trial.ParameterValueTypes
   ) -> None:
-    if value not in self._feasible_values:
+    if value not in self._feasible_values:  # pyrefly: ignore[not-iterable]
       raise ValueError(
           f'Parameter {self.name} has feasible values: '
           f'{self.feasible_values}. '
@@ -679,7 +679,7 @@ class ParameterConfig:
 
     # TODO: We should be able to directly use "value" without
     # casting to the internal type.
-    value = trial.ParameterValue(value)
+    value = trial.ParameterValue(value)  # pyrefly: ignore[bad-assignment]
     if self.type == ParameterType.DOUBLE:
       self._assert_bounds(value.as_float)
     elif self.type == ParameterType.INTEGER:
@@ -721,7 +721,7 @@ class ParameterConfig:
     value = trial.ParameterValue(value).cast_as_internal(self.type)
     self._assert_feasible(value)
     if value not in self._children:
-      self._children[value] = SearchSpace(parent_values=[value])
+      self._children[value] = SearchSpace(parent_values=[value])  # pyrefly: ignore[unexpected-keyword]
     return self._children[value]
 
 
@@ -742,15 +742,15 @@ class ParameterConfigSelector(Iterable[ParameterConfig], Sized):
       self, selected: Union[ParameterConfig, Iterable[ParameterConfig]], /
   ):
     if isinstance(selected, ParameterConfig):
-      self.__attrs_init__(tuple([selected]))
+      self.__attrs_init__(tuple([selected]))  # pyrefly: ignore[missing-attribute]
     else:
-      self.__attrs_init__(tuple(selected))
+      self.__attrs_init__(tuple(selected))  # pyrefly: ignore[missing-attribute]
 
   def select_values(
       self, values: MonotypeParameterSequence
   ) -> 'SearchSpaceSelector':
     """Select values."""
-    values = tuple(values)
+    values = tuple(values)  # pyrefly: ignore[bad-assignment]
 
     for value in values:
       for config in self._selected:
@@ -806,9 +806,9 @@ class SearchSpaceSelector:
       self, selected: Union['SearchSpace', Iterable['SearchSpace']], /
   ):
     if isinstance(selected, SearchSpace):
-      self.__attrs_init__(tuple([selected]))
+      self.__attrs_init__(tuple([selected]))  # pyrefly: ignore[missing-attribute]
     else:
-      self.__attrs_init__(tuple(selected))
+      self.__attrs_init__(tuple(selected))  # pyrefly: ignore[missing-attribute]
 
   def add_float_param(
       self,
@@ -1091,10 +1091,10 @@ class SearchSpaceSelector:
       categories = (trial.TRUE_VALUE, trial.FALSE_VALUE)
     else:
       categories = [bool_to_string(x) for x in feasible_values]
-    feasible_values = sorted(categories, reverse=True)
+    feasible_values = sorted(categories, reverse=True)  # pyrefly: ignore[bad-assignment]
 
     if default_value is not None:
-      default_value = bool_to_string(default_value)
+      default_value = bool_to_string(default_value)  # pyrefly: ignore[bad-assignment]
 
     param_names = self._get_parameter_names_to_create(name=name, index=index)
 
@@ -1102,7 +1102,7 @@ class SearchSpaceSelector:
     for param_name in param_names:
       new_pc = ParameterConfig.factory(
           name=param_name,
-          feasible_values=sorted(feasible_values),
+          feasible_values=sorted(feasible_values),  # pyrefly: ignore[bad-argument-type]
           scale_type=scale_type,
           default_value=default_value,
           external_type=ExternalType.BOOLEAN,

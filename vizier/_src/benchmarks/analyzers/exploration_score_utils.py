@@ -57,7 +57,7 @@ def compute_parameter_entropy(
   elif hasattr(parameter_config, 'bounds'):
     min_val = parameter_config.bounds[0]
     max_val = parameter_config.bounds[1]
-    if any([value < min_val or value > max_val for value in values]):
+    if any([value < min_val or value > max_val for value in values]):  # pyrefly: ignore[unsupported-operation]
       raise ValueError(
           f'Parameter values: {parameter_values} contain out-of-bound values.'
           f' Bound: [{min_val}, {max_val}]'

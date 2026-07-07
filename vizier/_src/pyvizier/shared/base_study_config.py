@@ -264,7 +264,7 @@ class MetricsConfig(Collection[MetricInformation]):
     return len(self._metrics)
 
   def __add__(self, metrics: Iterable[MetricInformation]) -> 'MetricsConfig':
-    return MetricsConfig(self._metrics + list(metrics))
+    return MetricsConfig(self._metrics + list(metrics))  # pyrefly: ignore[bad-argument-count]
 
   def of_type(
       self, include: Union[MetricType, Iterable[MetricType]]
@@ -272,7 +272,7 @@ class MetricsConfig(Collection[MetricInformation]):
     """Filters the Metrics by type."""
     if isinstance(include, MetricType):
       include = (include,)
-    return MetricsConfig(m for m in self._metrics if m.type in include)
+    return MetricsConfig(m for m in self._metrics if m.type in include)  # pyrefly: ignore[bad-argument-count]
 
   def exclude_type(
       self, exclude: Union[MetricType, Iterable[MetricType]]
@@ -280,7 +280,7 @@ class MetricsConfig(Collection[MetricInformation]):
     """Filters out the Metrics by type."""
     if isinstance(exclude, MetricType):
       exclude = (exclude,)
-    return MetricsConfig(m for m in self._metrics if m.type not in exclude)
+    return MetricsConfig(m for m in self._metrics if m.type not in exclude)  # pyrefly: ignore[bad-argument-count]
 
   def append(self, metric: MetricInformation):
     self._metrics.append(metric)
@@ -361,9 +361,9 @@ class ProblemStatement:
       fields.
     """
     return cls(
-        search_space=problem.search_space,
-        metric_information=problem.metric_information,
-        metadata=problem.metadata,
+        search_space=problem.search_space,  # pyrefly: ignore[unexpected-keyword]
+        metric_information=problem.metric_information,  # pyrefly: ignore[unexpected-keyword]
+        metadata=problem.metadata,  # pyrefly: ignore[unexpected-keyword]
     )
 
   def to_problem(self) -> 'ProblemStatement':
@@ -377,9 +377,9 @@ class ProblemStatement:
       `ProblemStatement` filled with shallow copies of `self.
     """
     return ProblemStatement(
-        search_space=self.search_space,
-        metric_information=self.metric_information,
-        metadata=self.metadata,
+        search_space=self.search_space,  # pyrefly: ignore[unexpected-keyword]
+        metric_information=self.metric_information,  # pyrefly: ignore[unexpected-keyword]
+        metadata=self.metadata,  # pyrefly: ignore[unexpected-keyword]
     )
 
   @property

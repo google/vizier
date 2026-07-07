@@ -82,7 +82,7 @@ class ProblemAndTrialsScaler:
       elif param.type == vz.ParameterType.CATEGORICAL:
         # CATEGORICAL parameters are left unchanged.
         emb_search_space.root.add_categorical_param(
-            param.name, feasible_values=param.feasible_values
+            param.name, feasible_values=param.feasible_values  # pyrefly: ignore[bad-argument-type]
         )
       else:
         raise ValueError('Unsupported parameter type (%s)' % param.type)
@@ -106,7 +106,7 @@ class ProblemAndTrialsScaler:
     # Convert each original feasible values to form the new feasible values.
     new_feasible_values = []
     for feasible_value in problem.search_space.get(param.name).feasible_values:
-      tmp_trial = vz.Trial({param.name: feasible_value})
+      tmp_trial = vz.Trial({param.name: feasible_value})  # pyrefly: ignore[bad-argument-count]
       new_feasible_value = param_converter.convert([tmp_trial]).item(0, 0)
       new_feasible_values.append(new_feasible_value)
     return new_feasible_values
@@ -148,7 +148,7 @@ class ProblemAndTrialsScaler:
           # Get the parameter converter.
           param_converter = self._converter.parameter_converters_dict[name]
           # Convert back the feature to parameters in the original space.
-          parameters[name] = param_converter.to_parameter_values(
+          parameters[name] = param_converter.to_parameter_values(  # pyrefly: ignore[unsupported-operation]
               np.array(value)
           )[0]
       # Create a copy of the trial with updated parameters.

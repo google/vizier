@@ -26,17 +26,17 @@ from absl.testing import absltest
 _metric_converters = [
     core.DefaultModelOutputConverter(
         pyvizier.MetricInformation(
-            name='y1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)),
+            name='y1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE)),  # pyrefly: ignore[unexpected-keyword]
     core.DefaultModelOutputConverter(
         pyvizier.MetricInformation(
-            name='y2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))
+            name='y2', goal=pyvizier.ObjectiveMetricGoal.MINIMIZE))  # pyrefly: ignore[unexpected-keyword]
 ]
 
 _trials = [
     pyvizier.Trial(
-        id=1,
-        parameters={'x1': pyvizier.ParameterValue(1)},
-        measurements=[
+        id=1,  # pyrefly: ignore[unexpected-keyword]
+        parameters={'x1': pyvizier.ParameterValue(1)},  # pyrefly: ignore[unexpected-keyword]
+        measurements=[  # pyrefly: ignore[unexpected-keyword]
             pyvizier.Measurement(
                 steps=1, elapsed_secs=10, metrics={
                     'y1': 1,
@@ -54,9 +54,9 @@ _trials = [
                 })
         ]),
     pyvizier.Trial(
-        id=2,
-        parameters={'x1': pyvizier.ParameterValue(2)},
-        measurements=[
+        id=2,  # pyrefly: ignore[unexpected-keyword]
+        parameters={'x1': pyvizier.ParameterValue(2)},  # pyrefly: ignore[unexpected-keyword]
+        measurements=[  # pyrefly: ignore[unexpected-keyword]
             pyvizier.Measurement(
                 steps=1, elapsed_secs=10, metrics={
                     'y1': -4,

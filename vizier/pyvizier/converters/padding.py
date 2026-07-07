@@ -78,13 +78,13 @@ class PaddingSchedule:
     else:
       fill_value = np.nan
     return types.PaddedArray.from_array(
-        array, padded_shape, fill_value=fill_value
+        array, padded_shape, fill_value=fill_value  # pyrefly: ignore[bad-argument-type]
     )
 
   def pad_features(self, features: types.Array) -> types.PaddedArray:
     """Pads features in to a `PaddedArray`."""
     return self._pad_trailing_dims(
-        features, [self._num_trials, self._num_features]
+        features, [self._num_trials, self._num_features]  # pyrefly: ignore[bad-argument-type]
     )
 
   def pad_labels(
@@ -93,5 +93,5 @@ class PaddingSchedule:
   ) -> types.PaddedArray:
     """Pads labels in to a `PaddedArray`."""
     return self._pad_trailing_dims(
-        labels, [self._num_trials, self._num_metrics]
+        labels, [self._num_trials, self._num_metrics]  # pyrefly: ignore[bad-argument-type]
     )

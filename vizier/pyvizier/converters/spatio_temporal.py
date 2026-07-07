@@ -163,7 +163,7 @@ class TimedLabelsExtractor:
         times = times[mask]
         labels = dict()
         for mc in self.metric_converters:
-          labels[mc.metric_information.name] = mc.convert(measurements)
+          labels[mc.metric_information.name] = mc.convert(measurements)  # pyrefly: ignore[bad-argument-type]
         timedlabels.append(TimedLabels(times, labels))
       if num_empty_trials:
         logging.warning(
@@ -315,7 +315,7 @@ class SparseSpatioTemporalConverter(core.TrialToNumpyDict):
     """Returned value can be used as `input_shape` for keras.Model.build()."""
     shapes = copy.deepcopy(self.trial_converter.features_shape)
     shapes[self.timed_labels_extractor.timestamp] = (None, 1)
-    return shapes
+    return shapes  # pyrefly: ignore[bad-return]
 
   @property
   def output_specs(self) -> dict[str, core.NumpyArraySpec]:
@@ -377,8 +377,8 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
 
     # Reshape things into 1-D array, so we can iterate through them like
     # python list.
-    ts = np.asarray(ts).reshape([-1])
-    if ts.size == 0:
+    ts = np.asarray(ts).reshape([-1])  # pyrefly: ignore[bad-assignment]
+    if ts.size == 0:  # pyrefly: ignore[missing-attribute]
       # Caller asked for nothing.
       return {k: np.array([]) for k in timed_labels.labels}
 
@@ -448,14 +448,14 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
     """Returned value can be used as `x`, `y` for keras.Model.fit()."""
     all_timed_labels = self.timed_labels_extractor.convert(trials)
     labels = self._to_temporal_observations(all_timed_labels,
-                                            self.temporal_index_points)
+                                            self.temporal_index_points)  # pyrefly: ignore[bad-argument-type]
 
     return self.trial_converter.to_features(trials), labels
 
   @property
   def features_shape(self) -> dict[str, Sequence[Union[int, None]]]:
     """Returned value can be used as `input_shape` for keras.Model.build()."""
-    return self.trial_converter.features_shape
+    return self.trial_converter.features_shape  # pyrefly: ignore[bad-return]
 
   @property
   def output_specs(self) -> dict[str, core.NumpyArraySpec]:
@@ -517,6 +517,6 @@ class DenseSpatioTemporalConverter(core.TrialToNumpyDict):
                        f'{temporal_selection}.')
 
     observations = self._to_temporal_observations(timed_labels,
-                                                  temporal_index_points)
+                                                  temporal_index_points)  # pyrefly: ignore[bad-argument-type]
     inputs = self.to_features(trials)
     return inputs, np.asarray(temporal_index_points), observations

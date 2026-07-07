@@ -95,7 +95,7 @@ class Metric:
   when the object is converted to proto.
   """
 
-  def _std_not_negative(self, _, stddev: Optional[float]) -> bool:
+  def _std_not_negative(self, _, stddev: Optional[float]) -> bool:  # pyrefly: ignore[bad-return]
     if (stddev is not None) and (not stddev >= 0):
       raise ValueError(
           'Standard deviation must be a non-negative finite number.'
@@ -365,7 +365,7 @@ class ParameterDict(abc.MutableMapping):
     return {k: self.get_value(k) for k in self._items}  # pytype: disable=bad-return-type
 
   def __init__(self, iterable: Any = tuple(), **kwargs):
-    self.__attrs_init__()
+    self.__attrs_init__()  # pyrefly: ignore[missing-attribute]
     self.update(iterable, **kwargs)
 
   def __setitem__(self, key: str, value: Union[ParameterValue,
@@ -432,7 +432,7 @@ class TrialSuggestion:
     Returns:
       Trial object.
     """
-    return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)
+    return Trial(id=uid, parameters=self.parameters, metadata=self.metadata)  # pyrefly: ignore[unexpected-keyword]
 
 
 @attr.define(auto_attribs=True, frozen=False, init=True, slots=True)
@@ -539,7 +539,7 @@ class Trial(TrialSuggestion):
   def duration(self) -> Optional[datetime.timedelta]:
     """Returns the duration of this Trial if it is completed, or None."""
     if self.completion_time:
-      return self.completion_time - self.creation_time
+      return self.completion_time - self.creation_time  # pyrefly: ignore[unsupported-operation]
     else:
       return None
 

@@ -178,7 +178,7 @@ def summarize_element(element: PlotElement) -> np.ndarray:
     assert element.curve is not None
     return np.median(np.array(element.curve.ys[:, -1]))
   elif element.plot_type == 'histogram':
-    return np.median(element.plot_array)
+    return np.median(element.plot_array)  # pyrefly: ignore[no-matching-overload]
   else:
     raise NotImplementedError(f'Unsupported plot type {element.plot_type}')
 
@@ -351,7 +351,7 @@ class BenchmarkRecordAnalyzer:
         summarized_records.append(
             BenchmarkRecord(
                 algorithm=str(algorithm_name),
-                experimenter_metadata=vz.Metadata(json.loads(reduced_metadata)),
+                experimenter_metadata=vz.Metadata(json.loads(reduced_metadata)),  # pyrefly: ignore[bad-argument-type]
                 plot_elements=cls._summarize_elements_df(
                     group_by_reduced_metadata,
                     summarize_elements_fn=summarize_elements_fn,

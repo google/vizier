@@ -38,9 +38,9 @@ class PaddedTrialToArrayConverterTest(parameterized.TestCase):
     """Tests various padding schedules."""
 
     padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.POWERS_OF_2,
-        num_features=padding.PaddingType.MULTIPLES_OF_10,
-        num_metrics=padding.PaddingType.NONE,
+        num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+        num_features=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+        num_metrics=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
     )
     problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
     problem.metric_information.append(
@@ -223,7 +223,7 @@ class TrialToContinuousAndCategoricalConverterTest(parameterized.TestCase):
     problem = vz.ProblemStatement(
         search_space=search_space,
         metric_information=vz.MetricsConfig(
-            metrics=[
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
                 vz.MetricInformation(
                     'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),

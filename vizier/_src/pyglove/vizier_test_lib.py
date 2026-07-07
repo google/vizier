@@ -424,7 +424,7 @@ class SampleTest(VizierTest):
     )
 
     t = result.best_trial
-    t.description = None
+    t.description = None  # pyrefly: ignore[missing-attribute]
     self.assertEqual(
         str(t),
         inspect.cleandoc(
@@ -472,10 +472,10 @@ class SampleTest(VizierTest):
           completed_time = %d
         )"""
             % (
-                t.final_measurement.elapse_secs,
-                t.measurements[0].elapse_secs,
-                t.created_time,
-                t.completed_time,
+                t.final_measurement.elapse_secs,  # pyrefly: ignore[missing-attribute]
+                t.measurements[0].elapse_secs,  # pyrefly: ignore[missing-attribute]
+                t.created_time,  # pyrefly: ignore[missing-attribute]
+                t.completed_time,  # pyrefly: ignore[missing-attribute]
             )
         ),
     )

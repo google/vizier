@@ -103,7 +103,7 @@ class LBFGSBOptimizer:
       The best trials found in the optimization.
     """
     del prior_features
-    seed = jax.random.PRNGKey(0) if seed is None else seed
+    seed = jax.random.PRNGKey(0) if seed is None else seed  # pyrefly: ignore[bad-assignment]
     if n_parallel and (count or 0) > 1:
       # Note that we can't distinguish between 'BatchArrayScoreFunction' and
       # 'ParallelArrayScoreFunction' using 'isinstance' as they both have the
@@ -118,7 +118,7 @@ class LBFGSBOptimizer:
         optimizers.LbfgsBOptions(maxiter=self.maxiter)
     )
 
-    score_rng, init_seed, optim_seed = jax.random.split(seed, num=3)
+    score_rng, init_seed, optim_seed = jax.random.split(seed, num=3)  # pyrefly: ignore[bad-argument-type]
 
     score_with_aux = score_with_aux_fn
     if score_with_aux is None:
@@ -168,7 +168,7 @@ class LBFGSBOptimizer:
 
     new_features, _ = optimize(
         jax.vmap(setup)(jax.random.split(init_seed, self.random_restarts)),
-        _opt_score_fn,
+        _opt_score_fn,  # pyrefly: ignore[bad-argument-type]
         optim_seed,
         constraints=constraints,
         best_n=count,
@@ -188,7 +188,7 @@ class LBFGSBOptimizer:
             new_features.shape[:-1] + (0,), dtype=types.INT_DTYPE
         ),
     )
-    return vb.VectorizedStrategyResults(
+    return vb.VectorizedStrategyResults(  # pyrefly: ignore[bad-return]
         new_features_model_input,
         new_rewards,
         aux,

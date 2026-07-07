@@ -42,30 +42,30 @@ class MetricInformationTest(absltest.TestCase):
 
   def testMinMaxValueDefault(self):
     info = base_study_config.MetricInformation(
-        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE)
+        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE)  # pyrefly: ignore[unexpected-keyword]
     self.assertEqual(info.min_value, -np.inf)
     self.assertEqual(info.max_value, np.inf)
 
   def testMinMaxValueSet(self):
     info = base_study_config.MetricInformation(
-        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,
-        min_value=-1.,
-        max_value=1.)
+        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+        min_value=-1.,  # pyrefly: ignore[unexpected-keyword]
+        max_value=1.)  # pyrefly: ignore[unexpected-keyword]
     self.assertEqual(info.min_value, -1.)
     self.assertEqual(info.max_value, 1.)
 
   def testMinMaxBadValueInit(self):
     with self.assertRaises(ValueError):
       base_study_config.MetricInformation(
-          goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,
-          min_value=1.,
-          max_value=-1.)
+          goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+          min_value=1.,  # pyrefly: ignore[unexpected-keyword]
+          max_value=-1.)  # pyrefly: ignore[unexpected-keyword]
 
   def testMinMaxBadValueSet(self):
     info = base_study_config.MetricInformation(
-        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,
-        min_value=-1.,
-        max_value=1.)
+        goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+        min_value=-1.,  # pyrefly: ignore[unexpected-keyword]
+        max_value=1.)  # pyrefly: ignore[unexpected-keyword]
     with self.assertRaises(ValueError):
       info.min_value = 2.
     with self.assertRaises(ValueError):
@@ -78,21 +78,21 @@ class MetricsConfigTest(parameterized.TestCase):
     config = base_study_config.MetricsConfig()
     config.append(
         base_study_config.MetricInformation(
-            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
+            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))  # pyrefly: ignore[unexpected-keyword]
     config.extend([
         base_study_config.MetricInformation(
-            name='max_safe1',
-            goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,
-            safety_threshold=0.0),
+            name='max_safe1',  # pyrefly: ignore[unexpected-keyword]
+            goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE,  # pyrefly: ignore[unexpected-keyword]
+            safety_threshold=0.0),  # pyrefly: ignore[unexpected-keyword]
         base_study_config.MetricInformation(
-            name='max2', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE),
+            name='max2', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE),  # pyrefly: ignore[unexpected-keyword]
         base_study_config.MetricInformation(
-            name='min1', goal=base_study_config.ObjectiveMetricGoal.MINIMIZE),
+            name='min1', goal=base_study_config.ObjectiveMetricGoal.MINIMIZE),  # pyrefly: ignore[unexpected-keyword]
         base_study_config.MetricInformation(
-            name='min_safe2',
-            goal=base_study_config.ObjectiveMetricGoal.MINIMIZE,
-            safety_threshold=0.0,
-            desired_min_safe_trials_fraction=0.1)
+            name='min_safe2',  # pyrefly: ignore[unexpected-keyword]
+            goal=base_study_config.ObjectiveMetricGoal.MINIMIZE,  # pyrefly: ignore[unexpected-keyword]
+            safety_threshold=0.0,  # pyrefly: ignore[unexpected-keyword]
+            desired_min_safe_trials_fraction=0.1)  # pyrefly: ignore[unexpected-keyword]
     ])
     self.assertLen(config, 5)
     self.assertLen(config.of_type(base_study_config.MetricType.OBJECTIVE), 3)
@@ -105,11 +105,11 @@ class MetricsConfigTest(parameterized.TestCase):
     config = base_study_config.MetricsConfig()
     config.append(
         base_study_config.MetricInformation(
-            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
+            name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))  # pyrefly: ignore[unexpected-keyword]
     with self.assertRaises(ValueError):
       config.append(
           base_study_config.MetricInformation(
-              name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))
+              name='max1', goal=base_study_config.ObjectiveMetricGoal.MAXIMIZE))  # pyrefly: ignore[unexpected-keyword]
 
 
 if __name__ == '__main__':

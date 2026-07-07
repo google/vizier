@@ -142,7 +142,7 @@ class TrialToArrayConverterTest(parameterized.TestCase):
     problem = pyvizier.ProblemStatement(
         search_space=search_space,
         metric_information=pyvizier.MetricsConfig(
-            metrics=[
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
                 pyvizier.MetricInformation(
                     'obj1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
                 ),
@@ -429,7 +429,7 @@ class DefaultTrialConverterFromStudyConfigsTest(absltest.TestCase):
         self.assertTrue(t.infeasible)
     for label, t in zip(labels.flatten(), trials):
       if np.isnan(label):
-        self.assertEmpty(t.final_measurement.metrics)
+        self.assertEmpty(t.final_measurement.metrics)  # pyrefly: ignore[missing-attribute]
 
   def test_parameters_and_labels_shape(self):
     study_config = pyvizier.ProblemStatement()
@@ -899,11 +899,11 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
         scaled
     )
-    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)
-    self.assertGreaterEqual(actual[0].value, 1e-4)
-    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)
-    self.assertAlmostEqual(actual[2].value, 100.0, delta=1e-2)
-    self.assertLessEqual(actual[2].value, 100.0)
+    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)  # pyrefly: ignore[no-matching-overload]
+    self.assertGreaterEqual(actual[0].value, 1e-4)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(actual[2].value, 100.0, delta=1e-2)  # pyrefly: ignore[no-matching-overload]
+    self.assertLessEqual(actual[2].value, 100.0)  # pyrefly: ignore[no-matching-overload]
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -926,9 +926,9 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
         scaled
     )
-    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)
-    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)
-    self.assertAlmostEqual(actual[2].value, 398, delta=1)
+    self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(actual[1].value, 0.1, delta=1e-5)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(actual[2].value, 398, delta=1)  # pyrefly: ignore[no-matching-overload]
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -974,9 +974,9 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
     actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
         scaled
     )
-    self.assertGreaterEqual(actual[0].value, 1e-4)
-    self.assertGreaterEqual(actual[1].value, 0.5)
-    self.assertLessEqual(actual[2].value, 1e2)
+    self.assertGreaterEqual(actual[0].value, 1e-4)  # pyrefly: ignore[no-matching-overload]
+    self.assertGreaterEqual(actual[1].value, 0.5)  # pyrefly: ignore[no-matching-overload]
+    self.assertLessEqual(actual[2].value, 1e2)  # pyrefly: ignore[no-matching-overload]
 
   @parameterized.parameters([
       dict(dtype=np.float32),
@@ -1177,7 +1177,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
         converter.output_spec,
         core.NumpyArraySpec(
             core.NumpyArraySpecType.ONEHOT_EMBEDDING,
-            np.dtype(np.float32),
+            np.dtype(np.float32),  # pyrefly: ignore[bad-argument-type]
             (0, 1),
             4,
             'x1',
@@ -1296,7 +1296,7 @@ class ModelInputArrayBijectorTest(absltest.TestCase):
     spec = core.NumpyArraySpec(
         name='p',
         type=core.NumpyArraySpecType.default_factory(parameter_config),
-        dtype=np.dtype(np.float32),
+        dtype=np.dtype(np.float32),  # pyrefly: ignore[bad-argument-type]
         bounds=(0.0, 1.0),
         num_dimensions=1,
         num_oovs=0,
@@ -1317,7 +1317,7 @@ class ModelInputArrayBijectorTest(absltest.TestCase):
     spec = core.NumpyArraySpec(
         name='p',
         type=core.NumpyArraySpecType.default_factory(parameter_config),
-        dtype=np.dtype(np.float32),
+        dtype=np.dtype(np.float32),  # pyrefly: ignore[bad-argument-type]
         bounds=(1.0, 3.0),
         num_dimensions=1,
         num_oovs=0,
@@ -1338,7 +1338,7 @@ class ModelInputArrayBijectorTest(absltest.TestCase):
     spec = core.NumpyArraySpec(
         name='p',
         type=core.NumpyArraySpecType.default_factory(parameter_config),
-        dtype=np.dtype(np.float32),
+        dtype=np.dtype(np.float32),  # pyrefly: ignore[bad-argument-type]
         bounds=(1.0, 1.0),
         num_dimensions=1,
         num_oovs=0,

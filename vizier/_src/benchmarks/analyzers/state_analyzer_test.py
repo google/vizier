@@ -36,7 +36,7 @@ class StateAnalyzerTest(absltest.TestCase):
       return random.RandomDesigner(config.search_space, seed=seed)
 
     benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
-        designer_factory=_designer_factory, experimenter=experimenter
+        designer_factory=_designer_factory, experimenter=experimenter  # pyrefly: ignore[bad-argument-type]
     )
     num_trials = 20
     runner = vzb.BenchmarkRunner(
@@ -72,7 +72,7 @@ class StateAnalyzerTest(absltest.TestCase):
       return random.RandomDesigner(config.search_space, seed=seed)
 
     benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
-        designer_factory=_designer_factory, experimenter=multi_experimenter
+        designer_factory=_designer_factory, experimenter=multi_experimenter  # pyrefly: ignore[bad-argument-type]
     )
     num_trials = 20
     runner = vzb.BenchmarkRunner(
@@ -100,10 +100,10 @@ class StateAnalyzerTest(absltest.TestCase):
       return random.RandomDesigner(config.search_space, seed=seed)
 
     state1_factory = vzb.DesignerBenchmarkStateFactory(
-        designer_factory=_designer_factory, experimenter=exp1
+        designer_factory=_designer_factory, experimenter=exp1  # pyrefly: ignore[bad-argument-type]
     )
     state2_factory = vzb.DesignerBenchmarkStateFactory(
-        designer_factory=_designer_factory, experimenter=exp2
+        designer_factory=_designer_factory, experimenter=exp2  # pyrefly: ignore[bad-argument-type]
     )
 
     runner = vzb.BenchmarkRunner(
@@ -128,7 +128,7 @@ class StateAnalyzerTest(absltest.TestCase):
       return random.RandomDesigner(config.search_space, seed=seed)
 
     benchmark_state_factory = vzb.DesignerBenchmarkStateFactory(
-        designer_factory=_designer_factory, experimenter=experimenter
+        designer_factory=_designer_factory, experimenter=experimenter  # pyrefly: ignore[bad-argument-type]
     )
     num_trials = 20
     runner = vzb.BenchmarkRunner(
@@ -184,7 +184,7 @@ class StateAnalyzerTest(absltest.TestCase):
       for algo_name, algo_factory in algorithms.items():
         benchmark_state_factory = vzb.ExperimenterDesignerBenchmarkStateFactory(
             experimenter_factory=experimenter_factory,
-            designer_factory=algo_factory,
+            designer_factory=algo_factory,  # pyrefly: ignore[bad-argument-type]
         )
         states = []
         for _ in range(num_repeats):
@@ -202,7 +202,7 @@ class StateAnalyzerTest(absltest.TestCase):
       json_metadata = record.experimenter_metadata[
           experimenters.experimenter_factory.BBOB_FACTORY_KEY
       ]
-      metadata_dict = json.loads(json_metadata)
+      metadata_dict = json.loads(json_metadata)  # pyrefly: ignore[bad-argument-type]
       exptr_name = metadata_dict.pop('name')
       return (exptr_name, json.dumps(metadata_dict))
 

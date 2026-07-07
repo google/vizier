@@ -98,7 +98,7 @@ class RandomVectorizedStrategy(vb.VectorizedStrategy[None]):
       )
     return vb.VectorizedOptimizerInput(cont_data, cat_data)
 
-  def suggestion_batch_size(self) -> int:
+  def suggestion_batch_size(self) -> int:  # pyrefly: ignore[bad-override]
     return self._suggestion_batch_size
 
   def update(

@@ -50,10 +50,10 @@ class TunerPolicy(pythia.Policy):
     # study (unless the binary crashes). We can therefore use an in-ram cache
     # and avoid re-loading the same trials over and over again.
     self._suggestion_cache = trial_caches.IdDeduplicatingTrialLoader(
-        self.supporter, include_intermediate_measurements=False
+        self.supporter, include_intermediate_measurements=False  # pyrefly: ignore[unexpected-keyword]
     )
     self._stopping_cache = trial_caches.IdDeduplicatingTrialLoader(
-        self.supporter, include_intermediate_measurements=True
+        self.supporter, include_intermediate_measurements=True  # pyrefly: ignore[unexpected-keyword]
     )
 
   @property

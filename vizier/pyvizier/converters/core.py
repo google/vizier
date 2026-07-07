@@ -172,40 +172,40 @@ class NumpyArraySpec:
     the_type = type_factory(pc)
     if the_type == NumpyArraySpecType.CONTINUOUS:
       return NumpyArraySpec(
-          the_type,
+          the_type,  # pyrefly: ignore[bad-argument-count]
           np.dtype(floating_dtype),
-          bounds=pc.bounds,
-          num_dimensions=1,
-          scale=pc.scale_type,
-          name=pc.name,
-          num_oovs=0,
+          bounds=pc.bounds,  # pyrefly: ignore[unexpected-keyword]
+          num_dimensions=1,  # pyrefly: ignore[unexpected-keyword]
+          scale=pc.scale_type,  # pyrefly: ignore[unexpected-keyword]
+          name=pc.name,  # pyrefly: ignore[unexpected-keyword]
+          num_oovs=0,  # pyrefly: ignore[unexpected-keyword]
       )
     elif the_type == NumpyArraySpecType.DISCRETE:
       return NumpyArraySpec(
-          the_type,
+          the_type,  # pyrefly: ignore[bad-argument-count]
           np.dtype(int_dtype),
-          bounds=(0, len(pc.feasible_values)),
-          num_dimensions=1,
-          name=pc.name,
-          num_oovs=1 if pad_oovs else 0,
+          bounds=(0, len(pc.feasible_values)),  # pyrefly: ignore[unexpected-keyword]
+          num_dimensions=1,  # pyrefly: ignore[unexpected-keyword]
+          name=pc.name,  # pyrefly: ignore[unexpected-keyword]
+          num_oovs=1 if pad_oovs else 0,  # pyrefly: ignore[unexpected-keyword]
       )
     elif the_type == NumpyArraySpecType.ONEHOT_EMBEDDING:
       return NumpyArraySpec(
-          the_type,
+          the_type,  # pyrefly: ignore[bad-argument-count]
           np.dtype(floating_dtype),
-          bounds=(0.0, 1.0),
-          num_dimensions=len(pc.feasible_values) + 1,
-          name=pc.name,
-          num_oovs=1 if pad_oovs else 0,
+          bounds=(0.0, 1.0),  # pyrefly: ignore[unexpected-keyword]
+          num_dimensions=len(pc.feasible_values) + 1,  # pyrefly: ignore[unexpected-keyword]
+          name=pc.name,  # pyrefly: ignore[unexpected-keyword]
+          num_oovs=1 if pad_oovs else 0,  # pyrefly: ignore[unexpected-keyword]
       )
     elif the_type == NumpyArraySpecType.OBJECT:
       return NumpyArraySpec(
-          the_type,
-          dtype=np.object_,
-          bounds=(0, 0),
-          num_dimensions=0,
-          name=pc.name,
-          num_oovs=0,
+          the_type,  # pyrefly: ignore[bad-argument-count]
+          dtype=np.object_,  # pyrefly: ignore[unexpected-keyword]
+          bounds=(0, 0),  # pyrefly: ignore[unexpected-keyword]
+          num_dimensions=0,  # pyrefly: ignore[unexpected-keyword]
+          name=pc.name,  # pyrefly: ignore[unexpected-keyword]
+          num_oovs=0,  # pyrefly: ignore[unexpected-keyword]
       )
     raise ValueError(f'Unknown type {type}')
 
@@ -240,7 +240,7 @@ class DictOf2DArrays(Mapping[str, np.ndarray]):
         raise ValueError(
             f'{k} has shape {v.shape} which is not equal to {shape}.'
         )
-    self._size = shape[0]
+    self._size = shape[0]  # pyrefly: ignore[unsupported-operation]
 
   def __getitem__(self, key: str) -> np.ndarray:
     return self._d[key]
@@ -491,13 +491,13 @@ class ModelInputArrayBijector:
 
     num_oovs = 1 if pad_oovs else 0
     output_spec = NumpyArraySpec(
-        NumpyArraySpecType.ONEHOT_EMBEDDING,
+        NumpyArraySpecType.ONEHOT_EMBEDDING,  # pyrefly: ignore[bad-argument-count]
         dtype,
-        bounds=(0.0, 1.0),
-        num_dimensions=int(spec.bounds[1] - spec.bounds[0] + num_oovs),
-        name=spec.name,
-        num_oovs=num_oovs,
-        scale=None,
+        bounds=(0.0, 1.0),  # pyrefly: ignore[unexpected-keyword]
+        num_dimensions=int(spec.bounds[1] - spec.bounds[0] + num_oovs),  # pyrefly: ignore[unexpected-keyword]
+        name=spec.name,  # pyrefly: ignore[unexpected-keyword]
+        num_oovs=num_oovs,  # pyrefly: ignore[unexpected-keyword]
+        scale=None,  # pyrefly: ignore[unexpected-keyword]
     )
 
     def embed_fn(x: np.ndarray, output_spec=output_spec):
@@ -650,7 +650,7 @@ class DefaultModelInputConverter(ModelInputConverter):
     return self.onehot_encoder.forward_fn(self.scaler.forward_fn(array))
 
   def _to_parameter_value(
-      self, value: Union['np.float', float, int]
+      self, value: Union['np.float', float, int]  # pyrefly: ignore[missing-attribute]
   ) -> Optional[pyvizier.ParameterValue]:
     """Converts to a single parameter value; see to_parameter_values().
 
@@ -695,7 +695,7 @@ class DefaultModelInputConverter(ModelInputConverter):
       return None
     else:
       return pyvizier.ParameterValue(
-          self.parameter_config.feasible_values[value]
+          self.parameter_config.feasible_values[value]  # pyrefly: ignore[bad-index]
       )
 
   def to_parameter_values(
@@ -979,7 +979,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
     if labels is None:
       return [
-          pyvizier.Trial(parameters=p) for p in self.to_parameters(features)
+          pyvizier.Trial(parameters=p) for p in self.to_parameters(features)  # pyrefly: ignore[unexpected-keyword]
       ]
 
     try:
@@ -1003,7 +1003,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
 
     trials = []
     for p, m in zip(parameters, measurements):
-      trial = pyvizier.Trial(parameters=p, final_measurement=m)
+      trial = pyvizier.Trial(parameters=p, final_measurement=m)  # pyrefly: ignore[unexpected-keyword]
       # _to_measurements returns an empty dict for NaN and non-finite metric
       # values.
       if not m.metrics:
@@ -1073,7 +1073,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
     result_dict = dict()
     for converter in self.metric_converters:
       result_dict[converter.metric_information.name] = converter.convert(
-          [t.final_measurement for t in trials]
+          [t.final_measurement for t in trials]  # pyrefly: ignore[bad-argument-type]
       )
     return result_dict
 
@@ -1088,7 +1088,7 @@ class DefaultTrialConverter(TrialToNumpyDict):
     return self.to_features(trials), self.to_labels(trials)
 
   @property
-  def features_shape(self) -> Dict[str, Tuple[Union[int, None], int]]:
+  def features_shape(self) -> Dict[str, Tuple[Union[int, None], int]]:  # pyrefly: ignore[bad-override]
     """See base class."""
     return {
         pc.output_spec.name: (None, pc.output_spec.num_dimensions)
@@ -1306,7 +1306,7 @@ class TrialToArrayConverter:
         ],
         [create_output_converter(m) for m in sc.metric_information],
     )
-    return cls(converter)
+    return cls(converter)  # pyrefly: ignore[bad-argument-count]
 
   @property
   def output_specs(self) -> Sequence[NumpyArraySpec]:

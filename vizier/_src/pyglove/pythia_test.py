@@ -74,13 +74,13 @@ class TunerPolicyTest(absltest.TestCase):
 
     m.should_stop_early.return_value = False
     res = policy.early_stop(
-        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])
+        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])  # pyrefly: ignore[missing-argument, unexpected-keyword]
     )
     self.assertFalse(res.decisions[0].should_stop)
 
     m.should_stop_early.return_value = True
     res = policy.early_stop(
-        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])
+        pythia.EarlyStopRequest(study_descriptor=descriptor, trial_ids=[4])  # pyrefly: ignore[missing-argument, unexpected-keyword]
     )
     self.assertTrue(res.decisions[0].should_stop)
     self.assertEqual(m.should_stop_early.call_count, 5)  # 3 + 1 + 1

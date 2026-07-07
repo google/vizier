@@ -158,7 +158,7 @@ def plot_from_records(
     visual_dict = {}
     for _, key, value in metadata.all_items():
       try:
-        loaded = json.loads(value, cls=json_utils.NumpyDecoder)
+        loaded = json.loads(value, cls=json_utils.NumpyDecoder)  # pyrefly: ignore[bad-argument-type]
         assert isinstance(loaded, dict)
         visual_dict = visual_dict | {k: v for k, v in loaded.items() if v}
       except Exception as e:  # pylint: disable=broad-except
@@ -181,22 +181,22 @@ def plot_from_records(
   }
   total_rows = len(df.groupby('experimenter'))
   if metrics is None:
-    metrics = set()
+    metrics = set()  # pyrefly: ignore[bad-assignment]
     for record in df.record:
       metrics = metrics.union(set(record.plot_elements.keys()))
     print(f'All inferred metrics {metrics}')
 
   fig, axes = plt.subplots(
       total_rows,
-      len(metrics),
-      figsize=(col_figsize * len(metrics), row_figsize * total_rows),
+      len(metrics),  # pyrefly: ignore[bad-argument-type]
+      figsize=(col_figsize * len(metrics), row_figsize * total_rows),  # pyrefly: ignore[bad-argument-type]
       squeeze=False,
   )
   fig.suptitle(fig_title, fontsize=16)
 
   fig_idx = 0
   for experimenter_key, group_by_experimenter in df.groupby('experimenter'):
-    for metric_idx, metric in enumerate(metrics):
+    for metric_idx, metric in enumerate(metrics):  # pyrefly: ignore[bad-argument-type]
       ax = axes[fig_idx, metric_idx]
       subplot_title = (
           str(experimenter_key)[:title_maxlen] if experimenter_key else metric

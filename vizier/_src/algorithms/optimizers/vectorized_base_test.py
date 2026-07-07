@@ -127,7 +127,7 @@ class FakePriorTrialsVectorizedStrategy(
     if prior_rewards is not None and len(prior_rewards.shape) != 1:
       raise ValueError('Expected seed labels to have 1D dimension!')
     return FakePriorTrialsStrategyState(
-        features=prior_features, rewards=prior_rewards
+        features=prior_features, rewards=prior_rewards  # pyrefly: ignore[bad-argument-type]
     )
 
   def suggest(
@@ -178,7 +178,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
     )(converter=converter)
-    res_array = optimizer(score_fn=score_fn, count=count)
+    res_array = optimizer(score_fn=score_fn, count=count)  # pyrefly: ignore[bad-argument-type]
     res = vb.best_candidates_to_trials(res_array, converter=converter)
     self.assertLen(res, count)
 
@@ -196,7 +196,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         strategy_factory=fake_increment_strategy_factory,
         max_evaluations=100,
     )(converter=converter)
-    res_array = optimizer(score_fn=score_fn, count=count, n_parallel=n_parallel)
+    res_array = optimizer(score_fn=score_fn, count=count, n_parallel=n_parallel)  # pyrefly: ignore[bad-argument-type]
     res = vb.best_candidates_to_trials(res_array, converter=converter)
     self.assertLen(res, count * n_parallel)
 
@@ -216,7 +216,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         max_evaluations=10,
         use_fori=use_fori,
     )(converter=converter)
-    best_candidates_array = optimizer(score_fn=score_fn, count=1)
+    best_candidates_array = optimizer(score_fn=score_fn, count=1)  # pyrefly: ignore[bad-argument-type]
     best_candidates = vb.best_candidates_to_trials(
         best_candidates_array, converter=converter
     )
@@ -245,13 +245,13 @@ class VectorizedBaseTest(parameterized.TestCase):
         max_evaluations=10,
         use_fori=use_fori,
     )(converter=converter)
-    best_candidates_array = optimizer(score_fn=score_fn, count=3)
+    best_candidates_array = optimizer(score_fn=score_fn, count=3)  # pyrefly: ignore[bad-argument-type]
     best_candidates = vb.best_candidates_to_trials(
         best_candidates_array, converter=converter
     )
     # check 1st best candidate
-    self.assertAlmostEqual(best_candidates[0].parameters['f1'].value, 0.5)
-    self.assertAlmostEqual(best_candidates[0].parameters['f2'].value, 0.5)
+    self.assertAlmostEqual(best_candidates[0].parameters['f1'].value, 0.5)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(best_candidates[0].parameters['f2'].value, 0.5)  # pyrefly: ignore[no-matching-overload]
     self.assertAlmostEqual(
         best_candidates[0]
         .final_measurement_or_die.metrics['acquisition']
@@ -259,8 +259,8 @@ class VectorizedBaseTest(parameterized.TestCase):
         -((0.5 - 0.52) ** 2),
     )
     # check 2nd best candidate
-    self.assertAlmostEqual(best_candidates[1].parameters['f1'].value, 0.6)
-    self.assertAlmostEqual(best_candidates[1].parameters['f2'].value, 0.6)
+    self.assertAlmostEqual(best_candidates[1].parameters['f1'].value, 0.6)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(best_candidates[1].parameters['f2'].value, 0.6)  # pyrefly: ignore[no-matching-overload]
     self.assertAlmostEqual(
         best_candidates[1]
         .final_measurement_or_die.metrics['acquisition']
@@ -268,8 +268,8 @@ class VectorizedBaseTest(parameterized.TestCase):
         -((0.6 - 0.52) ** 2),
     )
     # check 3rd best candidate
-    self.assertAlmostEqual(best_candidates[2].parameters['f1'].value, 0.4)
-    self.assertAlmostEqual(best_candidates[2].parameters['f2'].value, 0.4)
+    self.assertAlmostEqual(best_candidates[2].parameters['f1'].value, 0.4)  # pyrefly: ignore[no-matching-overload]
+    self.assertAlmostEqual(best_candidates[2].parameters['f2'].value, 0.4)  # pyrefly: ignore[no-matching-overload]
     self.assertAlmostEqual(
         best_candidates[2]
         .final_measurement_or_die.metrics['acquisition']
@@ -300,7 +300,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         max_evaluations=10,
     )(converter=converter)
     best_candidates_array = optimizer(
-        score_fn=lambda x, seed: score_with_aux_fn(x, seed)[0],
+        score_fn=lambda x, seed: score_with_aux_fn(x, seed)[0],  # pyrefly: ignore[bad-argument-type]
         score_with_aux_fn=score_with_aux_fn,
         count=1,
     )
@@ -314,7 +314,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     )
     self.assertIn(
         'NaN',
-        best_candidates[0].metadata.ns('devinfo')[
+        best_candidates[0].metadata.ns('devinfo')[  # pyrefly: ignore[bad-argument-type]
             vb.ACQUISITION_OPTIMIZATION_WARNING_KEY
         ],
     )
@@ -367,7 +367,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         [trial1, trial2, trial1], converter=converter
     )
     best_trial_array = optimizer(
-        lambda x, _: -jnp.max(
+        lambda x, _: -jnp.max(  # pyrefly: ignore[bad-argument-type]
             jnp.square(x.continuous.padded_array - 0.52), axis=-1
         ),
         count=1,
@@ -380,7 +380,7 @@ class VectorizedBaseTest(parameterized.TestCase):
     self.assertEqual(best_trial[0].parameters['x2'].value, 2)
 
     best_trial_array = optimizer(
-        lambda x, _: -jnp.max(
+        lambda x, _: -jnp.max(  # pyrefly: ignore[bad-argument-type]
             jnp.square(x.continuous.padded_array - 0.52), axis=-1
         ),
         count=1,
@@ -422,7 +422,7 @@ class VectorizedBaseTest(parameterized.TestCase):
         ),
     )
     suggestions = optimizer(
-        lambda x, _: -jnp.max(
+        lambda x, _: -jnp.max(  # pyrefly: ignore[bad-argument-type]
             jnp.square(x.continuous.padded_array - 0.52), axis=(-1, -2)
         ),
         prior_features=prior_features,

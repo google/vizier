@@ -109,7 +109,7 @@ class _VizierServices:
 
   def use_vizier_service(self, endpoint: Optional[None]) -> None:
     """Uses vizier service specified by endpoint."""
-    endpoint = endpoint or constants.NO_ENDPOINT
+    endpoint = endpoint or constants.NO_ENDPOINT  # pyrefly: ignore[bad-assignment]
     if self._vizier_endpoint is not None and self._vizier_endpoint != endpoint:
       raise ValueError(
           'Cannot use different vizier endpoints in the same process. '
@@ -280,7 +280,7 @@ def init(
     pythia_port: An optional port used for hosting the Pythia service. If None,
       the port will be automatically picked.
   """
-  _services.use_vizier_service(vizier_endpoint)
+  _services.use_vizier_service(vizier_endpoint)  # pyrefly: ignore[bad-argument-type]
   _services.set_pythia_port(pythia_port)
   backend.VizierBackend.use_study_prefix(study_prefix)
   pg.tuning.set_default_backend('oss_vizier')

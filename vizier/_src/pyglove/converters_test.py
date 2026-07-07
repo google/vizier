@@ -163,7 +163,7 @@ class PyGloveCreatedSearchSpaceTest(parameterized.TestCase):
     self.assertEqual(trial.parameters['z'], vz.ParameterValue('1/2 (\'bar\')'))
     self.assertEqual(
         pg.from_json_str(
-            trial.metadata.ns(constants.METADATA_NAMESPACE)
+            trial.metadata.ns(constants.METADATA_NAMESPACE)  # pyrefly: ignore[bad-argument-type]
             [constants.TRIAL_METADATA_KEY_CUSTOM_TYPE_DECISIONS]), {'a': 'abc'})
 
   def test_trial_to_dna(self):

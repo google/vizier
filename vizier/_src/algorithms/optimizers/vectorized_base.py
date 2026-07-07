@@ -73,7 +73,7 @@ def optimizer_to_model_input_single_array(
 ) -> types.PaddedArray:
   mask = jnp.ones_like(x, dtype=bool)
   mask = jnp.logical_and(mask, jnp.arange(x.shape[-1]) < n_features)
-  return types.PaddedArray(
+  return types.PaddedArray(  # pyrefly: ignore[bad-return]
       x,
       fill_value=jnp.zeros([], dtype=x.dtype),
       _original_shape=jnp.concatenate(
@@ -314,7 +314,7 @@ class VectorizedOptimizer(Generic[_S]):
   dtype: types.ContinuousAndCategorical[jnp.dtype] = struct.field(
       pytree_node=False,
       default=types.ContinuousAndCategorical[jnp.dtype](  # pytype: disable=wrong-arg-types  # jnp-type
-          jnp.float64, types.INT_DTYPE
+          jnp.float64, types.INT_DTYPE  # pyrefly: ignore[bad-argument-type]
       ),
   )
   use_fori: bool = struct.field(pytree_node=False, default=True)
@@ -378,8 +378,8 @@ class VectorizedOptimizer(Generic[_S]):
     """
     jax.monitoring.record_event('/vizier/jax/vectorized_optimizer/call/traced')
     start_time = datetime.datetime.now()
-    seed = jax.random.PRNGKey(0) if seed is None else seed
-    seed, acq_fn_seed = jax.random.split(seed)
+    seed = jax.random.PRNGKey(0) if seed is None else seed  # pyrefly: ignore[bad-assignment]
+    seed, acq_fn_seed = jax.random.split(seed)  # pyrefly: ignore[bad-argument-type]
 
     dimension_is_missing = jax.tree_util.tree_map(
         lambda pad_dim, dim: jnp.arange(pad_dim) >= dim,
@@ -413,7 +413,7 @@ class VectorizedOptimizer(Generic[_S]):
       categorical_prior, categorical_mask = _reshape_to_parallel_batches(
           prior_features.categorical, parallel_dim
       )
-      prior_features = VectorizedOptimizerInput(
+      prior_features = VectorizedOptimizerInput(  # pyrefly: ignore[bad-assignment]
           continuous=continuous_prior, categorical=categorical_prior
       )
       prior_features = jax.tree_util.tree_map(
@@ -449,7 +449,7 @@ class VectorizedOptimizer(Generic[_S]):
           update_seed, state, new_features, new_rewards
       )
       new_best_results = self._update_best_results(
-          best_results, count, new_features, new_rewards
+          best_results, count, new_features, new_rewards  # pyrefly: ignore[bad-argument-type]
       )
       return new_state, new_best_results, new_seed
 
@@ -505,7 +505,7 @@ class VectorizedOptimizer(Generic[_S]):
       if n_parallel is None:
         aux = score_with_aux_fn(
             _optimizer_to_model_input(
-                best_results.features,
+                best_results.features,  # pyrefly: ignore[missing-attribute]
                 self.n_feature_dimensions,
                 squeeze_middle_dim=True,
             ),
@@ -514,14 +514,14 @@ class VectorizedOptimizer(Generic[_S]):
       else:
         aux = score_with_aux_fn(
             _optimizer_to_model_input(
-                best_results.features, self.n_feature_dimensions
+                best_results.features, self.n_feature_dimensions  # pyrefly: ignore[missing-attribute]
             ),
             seed=acq_fn_seed,
         )[1]
 
       best_results = VectorizedStrategyResults(
-          best_results.features,
-          best_results.rewards,
+          best_results.features,  # pyrefly: ignore[missing-attribute]
+          best_results.rewards,  # pyrefly: ignore[missing-attribute]
           aux,
       )
 
@@ -539,7 +539,7 @@ class VectorizedOptimizer(Generic[_S]):
         best_results,
     )
 
-    return best_results
+    return best_results  # pyrefly: ignore[bad-return]
 
   def _update_best_results(
       self,
@@ -578,7 +578,7 @@ class VectorizedOptimizer(Generic[_S]):
         ),
     )
     top_indices = jnp.argpartition(-all_rewards, count - 1)[:count]
-    return VectorizedStrategyResults(
+    return VectorizedStrategyResults(  # pyrefly: ignore[bad-return]
         rewards=all_rewards[top_indices],
         features=VectorizedOptimizerInput(
             continuous=all_features.continuous[top_indices],
@@ -701,7 +701,7 @@ class VectorizedOptimizerFactory:
     )
     return VectorizedOptimizer(
         strategy=strategy,
-        n_feature_dimensions=n_feature_dimensions,
+        n_feature_dimensions=n_feature_dimensions,  # pyrefly: ignore[bad-argument-type]
         n_feature_dimensions_with_padding=n_feature_dimensions_with_padding,
         suggestion_batch_size=self.suggestion_batch_size,
         max_evaluations=self.max_evaluations,

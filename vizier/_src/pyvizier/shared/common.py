@@ -139,7 +139,7 @@ class Namespace(abc.Sequence):
       arg: typically, a tuple of strings.
     """
     arg = tuple(arg)
-    self.__attrs_init__(as_tuple=arg)
+    self.__attrs_init__(as_tuple=arg)  # pyrefly: ignore[missing-attribute]
 
   _ns_repr_table = str.maketrans({':': r'\:'})
 
@@ -427,7 +427,7 @@ class Metadata(abc.MutableMapping):
         raise TypeError('Cannot unpack to %s' % cls)
       return message
     else:
-      return cls(value)
+      return cls(value)  # pyrefly: ignore[bad-argument-count]
 
   def get(
       self, key: str, default: T1 = None, *, cls: Type[T2] = str
@@ -656,7 +656,7 @@ class Metadata(abc.MutableMapping):
     md._store = md._stores[md._namespace]  # pylint: disable='protected-access'
     return md
 
-  def update(
+  def update(  # pyrefly: ignore[bad-override]
       self,
       *args: Union[
           Dict[str, MetadataValue], Iterable[Tuple[str, MetadataValue]]

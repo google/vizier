@@ -39,9 +39,9 @@ def _generate_min_and_max_ent_studies() -> (
   )
   root.add_discrete_param('discrete', list(np.linspace(-5, 5, 11)))
   problem = vz.ProblemStatement(
-      search_space=space,
-      metric_information=[
-          vz.MetricInformation('x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
+      search_space=space,  # pyrefly: ignore[unexpected-keyword]
+      metric_information=[  # pyrefly: ignore[unexpected-keyword]
+          vz.MetricInformation('x1', goal=vz.ObjectiveMetricGoal.MAXIMIZE),  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
       ],
   )
   max_ent_trials = []
@@ -52,8 +52,8 @@ def _generate_min_and_max_ent_studies() -> (
     # through the feasible values of each parameter.
     max_ent_trials.append(
         vz.Trial(
-            id=idx + 1,
-            parameters={
+            id=idx + 1,  # pyrefly: ignore[unexpected-keyword]
+            parameters={  # pyrefly: ignore[unexpected-keyword]
                 'continuous': vz.ParameterValue(value),
                 'integer': vz.ParameterValue(int(value)),
                 'categorical': vz.ParameterValue(str(value)),
@@ -65,8 +65,8 @@ def _generate_min_and_max_ent_studies() -> (
     # parameter to the same value.
     min_ent_trials.append(
         vz.Trial(
-            id=idx + 1,
-            parameters={
+            id=idx + 1,  # pyrefly: ignore[unexpected-keyword]
+            parameters={  # pyrefly: ignore[unexpected-keyword]
                 'continuous': vz.ParameterValue(values[55]),
                 'integer': vz.ParameterValue(int(values[17])),
                 'categorical': vz.ParameterValue(str(values[96])),
@@ -75,8 +75,8 @@ def _generate_min_and_max_ent_studies() -> (
         )
     )
   return vz.ProblemAndTrials(
-      problem=problem, trials=min_ent_trials
-  ), vz.ProblemAndTrials(problem=problem, trials=max_ent_trials)
+      problem=problem, trials=min_ent_trials  # pyrefly: ignore[unexpected-keyword]
+  ), vz.ProblemAndTrials(problem=problem, trials=max_ent_trials)  # pyrefly: ignore[unexpected-keyword]
 
 
 class ExplorationScoreUtilsTest(parameterized.TestCase):

@@ -160,16 +160,16 @@ class TrialTest(absltest.TestCase):
 
     # The trial was completed in place.
     self.assertEqual(test.final_measurement, measurement)
-    self.assertLessEqual(test.completion_time,
+    self.assertLessEqual(test.completion_time,  # pyrefly: ignore[no-matching-overload]
                          datetime.datetime.now().astimezone())
-    self.assertGreaterEqual(test.completion_time, test.creation_time)
+    self.assertGreaterEqual(test.completion_time, test.creation_time)  # pyrefly: ignore[no-matching-overload]
     assert test.duration is not None
     self.assertGreaterEqual(test.duration.total_seconds(), 0)
 
     self.assertEqual(completed.final_measurement, measurement)
-    self.assertLessEqual(completed.completion_time,
+    self.assertLessEqual(completed.completion_time,  # pyrefly: ignore[no-matching-overload]
                          datetime.datetime.now().astimezone())
-    self.assertGreaterEqual(completed.completion_time, completed.creation_time)
+    self.assertGreaterEqual(completed.completion_time, completed.creation_time)  # pyrefly: ignore[no-matching-overload]
     assert completed.duration is not None
     self.assertGreaterEqual(completed.duration.total_seconds(), 0)
 
@@ -190,8 +190,8 @@ class TrialTest(absltest.TestCase):
 
     # The returned Trial is completed.
     self.assertEqual(completed.final_measurement, measurement)
-    self.assertGreaterEqual(completed.completion_time, completed.creation_time)
-    self.assertLessEqual(completed.completion_time,
+    self.assertGreaterEqual(completed.completion_time, completed.creation_time)  # pyrefly: ignore[no-matching-overload]
+    self.assertLessEqual(completed.completion_time,  # pyrefly: ignore[no-matching-overload]
                          datetime.datetime.now().astimezone())
     assert completed.duration is not None
     self.assertGreaterEqual(completed.duration.total_seconds(), 0)
@@ -219,7 +219,7 @@ class TrialTest(absltest.TestCase):
     self.assertEqual(completed.infeasibility_reason, 'reason')
 
   def testCompleteInfeasible2(self):
-    test = trial.Trial(infeasibility_reason='reason')
+    test = trial.Trial(infeasibility_reason='reason')  # pyrefly: ignore[unexpected-keyword]
     measurement = Measurement(metrics={
         'pr-auc': Metric(value=0.8),
         'latency': Metric(value=32)
@@ -230,7 +230,7 @@ class TrialTest(absltest.TestCase):
     self.assertEqual(completed.infeasibility_reason, 'reason')
 
   def testCompleteInfeasible3(self):
-    test = trial.Trial(infeasibility_reason='reason')
+    test = trial.Trial(infeasibility_reason='reason')  # pyrefly: ignore[unexpected-keyword]
     measurement = Measurement(metrics={
         'pr-auc': Metric(value=0.8),
         'latency': Metric(value=32)
@@ -268,7 +268,7 @@ class TrialTest(absltest.TestCase):
     self.assertEqual(test.infeasibility_reason, 'reason')
 
   def testCompleteInfeasibleInplace2(self):
-    test = trial.Trial(infeasibility_reason='reason')
+    test = trial.Trial(infeasibility_reason='reason')  # pyrefly: ignore[unexpected-keyword]
     measurement = Measurement(metrics={
         'pr-auc': Metric(value=0.8),
         'latency': Metric(value=32)
@@ -279,7 +279,7 @@ class TrialTest(absltest.TestCase):
     self.assertEqual(test.infeasibility_reason, 'reason')
 
   def testCompleteInfeasibleInplace3(self):
-    test = trial.Trial(infeasibility_reason='reason')
+    test = trial.Trial(infeasibility_reason='reason')  # pyrefly: ignore[unexpected-keyword]
     measurement = Measurement(metrics={
         'pr-auc': Metric(value=0.8),
         'latency': Metric(value=32)
@@ -311,16 +311,16 @@ class TrialTest(absltest.TestCase):
   def testCreationTime(self):
     trial1 = trial.Trial()
     trial2 = trial.Trial()
-    self.assertGreater(trial2.creation_time, trial1.creation_time)
+    self.assertGreater(trial2.creation_time, trial1.creation_time)  # pyrefly: ignore[no-matching-overload]
 
   def testCompletionTime(self):
     trial1 = trial.Trial(
-        final_measurement=trial.Measurement(
+        final_measurement=trial.Measurement(  # pyrefly: ignore[unexpected-keyword]
             metrics={'pr-auc': Metric(value=0.8)}
         )
     )
     self.assertEqual(trial1.creation_time, trial1.completion_time)
-    trial2 = trial.Trial(infeasibility_reason='reasons')
+    trial2 = trial.Trial(infeasibility_reason='reasons')  # pyrefly: ignore[unexpected-keyword]
     self.assertEqual(trial2.creation_time, trial2.completion_time)
 
 
@@ -351,7 +351,7 @@ class ParameterDictTest(parameterized.TestCase):
 class SuggestionTestI(absltest.TestCase):
 
   def testToTrial(self):
-    suggestion = trial.TrialSuggestion({'a': 3, 'b': True})
+    suggestion = trial.TrialSuggestion({'a': 3, 'b': True})  # pyrefly: ignore[bad-argument-count]
     suggestion.metadata['key'] = 'value'
 
     t = suggestion.to_trial(1)
@@ -365,24 +365,24 @@ class TrialFilterTest(parameterized.TestCase):
   @parameterized.parameters(
       dict(filtr=trial.TrialFilter(), answers=[True, True, True, True]),
       dict(
-          filtr=trial.TrialFilter(ids=(2, 3)),
+          filtr=trial.TrialFilter(ids=(2, 3)),  # pyrefly: ignore[unexpected-keyword]
           answers=[False, True, True, False]),
       dict(
-          filtr=trial.TrialFilter(min_id=3, ids=(2, 3)),
+          filtr=trial.TrialFilter(min_id=3, ids=(2, 3)),  # pyrefly: ignore[unexpected-keyword]
           answers=[False, False, True, False]),
       dict(
           filtr=trial.TrialFilter(
-              min_id=2,
-              max_id=3,
-              ids=(1, 2, 3, 4),
-              status=[trial.TrialStatus.REQUESTED]),
+              min_id=2,  # pyrefly: ignore[unexpected-keyword]
+              max_id=3,  # pyrefly: ignore[unexpected-keyword]
+              ids=(1, 2, 3, 4),  # pyrefly: ignore[unexpected-keyword]
+              status=[trial.TrialStatus.REQUESTED]),  # pyrefly: ignore[unexpected-keyword]
           answers=[False, True, False, False]))
   def test_filter(self, filtr: trial.TrialFilter, answers: Sequence[bool]):
     trials = (
-        trial.Trial(id=1),  # ACTIVE
-        trial.Trial(id=2, is_requested=True),  #  REQUESTED
-        trial.Trial(id=3, stopping_reason='stopping'),  # STOPPING
-        trial.Trial(id=4).complete(trial.Measurement()),  # COMPLETED
+        trial.Trial(id=1),  # ACTIVE  # pyrefly: ignore[unexpected-keyword]
+        trial.Trial(id=2, is_requested=True),  #  REQUESTED  # pyrefly: ignore[unexpected-keyword]
+        trial.Trial(id=3, stopping_reason='stopping'),  # STOPPING  # pyrefly: ignore[unexpected-keyword]
+        trial.Trial(id=4).complete(trial.Measurement()),  # COMPLETED  # pyrefly: ignore[unexpected-keyword]
     )
     self.assertSequenceEqual([filtr(t) for t in trials], answers)
 

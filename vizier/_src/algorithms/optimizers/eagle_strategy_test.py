@@ -196,7 +196,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         rewards,
         features_batch_2d,
         rewards_batch,
-        self.config.replace(
+        self.config.replace(  # pyrefly: ignore[missing-attribute]
             mutate_normalization_type=(
                 eagle_strategy.MutateNormalizationType.UNNORMALIZED
             )
@@ -227,7 +227,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         expected.categorical, actual.categorical[:, 0, :]
     )
 
-    scale = np.random.normal(size=[self.eagle.batch_size, 4])
+    scale = np.random.normal(size=[self.eagle.batch_size, 4])  # pyrefly: ignore[no-matching-overload]
     expected_logits = _create_logits_vector_simple(
         features_2d.categorical,
         features_batch_2d.categorical,
@@ -237,7 +237,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         self.config,
     )
     actual_logits = self.eagle._create_categorical_feature_logits(
-        features.categorical, features_batch.categorical, scale
+        features.categorical, features_batch.categorical, scale  # pyrefly: ignore[bad-argument-type]
     )
     np.testing.assert_allclose(
         expected_logits, actual_logits[:, 0, :, :], rtol=1e-5
@@ -437,7 +437,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         self.converter
     )
     optimizer(
-        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1), count=1
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1), count=1  # pyrefly: ignore[bad-argument-type]
     )
 
   def test_continuous_feature_perturbation_type(self):
@@ -453,7 +453,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )(self.converter)
     expected_count = 4
     new_features_additive_perturbation = optimizer_additive_perturbation(
-        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),  # pyrefly: ignore[bad-argument-type]
         count=expected_count,
     ).features
     self.assertSequenceEqual(
@@ -475,7 +475,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         max_evaluations=50,
     )(self.converter)
     new_features_mult_perturbation = optimizer_mult_perturbation(
-        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, 1),  # pyrefly: ignore[bad-argument-type]
         count=expected_count,
     ).features
     self.assertSequenceEqual(
@@ -507,7 +507,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     n_parallel = 5
     results = optimizer(
-        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),  # pyrefly: ignore[bad-argument-type]
         count=1,
         n_parallel=n_parallel,
     )
@@ -528,7 +528,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     score_fn = lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1,))
     results = optimizer(
-        score_fn=score_fn,
+        score_fn=score_fn,  # pyrefly: ignore[bad-argument-type]
         count=1,
     )
     self.assertSequenceEqual(results.features.continuous.shape, (1, 1, 3))
@@ -548,8 +548,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.POWERS_OF_2,
-            num_features=padding.PaddingType.POWERS_OF_2,
+            num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
@@ -558,7 +558,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
     n_parallel = 2
     results = optimizer(
-        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),
+        score_fn=lambda x, _: -jnp.sum(x.continuous.padded_array, axis=(1, 2)),  # pyrefly: ignore[bad-argument-type]
         count=1,
         n_parallel=n_parallel,
     )
@@ -575,8 +575,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.POWERS_OF_2,
-            num_features=padding.PaddingType.POWERS_OF_2,
+            num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
@@ -587,7 +587,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         x.continuous.replace_fill_value(0).padded_array, axis=(1,)
     )
     results = optimizer(
-        score_fn=score_fn,
+        score_fn=score_fn,  # pyrefly: ignore[bad-argument-type]
         count=1,
     )
     self.assertSequenceEqual(results.features.continuous.shape, (1, 1, 4))
@@ -618,8 +618,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.MULTIPLES_OF_10,
-            num_features=padding.PaddingType.POWERS_OF_2,
+            num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
         ),
     )
     feature_dimensions = (
@@ -675,17 +675,17 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         converter
     )
     prior_features = types.ModelInput(
-        continuous=types.PaddedArray.as_padded(prior_features_continuous),
-        categorical=types.PaddedArray.as_padded(prior_features_categorical),
+        continuous=types.PaddedArray.as_padded(prior_features_continuous),  # pyrefly: ignore[bad-argument-type]
+        categorical=types.PaddedArray.as_padded(prior_features_categorical),  # pyrefly: ignore[bad-argument-type]
     )
     results = optimizer(
-        score_fn=score_fn,
+        score_fn=score_fn,  # pyrefly: ignore[bad-argument-type]
         count=count,
         prior_features=None if num_prior_trials == 0 else prior_features,
     )
 
     padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.MULTIPLES_OF_10,
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
     )
     padding_converter = converters.TrialToModelInputConverter.from_problem(
         problem,
@@ -699,7 +699,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
         categorical=padding_schedule.pad_features(prior_features_categorical),
     )
     padding_results = padding_optimizer(
-        score_fn=score_fn,
+        score_fn=score_fn,  # pyrefly: ignore[bad-argument-type]
         count=count,
         prior_features=None if num_prior_trials == 0 else padded_prior_features,
     )

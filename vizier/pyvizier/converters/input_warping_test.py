@@ -44,15 +44,15 @@ class InputWarpingTest(absltest.TestCase):
     search_space = vz.SearchSpace()
     for i in range(16):
       search_space.root.add_float_param(f"x{i}", 0.0, 1.0)
-    problem = vz.ProblemStatement(search_space)
+    problem = vz.ProblemStatement(search_space)  # pyrefly: ignore[bad-argument-count]
     converter = converters.TrialToArrayConverter.from_study_config(problem)
     input_warper = input_warping.KumaraswamyInputWarpingConverter(
-        converter, a=0.1, b=0.8
+        converter, a=0.1, b=0.8  # pyrefly: ignore[bad-argument-count, unexpected-keyword]
     )
 
-    trial1 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})
-    trial2 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})
-    trial3 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})
+    trial1 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})  # pyrefly: ignore[unexpected-keyword]
+    trial2 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})  # pyrefly: ignore[unexpected-keyword]
+    trial3 = vz.Trial(parameters={f"x{i}": rng.uniform() for i in range(16)})  # pyrefly: ignore[unexpected-keyword]
     trials = [trial1, trial2, trial3]
 
     features = input_warper.to_features(trials)
@@ -60,7 +60,7 @@ class InputWarpingTest(absltest.TestCase):
     parameters = input_warper.to_parameters(features)
     for trial_idx, trial in enumerate(trials):
       for i in range(16):
-        self.assertAlmostEqual(
+        self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
             parameters[trial_idx][f"x{i}"].value,
             trial.parameters[f"x{i}"].value,
         )
