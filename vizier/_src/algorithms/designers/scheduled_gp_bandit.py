@@ -54,10 +54,10 @@ class ScheduledGPBanditFactory:
         rate=self._decay_ucb_coefficient,
     )
 
-    return scheduled_designer.ScheduledDesigner(
+    return scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=self._gp_bandit_factory,
-        designer_state_updater=_gp_bandit_state_updater,
-        scheduled_params={'ucb_coefficient': ucb_coef_param},
-        expected_total_num_trials=self._expected_total_num_trials,
+        designer_factory=self._gp_bandit_factory,  # pyrefly: ignore[unexpected-keyword]
+        designer_state_updater=_gp_bandit_state_updater,  # pyrefly: ignore[unexpected-keyword]
+        scheduled_params={'ucb_coefficient': ucb_coef_param},  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=self._expected_total_num_trials,  # pyrefly: ignore[unexpected-keyword]
     )

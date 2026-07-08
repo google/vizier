@@ -48,8 +48,8 @@ class ScalarizingDesignerTest(absltest.TestCase):
 
     scalarized_designer = scalarizing_designer.ScalarizingDesigner(
         problem,
-        eagle_designer_factory,
-        scalarizer=scalarization.HyperVolumeScalarization(
+        eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+        scalarizer=scalarization.HyperVolumeScalarization(  # pyrefly: ignore[bad-argument-type]
             weights=jnp.ones(len(problem.metric_information))
         ),
     )
@@ -85,8 +85,8 @@ class ScalarizingDesignerTest(absltest.TestCase):
     scalarized_designer = (
         scalarizing_designer.create_gaussian_scalarizing_designer(
             problem,
-            eagle_designer_factory,
-            scalarization.HyperVolumeScalarization,
+            eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+            scalarization.HyperVolumeScalarization,  # pyrefly: ignore[bad-argument-type]
             num_ensemble=10,
         )
     )
@@ -121,8 +121,8 @@ class ScalarizingDesignerTest(absltest.TestCase):
 
     scalarized_designer = scalarizing_designer.ScalarizingDesigner(
         problem,
-        eagle_designer_factory,
-        scalarizer=scalarization.HyperVolumeScalarization(
+        eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+        scalarizer=scalarization.HyperVolumeScalarization(  # pyrefly: ignore[bad-argument-type]
             weights=jnp.ones(len(problem.metric_information))
         ),
     )

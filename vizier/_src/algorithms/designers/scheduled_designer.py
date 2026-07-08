@@ -167,7 +167,7 @@ class ScheduledDesigner(vza.PartiallySerializableDesigner):
       )
     try:
       self._num_incorporated_suggested_trials = int(
-          metadata.ns(self._metadata_ns)["suggested_num_trials"]
+          metadata.ns(self._metadata_ns)["suggested_num_trials"]  # pyrefly: ignore[bad-argument-type]
       )
     except Exception as e:
       raise serializable.FatalDecodeError(
@@ -228,7 +228,7 @@ class ScheduledDesigner(vza.PartiallySerializableDesigner):
     logging.info("Updated designer state with params: %s", params_values)
     return params_values
 
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:  # pyrefly: ignore[bad-override]
     """Suggest trials."""
     # Compute the scheduled param values and update the designer state.
     params_values = self._update_designer_state()

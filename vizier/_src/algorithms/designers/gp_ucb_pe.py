@@ -594,13 +594,13 @@ class SetPEScoreFunction(eqx.Module):
 
 
 def default_ard_optimizer() -> optimizers.Optimizer[types.ParameterDict]:
-  return optimizers.JaxoptScipyLbfgsB(
-      options=optimizers.LbfgsBOptions(
+  return optimizers.JaxoptScipyLbfgsB(  # pyrefly: ignore[bad-return]
+      options=optimizers.LbfgsBOptions(  # pyrefly: ignore[unexpected-keyword]
           num_line_search_steps=20,
           tol=1e-5,
           maxiter=500,
       ),
-      max_duration=datetime.timedelta(minutes=40),
+      max_duration=datetime.timedelta(minutes=40),  # pyrefly: ignore[unexpected-keyword]
   )
 
 
@@ -641,7 +641,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       kw_only=True,
       factory=lambda: VizierGPUCBPEBandit.default_acquisition_optimizer_factory,
   )
-  _gp_model_class: sp.ModelCoroutine[tfd.GaussianProcess] = attr.field(
+  _gp_model_class: sp.ModelCoroutine[tfd.GaussianProcess] = attr.field(  # pyrefly: ignore[bad-assignment]
       kw_only=True,
       factory=lambda: tuned_gp_models.VizierGaussianProcess,
   )
@@ -658,7 +658,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   _ard_random_restarts: int = attr.field(default=4, kw_only=True)
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
-  _config: UCBPEConfig = attr.field(
+  _config: UCBPEConfig = attr.field(  # pyrefly: ignore[bad-assignment]
       factory=UCBPEConfig,
       kw_only=True,
   )
@@ -819,16 +819,16 @@ class VizierGPUCBPEBandit(vza.Designer):
       # values it uses for the parameters.
       ard_loss_with_aux = lambda _: (_DUMMY_LOSS, dict())
     else:
-      ard_loss_with_aux = model.loss_with_aux
+      ard_loss_with_aux = model.loss_with_aux  # pyrefly: ignore[missing-attribute]
 
     logging.info(
         'Optimizing the loss function on features with shape '
         f'{_get_features_shape(data.features)} and labels with shape '
         f'{data.labels.shape}...'
     )
-    constraints = sp.get_constraints(model)
+    constraints = sp.get_constraints(model)  # pyrefly: ignore[bad-argument-type]
     rng, init_rng = jax.random.split(rng, 2)
-    random_init_params = eqx.filter_jit(eqx.filter_vmap(model.setup))(
+    random_init_params = eqx.filter_jit(eqx.filter_vmap(model.setup))(  # pyrefly: ignore[missing-attribute]
         jax.random.split(init_rng, self._ard_random_restarts)
     )
     fixed_init_params = {
@@ -859,7 +859,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         != multitask_tuned_gp_models.MultiTaskType.INDEPENDENT
     ):
       rng, extra_params_rng = jax.random.split(rng, 2)
-      extra_random_init_params = eqx.filter_jit(model.setup)(extra_params_rng)
+      extra_random_init_params = eqx.filter_jit(model.setup)(extra_params_rng)  # pyrefly: ignore[missing-attribute]
       for p_name, p_value in extra_random_init_params.items():
         if p_name not in fixed_init_params:
           fixed_init_params[p_name] = jnp.array([p_value])
@@ -871,7 +871,7 @@ class VizierGPUCBPEBandit(vza.Designer):
             fixed_init_params,
             random_init_params,
         ),
-        loss_fn=ard_loss_with_aux,
+        loss_fn=ard_loss_with_aux,  # pyrefly: ignore[bad-argument-type]
         rng=rng,
         constraints=constraints,
         best_n=best_n,
@@ -879,7 +879,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     # The `"loss"` field of the `metrics` output of ARD optimizers contains an
     # array of losses of shape `[num_steps, num_random_restarts]` (or
     # `[1, num_random_restarts]` if only the final loss is recorded).
-    if jnp.any(metrics['loss'][-1, :].argsort()[:best_n] == 0):
+    if jnp.any(metrics['loss'][-1, :].argsort()[:best_n] == 0):  # pyrefly: ignore[bad-index]
       logging.info(
           'Parameters found by fixed initialization are among the best'
           f' {best_n} parameters.'
@@ -891,7 +891,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       )
 
     logging.info('Optimal parameters: %s', optimal_params)
-    return sp.StochasticProcessWithCoroutine(coroutine, optimal_params)
+    return sp.StochasticProcessWithCoroutine(coroutine, optimal_params)  # pyrefly: ignore[bad-return]
 
   def get_score_fn_on_trials(
       self, score_fn: Callable[[types.ModelInput], jax.Array]
@@ -931,12 +931,12 @@ class VizierGPUCBPEBandit(vza.Designer):
       warped_labels.append(output_warper.warp(unpadded_labels[:, i : i + 1]))
       self._output_warpers.append(output_warper)
     labels = types.PaddedArray.from_array(
-        np.concatenate(warped_labels, axis=-1),
+        np.concatenate(warped_labels, axis=-1),  # pyrefly: ignore[bad-argument-type]
         data.labels.padded_array.shape,
         fill_value=data.labels.fill_value,
     )
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
-    return types.ModelData(features=data.features, labels=labels)
+    return types.ModelData(features=data.features, labels=labels)  # pyrefly: ignore[bad-return]
 
   @profiler.record_runtime(
       name_prefix='VizierGPUCBPEBandit', name='get_predictive_all_features'
@@ -994,13 +994,13 @@ class VizierGPUCBPEBandit(vza.Designer):
     all_labels = self._padding_schedule.pad_labels(all_labels)
     all_data = types.ModelData(features=all_features, labels=all_labels)
     if noise_is_high:
-      pe_params = dict(copy.deepcopy(model.params))
+      pe_params = dict(copy.deepcopy(model.params))  # pyrefly: ignore[no-matching-overload]
       pe_params['observation_noise_variance'] = jnp.array([1e-10])
       pe_model = sp.StochasticProcessWithCoroutine(model.coroutine, pe_params)
     else:
       pe_model = model
-    return sp.UniformEnsemblePredictive(
-        predictives=eqx.filter_jit(pe_model.precompute_predictive)(all_data)
+    return sp.UniformEnsemblePredictive(  # pyrefly: ignore[bad-return]
+        predictives=eqx.filter_jit(pe_model.precompute_predictive)(all_data)  # pyrefly: ignore[missing-attribute]
     )
 
   def _suggest_one(
@@ -1015,8 +1015,8 @@ class VizierGPUCBPEBandit(vza.Designer):
     """Generates one suggestion."""
     start_time = datetime.datetime.now()
     self._rng, rng = jax.random.split(self._rng, 2)
-    snr = model.params['signal_variance'] / jnp.maximum(
-        model.params['observation_noise_variance'], 1e-12
+    snr = model.params['signal_variance'] / jnp.maximum(  # pyrefly: ignore[bad-index, unsupported-operation]
+        model.params['observation_noise_variance'], 1e-12  # pyrefly: ignore[bad-argument-type, bad-index]
     )
     noise_is_high = (snr < self._config.signal_to_noise_threshold).all()
     pe_overwrite_probability = (
@@ -1082,13 +1082,13 @@ class VizierGPUCBPEBandit(vza.Designer):
       acq_rng, self._rng = jax.random.split(self._rng)
       with profiler.timeit('acquisition_optimizer', also_log=True):
         best_candidates = eqx.filter_jit(acquisition_optimizer)(
-            scoring_fn.score,
+            scoring_fn.score,  # pyrefly: ignore[missing-attribute]
             prior_features=vb.trials_to_sorted_array(
                 self._all_completed_trials, self._converter
             ),
             count=1,
             seed=acq_rng,
-            score_with_aux_fn=scoring_fn.score_with_aux,
+            score_with_aux_fn=scoring_fn.score_with_aux,  # pyrefly: ignore[missing-attribute]
         )
         jax.block_until_ready(best_candidates)
       with profiler.timeit('best_candidates_to_trials', also_log=True):
@@ -1097,9 +1097,9 @@ class VizierGPUCBPEBandit(vza.Designer):
         )[0]
     elif isinstance(acquisition_optimizer, vza.GradientFreeOptimizer):
       # Seed the optimizer with previous trials.
-      acquisition = self.get_score_fn_on_trials(scoring_fn.score)
+      acquisition = self.get_score_fn_on_trials(scoring_fn.score)  # pyrefly: ignore[missing-attribute]
       best_candidate = acquisition_optimizer.optimize(
-          acquisition,
+          acquisition,  # pyrefly: ignore[bad-argument-type]
           acquisition_problem,
           count=1,
           seed_candidates=copy.deepcopy(self._all_completed_trials),
@@ -1112,7 +1112,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     # Make predictions (in the warped space).
     logging.info('Converting the optimization result into suggestion...')
     optimal_features = self._converter.to_features([best_candidate])  # [1, D]
-    aux = eqx.filter_jit(scoring_fn.aux)(optimal_features)
+    aux = eqx.filter_jit(scoring_fn.aux)(optimal_features)  # pyrefly: ignore[missing-attribute]
     predict_mean = aux['mean']  # [1,]
     predict_stddev = aux['stddev']  # [1,]
     predict_stddev_from_all = aux['stddev_from_all']  # [1,]
@@ -1165,8 +1165,8 @@ class VizierGPUCBPEBandit(vza.Designer):
   ):
     """Generates a batch of suggestions with exploration."""
     start_time = datetime.datetime.now()
-    snr = model.params['signal_variance'] / jnp.maximum(
-        model.params['observation_noise_variance'], 1e-12
+    snr = model.params['signal_variance'] / jnp.maximum(  # pyrefly: ignore[bad-index, unsupported-operation]
+        model.params['observation_noise_variance'], 1e-12  # pyrefly: ignore[bad-argument-type, bad-index]
     )
     pending_features = self._converter.to_features(active_trials)
     predictive_all_features = self._get_predictive_all_features(
@@ -1189,8 +1189,8 @@ class VizierGPUCBPEBandit(vza.Designer):
 
     acq_rng, self._rng = jax.random.split(self._rng)
     with profiler.timeit('acquisition_optimizer', also_log=True):
-      best_candidates = eqx.filter_jit(acquisition_optimizer)(
-          scoring_fn.score,
+      best_candidates = eqx.filter_jit(acquisition_optimizer)(  # pyrefly: ignore[bad-argument-type]
+          scoring_fn.score,  # pyrefly: ignore[missing-attribute]
           prior_features=vb.trials_to_sorted_array(
               self._all_completed_trials, self._converter
           ),
@@ -1206,7 +1206,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       ]
 
     optimal_features = self._converter.to_features(trials)  # [count, D]
-    aux = eqx.filter_jit(scoring_fn.aux)(
+    aux = eqx.filter_jit(scoring_fn.aux)(  # pyrefly: ignore[missing-attribute]
         jax.tree_util.tree_map(
             lambda x: jnp.expand_dims(x, axis=0), optimal_features
         )
@@ -1294,7 +1294,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         categorical=xs.categorical.replace_fill_value(0),
     )
     samples = eqx.filter_jit(acquisitions.sample_from_predictive)(
-        predictive, xs, num_samples, key=rng
+        predictive, xs, num_samples, key=rng  # pyrefly: ignore[bad-argument-type]
     )
     # Scope `samples` to non-padded only (there's a single padded dimension).
     # `samples` has shape: [num_samples, num_trials] for single metric or
@@ -1415,7 +1415,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     if count <= 1:
       return [
           self._suggest_one(
-              active_trials, data, model, predictive, tr, acquisition_problem
+              active_trials, data, model, predictive, tr, acquisition_problem  # pyrefly: ignore[bad-argument-type]
           )
       ]
 
@@ -1427,18 +1427,18 @@ class VizierGPUCBPEBandit(vza.Designer):
       ):
         suggestions.append(
             self._suggest_one(
-                active_trials, data, model, predictive, tr, acquisition_problem
+                active_trials, data, model, predictive, tr, acquisition_problem  # pyrefly: ignore[bad-argument-type]
             )
         )
         active_trials.append(suggestions[-1].to_trial())
       return suggestions + self._suggest_batch_with_exploration(
-          count - len(suggestions), active_trials, data, model, predictive, tr
+          count - len(suggestions), active_trials, data, model, predictive, tr  # pyrefly: ignore[bad-argument-type]
       )
     else:
       for _ in range(count):
         suggestions.append(
             self._suggest_one(
-                active_trials, data, model, predictive, tr, acquisition_problem
+                active_trials, data, model, predictive, tr, acquisition_problem  # pyrefly: ignore[bad-argument-type]
             )
         )
         active_trials.append(suggestions[-1].to_trial())

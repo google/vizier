@@ -83,8 +83,8 @@ class QuasiRandomTest(absltest.TestCase):
           suggestion.parameters[i_dim].value for suggestion in suggestions
       ]
       # Test that in every dimension, we cover the full range.
-      self.assertGreater(max(float_points), 0.998)
-      self.assertLess(min(float_points), 0.002)
+      self.assertGreater(max(float_points), 0.998)  # pyrefly: ignore[no-matching-overload]
+      self.assertLess(min(float_points), 0.002)  # pyrefly: ignore[no-matching-overload]
 
   def test_equal_seeds(self):
     problem = vz.ProblemStatement()
@@ -111,14 +111,14 @@ class QuasiRandomTest(absltest.TestCase):
     policy = designer_policy.PartiallySerializableDesignerPolicy(
         problem,
         policy_supporter,
-        quasi_random.QuasiRandomDesigner.from_problem,
+        quasi_random.QuasiRandomDesigner.from_problem,  # pyrefly: ignore[bad-argument-type]
     )
 
     # Make sure outputs are distinct.
     all_suggestions = []
     for _ in range(1000):
-      request = pythia.SuggestRequest(
-          study_descriptor=policy_supporter.study_descriptor(), count=1
+      request = pythia.SuggestRequest(  # pyrefly: ignore[missing-argument]
+          study_descriptor=policy_supporter.study_descriptor(), count=1  # pyrefly: ignore[unexpected-keyword]
       )
       decisions = policy.suggest(request)
       all_suggestions.extend(decisions.suggestions)

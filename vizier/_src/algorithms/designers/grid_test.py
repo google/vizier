@@ -128,8 +128,8 @@ class GridSearchTest(parameterized.TestCase):
     # Make sure we covered entire search space.
     all_suggestions = []
     for _ in range(self.search_space_size):
-      request = pythia.SuggestRequest(
-          study_descriptor=policy_supporter.study_descriptor(), count=1
+      request = pythia.SuggestRequest(  # pyrefly: ignore[missing-argument]
+          study_descriptor=policy_supporter.study_descriptor(), count=1  # pyrefly: ignore[unexpected-keyword]
       )
       decisions = policy.suggest(request)
       all_suggestions.extend(decisions.suggestions)

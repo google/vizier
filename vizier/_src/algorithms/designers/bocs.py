@@ -318,7 +318,7 @@ class _GibbsLinearRegressor:
     if self._X_inf.shape[0] != 0 and np.equal(x, self._X_inf).all(axis=1).any():
       barrier = np.inf
 
-    return np.dot(x_all, self._alpha) + barrier
+    return np.dot(x_all, self._alpha) + barrier  # pyrefly: ignore[bad-argument-type]
 
   def _order_effects(self, X: np.ndarray) -> np.ndarray:
     """Function computes data matrix for all coupling."""
@@ -498,9 +498,9 @@ class SemiDefiniteProgramming(AcquisitionOptimizer):
 
     # Extract vectors and compute Cholesky.
     try:
-      L = np.linalg.cholesky(X.value)
+      L = np.linalg.cholesky(X.value)  # pyrefly: ignore[no-matching-overload]
     except np.linalg.LinAlgError:
-      XpI = X.value + 1e-15 * np.eye(self._num_vars + 1)
+      XpI = X.value + 1e-15 * np.eye(self._num_vars + 1)  # pyrefly: ignore[unsupported-operation]
       L = np.linalg.cholesky(XpI)
 
     suggest_vect = np.zeros((self._num_vars, self._num_repeats))

@@ -47,7 +47,7 @@ class UnsafeAsInfeasibleDesignerTest(absltest.TestCase):
       )
 
     safe_eagle = unsafe_as_infeasible_designer.UnsafeAsInfeasibleDesigner(
-        problem, eagle_designer_factory
+        problem, eagle_designer_factory  # pyrefly: ignore[bad-argument-type]
     )
 
     self.assertLen(
@@ -87,14 +87,14 @@ class UnsafeAsInfeasibleDesignerTest(absltest.TestCase):
     def scalarized_eagle_factory(ps, seed):
       return scalarizing_designer.create_gaussian_scalarizing_designer(
           ps,
-          eagle_designer_factory,
-          scalarization.HyperVolumeScalarization,
+          eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
+          scalarization.HyperVolumeScalarization,  # pyrefly: ignore[bad-argument-type]
           num_ensemble=3,
           seed=seed,
       )
 
     safe_eagle = unsafe_as_infeasible_designer.UnsafeAsInfeasibleDesigner(
-        problem, scalarized_eagle_factory
+        problem, scalarized_eagle_factory  # pyrefly: ignore[bad-argument-type]
     )
 
     self.assertLen(

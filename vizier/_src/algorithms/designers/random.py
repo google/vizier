@@ -50,7 +50,7 @@ class RandomDesigner(vza.Designer):
     def create_input_converter(pc):
       # Setting 'max_discrete_indices' to not continuify DISCRETE parameters.
       return converters.DefaultModelInputConverter(
-          pc, scale=True, max_discrete_indices=np.inf, float_dtype=dtype
+          pc, scale=True, max_discrete_indices=np.inf, float_dtype=dtype  # pyrefly: ignore[bad-argument-type]
       )
 
     self._converter = converters.DefaultTrialConverter(
@@ -85,7 +85,7 @@ class RandomDesigner(vza.Designer):
     sample = dict()
     for name, spec in self._converter.output_specs.items():
       if spec.type == converters.NumpyArraySpecType.DISCRETE:
-        sample[name] = self._rng.randint(
+        sample[name] = self._rng.randint(  # pyrefly: ignore[no-matching-overload]
             spec.bounds[0], spec.bounds[1] - spec.num_oovs + 1, size=[count, 1]
         )
       elif spec.type == converters.NumpyArraySpecType.CONTINUOUS:

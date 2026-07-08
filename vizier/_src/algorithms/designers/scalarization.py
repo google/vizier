@@ -130,6 +130,6 @@ class LinearAugmentedScalarization(Scalarization):
   ) -> jt.Float[jax.Array, '*NumBatch']:
     return self.scalarization_factory(self.weights)(
         objectives
-    ) + self.augment_weight * LinearScalarization(weights=self.weights)(
+    ) + self.augment_weight * LinearScalarization(weights=self.weights)(  # pyrefly: ignore[not-callable]
         objectives
     )

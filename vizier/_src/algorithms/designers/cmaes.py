@@ -116,7 +116,7 @@ class CMAESDesigner(vza.PartiallySerializableDesigner):
 
   def load(self, metadata: vz.Metadata) -> None:
     cma_state = json.loads(
-        metadata.ns('cma')['state'], object_hook=json_utils.numpy_hook)
+        metadata.ns('cma')['state'], object_hook=json_utils.numpy_hook)  # pyrefly: ignore[bad-argument-type]
     self._cma_es_jax.load_state(cma_state)
 
   def dump(self) -> vz.Metadata:

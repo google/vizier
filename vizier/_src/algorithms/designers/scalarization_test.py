@@ -25,25 +25,25 @@ class ScalarizationsTest(absltest.TestCase):
     scalarizer = scalarization.LinearScalarization(
         weights=jnp.array([0.1, 0.2])
     )
-    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 1.2)
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 1.2)  # pyrefly: ignore[not-callable]
 
   def test_chebyshev_scalarizer(self):
     scalarizer = scalarization.ChebyshevScalarization(
         weights=jnp.array([0.1, 0.2])
     )
-    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 0.3)
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 0.3)  # pyrefly: ignore[not-callable]
 
   def test_hypervolume_scalarizer(self):
     scalarizer = scalarization.HyperVolumeScalarization(
         weights=jnp.array([0.1, 0.2])
     )
-    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 506.25)
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 506.25)  # pyrefly: ignore[not-callable]
 
   def test_hypervolume_scalarizer_with_reference(self):
     scalarizer = scalarization.HyperVolumeScalarization(
         weights=jnp.array([0.1, 0.2]), reference_point=jnp.array([-1])
     )
-    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 756.25)
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 756.25)  # pyrefly: ignore[not-callable]
 
   def test_augmented_scalarizer(self):
     scalarizer = scalarization.LinearAugmentedScalarization(
@@ -51,7 +51,7 @@ class ScalarizationsTest(absltest.TestCase):
         scalarization_factory=scalarization.HyperVolumeScalarization,
     )
     # Should be the sum of hypervolume and linear scalarizations.
-    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 507.45)
+    self.assertAlmostEqual(scalarizer(jnp.array([3.0, 4.5])), 507.45)  # pyrefly: ignore[not-callable]
 
 if __name__ == "__main__":
   absltest.main()

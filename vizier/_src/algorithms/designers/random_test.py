@@ -55,7 +55,7 @@ class RandomTest(absltest.TestCase):
     # LINEAR scaling.
     sum_lineardouble = 0.0
     for t in trials:
-      sum_lineardouble += t.parameters['lineardouble'].value
+      sum_lineardouble += t.parameters['lineardouble'].value  # pyrefly: ignore[unsupported-operation]
     avg_lineardouble = sum_lineardouble / len(trials)
     # Delta=0.16 corresponds to ~6 standard deviations, so the probability of
     # accidental test failure is ~1e-6.
@@ -64,8 +64,8 @@ class RandomTest(absltest.TestCase):
     sum_log_logdouble = 0.0
     sum_logdouble = 0.0
     for t in trials:
-      sum_logdouble += t.parameters['logdouble'].value
-      sum_log_logdouble += math.log(t.parameters['logdouble'].value)
+      sum_logdouble += t.parameters['logdouble'].value  # pyrefly: ignore[unsupported-operation]
+      sum_log_logdouble += math.log(t.parameters['logdouble'].value)  # pyrefly: ignore[bad-argument-type]
     avg_logdouble = sum_logdouble / len(trials)
     avg_log_logdouble = sum_log_logdouble / len(trials)
     # If the distribution were LINEAR, we'd expect avg_logdouble = 50;

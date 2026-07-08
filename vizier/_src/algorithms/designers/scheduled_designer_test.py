@@ -49,7 +49,7 @@ class MockParameterizedDesigner(vza.Designer):
     del completed
     del all_active
 
-  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:
+  def suggest(self, count: int = 1) -> Sequence[vz.TrialSuggestion]:  # pyrefly: ignore[bad-override]
     """Suggest trials."""
     return random.RandomDesigner(self.problem.search_space).suggest(count)
 
@@ -83,12 +83,12 @@ class ScheduledDesignerTest(absltest.TestCase):
     param2 = scheduled_designer.ExponentialScheduledParam(
         init_value=1.5, final_value=20.1, rate=1.7
     )
-    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=MockParameterizedDesigner,
-        designer_state_updater=DirectDesignerStateUpdater(),
-        scheduled_params={"parameter1": param1, "parameter2": param2},
-        expected_total_num_trials=expected_total_num_trials,
+        designer_factory=MockParameterizedDesigner,  # pyrefly: ignore[unexpected-keyword]
+        designer_state_updater=DirectDesignerStateUpdater(),  # pyrefly: ignore[unexpected-keyword]
+        scheduled_params={"parameter1": param1, "parameter2": param2},  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=expected_total_num_trials,  # pyrefly: ignore[unexpected-keyword]
     )
     # Check initial values.
     self.assertEqual(mock_scheduled_designer.designer.parameter1, 10.5)  # pytype: disable=attribute-error
@@ -125,12 +125,12 @@ class ScheduledDesignerTest(absltest.TestCase):
     param2 = scheduled_designer.ExponentialScheduledParam(
         init_value=1.5, final_value=20.1, rate=1.7
     )
-    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=MockParameterizedDesigner,
-        designer_state_updater=DirectDesignerStateUpdater(),
-        scheduled_params={"parameter1": param1, "parameter2": param2},
-        expected_total_num_trials=10,
+        designer_factory=MockParameterizedDesigner,  # pyrefly: ignore[unexpected-keyword]
+        designer_state_updater=DirectDesignerStateUpdater(),  # pyrefly: ignore[unexpected-keyword]
+        scheduled_params={"parameter1": param1, "parameter2": param2},  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=10,  # pyrefly: ignore[unexpected-keyword]
     )
     # Generate active and completed trials.
     active_trials = test_studies.flat_continuous_space_with_scaling_trials(2)
@@ -165,12 +165,12 @@ class ScheduledDesignerTest(absltest.TestCase):
     param2 = scheduled_designer.ExponentialScheduledParam(
         init_value=1.5, final_value=20.1, rate=1.7
     )
-    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+    mock_scheduled_designer = scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=MockParameterizedDesigner,
-        designer_state_updater=DirectDesignerStateUpdater(),
-        scheduled_params={"parameter1": param1, "parameter2": param2},
-        expected_total_num_trials=expected_total_num_trials,
+        designer_factory=MockParameterizedDesigner,  # pyrefly: ignore[unexpected-keyword]
+        designer_state_updater=DirectDesignerStateUpdater(),  # pyrefly: ignore[unexpected-keyword]
+        scheduled_params={"parameter1": param1, "parameter2": param2},  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=expected_total_num_trials,  # pyrefly: ignore[unexpected-keyword]
     )
     # Making several suggestions so the state would change.
     mock_scheduled_designer.suggest(count=1)
@@ -178,12 +178,12 @@ class ScheduledDesignerTest(absltest.TestCase):
     # Store the state in metadata.
     state = mock_scheduled_designer.dump()
     # Create a new designer and load state.
-    new_mock_scheduled_designer = scheduled_designer.ScheduledDesigner(
+    new_mock_scheduled_designer = scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=MockParameterizedDesigner,
-        designer_state_updater=DirectDesignerStateUpdater(),
-        scheduled_params={"parameter1": param1, "parameter2": param2},
-        expected_total_num_trials=expected_total_num_trials,
+        designer_factory=MockParameterizedDesigner,  # pyrefly: ignore[unexpected-keyword]
+        designer_state_updater=DirectDesignerStateUpdater(),  # pyrefly: ignore[unexpected-keyword]
+        scheduled_params={"parameter1": param1, "parameter2": param2},  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=expected_total_num_trials,  # pyrefly: ignore[unexpected-keyword]
     )
     new_mock_scheduled_designer.load(state)
     self.assertEqual(
@@ -206,12 +206,12 @@ class ScheduledGpBanditTest(absltest.TestCase):
     def _gp_bandit_factory(problem):
       return gp_bandit.VizierGPBandit(problem)
 
-    scheduled_desinger = scheduled_gp_bandit.ScheduledGPBanditFactory(
-        gp_bandit_factory=_gp_bandit_factory,
-        expected_total_num_trials=2,
-        init_ucb_coefficient=4.0,
-        final_ucb_coefficient=1.0,
-        decay_ucb_coefficient=1.2,
+    scheduled_desinger = scheduled_gp_bandit.ScheduledGPBanditFactory(  # pyrefly: ignore[missing-argument]
+        gp_bandit_factory=_gp_bandit_factory,  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=2,  # pyrefly: ignore[unexpected-keyword]
+        init_ucb_coefficient=4.0,  # pyrefly: ignore[unexpected-keyword]
+        final_ucb_coefficient=1.0,  # pyrefly: ignore[unexpected-keyword]
+        decay_ucb_coefficient=1.2,  # pyrefly: ignore[unexpected-keyword]
     )(problem)
 
     self.assertLen(
@@ -244,18 +244,18 @@ class ScheduledGpUcbPeTest(absltest.TestCase):
     ) -> gp_ucb_pe.VizierGPUCBPEBandit:
       return gp_ucb_pe.VizierGPUCBPEBandit(problem)
 
-    scheduled_desinger = scheduled_gp_ucb_pe.ScheduledGPUCBPEFactory(
-        gp_ucb_pe_factory=_gp_ucb_pe_factory,
-        expected_total_num_trials=10,
-        init_ucb_coefficient=4.0,
-        final_ucb_coefficient=1.0,
-        decay_ucb_coefficient=1.2,
-        init_explore_region_ucb_coefficient=1.0,
-        final_explore_region_ucb_coefficient=0.5,
-        decay_explore_region_ucb_coefficient=1.2,
-        init_ucb_overwrite_probability=0.25,
-        final_ucb_overwrite_probability=0.0,
-        decay_ucb_overwrite_probability=1.0,
+    scheduled_desinger = scheduled_gp_ucb_pe.ScheduledGPUCBPEFactory(  # pyrefly: ignore[missing-argument]
+        gp_ucb_pe_factory=_gp_ucb_pe_factory,  # pyrefly: ignore[unexpected-keyword]
+        expected_total_num_trials=10,  # pyrefly: ignore[unexpected-keyword]
+        init_ucb_coefficient=4.0,  # pyrefly: ignore[unexpected-keyword]
+        final_ucb_coefficient=1.0,  # pyrefly: ignore[unexpected-keyword]
+        decay_ucb_coefficient=1.2,  # pyrefly: ignore[unexpected-keyword]
+        init_explore_region_ucb_coefficient=1.0,  # pyrefly: ignore[unexpected-keyword]
+        final_explore_region_ucb_coefficient=0.5,  # pyrefly: ignore[unexpected-keyword]
+        decay_explore_region_ucb_coefficient=1.2,  # pyrefly: ignore[unexpected-keyword]
+        init_ucb_overwrite_probability=0.25,  # pyrefly: ignore[unexpected-keyword]
+        final_ucb_overwrite_probability=0.0,  # pyrefly: ignore[unexpected-keyword]
+        decay_ucb_overwrite_probability=1.0,  # pyrefly: ignore[unexpected-keyword]
     )(problem)
 
     self.assertLen(

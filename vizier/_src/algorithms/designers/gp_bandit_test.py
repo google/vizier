@@ -84,7 +84,7 @@ def _setup_lambda_search(
   problem = vz.ProblemStatement(
       search_space=search_space,
       metric_information=vz.MetricsConfig(
-          metrics=[
+          metrics=[  # pyrefly: ignore[unexpected-keyword]
               vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
           ]
       ),
@@ -98,10 +98,10 @@ def _setup_lambda_search(
   for idx, suggestion in enumerate(suggestions):
     trial = suggestion.to_trial(idx)
     x = suggestions[idx].parameters['x0'].value
-    trial.complete(vz.Measurement(metrics={'obj': f(x)}))
+    trial.complete(vz.Measurement(metrics={'obj': f(x)}))  # pyrefly: ignore[bad-argument-type]
     obs_trials.append(trial)
 
-  gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)
+  gp_designer = gp_bandit.VizierGPBandit(problem, ard_optimizer=ard_optimizer)  # pyrefly: ignore[unexpected-keyword]
   return gp_designer, obs_trials, problem
 
 
@@ -140,8 +140,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
           batch_size=5,
           num_seed_trials=5,
           padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+              num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
           ),
       ),
       dict(
@@ -149,15 +149,15 @@ class GoogleGpBanditTest(parameterized.TestCase):
           batch_size=1,
           num_seed_trials=3,
           padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
+              num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+              num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
           ),
           acquisition_optimizer_factory=lbfgsb_optimizer_factory,
       ),
       dict(
           padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.POWERS_OF_2,
-              num_features=padding.PaddingType.POWERS_OF_2,
+              num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+              num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
           ),
           ensemble_size=3,
       ),
@@ -186,18 +186,18 @@ class GoogleGpBanditTest(parameterized.TestCase):
         )
     )
 
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=acquisition_optimizer_factory,
-        ard_optimizer=optimizers.JaxoptLbfgsB(
+    designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=acquisition_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[unexpected-keyword]
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
-        num_seed_trials=num_seed_trials,
-        ensemble_size=ensemble_size,
-        padding_schedule=padding_schedule,
-        use_trust_region=use_trust_region,
-        rng=jax.random.PRNGKey(0),
-        linear_coef=0.1,
+        num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
+        ensemble_size=ensemble_size,  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding_schedule,  # pyrefly: ignore[unexpected-keyword]
+        use_trust_region=use_trust_region,  # pyrefly: ignore[unexpected-keyword]
+        rng=jax.random.PRNGKey(0),  # pyrefly: ignore[unexpected-keyword]
+        linear_coef=0.1,  # pyrefly: ignore[unexpected-keyword]
     )
     with profiler.collect_events() as events:
       self.assertLen(
@@ -243,8 +243,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
           batch_size=5,
           num_seed_trials=5,
           padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.POWERS_OF_2,
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+              num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
           ),
       ),
   )
@@ -262,12 +262,12 @@ class GoogleGpBanditTest(parameterized.TestCase):
             name='metric', goal=vz.ObjectiveMetricGoal.MAXIMIZE
         )
     )
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        num_seed_trials=num_seed_trials,
-        padding_schedule=padding_schedule,
-        use_trust_region=use_trust_region,
+    designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+        num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding_schedule,  # pyrefly: ignore[unexpected-keyword]
+        use_trust_region=use_trust_region,  # pyrefly: ignore[unexpected-keyword]
     )
     self.assertLen(
         test_runners.RandomMetricsRunner(
@@ -320,22 +320,22 @@ class GoogleGpBanditTest(parameterized.TestCase):
     # on ARD again.
     noop_ard_optimizer = optimizers.default_optimizer(maxiter=0)
     desinger_rng = jax.random.PRNGKey(0)
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=acquisition_optimizer_factory,
-        ard_optimizer=noop_ard_optimizer,
-        num_seed_trials=num_seed_trials,
-        rng=desinger_rng,
+    designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=acquisition_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=noop_ard_optimizer,  # pyrefly: ignore[unexpected-keyword]
+        num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
+        rng=desinger_rng,  # pyrefly: ignore[unexpected-keyword]
     )
-    padding_designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=acquisition_optimizer_factory,
-        ard_optimizer=noop_ard_optimizer,
-        num_seed_trials=num_seed_trials,
-        padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.MULTIPLES_OF_10,
+    padding_designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=acquisition_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=noop_ard_optimizer,  # pyrefly: ignore[unexpected-keyword]
+        num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
+            num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
         ),
-        rng=desinger_rng,
+        rng=desinger_rng,  # pyrefly: ignore[unexpected-keyword]
     )
     metrics_runner_seed = 1
     designer_suggestions = test_runners.RandomMetricsRunner(
@@ -394,14 +394,14 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
 
     def create_designer(problem):
-      return gp_bandit.VizierGPBandit(
-          problem=problem,
-          acquisition_optimizer_factory=vectorized_optimizer_factory,
-          num_seed_trials=3,
-          ensemble_size=2,
-          padding_schedule=padding.PaddingSchedule(
-              num_trials=padding.PaddingType.MULTIPLES_OF_10,
-              num_features=padding.PaddingType.MULTIPLES_OF_10,
+      return gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+          problem=problem,  # pyrefly: ignore[unexpected-keyword]
+          acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+          num_seed_trials=3,  # pyrefly: ignore[unexpected-keyword]
+          ensemble_size=2,  # pyrefly: ignore[unexpected-keyword]
+          padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
+              num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+              num_features=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
           ),
       )
 
@@ -447,19 +447,19 @@ class GoogleGpBanditTest(parameterized.TestCase):
 
     n_parallel = 4
     iters = 3
-    designer = gp_bandit.VizierGPBandit(
-        problem=problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,
-        ard_optimizer=optimizers.JaxoptLbfgsB(
+    designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
+        problem=problem,  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[unexpected-keyword]
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
-        scoring_function_factory=scoring_fn_factory,
-        scoring_function_is_parallel=True,
-        use_trust_region=False,
-        num_seed_trials=n_parallel,
-        ensemble_size=3,
-        rng=jax.random.PRNGKey(0),
-        linear_coef=0.1,
+        scoring_function_factory=scoring_fn_factory,  # pyrefly: ignore[unexpected-keyword]
+        scoring_function_is_parallel=True,  # pyrefly: ignore[unexpected-keyword]
+        use_trust_region=False,  # pyrefly: ignore[unexpected-keyword]
+        num_seed_trials=n_parallel,  # pyrefly: ignore[unexpected-keyword]
+        ensemble_size=3,  # pyrefly: ignore[unexpected-keyword]
+        rng=jax.random.PRNGKey(0),  # pyrefly: ignore[unexpected-keyword]
+        linear_coef=0.1,  # pyrefly: ignore[unexpected-keyword]
     )
     self.assertLen(
         test_runners.RandomMetricsRunner(
@@ -485,7 +485,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     problem = vz.ProblemStatement(
         search_space=search_space,
         metric_information=vz.MetricsConfig(
-            metrics=[
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
                 vz.MetricInformation(
                     'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),
@@ -497,7 +497,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     )
 
     iters = 2
-    designer = gp_bandit.VizierGPBandit(problem, multitask_type=multitask_type)
+    designer = gp_bandit.VizierGPBandit(problem, multitask_type=multitask_type)  # pyrefly: ignore[unexpected-keyword]
     self.assertLen(
         test_runners.RandomMetricsRunner(
             problem,
@@ -528,11 +528,11 @@ class GPBanditSimplekDTest(parameterized.TestCase):
         best_category=best_category,
         designer_factory=(
             # pylint: disable=g-long-lambda
-            lambda problem, seed: gp_bandit.VizierGPBandit(
+            lambda problem, seed: gp_bandit.VizierGPBandit(  # pyrefly: ignore[bad-argument-type]
                 problem,
-                rng=jax.random.PRNGKey(seed),
-                padding_schedule=padding.PaddingSchedule(
-                    num_trials=padding.PaddingType.MULTIPLES_OF_10
+                rng=jax.random.PRNGKey(seed),  # pyrefly: ignore[unexpected-keyword]
+                padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
+                    num_trials=padding.PaddingType.MULTIPLES_OF_10  # pyrefly: ignore[unexpected-keyword]
                 ),
             )
         ),

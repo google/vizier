@@ -84,7 +84,7 @@ class ScalarizingDesigner(vza.Designer):
       ]
       # Simply append the scalarized value.
       trial.final_measurement_or_die.metrics[self._scalarized_metric_name] = (
-          self._scalarizer(jnp.array(objectives))
+          self._scalarizer(jnp.array(objectives))  # pyrefly: ignore[unsupported-operation]
       )
 
     self._designer.update(completed, all_active)

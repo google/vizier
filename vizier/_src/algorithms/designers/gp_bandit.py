@@ -206,7 +206,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     empty_data = types.ModelData(
         features=self._converter.to_features([]),
         labels=types.PaddedArray.as_padded(
-            np.zeros((0, len(self._problem.metric_information)))
+            np.zeros((0, len(self._problem.metric_information)))  # pyrefly: ignore[bad-argument-type]
         ),
     )
 
@@ -243,16 +243,16 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     # Additional validations
     coroutine = gp_models.get_vizier_gp_coroutine(
-        empty_data, multitask_type=self._multitask_type
+        empty_data, multitask_type=self._multitask_type  # pyrefly: ignore[bad-argument-type]
     )
-    params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)
+    params = sp.CoroutineWithData(coroutine, empty_data).setup(self._rng)  # pyrefly: ignore[missing-attribute]
     model = sp.StochasticProcessWithCoroutine(coroutine, params)
     predictive = sp.UniformEnsemblePredictive(
-        eqx.filter_jit(model.precompute_predictive)(empty_data)
+        eqx.filter_jit(model.precompute_predictive)(empty_data)  # pyrefly: ignore[missing-attribute]
     )
     scoring_fn = self._scoring_function_factory(
-        empty_data,
-        predictive,
+        empty_data,  # pyrefly: ignore[bad-argument-type]
+        predictive,  # pyrefly: ignore[bad-argument-type]
         self._converter.continuous_feasible_values(
             max_num_feasible_values=_MAX_NUM_FEASIBLE_VALUES_FOR_TRUST_REGION
         ),
@@ -260,7 +260,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     )
     if (
         isinstance(scoring_fn, acq_lib.MaxValueEntropySearch)
-        and self._ensemble_size > 1
+        and self._ensemble_size > 1  # pyrefly: ignore[unsupported-operation]
     ):
       raise ValueError(
           'MaxValueEntropySearch is not supported with ensemble '
@@ -397,14 +397,14 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         fill_value=model_data.labels.fill_value,
     )
     logging.info('Transformed the labels. Now has shape: %s', labels.shape)
-    return types.ModelData(model_data.features, labels)
+    return types.ModelData(model_data.features, labels)  # pyrefly: ignore[bad-return]
 
   @_experimental_override_allowed
   def _create_gp_spec(
       self, data: types.ModelData, ard_rng: jax.Array
   ) -> gp_models.GPTrainingSpec:
     """Overrideable creation of a training spec for a GP model."""
-    return gp_models.GPTrainingSpec(
+    return gp_models.GPTrainingSpec(  # pyrefly: ignore[bad-return]
         ard_optimizer=self._ard_optimizer,
         ard_rng=ard_rng,
         coroutine=gp_models.get_vizier_gp_coroutine(
@@ -502,7 +502,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     if not isinstance(acquisition_optimizer, lo.LBFGSBOptimizer):
       acquisition_optimizer = eqx.filter_jit(acquisition_optimizer)
     best_candidates: vb.VectorizedStrategyResults = acquisition_optimizer(
-        eqx.filter_jit(score),
+        eqx.filter_jit(score),  # pyrefly: ignore[bad-argument-type]
         prior_features=seed_features,
         count=count,
         seed=acq_rng,
@@ -638,4 +638,4 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         if seed is None
         else jax.random.PRNGKey(seed)
     )
-    return cls(problem, rng=rng, **kwargs)
+    return cls(problem, rng=rng, **kwargs)  # pyrefly: ignore[unexpected-keyword]

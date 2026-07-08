@@ -139,9 +139,9 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
     """Load the current index."""
     metadata = metadata.ns(self._metadata_ns)
     try:
-      current_index = int(metadata['current_index'])
+      current_index = int(metadata['current_index'])  # pyrefly: ignore[bad-argument-type]
       none_or_int = metadata['shuffle_seed']
-      shuffle_seed = None if (none_or_int == 'None') else int(none_or_int)
+      shuffle_seed = None if (none_or_int == 'None') else int(none_or_int)  # pyrefly: ignore[bad-argument-type]
       logging.info('Restored shuffle seed: %s', shuffle_seed)
     except (KeyError, ValueError) as e:
       raise serializable.HarmlessDecodeError() from e
@@ -177,7 +177,7 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
       min_value, max_value = parameter_config.bounds
       return [
           pyvizier.ParameterValue(value=value)
-          for value in range(min_value, max_value + 1)
+          for value in range(min_value, max_value + 1)  # pyrefly: ignore[bad-argument-type]
       ]
 
     elif parameter_config.type in [

@@ -93,12 +93,12 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
 
   def load(self, metadata: vz.Metadata) -> None:
     """Loads designer's state from metadata."""
-    self._seed = int(metadata.ns('quasi_random')['seed'])
+    self._seed = int(metadata.ns('quasi_random')['seed'])  # pyrefly: ignore[bad-argument-type]
     self._halton = qmc.Halton(
         d=len(self._converter.output_specs),
         seed=int(metadata.ns('quasi_random')['seed']),
     )
-    self._skip_points = int(metadata.ns('quasi_random')['skip_points'])
+    self._skip_points = int(metadata.ns('quasi_random')['skip_points'])  # pyrefly: ignore[bad-argument-type]
     # Skip forward to where the previous Halton sequence stopped.
     self._halton.fast_forward(self._skip_points)
 
