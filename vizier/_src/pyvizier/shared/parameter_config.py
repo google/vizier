@@ -681,13 +681,13 @@ class ParameterConfig:
     # casting to the internal type.
     value = trial.ParameterValue(value)  # pyrefly: ignore[bad-assignment]
     if self.type == ParameterType.DOUBLE:
-      self._assert_bounds(value.as_float)
+      self._assert_bounds(value.as_float)  # pyrefly: ignore[missing-attribute]
     elif self.type == ParameterType.INTEGER:
-      self._assert_bounds(value.as_int)
+      self._assert_bounds(value.as_int)  # pyrefly: ignore[missing-attribute]
     elif self.type == ParameterType.DISCRETE:
-      self._assert_in_feasible_values(value.as_float)
+      self._assert_in_feasible_values(value.as_float)  # pyrefly: ignore[missing-attribute]
     elif self.type == ParameterType.CATEGORICAL:
-      self._assert_in_feasible_values(value.as_str)
+      self._assert_in_feasible_values(value.as_str)  # pyrefly: ignore[missing-attribute]
     else:
       raise RuntimeError(
           f'Parameter {self.name} has unknown parameter type: {self.type}'
