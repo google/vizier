@@ -183,7 +183,7 @@ def plot_from_records(
   if metrics is None:
     metrics = set()  # pyrefly: ignore[bad-assignment]
     for record in df.record:
-      metrics = metrics.union(set(record.plot_elements.keys()))
+      metrics = metrics.union(set(record.plot_elements.keys()))  # pytype: disable=missing-attribute
     print(f'All inferred metrics {metrics}')
 
   fig, axes = plt.subplots(
