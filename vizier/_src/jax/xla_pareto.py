@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Fast pareto frontier computation using Jax."""
 import functools
+from typing import Union
 
 import jax
 from jax import numpy as jnp
@@ -64,7 +65,7 @@ def _is_pareto_optimal_against(
 
 
 def is_frontier(
-    ys: jt.Float[jt.ArrayLike, "B M"],
+    ys: Union[jt.Float[jt.Array, "B M"], jt.Float[np.ndarray, "B M"]],
     *,
     num_shards: int = 10,
     verbose: bool = False,
@@ -116,7 +117,7 @@ class JaxParetoOptimalAlgorithm(pareto_optimal.BaseParetoOptimalAlgorithm):
 
 
 def get_frontier(
-    ys: jt.Float[jt.ArrayLike, "B M"],
+    ys: Union[jt.Float[jt.Array, "B M"], jt.Float[np.ndarray, "B M"]],
     *,
     num_shards: int = 10,
     verbose: bool = True,
@@ -152,7 +153,10 @@ def get_frontier(
 
 
 @jax.jit
-def pareto_rank(ys: jt.Float[jt.ArrayLike, "B M"]) -> jt.Int[jt.ArrayLike, "B"]:
+def pareto_rank(
+    ys: Union[jt.Float[jt.Array, "B M"], jt.Float[np.ndarray, "B M"]],
+) -> jt.Int[jt.Array, "B"]:
+
   """Returns the pareto rank."""
   jax_dominated_mv = jax.vmap(
       functools.partial(_is_dominated, strict=True), (None, 0), 0
@@ -165,7 +169,7 @@ def pareto_rank(ys: jt.Float[jt.ArrayLike, "B M"]) -> jt.Int[jt.ArrayLike, "B"]:
 
 
 def _cum_hypervolume_origin(
-    points: jt.Float[jt.ArrayLike, "B M"], vector: jt.Float[jt.Array, "... M"]
+    points: jt.Float[jt.Array, "B M"], vector: jt.Float[jt.Array, "... M"]
 ) -> jt.Float[jt.Array, "B"]:
   """Returns a randomized approximation of the cumulative dominated hypervolume.
 
@@ -190,7 +194,8 @@ def _cum_hypervolume_origin(
 
 @jax.jit
 def jax_cum_hypervolume_origin(
-    points: jt.Float[jt.ArrayLike, "B M"], vectors: jt.Float[jt.Array, "B2 M"]
+    points: Union[jt.Float[jt.Array, "B M"], jt.Float[np.ndarray, "B M"]],
+    vectors: Union[jt.Float[jt.Array, "B2 M"], jt.Float[np.ndarray, "B2 M"]],
 ) -> jt.Float[jt.Array, "B B2"]:
   #  ([B,M], [B2,M]) -> [B,B2]
   cum_hypervolume_mm = jax.vmap(_cum_hypervolume_origin, (None, 0), 0)

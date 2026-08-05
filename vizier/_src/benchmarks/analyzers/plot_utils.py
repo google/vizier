@@ -181,22 +181,25 @@ def plot_from_records(
   }
   total_rows = len(df.groupby('experimenter'))
   if metrics is None:
-    metrics = set()  # pyrefly: ignore[bad-assignment]
+    inferred_metrics = set()
     for record in df.record:
-      metrics = metrics.union(set(record.plot_elements.keys()))
-    print(f'All inferred metrics {metrics}')
+      inferred_metrics.update(record.plot_elements.keys())
+    metrics_to_plot = inferred_metrics
+    print(f'All inferred metrics {metrics_to_plot}')
+  else:
+    metrics_to_plot = metrics
 
   fig, axes = plt.subplots(
       total_rows,
-      len(metrics),  # pyrefly: ignore[bad-argument-type]
-      figsize=(col_figsize * len(metrics), row_figsize * total_rows),  # pyrefly: ignore[bad-argument-type]
+      len(metrics_to_plot),
+      figsize=(col_figsize * len(metrics_to_plot), row_figsize * total_rows),
       squeeze=False,
   )
   fig.suptitle(fig_title, fontsize=16)
 
   fig_idx = 0
   for experimenter_key, group_by_experimenter in df.groupby('experimenter'):
-    for metric_idx, metric in enumerate(metrics):  # pyrefly: ignore[bad-argument-type]
+    for metric_idx, metric in enumerate(metrics_to_plot):
       ax = axes[fig_idx, metric_idx]
       subplot_title = (
           str(experimenter_key)[:title_maxlen] if experimenter_key else metric
