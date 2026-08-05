@@ -16,6 +16,7 @@ from __future__ import annotations
 
 """Implementation of SQL Datastore."""
 
+
 import collections
 import threading
 from typing import Callable, Iterable, List, Optional
