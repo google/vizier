@@ -164,7 +164,7 @@ class SQLDataStore(datastore.DataStore):
     )
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Study %s does not exist.' % study.name)
       self._write_or_rollback(uq)
       self._connection.commit()
@@ -189,7 +189,7 @@ class SQLDataStore(datastore.DataStore):
     dtq = dtq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Study %s does not exist.' % study_name)
       self._write_or_rollback(dsq)
       self._write_or_rollback(dtq)
@@ -208,7 +208,7 @@ class SQLDataStore(datastore.DataStore):
     lq = lq.where(self._studies_table.c.owner_id == owner_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Owner name %s does not exist.' % owner_name)
       result = self._connection.execute(lq).fetchall()
       studies = [
@@ -272,7 +272,7 @@ class SQLDataStore(datastore.DataStore):
     )
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Trial %s does not exist.' % trial.name)
       self._write_or_rollback(uq)
       self._connection.commit()
@@ -293,7 +293,7 @@ class SQLDataStore(datastore.DataStore):
     lq = lq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Study name %s does not exist.' % study_name)
       result = self._connection.execute(lq)
       trials = [
@@ -313,7 +313,7 @@ class SQLDataStore(datastore.DataStore):
     dq = dq.where(self._trials_table.c.trial_name == trial_name)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Trial %s does not exist.' % trial_name)
       self._write_or_rollback(dq)
       self._connection.commit()
@@ -333,9 +333,9 @@ class SQLDataStore(datastore.DataStore):
     tq = tq.where(self._trials_table.c.study_id == study_resource.study_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Study %s does not exist.' % study_name)
-      potential_trial_id = self._connection.execute(tq).fetchone()[0]
+      potential_trial_id = self._connection.execute(tq).fetchone()[0]  # pyrefly: ignore[unsupported-operation]
 
     return potential_trial_id if potential_trial_id is not None else 0
 
@@ -409,7 +409,7 @@ class SQLDataStore(datastore.DataStore):
     )
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError('Suggest op %s does not exist.' % operation.name)
       self._write_or_rollback(uq)
       self._connection.commit()
@@ -434,7 +434,7 @@ class SQLDataStore(datastore.DataStore):
 
     eq = sqla.exists(q).select()
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError(
             'Could not find (study_name, client_id):',
             (study_resource.name, client_id),
@@ -480,11 +480,11 @@ class SQLDataStore(datastore.DataStore):
     mq = mq.where(self._suggestion_operations_table.c.client_id == client_id)  # pyrefly: ignore[missing-attribute]
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError(
             'Could not find (study_name, client_id):', (study_name, client_id)
         )
-      max_op_number = self._connection.execute(mq).fetchone()[0]
+      max_op_number = self._connection.execute(mq).fetchone()[0]  # pyrefly: ignore[unsupported-operation]
 
     return max_op_number
 
@@ -563,7 +563,7 @@ class SQLDataStore(datastore.DataStore):
     )
 
     with self._lock:
-      if not self._connection.execute(eq).fetchone()[0]:
+      if not self._connection.execute(eq).fetchone()[0]:  # pyrefly: ignore[unsupported-operation]
         raise NotFoundError(
             'Early stopping op %s does not exist.' % operation.name
         )
