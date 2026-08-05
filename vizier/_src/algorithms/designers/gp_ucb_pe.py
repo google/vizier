@@ -879,7 +879,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     # The `"loss"` field of the `metrics` output of ARD optimizers contains an
     # array of losses of shape `[num_steps, num_random_restarts]` (or
     # `[1, num_random_restarts]` if only the final loss is recorded).
-    if jnp.any(metrics['loss'][-1, :].argsort()[:best_n] == 0):  # pyrefly: ignore[bad-index]
+    if jnp.any(metrics['loss'][-1, :].argsort()[:best_n] == 0):  # pyrefly: ignore[bad-index, missing-attribute]
       logging.info(
           'Parameters found by fixed initialization are among the best'
           f' {best_n} parameters.'
