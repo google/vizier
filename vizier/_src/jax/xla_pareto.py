@@ -83,10 +83,11 @@ def is_frontier(
   Returns:
     Boolean numpy Array of shape [B].
   """
-  idx = np.linspace(0, ys.shape[0], num_shards).astype(np.int32)  # pyrefly: ignore[missing-attribute]
+  ys = jnp.asarray(ys)
+  idx = np.linspace(0, ys.shape[0], num_shards).astype(np.int32)
   idx = list(reversed(idx))
   # Initialize candidates with all points
-  frontier = np.ones(ys.shape[0], dtype=np.bool_)  # pyrefly: ignore[missing-attribute]
+  frontier = np.ones(ys.shape[0], dtype=np.bool_)
 
   for begin, end in zip(idx[1:], idx[:-1]):
     candidates = ys[frontier]  # pyrefly: ignore[bad-index]
@@ -137,10 +138,11 @@ def get_frontier(
   Returns:
     Array of shape [B, M].
   """
-  idx = np.linspace(0, ys.shape[0], num_shards).astype(np.int32)  # pyrefly: ignore[missing-attribute]
+  ys = jnp.asarray(ys)
+  idx = np.linspace(0, ys.shape[0], num_shards).astype(np.int32)
   idx = list(reversed(idx))
   # Initialize candidates with all points
-  candidates = jnp.asarray(ys)
+  candidates = ys
   for begin, end in zip(idx[1:], idx[:-1]):
     # Filter candidates by comparing against the slice.
     if verbose:
