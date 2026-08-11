@@ -21,8 +21,8 @@ import json
 from typing import Dict, Optional
 import uuid
 
-from ray import tune
-from ray.tune import search
+from ray import tune  # pyrefly: ignore[missing-import]
+from ray.tune import search  # pyrefly: ignore[missing-import]
 from vizier._src.raytune import converters
 from vizier.service import clients
 from vizier.service import pyvizier as svz
@@ -137,7 +137,7 @@ class VizierSearch(search.Searcher):
       )
     trial_client = self._active_trials[trial_id]
     elapsed_secs = (
-        datetime.datetime.now().astimezone()
+        datetime.datetime.now().astimezone()  # pyrefly: ignore[unsupported-operation]
         - trial_client.materialize().creation_time
     )
     trial_client.add_measurement(
@@ -167,7 +167,7 @@ class VizierSearch(search.Searcher):
       measurement = None
       if result:
         elapsed_secs = (
-            datetime.datetime.now().astimezone()
+            datetime.datetime.now().astimezone()  # pyrefly: ignore[unsupported-operation]
             - trial_client.materialize().creation_time
         )
         measurement = svz.Measurement(

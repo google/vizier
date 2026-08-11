@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Union
 
-from ray import tune
-from ray.tune.search import sample
+from ray import tune  # pyrefly: ignore[missing-import]
+from ray.tune.search import sample  # pyrefly: ignore[missing-import]
 from vizier import pyvizier as vz
 from vizier.benchmarks import experimenters
 

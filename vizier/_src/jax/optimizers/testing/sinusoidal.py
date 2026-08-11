@@ -94,7 +94,7 @@ class ConvergenceTestMixin(unittest.TestCase):
     logging.info('Optimal: %s', optimal_params)
 
     self.assertLessEqual(loss_fn(optimal_params)[0], threshold)
-    if metrics['loss'].shape[0] > 1:  # pyrefly: ignore[bad-index]
+    if metrics['loss'].shape[0] > 1:  # pyrefly: ignore[bad-index, missing-attribute]
       np.testing.assert_array_less(  # pyrefly: ignore[no-matching-overload]
           metrics['loss'][-1, :], metrics['loss'][0, :]  # pyrefly: ignore[bad-index]
       )

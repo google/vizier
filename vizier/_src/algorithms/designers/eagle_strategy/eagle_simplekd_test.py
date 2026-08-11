@@ -36,7 +36,7 @@ class SimpleKDEagleDesignerTest(parameterized.TestCase):
 
     simplekd_runner.SimpleKDConvergenceTester(
         best_category=best_category,
-        designer_factory=_eagle_designer_factory,
+        designer_factory=_eagle_designer_factory,  # pyrefly: ignore[bad-argument-type]
         num_trials=5000,
         max_relative_error=0.05,
         num_repeats=20,

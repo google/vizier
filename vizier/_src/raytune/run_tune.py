@@ -19,10 +19,10 @@ from __future__ import annotations
 from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
-from ray import air
-from ray import data
-from ray import tune
-from ray.air import session
+from ray import air  # pyrefly: ignore[missing-import]
+from ray import data  # pyrefly: ignore[missing-import]
+from ray import tune  # pyrefly: ignore[missing-import]
+from ray.air import session  # pyrefly: ignore[missing-import]
 from vizier import pyvizier as vz
 from vizier._src.raytune import converters
 from vizier.benchmarks import experimenters

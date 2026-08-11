@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 """Test for VizierSearch. Cannot be tested internally but can be on GitHub."""
-from ray import tune
+from ray import tune  # pyrefly: ignore[missing-import]
 from vizier._src.raytune import converters
 from vizier._src.raytune import run_tune
 from vizier._src.raytune import vizier_search
