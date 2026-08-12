@@ -103,7 +103,7 @@ class ConvergenceCurve:
       raise ValueError('All curves must be increasing or decreasing.')
     minx = np.min([np.min(c.xs) for c in curves])
     maxx = np.max([np.max(c.xs) for c in curves])
-    resolution = resolution or np.max([np.size(c.xs) for c in curves])
+    resolution = resolution or int(np.max([np.size(c.xs) for c in curves]))
     xs = np.linspace(minx, maxx, resolution)
 
     all_ys = []
