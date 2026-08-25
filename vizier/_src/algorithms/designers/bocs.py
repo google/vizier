@@ -318,7 +318,7 @@ class _GibbsLinearRegressor:
     if self._X_inf.shape[0] != 0 and np.equal(x, self._X_inf).all(axis=1).any():
       barrier = np.inf
 
-    return np.dot(x_all, self._alpha) + barrier  # pyrefly: ignore[bad-argument-type]
+    return np.dot(x_all, self._alpha) + barrier  # pyrefly: ignore[bad-argument-type, no-matching-overload]
 
   def _order_effects(self, X: np.ndarray) -> np.ndarray:
     """Function computes data matrix for all coupling."""
@@ -383,7 +383,7 @@ class SimulatedAnnealing(AcquisitionOptimizer):
     acquisition_fn = lambda x: self._lin_reg.surrogate_model(x) + penalty(x)
 
     for j in range(self._num_reruns):
-      optModel, objVals = self._optimization_loop(acquisition_fn)
+      optModel, objVals = self._optimization_loop(acquisition_fn)  # pyrefly: ignore[bad-argument-type]
       SA_model[j, :] = optModel[-1, :]
       SA_obj[j] = objVals[-1]
 

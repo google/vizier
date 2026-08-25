@@ -76,7 +76,7 @@ def compute_parameter_entropy(
       n_sample = len(values)
       # We also ensure that the number of bins is at most the sample size.
       num_bins = np.min((int(c * n_sample**alpha), n_sample))
-      counts, _ = np.histogram(
+      counts, _ = np.histogram(  # pyrefly: ignore[no-matching-overload]
           values,
           bins=np.linspace(
               min_val,
