@@ -14,8 +14,6 @@
 
 from __future__ import annotations
 
-"""Tests for core."""
-
 from absl import logging
 import numpy as np
 from vizier import pyvizier
@@ -896,7 +894,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
 
     scaled = np.asarray([[0.0], [0.5], [1.1]], dtype)
     # Pytype still thinks `actual` entries might be None, hence we specify type.
-    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
+    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pyrefly: ignore[bad-assignment]
         scaled
     )
     self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)  # pyrefly: ignore[no-matching-overload]
@@ -923,7 +921,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
 
     scaled = np.asarray([[0.0], [0.5], [1.1]], dtype)
     # Pytype still thinks `actual` entries might be None, hence we specify type.
-    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
+    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pyrefly: ignore[bad-assignment]
         scaled
     )
     self.assertAlmostEqual(actual[0].value, 1e-4, delta=1e-6)  # pyrefly: ignore[no-matching-overload]
@@ -971,7 +969,7 @@ class DefaultModelInputConverterTest(parameterized.TestCase):
 
     scaled = np.asarray([[0.0], [0.5], [1.0]], dtype)
     # Pytype still thinks `actual` entries might be None, hence we specify type.
-    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pytype:disable=annotation-type-mismatch
+    actual: list[pyvizier.ParameterValue] = converter.to_parameter_values(  # pyrefly: ignore[bad-assignment]
         scaled
     )
     self.assertGreaterEqual(actual[0].value, 1e-4)  # pyrefly: ignore[no-matching-overload]
@@ -1356,6 +1354,40 @@ class ModelInputArrayBijectorTest(absltest.TestCase):
     )
     self.assertLessEqual(bijector.forward_fn(x), bijector.output_spec.bounds[1])
     self.assertEqual(bijector.backward_fn(bijector.forward_fn(x)), x)
+
+    # Test batch inputs preserve shape and values.
+    x_batch = np.array([[1.0], [1.0], [1.0]])
+    fwd_batch = bijector.forward_fn(x_batch)
+    self.assertEqual(fwd_batch.shape, (3, 1))
+    np.testing.assert_array_equal(fwd_batch, np.full((3, 1), 0.5))
+    bwd_batch = bijector.backward_fn(fwd_batch)
+    self.assertEqual(bwd_batch.shape, (3, 1))
+    np.testing.assert_array_equal(bwd_batch, x_batch)
+
+    # Test historical data outside [low, high] is preserved and shifted.
+    x_historical = np.array([[0.0], [2.0], [5.0]])
+    fwd_historical = bijector.forward_fn(x_historical)
+    np.testing.assert_allclose(fwd_historical, np.array([[-0.5], [1.5], [4.5]]))
+
+  def testSinglePointSpecMultiTrialConversion(self):
+    space = pyvizier.SearchSpace()
+    space.root.add_float_param('fixed', 1.0, 1.0)
+    space.root.add_float_param('other', 0.0, 10.0)
+    converter = core.TrialToArrayConverter.from_study_config(
+        pyvizier.ProblemStatement(search_space=space)
+    )
+    trials = [
+        pyvizier.Trial(parameters={'fixed': 1.0, 'other': 2.0}),
+        pyvizier.Trial(parameters={'fixed': 1.0, 'other': 5.0}),
+        pyvizier.Trial(parameters={'fixed': 1.0, 'other': 8.0}),
+    ]
+    features = converter.to_features(trials)
+    parameters = converter.to_parameters(features)
+    self.assertLen(parameters, 3)
+    for p in parameters:
+      self.assertIn('fixed', p)
+      self.assertEqual(p['fixed'].value, 1.0)
+      self.assertIn('other', p)
 
 
 if __name__ == '__main__':

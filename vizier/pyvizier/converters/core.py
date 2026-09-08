@@ -429,11 +429,13 @@ class ModelInputArrayBijector:
       return cls.identity(attr.evolve(spec, scale=None))
     if low == high:
 
-      def backward_fn(y):
-        return np.where(np.isfinite(y), y + low - 0.5, y)
+      def backward_fn(y: np.ndarray) -> np.ndarray:
+        """This maps from the [0,1] search box to the user's parameter space."""
+        return np.full_like(y, low)
 
-      def forward_fn(y):
-        return np.where(np.isfinite(y), y - low + 0.5, y)
+      def forward_fn(y: np.ndarray) -> np.ndarray:
+        """This maps from the user's parameter space to the [0,1] search box."""
+        return np.asarray(y) + (0.5 - low)
 
       return cls(
           forward_fn,
