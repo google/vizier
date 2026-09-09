@@ -426,7 +426,7 @@ class ModelInputArrayBijector:
     """For continuous specs, linearize and scale it to (0, 1) range."""
     low, high = spec.bounds
     if spec.type != NumpyArraySpecType.CONTINUOUS:
-      return cls.identity(attr.evolve(spec, scale=None))
+      return cls.identity(attr.evolve(spec, scale=None))  # pyrefly: ignore[bad-argument-type]
     if low == high:
 
       def backward_fn(y: np.ndarray) -> np.ndarray:
@@ -440,7 +440,7 @@ class ModelInputArrayBijector:
       return cls(
           forward_fn,
           backward_fn,
-          attr.evolve(spec, bounds=(0.5, 0.5), scale=None),
+          attr.evolve(spec, bounds=(0.5, 0.5), scale=None),  # pyrefly: ignore[bad-argument-type]
       )
 
     if spec.scale == pyvizier.ScaleType.LOG:
@@ -475,12 +475,12 @@ class ModelInputArrayBijector:
       if denom < 1e-6:
         logging.warning('Unusually small range detected for %s', spec)
       if denom == 1.0 and low == 0:
-        return cls.identity(attr.evolve(spec, scale=None))
+        return cls.identity(attr.evolve(spec, scale=None))  # pyrefly: ignore[bad-argument-type]
       scale_fn = lambda x, high=high, low=low: (x - low) / (high - low)
       unscale_fn = lambda x, high=high, low=low: x * (high - low) + low
 
     return cls(
-        scale_fn, unscale_fn, attr.evolve(spec, bounds=(0.0, 1.0), scale=None)
+        scale_fn, unscale_fn, attr.evolve(spec, bounds=(0.0, 1.0), scale=None)  # pyrefly: ignore[bad-argument-type]
     )
 
   @classmethod

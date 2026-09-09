@@ -65,7 +65,7 @@ class StateAnalyzerTest(absltest.TestCase):
         'discus': experimenters.BBOBExperimenterFactory('Discus', dim),
     }
     multi_experimenter = experimenters.CombinedExperimenterFactory(
-        base_factories=experimenter_factories
+        base_factories=experimenter_factories  # pyrefly: ignore[bad-argument-type]
     )()
 
     def _designer_factory(config: vz.ProblemStatement, seed: int):

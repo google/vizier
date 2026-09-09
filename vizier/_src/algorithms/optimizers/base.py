@@ -149,7 +149,7 @@ class BranchThenOptimizer(GradientFreeOptimizer):
     suggestions = []
     optimizer = self._optimizer_factory()
     for branch in branches:
-      subproblem = attr.evolve(problem, search_space=branch.search_space)
+      subproblem = attr.evolve(problem, search_space=branch.search_space)  # pyrefly: ignore[bad-argument-type]
       suggestions.extend(
           optimizer.optimize(
               score_fn,

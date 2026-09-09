@@ -95,9 +95,11 @@ def build_task_kernel_scale_linop(
         [num_tasks, num_tasks]
     )
     correlation_cholesky_vec = yield sp.ModelParameter(
-        init_fn=lambda key: tfd.Sample(  # pylint: disable=g-long-lambda
+        init_fn=lambda key: tfd.Sample(  # pylint: disable=g-long-lambda  # pyrefly: ignore[bad-argument-type]
             tfd.Normal(jnp.float64(0.0), 1.0), num_task_kernel_entries
-        ).sample(seed=key),
+        ).sample(
+            seed=key
+        ),
         # Use `jnp.copy` to prevent tracers leaking from bijector cache.
         regularizer=lambda x: -tfd.CholeskyLKJ(  # pylint: disable=g-long-lambda
             dimension=num_tasks, concentration=1.0

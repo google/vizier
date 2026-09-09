@@ -359,7 +359,7 @@ class HalfRankComponent(OutputWarper):
     # Save information needed for unwarping.
     self._unwarper = _HalfRankUnwarper(  # pyrefly: ignore[missing-argument]
         original_labels=unique_labels,  # pyrefly: ignore[unexpected-keyword]
-        warped_labels=labels_arr[is_finite][unique_idx],  # pyrefly: ignore[unexpected-keyword]
+        warped_labels=labels_arr[is_finite][unique_idx],  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
         original_label_median=unique_labels[len(unique_labels) // 2],  # pyrefly: ignore[unexpected-keyword]
     )
     return labels_arr[:, np.newaxis]
@@ -593,7 +593,7 @@ class DetectOutliers(OutputWarper):
   """
 
   min_zscore: float = attr.field(kw_only=True, default=6.0)
-  max_zscore: float = attr.field(kw_only=True, default=None)
+  max_zscore: float = attr.field(kw_only=True, default=None)  # pyrefly: ignore[bad-assignment]
 
   def _estimate_variance(self, labels_arr: types.Array) -> float:
     """Estimates the variance of labels array using the top half values.

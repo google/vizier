@@ -81,7 +81,7 @@ class ExperimenterFactoryTest(parameterized.TestCase):
         'discus': experimenter_factory.BBOBExperimenterFactory('Discus', dim),
     }
     exptr = experimenter_factory.CombinedExperimenterFactory(
-        base_factories=experimenter_factories
+        base_factories=experimenter_factories  # pyrefly: ignore[bad-argument-type]
     )()
 
     parameters = exptr.problem_statement().search_space.parameters

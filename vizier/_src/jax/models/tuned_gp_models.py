@@ -213,8 +213,8 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
           name='linear_slope_amplitude',
       )
       shift = yield sp.ModelParameter(
-          init_fn=jax.random.normal,
-          regularizer=lambda x: 0.5 * x**2,
+          init_fn=jax.random.normal,  # pyrefly: ignore[bad-argument-type]
+          regularizer=lambda x: 0.5 * x**2,  # pyrefly: ignore[bad-argument-type]
           name='linear_shift',
       )
       kernel += continuous_only_kernel.ContinuousOnly(
@@ -234,7 +234,7 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
       # output a shape of `[batch_shape, 1]`, ensuring that batch dimensions
       # line up properly.
       mean_fn_constant = yield sp.ModelParameter(
-          init_fn=lambda k: jax.random.normal(
+          init_fn=lambda k: jax.random.normal(  # pyrefly: ignore[bad-argument-type]
               key=k,
               shape=[1] if self._num_metrics == 1 else [1, self._num_metrics],
           ),

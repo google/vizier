@@ -284,7 +284,7 @@ class MetadataTest(absltest.TestCase):
       self.assertEqual(dur_out.seconds, 60)
 
   def test_get_or_error(self):
-    m0 = common.Metadata({'foo': 33, 'bar': 'Z'})  # pyrefly: ignore[bad-argument-type]
+    m0 = common.Metadata({'foo': 33, 'bar': 'Z'})  # pyrefly: ignore[bad-argument-type, bad-assignment]
     m0['gleep'] = duration_pb2.Duration(seconds=60)
     self.assertEqual(m0.get_or_error('foo', cls=int), 33)
     self.assertEqual(m0.get_or_error('bar'), 'Z')

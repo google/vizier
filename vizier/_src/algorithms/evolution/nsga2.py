@@ -86,19 +86,19 @@ def crowding_distance(
 
     # Compute the range of the m-th metric.
     yy = ys[:, m]  # Shape: (num_population,)
-    yrange = yy[sid[-1]] - yy[sid[0]] + np.finfo(np.float32).eps
+    yrange = yy[sid[-1]] - yy[sid[0]] + np.finfo(np.float32).eps  # pyrefly: ignore[bad-index]
 
     # Lower boundary is assigned a one-sided score and does not automatically
     # get infinity. This is different from the paper. The lower boundary means
     # it's dominated by all other points in one dimension. There's no reason to
     # favor it over other points.
-    scores[sid[0]] += (yy[sid[1]] - yy[sid[0]]) / yrange
+    scores[sid[0]] += (yy[sid[1]] - yy[sid[0]]) / yrange  # pyrefly: ignore[bad-index, unsupported-operation]
     # Upper boundary is assigned infinity. This point will survive anyways
     # because it's pareto-optimal. But in case there are ties, it's useful to
     # make only one of them stand out.
-    scores[sid[-1]] += np.inf
+    scores[sid[-1]] += np.inf  # pyrefly: ignore[bad-index, unsupported-operation]
 
-    scores[sid[1:-1]] += (yy[sid[2:]] - yy[sid[:-2]]) / yrange
+    scores[sid[1:-1]] += (yy[sid[2:]] - yy[sid[:-2]]) / yrange  # pyrefly: ignore[bad-index, unsupported-operation]
   # Normalize the score to [0, 1].
   return scores / ys.shape[1]
 

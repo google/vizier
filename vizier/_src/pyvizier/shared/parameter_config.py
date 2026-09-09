@@ -348,7 +348,7 @@ class ParameterConfig:
         name=name,  # pyrefly: ignore[unexpected-keyword]
         type=inferred_type,  # pyrefly: ignore[unexpected-keyword]
         bounds=bounds,  # pyrefly: ignore[unexpected-keyword]
-        feasible_values=feasible_values,  # pyrefly: ignore[unexpected-keyword]
+        feasible_values=feasible_values,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
         scale_type=scale_type,  # pyrefly: ignore[unexpected-keyword]
         default_value=default_value,  # pyrefly: ignore[unexpected-keyword]
         fidelity_config=fidelity_config,
@@ -1344,7 +1344,7 @@ class SearchSpace:
       Reference to the ParameterConfig that was added to the search space.
     """
     name = parameter_config.name
-    parameter_config._matching_parent_values = tuple(self._parent_values)  # pylint: disable=protected-access
+    parameter_config._matching_parent_values = tuple(self._parent_values)  # pylint: disable=protected-access  # pyrefly: ignore[bad-assignment]
     if (name in self._parameter_configs) and (not replace):
       raise ValueError(
           f'Duplicate name: {parameter_config.name} already exists.\n'

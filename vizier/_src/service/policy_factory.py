@@ -76,7 +76,7 @@ class DefaultPolicyFactory(pythia.PolicyFactory):
 
       shuffle_seed = int(time.time())
       grid_factory = functools.partial(
-          grid.GridSearchDesigner.from_problem, shuffle_seed=shuffle_seed
+          grid.GridSearchDesigner.from_problem, shuffle_seed=shuffle_seed  # pyrefly: ignore[unexpected-keyword]
       )
       return dp.PartiallySerializableDesignerPolicy(
           problem_statement,

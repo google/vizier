@@ -162,7 +162,7 @@ def pareto_rank(ys: jt.Float[jt.ArrayLike, "B M"]) -> jt.Int[jt.ArrayLike, "B"]:
   jax_dominated_mm = jax.vmap(
       jax_dominated_mv, (0, None), 0
   )  #  ([b,a], [c,a]) -> [b,c]
-  domination_matrix = jax_dominated_mm(ys, ys)
+  domination_matrix = jax_dominated_mm(ys, ys)  # pyrefly: ignore[bad-argument-type]
   return jnp.sum(domination_matrix, axis=1)
 
 

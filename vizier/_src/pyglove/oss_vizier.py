@@ -120,7 +120,7 @@ class _VizierServices:
       return
     if endpoint != constants.NO_ENDPOINT:
       pyvizier_clients.environment_variables.server_endpoint = (
-          self._vizier_endpoint
+          self._vizier_endpoint  # pyrefly: ignore[bad-assignment]
       )
     self._vizier_service = vizier_client.create_vizier_servicer_or_stub()
 
@@ -287,7 +287,7 @@ def init(
 
 
 @pg.tuning.add_backend('oss_vizier')
-class OSSVizierBackend(backend.VizierBackend):
+class OSSVizierBackend(backend.VizierBackend):  # pyrefly: ignore[bad-class-definition]
   """PyGlove backend that uses OSS Vizier."""
 
   tuner_cls = _OSSVizierTuner

@@ -47,9 +47,9 @@ tfpke = tfp.experimental.psd_kernels
 
 def _kernel_coroutine(dtype=np.float64):
   amplitude = yield sp_model.ModelParameter(
-      init_fn=lambda k: random.exponential(k, dtype=dtype),
+      init_fn=lambda k: random.exponential(k, dtype=dtype),  # pyrefly: ignore[bad-argument-type]
       constraint=sp_model.Constraint(bounds=(np.zeros([], dtype=dtype), None)),
-      regularizer=lambda x: 1e-3 * x**2,
+      regularizer=lambda x: 1e-3 * x**2,  # pyrefly: ignore[bad-argument-type]
       name='amplitude',
   )
   one = np.array([1.0]).astype(dtype)
@@ -696,7 +696,7 @@ class UniformEnsemblePrecomputePredictiveTest(parameterized.TestCase):
 
   @parameterized.parameters(dict(n=5), dict(n=1))
   def test_batch_shape_n(self, n):
-    model = jax.vmap(
+    model = jax.vmap(  # pyrefly: ignore[bad-specialization, not-callable]
         eqx.Partial(
             sp_model.StochasticProcessWithCoroutine.initialize,
             coroutine=_test_coroutine,

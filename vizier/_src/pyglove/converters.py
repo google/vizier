@@ -522,7 +522,7 @@ class VizierConverter:
 
       for name, value in configured_parameters.items():
         trial.parameters[name or constants.PARAMETER_NAME_ROOT] = (  # pyrefly: ignore[unsupported-operation]
-            vz.ParameterValue(value)
+            vz.ParameterValue(value)  # pyrefly: ignore[bad-argument-type]
         )
     return trial
 

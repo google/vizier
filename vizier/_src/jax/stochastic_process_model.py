@@ -155,7 +155,7 @@ class ModelParameter:
   init_fn: InitFn = attr.field()
   constraint: Optional[Constraint] = attr.field(default=None)
   regularizer: Callable[[ArrayLike], jax.Array] = attr.field(
-      kw_only=True, default=lambda x: jnp.zeros([], dtype=x.dtype)
+      kw_only=True, default=lambda x: jnp.zeros([], dtype=x.dtype)  # pyrefly: ignore[missing-attribute]
   )
 
   @classmethod
@@ -190,7 +190,7 @@ class ModelParameter:
     if bounds is not None:
       init_fn = lambda s: jnp.clip(sample(s), *bounds)  # pyrefly: ignore[bad-argument-type]
     return ModelParameter(
-        init_fn=init_fn,
+        init_fn=init_fn,  # pyrefly: ignore[bad-argument-type]
         name=prior.name,
         constraint=Constraint(bounds=bounds, bijector=bijector),
         # TODO: `jnp.copy` is used to bypass TFP bijector caching;

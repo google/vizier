@@ -362,7 +362,7 @@ class TestCase(
       multi_objective:
     """
     study_factory = study_factory or functools.partial(
-        self.create_study, study_id=self.id()
+        self.create_study, study_id=self.id()  # pyrefly: ignore[unexpected-keyword]
     )
 
     problem = vz.ProblemStatement()
