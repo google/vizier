@@ -184,9 +184,9 @@ class GpUcbPeTest(parameterized.TestCase):
         problem,
         acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
         num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
-        ard_optimizer=ard_optimizer,  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=ard_optimizer,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
         metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[unexpected-keyword]
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             # Sets the penalty coefficient to 0.0 so that the PE aquisition
@@ -399,7 +399,7 @@ class GpUcbPeTest(parameterized.TestCase):
         acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
         metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
         num_seed_trials=1,  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[unexpected-keyword]
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
@@ -497,7 +497,7 @@ class GpUcbPeTest(parameterized.TestCase):
         acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
         metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
         num_seed_trials=1,  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[unexpected-keyword]
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,

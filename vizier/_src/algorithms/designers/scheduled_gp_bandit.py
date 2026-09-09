@@ -56,7 +56,7 @@ class ScheduledGPBanditFactory:
 
     return scheduled_designer.ScheduledDesigner(  # pyrefly: ignore[missing-argument]
         problem,
-        designer_factory=self._gp_bandit_factory,  # pyrefly: ignore[unexpected-keyword]
+        designer_factory=self._gp_bandit_factory,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
         designer_state_updater=_gp_bandit_state_updater,  # pyrefly: ignore[unexpected-keyword]
         scheduled_params={'ucb_coefficient': ucb_coef_param},  # pyrefly: ignore[unexpected-keyword]
         expected_total_num_trials=self._expected_total_num_trials,  # pyrefly: ignore[unexpected-keyword]

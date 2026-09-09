@@ -643,7 +643,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   )
   _gp_model_class: sp.ModelCoroutine[tfd.GaussianProcess] = attr.field(  # pyrefly: ignore[bad-assignment]
       kw_only=True,
-      factory=lambda: tuned_gp_models.VizierGaussianProcess,
+      factory=lambda: tuned_gp_models.VizierGaussianProcess,  # pyrefly: ignore[bad-assignment]
   )
   _metadata_ns: str = attr.field(
       default='google_gp_ucb_pe_bandit', kw_only=True
@@ -659,7 +659,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
   _config: UCBPEConfig = attr.field(  # pyrefly: ignore[bad-assignment]
-      factory=UCBPEConfig,
+      factory=UCBPEConfig,  # pyrefly: ignore[bad-assignment]
       kw_only=True,
   )
   _rng: jax.Array = attr.field(

@@ -188,8 +188,8 @@ class GoogleGpBanditTest(parameterized.TestCase):
 
     designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
         problem=problem,  # pyrefly: ignore[unexpected-keyword]
-        acquisition_optimizer_factory=acquisition_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=acquisition_optimizer_factory,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
+        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
         num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
@@ -363,7 +363,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
       params2 = padding_suggestion.parameters.as_dict()
       self.assertSameElements(params1.keys(), params2.keys())
       for key in params1.keys():
-        self.assertAlmostEqual(
+        self.assertAlmostEqual(  # pyrefly: ignore[no-matching-overload]
             params1[key],
             params2[key],
             places=5,
@@ -450,7 +450,7 @@ class GoogleGpBanditTest(parameterized.TestCase):
     designer = gp_bandit.VizierGPBandit(  # pyrefly: ignore[missing-argument]
         problem=problem,  # pyrefly: ignore[unexpected-keyword]
         acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[unexpected-keyword]
+        ard_optimizer=optimizers.JaxoptLbfgsB(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
             optimizers.LbfgsBOptions(maxiter=5, num_line_search_steps=5)
         ),
         scoring_function_factory=scoring_fn_factory,  # pyrefly: ignore[unexpected-keyword]

@@ -142,7 +142,7 @@ class ScheduledDesignerTest(absltest.TestCase):
       trial.complete(vz.Measurement({"metric": 1.2}), inplace=True)
     # Update the scheduled designer.
     mock_scheduled_designer.update(
-        vza.CompletedTrials(completed_trials), vza.ActiveTrials(active_trials)
+        vza.CompletedTrials(completed_trials), vza.ActiveTrials(active_trials)  # pyrefly: ignore[bad-argument-type]
     )
     # Validate that the state was updated.
     self.assertEqual(
