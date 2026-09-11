@@ -28,7 +28,9 @@ from jax import numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
+from vizier import pyvizier as vz
 from vizier._src.jax import types
+from vizier.pyvizier import converters
 
 
 tfb = tfp.bijectors
@@ -791,3 +793,122 @@ class LinearOutputWarper(equinox.Module):
   def unwarp_stddev(self, warped_stddev: types.Array) -> jax.Array:
     """Un-warp the standard deviation."""
     return self._slope_bijector.inverse(warped_stddev)
+
+
+@attr.define
+class TrialOutputWarper:
+  """Warps trial measurements for GP training while handling missing data and infeasibility.
+
+  Separates trials into three categories:
+  1. Feasible trials with finite metrics: Normal warping.
+  2. Infeasible trials (`trial.infeasible == True`): Missing/NaN metrics are
+     warped to a penalized bad value and incorporated into the zero-mean shift.
+  3. Non-infeasible trials with missing/NaN metrics: Missing data. These are
+     dropped entirely so they do not corrupt the zero-mean shift or GP
+     likelihood.
+  """
+
+  converter: converters.TrialToModelInputConverter
+  pipeline_factory: Callable[[], OutputWarper] = create_default_warper
+  _output_warpers: dict[str, OutputWarper] = attr.field(
+      factory=dict, init=False
+  )
+
+  def warp_trials(
+      self,
+      trials: Sequence[vz.Trial],
+  ) -> types.ModelData:
+    """Filters missing trials, warps labels, and returns synchronized ModelData."""
+    metric_names = [m.name for m in self.converter.metric_specs]
+
+    # 1. Classify and filter trials: keep infeasible trials or trials where ALL
+    # metrics are finite.
+    valid_trials: list[vz.Trial] = []
+    for t in trials:
+      if t.infeasible:
+        valid_trials.append(t)
+      else:
+        # Check if all metrics are present and finite.
+        # NOTE: Multi-metric GP models (such as MTGP) require complete rows
+        # without NaNs. If any required metric is missing on a non-infeasible
+        # trial, the entire trial is dropped from GP training.
+        if t.final_measurement is None:
+          continue
+        all_finite = True
+        for m_name in metric_names:
+          metric = t.final_measurement.metrics.get(m_name, None)
+          if metric is None or not np.isfinite(metric.value):
+            all_finite = False
+            break
+        if all_finite:
+          valid_trials.append(t)
+
+    self._output_warpers = {}
+    if not valid_trials:
+      return self.converter.to_xy([])
+
+    # 2. Convert valid trials to features and labels.
+    model_data = self.converter.to_xy(valid_trials)
+    unpadded_labels = np.asarray(model_data.labels.unpad())
+
+    # 3. Warp each metric column with OutputWarperPipeline.
+    warped_labels_list = []
+    for i, m_name in enumerate(metric_names):
+      warper = self.pipeline_factory()
+      warped_col = warper.warp(unpadded_labels[:, i : i + 1])
+      warped_labels_list.append(warped_col)
+      self._output_warpers[m_name] = warper
+
+    labels = types.PaddedArray.from_array(
+        np.concatenate(warped_labels_list, axis=-1),  # pyrefly: ignore[bad-argument-type]
+        model_data.labels.padded_array.shape,
+        fill_value=model_data.labels.fill_value,
+    )
+    return types.ModelData(features=model_data.features, labels=labels)  # pyrefly: ignore[bad-return]
+
+  def unwarp(self, samples: types.Array) -> types.Array:
+    """Unwarps predicted values from the GP model back to the original scale.
+
+    Args:
+      samples: Array of shape (num_samples, num_trials) if single-metric or
+        (num_samples, num_trials, num_metrics) if multi-metric.
+
+    Returns:
+      Array of unwarped samples of the same shape as the input `samples`.
+
+    Raises:
+      ValueError: If output warpers are not set (e.g. warp_trials has not been
+        called on valid trials), or if samples has dimension not in (2, 3).
+    """
+    if not self._output_warpers:
+      raise ValueError(
+          'Output warpers are expected to be set, but found to be empty. '
+          'warp_trials() must be called with valid data before unwarping.'
+      )
+    samples_arr = np.asarray(samples)
+    if samples_arr.ndim not in (2, 3):
+      raise ValueError(
+          'samples must have dimension of either 2 or 3. Got'
+          f' {samples_arr.ndim}'
+      )
+    is_single_metric = samples_arr.ndim == 2
+    if is_single_metric:
+      samples_arr = np.expand_dims(samples_arr, axis=-1)
+
+    unwarped_samples = []
+    for metric_idx, metric_spec in enumerate(self.converter.metric_specs):
+      warper = self._output_warpers[metric_spec.name]
+      unwarped_samples.append(
+          np.vstack([
+              warper.unwarp(
+                  samples_arr[i][:, metric_idx : metric_idx + 1]
+              ).reshape(-1)
+              for i in range(samples_arr.shape[0])
+          ])
+      )
+    result = np.stack(unwarped_samples, axis=-1)
+    if result.shape[-1] > 1:
+      return result
+    elif is_single_metric or result.shape[-1] == 1:
+      return np.squeeze(result, axis=-1)
+    return result

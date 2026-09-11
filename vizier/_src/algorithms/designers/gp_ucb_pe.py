@@ -161,15 +161,21 @@ def _has_new_completed_trials(
   if not active_trials:
     return True
 
-  completed_completion_times = [t.completion_time for t in completed_trials]
-  active_creation_times = [t.creation_time for t in active_trials]
-
-  if not all(completed_completion_times):
+  completed_completion_times = [
+      t.completion_time
+      for t in completed_trials
+      if t.completion_time is not None
+  ]
+  if len(completed_completion_times) != len(completed_trials):
     raise ValueError('All completed trials must have completion times.')
-  if not all(active_creation_times):
+
+  active_creation_times = [
+      t.creation_time for t in active_trials if t.creation_time is not None
+  ]
+  if len(active_creation_times) != len(active_trials):
     raise ValueError('All active trials must have creation times.')
 
-  return max(completed_completion_times) > max(active_creation_times)  # pytype:disable=unsupported-operands
+  return max(completed_completion_times) > max(active_creation_times)
 
 
 def _compute_ucb_threshold(
@@ -735,7 +741,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         self._problem.search_space,
         seed=int(jax.random.randint(qrs_seed, [], 0, 2**16)),
     )
-    self._output_warpers: list[output_warpers.OutputWarper] = []
+    self._trial_warper = output_warpers.TrialOutputWarper(self._converter)
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -802,7 +808,7 @@ class VizierGPUCBPEBandit(vza.Designer):
     """
     # TODO: Creates a new abstract base class for GP models with a
     # `build_model` API to avoid disabling the pytype attribute-error.
-    coroutine = self._gp_model_class.build_model(  # pytype: disable=attribute-error
+    coroutine = self._gp_model_class.build_model(  # pyrefly: ignore[missing-attribute]
         data,
         multitask_type=self._config.multitask_type,
         linear_coef=1.0 if self._mixes_linear_kernel else None,
@@ -916,27 +922,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   @profiler.record_runtime
   def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
     """Convert trials to scaled features and warped labels."""
-    # TrialToArrayConverter returns floating arrays.
-    data = self._converter.to_xy(trials)
-    logging.info(
-        'Transforming the labels of shape %s. Features has shape: %s',
-        data.labels.shape,
-        _get_features_shape(data.features),
-    )
-    unpadded_labels = np.asarray(data.labels.unpad())
-    warped_labels = []
-    self._output_warpers = []
-    for i in range(data.labels.shape[1]):
-      output_warper = output_warpers.create_default_warper()
-      warped_labels.append(output_warper.warp(unpadded_labels[:, i : i + 1]))
-      self._output_warpers.append(output_warper)
-    labels = types.PaddedArray.from_array(
-        np.concatenate(warped_labels, axis=-1),  # pyrefly: ignore[bad-argument-type]
-        data.labels.padded_array.shape,
-        fill_value=data.labels.fill_value,
-    )
-    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
-    return types.ModelData(features=data.features, labels=labels)  # pyrefly: ignore[bad-return]
+    return self._trial_warper.warp_trials(trials)
 
   @profiler.record_runtime(
       name_prefix='VizierGPUCBPEBandit', name='get_predictive_all_features'
@@ -1305,27 +1291,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0]), :
     ]
     # TODO: vectorize output warping.
-    if self._output_warpers:
-      unwarped_samples = []
-      for metric_idx, output_warper in enumerate(self._output_warpers):
-        unwarped_samples.append(
-            np.vstack([
-                output_warper.unwarp(
-                    samples[i][:, metric_idx : metric_idx + 1]
-                ).reshape(-1)
-                for i in range(samples.shape[0])
-            ])
-        )
-      unwarped_samples = np.stack(unwarped_samples, axis=-1)
-      if unwarped_samples.shape[-1] > 1:
-        return unwarped_samples
-      else:
-        return np.squeeze(unwarped_samples, axis=-1)
-    else:
-      raise TypeError(
-          'Output warpers are expected to be set, but found to be'
-          f' {self._output_warpers}.'
-      )
+    return self._trial_warper.unwarp(samples)
 
   @profiler.record_runtime
   def predict(
