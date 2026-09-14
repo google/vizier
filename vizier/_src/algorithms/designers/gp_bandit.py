@@ -25,7 +25,7 @@ import copy
 import dataclasses
 import datetime
 import random
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 from absl import logging
 import attr
@@ -147,12 +147,8 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
       default='oss_gp_bandit', kw_only=True, init=False
   )
   _ensemble_size: Optional[int] = attr.field(default=1, kw_only=True)
-  _output_warper_factory: Callable[[], output_warpers.OutputWarper] = (
-      attr.field(
-          default=output_warpers.create_default_warper,
-          validator=attr.validators.is_callable(),
-          kw_only=True,
-      )
+  _output_warper: output_warpers.OutputWarper = attr.field(
+      factory=output_warpers.create_default_warper, kw_only=True
   )
 
   # Multi-objective parameters.
@@ -179,8 +175,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
   # The prior GP used in transfer learning. `last_computed_gp` is trained
   # on the residuals of `_prior_gp`, if one is trained.
   _prior_gp: Optional[gp_models.GPState] = attr.field(init=False, default=None)
-  # The trial output warper managing per-metric output warpers.
-  _trial_warper: output_warpers.TrialOutputWarper = attr.field(init=False)
 
   def __attrs_post_init__(self):
     # Extra validations
@@ -203,11 +197,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     self._quasi_random_sampler = quasi_random.QuasiRandomDesigner(
         self._problem.search_space,
         seed=int(jax.random.randint(self._rng, [], 0, 2**16)),
-    )
-
-    self._trial_warper = output_warpers.TrialOutputWarper(
-        self._converter,
-        pipeline_factory=self._output_warper_factory,
     )
 
     self._acquisition_optimizer = self._acquisition_optimizer_factory(
@@ -374,10 +363,41 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         )
     return seed_suggestions
 
+  @_experimental_override_allowed
+  def _warp_labels(self, labels: types.Array) -> types.Array:
+    """Subclasses can override this method for experiments."""
+    return np.concatenate(
+        [
+            self._output_warper.warp(labels[:, i : i + 1])
+            for i in range(labels.shape[1])
+        ],
+        axis=-1,
+    )
+
   @profiler.record_runtime
   def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
     """Convert trials to scaled features and warped labels."""
-    return self._trial_warper.warp_trials(trials)
+    model_data = self._converter.to_xy(trials)
+    logging.info(
+        'Transforming the labels of shape %s. Features has shape: %s',
+        model_data.labels.padded_array.shape,
+        types.ContinuousAndCategorical(
+            model_data.features.continuous.padded_array.shape,
+            model_data.features.categorical.padded_array.shape,
+        ),
+    )
+
+    # Warp the output.
+    unpad_labels = np.asarray(model_data.labels.unpad())
+    warped_labels = self._warp_labels(unpad_labels)
+
+    labels = types.PaddedArray.from_array(
+        warped_labels,
+        model_data.labels.padded_array.shape,
+        fill_value=model_data.labels.fill_value,
+    )
+    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
+    return types.ModelData(model_data.features, labels)  # pyrefly: ignore[bad-return]
 
   @_experimental_override_allowed
   def _create_gp_spec(
@@ -554,7 +574,6 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
 
     Returns:
       The samples in the specified trials. shape: (num_samples, num_trials)
-      or (num_samples, num_trials, num_metrics) for multi-metric problems.
     """
     if rng is None:
       rng = jax.random.PRNGKey(0)
@@ -571,15 +590,16 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
     )
     samples = eqx.filter_jit(acq_lib.sample_from_predictive)(
         gp, xs, num_samples, key=rng
-    )  # (num_samples, num_trials) or (num_samples, num_trials, num_metrics)
-    if samples.ndim == 2:
-      samples = jnp.expand_dims(samples, axis=-1)
+    )  # (num_samples, num_trials)
     # Scope the samples to non-padded only (there's a single padded dimension).
     samples = samples[
-        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0]), :
+        :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0])
     ]
     # TODO: vectorize output warping.
-    return self._trial_warper.unwarp(samples)
+    return np.vstack([
+        self._output_warper.unwarp(samples[i][..., np.newaxis]).reshape(-1)
+        for i in range(samples.shape[0])
+    ])
 
   @profiler.record_runtime
   def predict(
