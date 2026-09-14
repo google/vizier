@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+"""Tests for gp_bandit, including multi-metric warping and prediction."""
+
 from typing import Callable, Union
 import unittest
 from unittest import mock
@@ -25,6 +27,7 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
@@ -506,6 +509,185 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ).run_designer(designer),
         iters,
     )
+
+  def test_multi_metric_warper_isolation(self):
+    """Verifies that each metric gets an isolated OutputWarper instance.
+
+    In multi-metric optimization, OutputWarper instances are stateful (tracking
+    running statistics, normalization bounds, etc.). This test ensures that
+    metrics with vastly different scales (e.g., obj1 in [0, 10] vs. obj2 in
+    [0, 10000]) use independent warper instances so that scale statistics do
+    not corrupt each other, and verifies predictions retain proper scales.
+    """
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
+                vz.MetricInformation(
+                    'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+                vz.MetricInformation(
+                    'obj2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    designer = gp_bandit.VizierGPBandit(problem)
+    trials = []
+    for i in range(10):
+      t = vz.Trial(parameters={'x0': float(i) - 5.0})
+      t.complete(
+          vz.Measurement(metrics={'obj1': float(i), 'obj2': float(i) * 1000.0})
+      )
+      trials.append(t)
+
+    designer.update(
+        completed=vza.CompletedTrials(trials),
+        all_active=vza.ActiveTrials([]),
+    )
+
+    # Ensure predict returns predictions with shape (num_trials, 2) and
+    # proper scales.
+    suggestions = [vz.TrialSuggestion(parameters={'x0': 0.0})]
+    prediction = designer.predict(suggestions, num_samples=100)
+    self.assertEqual(prediction.mean.shape, (1, 2))
+    self.assertEqual(prediction.stddev.shape, (1, 2))
+    # obj2 mean should be roughly 1000x of obj1 mean.
+    self.assertGreater(prediction.mean[0, 1], prediction.mean[0, 0] * 100)
+
+    # Check that _output_warpers contains two distinct instances keyed by
+    # metric.
+    self.assertLen(designer._trial_warper._output_warpers, 2)
+    self.assertIn('obj1', designer._trial_warper._output_warpers)
+    self.assertIn('obj2', designer._trial_warper._output_warpers)
+    self.assertIsNot(
+        designer._trial_warper._output_warpers['obj1'],
+        designer._trial_warper._output_warpers['obj2'],
+    )
+
+  def test_output_warper_factory_non_callable_raises_type_error(self):
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    # Passing an instantiated OutputWarper instead of a callable should fail.
+    with self.assertRaises(TypeError):
+      gp_bandit.VizierGPBandit(
+          problem,
+          output_warper_factory=output_warpers.create_default_warper(),  # pyrefly: ignore[unexpected-keyword,bad-argument-type]
+      )
+
+  def test_output_warper_factory_custom_callable(self):
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    designer = gp_bandit.VizierGPBandit(
+        problem,
+        output_warper_factory=lambda: output_warpers.create_default_warper(  # pyrefly: ignore[unexpected-keyword]
+            half_rank_warp=False
+        ),
+    )
+    t = vz.Trial(parameters={'x0': 1.0})
+    t.complete(vz.Measurement(metrics={'obj': 10.0}))
+    _ = designer._trials_to_data([t])
+    self.assertNotEmpty(designer._trial_warper._output_warpers)
+
+  def test_nan_metrics_label_handling_in_gp(self):
+    """Verifies GP label counts distinguish finite, missing, and infeasible data.
+
+    Goal:
+      Test that Vizier's GP-Bandit designer appropriately distinguishes between:
+      1. Finite data: Completed trials with valid, finite metric measurements
+         are retained and converted to GP labels.
+      2. NaN-as-missing data: When Trial.trial_infeasible is False (the
+      default),
+         a trial with NaN or missing metrics represents an unmeasured
+         evaluation.
+         It must be excluded from GP training data so that unmeasured trials do
+         not inject invalid numbers or bias the surrogate model (yielding N-1
+         labels for N trials).
+      3. NaN-as-infeasible/bad data: When Trial.trial_infeasible is True, a
+      trial
+         with NaN or missing metrics represents a failed/infeasible evaluation.
+         It must be retained and warped to a finitely bad (penalized) value
+         (yielding N labels for N trials) so the GP learns to avoid that region.
+    """
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
+                vz.MetricInformation(
+                    'obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    designer = gp_bandit.VizierGPBandit(problem)
+
+    # Case 1: Finite data.
+    # Two baseline feasible trials with finite measurements produce 2 labels.
+    t1 = vz.Trial(parameters={'x0': 1.0})
+    t1.complete(vz.Measurement(metrics={'obj': 10.0}))
+    t2 = vz.Trial(parameters={'x0': 2.0})
+    t2.complete(vz.Measurement(metrics={'obj': 20.0}))
+
+    data_finite = designer._trials_to_data([t1, t2])
+    self.assertEqual(data_finite.labels.unpad().shape[0], 2)
+    self.assertTrue(np.all(np.isfinite(data_finite.labels.unpad())))
+
+    # Case 2: NaN-as-missing data (trial_infeasible is False).
+    # A third trial with NaN metric is treated as missing data and dropped from
+    # the GP model training inputs, still resulting in 2 labels.
+    t_nan_missing = vz.Trial(parameters={'x0': 3.0})
+    t_nan_missing.complete(vz.Measurement(metrics={'obj': np.nan}))
+
+    data_missing = designer._trials_to_data([t1, t2, t_nan_missing])
+    self.assertEqual(data_missing.labels.unpad().shape[0], 2)
+    self.assertTrue(np.all(np.isfinite(data_missing.labels.unpad())))
+    # Warped labels should be identical to the baseline finite data.
+    np.testing.assert_allclose(
+        data_missing.labels.unpad(), data_finite.labels.unpad()
+    )
+
+    # Case 3: NaN-as-infeasible/bad data (trial_infeasible is True).
+    # A third trial marked infeasible with NaN metric is retained and warped to
+    # a penalized bad value, resulting in 3 labels sent to the GP model.
+    t_nan_infeasible = vz.Trial(parameters={'x0': 3.0})
+    t_nan_infeasible.complete(
+        vz.Measurement(metrics={'obj': np.nan}),
+        infeasibility_reason='evaluation failed',
+    )
+
+    data_infeasible = designer._trials_to_data([t1, t2, t_nan_infeasible])
+    self.assertEqual(data_infeasible.labels.unpad().shape[0], 3)
+    self.assertTrue(np.all(np.isfinite(data_infeasible.labels.unpad())))
+
+    # The infeasible trial's warped label must be strictly worse (lower for
+    # MAXIMIZE) than any of the feasible trials' warped labels.
+    infeasible_label = np.asarray(data_infeasible.labels.unpad())[2, 0]
+    feasible_labels = np.asarray(data_infeasible.labels.unpad())[:2, 0]
+    self.assertLess(infeasible_label, np.min(feasible_labels))
 
 
 class GPBanditSimplekDTest(parameterized.TestCase):

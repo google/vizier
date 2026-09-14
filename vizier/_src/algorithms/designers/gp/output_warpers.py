@@ -20,6 +20,7 @@ import abc
 import copy
 from typing import Callable, Optional, Sequence, Tuple
 
+from absl import logging
 import attr
 import attrs
 import equinox
@@ -28,7 +29,9 @@ from jax import numpy as jnp
 import numpy as np
 from scipy import stats
 from tensorflow_probability.substrates import jax as tfp
+from vizier import pyvizier as vz
 from vizier._src.jax import types
+from vizier.pyvizier import converters
 
 
 tfb = tfp.bijectors
@@ -791,3 +794,176 @@ class LinearOutputWarper(equinox.Module):
   def unwarp_stddev(self, warped_stddev: types.Array) -> jax.Array:
     """Un-warp the standard deviation."""
     return self._slope_bijector.inverse(warped_stddev)
+
+
+@attr.define
+class TrialOutputWarper:
+  """Warps trial measurements for GP training while handling missing data and infeasibility.
+
+  A metric value falls into one of four cases. Classification happens in LABEL
+  space, i.e. after `DefaultModelOutputConverter` has flipped the sign of
+  MINIMIZE metrics, so labels always follow the maximize convention and no goal
+  lookup is needed: "infinitely bad" is always -inf and "infinitely good" is
+  always +inf, whatever the metric's declared goal.
+
+  1. Finite: warped normally.
+  2. Infinite in the metric's BAD direction (-inf for MAXIMIZE, +inf for
+     MINIMIZE): kept, and warped to a penalized value worse than the worst
+     finite value. Such a value always reaches the pipeline as -inf, where
+     `_validate_labels` rewrites it to NaN and `InfeasibleWarperComponent`
+     penalizes it. This is deliberately identical to case 3.
+  3. NaN (or absent) on an infeasible trial (`trial.infeasible == True`):
+     penalized exactly as in case 2.
+  4. NaN (or absent) on a non-infeasible trial: missing data. The whole trial is
+     dropped, so it cannot corrupt the zero-mean shift or the GP likelihood.
+
+  An infinity in the metric's GOOD direction (+inf in label space) is rejected
+  by the Vizier API, so only stale data can carry one; such trials are dropped
+  with a warning rather than being allowed to raise out of `_validate_labels`.
+  That check is applied to infeasible trials too, since an infeasible trial may
+  still carry metric values.
+
+  Note that cases 3 and 4 drop or keep the ENTIRE trial: multi-metric GP models
+  (such as MTGP) require complete rows, so a single missing metric condemns the
+  whole trial.
+  """
+
+  converter: converters.TrialToModelInputConverter
+  pipeline_factory: Callable[[], OutputWarper] = create_default_warper
+  _output_warpers: dict[str, OutputWarper] = attr.field(
+      factory=dict, init=False
+  )
+
+  def warp_trials(
+      self,
+      trials: Sequence[vz.Trial],
+  ) -> types.ModelData:
+    """Filters missing trials, warps labels, and returns synchronized ModelData."""
+    metric_names = [m.name for m in self.converter.metric_specs]
+
+    # 1. Classify and filter trials. See the class docstring: an infinity in a
+    # metric's bad direction is kept and penalized, while a NaN on a feasible
+    # trial is missing data and condemns the whole trial.
+    #
+    # Classification happens in LABEL space rather than in the Trial's own
+    # metric space, because `DefaultModelOutputConverter` flips the sign of
+    # MINIMIZE metrics.  Labels therefore always maximize, so "infinitely bad"
+    # is always -inf and "infinitely good" is always +inf, and no goal lookup is
+    # needed at all.
+    #
+    # Do NOT be tempted to read goals from `self.converter.metric_specs`:
+    # `DefaultModelOutputConverter.metric_information` returns "a copy that
+    # reflects how the converter treats the metric", i.e. the goal AFTER the
+    # flip, so it reports MAXIMIZE for every metric and would invert the
+    # treatment of every MINIMIZE metric.
+    candidates = [
+        t for t in trials if t.infeasible or t.final_measurement is not None
+    ]
+    valid_trials: list[vz.Trial] = []
+    if candidates:
+      candidate_labels = np.asarray(
+          self.converter.to_labels(candidates).unpad()
+      )
+      # `strict=True`: the lengths cannot currently disagree, since `unpad()`
+      # slices back to exactly `len(candidates)` rows, but a silent truncation
+      # here would quietly drop trailing trials. Fail loudly instead.
+      for t, labels_row in zip(candidates, candidate_labels, strict=True):
+        # This guard must come BEFORE the `t.infeasible` check below: an
+        # infeasible trial may still carry metric values, and if one of them is
+        # infinitely good we must drop the trial rather than let
+        # `_validate_labels` raise and take the whole designer down.
+        if np.isposinf(labels_row).any():
+          # Infinitely good.  The Vizier API rejects this, so only stale data
+          # can reach here.
+          logging.warning(
+              'Dropping trial %s: Vizier cannot model an infinitely good '
+              'metric value. Labels were %s.',
+              t.id,
+              labels_row,
+          )
+          continue
+        if t.infeasible:
+          # A NaN here means "infinitely bad", which the pipeline penalizes.
+          valid_trials.append(t)
+          continue
+        if np.isnan(labels_row).any():
+          # Missing data on a feasible trial.
+          # NOTE: Multi-metric GP models (such as MTGP) require complete rows
+          # without NaNs, so a single missing metric condemns the whole trial.
+          continue
+        # Any remaining -inf is infinitely bad: keep it, and let
+        # `_validate_labels` rewrite it to NaN so that
+        # `InfeasibleWarperComponent` penalizes it exactly like case 3.
+        valid_trials.append(t)
+
+    self._output_warpers = {}
+    if not valid_trials:
+      # Use to_xy([]) so features and labels both follow the converter's padding
+      # schedule.
+      return self.converter.to_xy([])
+
+    # 2. Convert valid trials to features and labels.
+    model_data = self.converter.to_xy(valid_trials)
+    unpadded_labels = np.asarray(model_data.labels.unpad())
+
+    # 3. Warp each metric column with OutputWarperPipeline.
+    warped_labels_list = []
+    for i, m_name in enumerate(metric_names):
+      warper = self.pipeline_factory()
+      warped_col = warper.warp(unpadded_labels[:, i : i + 1])
+      warped_labels_list.append(warped_col)
+      self._output_warpers[m_name] = warper
+
+    labels = types.PaddedArray.from_array(
+        np.concatenate(warped_labels_list, axis=-1),  # pyrefly: ignore[bad-argument-type]
+        model_data.labels.padded_array.shape,
+        fill_value=model_data.labels.fill_value,
+    )
+    return types.ModelData(features=model_data.features, labels=labels)  # pyrefly: ignore[bad-return]
+
+  def unwarp(self, samples: types.Array) -> types.Array:
+    """Unwarps predicted values from the GP model back to the original scale.
+
+    Args:
+      samples: Array of shape (num_samples, num_trials) if single-metric or
+        (num_samples, num_trials, num_metrics) if multi-metric.
+
+    Returns:
+      Array of unwarped samples of the same shape as the input `samples`.
+
+    Raises:
+      ValueError: If output warpers are not set (e.g. warp_trials has not been
+        called on valid trials), or if samples has dimension not in (2, 3).
+    """
+    if not self._output_warpers:
+      raise ValueError(
+          'Output warpers are expected to be set, but found to be empty. '
+          'warp_trials() must be called with valid data before unwarping.'
+      )
+    samples_arr = np.asarray(samples)
+    if samples_arr.ndim not in (2, 3):
+      raise ValueError(
+          'samples must have dimension of either 2 or 3. Got'
+          f' {samples_arr.ndim}'
+      )
+    is_single_metric = samples_arr.ndim == 2
+    if is_single_metric:
+      samples_arr = np.expand_dims(samples_arr, axis=-1)
+
+    unwarped_samples = []
+    for metric_idx, metric_spec in enumerate(self.converter.metric_specs):
+      warper = self._output_warpers[metric_spec.name]
+      unwarped_samples.append(
+          np.vstack([
+              warper.unwarp(
+                  samples_arr[i][:, metric_idx : metric_idx + 1]
+              ).reshape(-1)
+              for i in range(samples_arr.shape[0])
+          ])
+      )
+    result = np.stack(unwarped_samples, axis=-1)
+    if result.shape[-1] > 1:
+      return result
+    elif is_single_metric or result.shape[-1] == 1:
+      return np.squeeze(result, axis=-1)
+    return result

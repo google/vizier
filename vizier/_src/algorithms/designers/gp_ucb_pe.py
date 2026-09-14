@@ -22,7 +22,7 @@ import copy
 import datetime
 import enum
 import random
-from typing import Any, Callable, Mapping, Optional, Protocol, Sequence, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, Union
 
 from absl import logging
 import attr
@@ -166,12 +166,12 @@ def _has_new_completed_trials(
       for t in completed_trials
       if t.completion_time is not None
   ]
+  if len(completed_completion_times) != len(completed_trials):
+    raise ValueError('All completed trials must have completion times.')
+
   active_creation_times = [
       t.creation_time for t in active_trials if t.creation_time is not None
   ]
-
-  if len(completed_completion_times) != len(completed_trials):
-    raise ValueError('All completed trials must have completion times.')
   if len(active_creation_times) != len(active_trials):
     raise ValueError('All active trials must have creation times.')
 
@@ -610,19 +610,6 @@ def default_ard_optimizer() -> optimizers.Optimizer[types.ParameterDict]:
   )
 
 
-class GPModelClass(Protocol):
-  """Protocol for GP model classes providing a `build_model` API."""
-
-  def build_model(
-      self,
-      data: types.ModelData,
-      *,
-      multitask_type: multitask_tuned_gp_models.MultiTaskType,
-      linear_coef: Optional[float],
-  ) -> sp.StochasticProcessModel:
-    """Returns a `StochasticProcessModel` for the GP model built from `data`."""
-
-
 # TODO: Remove excess use of copy.deepcopy()
 @attr.define(auto_attribs=False)
 class VizierGPUCBPEBandit(vza.Designer):
@@ -660,9 +647,9 @@ class VizierGPUCBPEBandit(vza.Designer):
       kw_only=True,
       factory=lambda: VizierGPUCBPEBandit.default_acquisition_optimizer_factory,
   )
-  _gp_model_class: GPModelClass = attr.field(  # pyrefly: ignore[bad-assignment]
+  _gp_model_class: sp.ModelCoroutine[tfd.GaussianProcess] = attr.field(  # pyrefly: ignore[bad-assignment]
       kw_only=True,
-      factory=lambda: tuned_gp_models.VizierGaussianProcess,
+      factory=lambda: tuned_gp_models.VizierGaussianProcess,  # pyrefly: ignore[bad-assignment]
   )
   _metadata_ns: str = attr.field(
       default='google_gp_ucb_pe_bandit', kw_only=True
@@ -754,7 +741,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         self._problem.search_space,
         seed=int(jax.random.randint(qrs_seed, [], 0, 2**16)),
     )
-    self._output_warpers: list[output_warpers.OutputWarper] = []
+    self._trial_warper = output_warpers.TrialOutputWarper(self._converter)
 
   def update(
       self, completed: vza.CompletedTrials, all_active: vza.ActiveTrials
@@ -819,7 +806,9 @@ class VizierGPUCBPEBandit(vza.Designer):
       `data.labels`. If `data.features` is empty, the returned parameters are
       initial values picked by the GP model.
     """
-    coroutine = self._gp_model_class.build_model(
+    # TODO: Creates a new abstract base class for GP models with a
+    # `build_model` API to avoid disabling the pytype attribute-error.
+    coroutine = self._gp_model_class.build_model(  # pyrefly: ignore[missing-attribute]
         data,
         multitask_type=self._config.multitask_type,
         linear_coef=1.0 if self._mixes_linear_kernel else None,
@@ -933,27 +922,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   @profiler.record_runtime
   def _trials_to_data(self, trials: Sequence[vz.Trial]) -> types.ModelData:
     """Convert trials to scaled features and warped labels."""
-    # TrialToArrayConverter returns floating arrays.
-    data = self._converter.to_xy(trials)
-    logging.info(
-        'Transforming the labels of shape %s. Features has shape: %s',
-        data.labels.shape,
-        _get_features_shape(data.features),
-    )
-    unpadded_labels = np.asarray(data.labels.unpad())
-    warped_labels = []
-    self._output_warpers = []
-    for i in range(data.labels.shape[1]):
-      output_warper = output_warpers.create_default_warper()
-      warped_labels.append(output_warper.warp(unpadded_labels[:, i : i + 1]))
-      self._output_warpers.append(output_warper)
-    labels = types.PaddedArray.from_array(
-        np.concatenate(warped_labels, axis=-1),  # pyrefly: ignore[bad-argument-type]
-        data.labels.padded_array.shape,
-        fill_value=data.labels.fill_value,
-    )
-    logging.info('Transformed the labels. Now has shape: %s', labels.shape)
-    return types.ModelData(features=data.features, labels=labels)  # pyrefly: ignore[bad-return]
+    return self._trial_warper.warp_trials(trials)
 
   @profiler.record_runtime(
       name_prefix='VizierGPUCBPEBandit', name='get_predictive_all_features'
@@ -1322,27 +1291,7 @@ class VizierGPUCBPEBandit(vza.Designer):
         :, ~(xs.continuous.is_missing[0] | xs.categorical.is_missing[0]), :
     ]
     # TODO: vectorize output warping.
-    if self._output_warpers:
-      unwarped_samples = []
-      for metric_idx, output_warper in enumerate(self._output_warpers):
-        unwarped_samples.append(
-            np.vstack([
-                output_warper.unwarp(
-                    samples[i][:, metric_idx : metric_idx + 1]
-                ).reshape(-1)
-                for i in range(samples.shape[0])
-            ])
-        )
-      unwarped_samples = np.stack(unwarped_samples, axis=-1)
-      if unwarped_samples.shape[-1] > 1:
-        return unwarped_samples
-      else:
-        return np.squeeze(unwarped_samples, axis=-1)
-    else:
-      raise TypeError(
-          'Output warpers are expected to be set, but found to be'
-          f' {self._output_warpers}.'
-      )
+    return self._trial_warper.unwarp(samples)
 
   @profiler.record_runtime
   def predict(
