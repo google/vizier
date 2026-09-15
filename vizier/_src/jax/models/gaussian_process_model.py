@@ -74,7 +74,7 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
       ] = tfpk.MaternFiveHalves,
       *,
       use_tfp_runtime_validation: bool = False,
-      dtype: jnp.dtype = jnp.float64,
+      dtype: jnp.dtype = jnp.float64,  # pyrefly: ignore[bad-function-definition]
   ):
     """Initializes a `GaussianProcessARDWithCategorical`.
 
