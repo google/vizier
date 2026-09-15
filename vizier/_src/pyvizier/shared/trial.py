@@ -316,9 +316,8 @@ class Measurement:
       on_setattr=[attr.setters.convert, attr.setters.validate],
       kw_only=True)
 
-  # TODO: Change type annotation to int.
-  steps: float = attr.ib(
-      converter=int,
+  steps: int = attr.ib(
+      converter=lambda x: int(x) if x is not None else int(0),
       init=True,
       default=0,
       validator=[attr.validators.instance_of(int), _value_is_finite],
