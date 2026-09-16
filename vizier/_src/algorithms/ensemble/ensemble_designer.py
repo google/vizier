@@ -74,6 +74,7 @@ class ObjectiveRewardGenerator:
             reference_value=self.reference_value,
             num_vectors=self.num_vectors,
             infer_origin_factor=0.1,
+            disable_metric_normalization=True,
         )
 
     stateful_curve_generator = analyzers.RestartingCurveConverter(
