@@ -44,6 +44,10 @@ class ObjectiveRewardGenerator:
       default=0.0,
       validator=[attrs.validators.instance_of(float), attrs.validators.ge(0)],
   )
+  min_positive_reward: float = attrs.field(
+      default=0.01,
+      validator=[attrs.validators.instance_of(float), attrs.validators.ge(0)],
+  )
   # Arguments passed to the hypervolume converter.
   reference_value: Optional[np.ndarray] = attrs.field(
       default=None,
@@ -97,9 +101,12 @@ class ObjectiveRewardGenerator:
             + self.reward_regularization * objective_curve.ys[:, idx + 1]
         )
         if np.isfinite(regularized_reward):
-          rewards.append(
-              max(self.min_reward, float(np.squeeze(regularized_reward)))
-          )
+          final_reward = float(np.squeeze(regularized_reward))
+          # If final_reward is positive, set it to at least min_positive_reward.
+          if final_reward > 1e-8:
+            final_reward = max(final_reward, self.min_positive_reward)
+          final_reward = max(self.min_reward, final_reward)
+          rewards.append(final_reward)
         else:
           rewards.append(self.min_reward)
 
