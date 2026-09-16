@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Mapping, Optional, Union
 
 from absl import logging
 import attr
+from google.protobuf import json_format
 import grpc
-
 from vizier._src.service import constants
 from vizier._src.service import resources
 from vizier._src.service import stubs_util
@@ -40,7 +40,6 @@ from vizier.utils import attrs_utils
 
 from google.longrunning import operations_pb2
 from google.protobuf import duration_pb2
-from google.protobuf import json_format
 
 
 @attr.define

@@ -18,14 +18,14 @@ from __future__ import annotations
 
 import collections
 from collections import abc
-from typing import DefaultDict, Dict, overload, Iterator
-from typing import Iterable, List, Optional, Tuple, TypeVar, Union, Type
+from typing import DefaultDict, Dict, Iterator, overload
+from typing import Iterable, List, Optional, Tuple, Type, TypeVar, Union
 
 from absl import logging
 import attr
+from google.protobuf.message import Message
 
 from google.protobuf import any_pb2
-from google.protobuf.message import Message
 
 _M = TypeVar('_M', bound=Message)
 T = TypeVar('T')
