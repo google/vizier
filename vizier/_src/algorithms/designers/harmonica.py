@@ -272,8 +272,14 @@ class HarmonicaDesigner(vza.Designer):
           f'This designer {self} does not support conditional search.'
       )
     for p_config in problem_statement.search_space.parameters:
-      if p_config.external_type != vz.ExternalType.BOOLEAN:
-        raise ValueError('Only boolean search spaces are supported.')
+      if p_config.external_type != vz.ExternalType.BOOLEAN and (
+          p_config.type == vz.ParameterType.DOUBLE
+          or len(p_config.feasible_values) != 2
+      ):
+        raise ValueError(
+            'Only boolean search spaces are supported, bot got parameter'
+            f' config: f{p_config}'
+        )
 
     self._problem_statement = problem_statement
     self._metric_name = self._problem_statement.metric_information.item().name
@@ -345,5 +351,11 @@ class HarmonicaDesigner(vza.Designer):
 
     parameters = vz.ParameterDict()
     for i, p in enumerate(self._search_space.parameters):
-      parameters[p.name] = 'True' if x_new[i] == 1.0 else 'False'
+      if p.external_type == vz.ExternalType.BOOLEAN:
+        parameters[p.name] = 'True' if x_new[i] == 1.0 else 'False'
+      else:
+        parameters[p.name] = (
+            p.feasible_values[1] if x_new[i] == 1.0 else p.feasible_values[0]
+        )
+
     return [vz.TrialSuggestion(parameters=parameters)]
