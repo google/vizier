@@ -480,7 +480,7 @@ class VectorizedOptimizer(Generic[_S]):
         self.strategy.init_state(
             init_seed,
             n_parallel=parallel_dim,
-            prior_features=prior_features,
+            prior_features=prior_features,  # pyrefly: ignore[bad-argument-type]
             prior_rewards=prior_rewards,
         ),
         init_best_results,
@@ -658,7 +658,7 @@ def trials_to_sorted_array(
 ) -> Optional[types.ModelInput]:
   """Sorts trials by the order they were created and converts to array."""
   if prior_trials:
-    prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)
+    prior_trials = sorted(prior_trials, key=lambda x: x.creation_time)  # pyrefly: ignore[no-matching-overload]
     prior_features = converter.to_features(prior_trials)
   else:
     prior_features = None

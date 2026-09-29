@@ -129,7 +129,7 @@ class VizierGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     )
     return sp.StochasticProcessModel(gp_coroutine)
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       inputs: Optional[types.ModelInput] = None,
   ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:

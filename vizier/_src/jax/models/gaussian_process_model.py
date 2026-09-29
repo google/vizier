@@ -97,7 +97,7 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
           ' True) to your main'
       )
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self, inputs: Optional[types.ModelInput] = None
   ) -> Generator[sp_model.ModelParameter, Array, tfd.GaussianProcess]:
     # TODO: Remove the following line when the linter bug is fixed.

@@ -51,7 +51,7 @@ class VizierHeboGaussianProcess(sp.ModelCoroutine[tfd.GaussianProcess]):
     gp_coroutine = VizierHeboGaussianProcess()
     return sp.StochasticProcessModel(gp_coroutine)
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self, inputs: Optional[types.ModelInput] = None
   ) -> Generator[sp.ModelParameter, jax.Array, tfd.GaussianProcess]:
     """Creates a generator.

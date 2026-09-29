@@ -995,7 +995,7 @@ class OptimalityGapGainComparator(ConvergenceComparator):
 class OptimalityGapWinRateComparatorFactory(ConvergenceComparatorFactory):
   """Factory class for OptimalityGapWinRateComparator."""
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       baseline_curve: ConvergenceCurve,
       compared_curve: ConvergenceCurve,
@@ -1016,7 +1016,7 @@ class OptimalityGapWinRateComparatorFactory(ConvergenceComparatorFactory):
 class OptimalityGapGainComparatorFactory(ConvergenceComparatorFactory):
   """Factory class for OptimalityGapGainComparator."""
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       baseline_curve: ConvergenceCurve,
       compared_curve: ConvergenceCurve,
@@ -1040,7 +1040,7 @@ class WinRateConvergenceCurveComparatorFactory(ConvergenceComparatorFactory):
 
   comparison_mode: Literal['pairwise', 'quantiles'] = 'pairwise'
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       baseline_curve: ConvergenceCurve,
       compared_curve: ConvergenceCurve,
@@ -1064,7 +1064,7 @@ class LogEfficiencyConvergenceCurveComparatorFactory(
 ):
   """Factory class for LogEfficiencyConvergenceCurveComparator."""
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       baseline_curve: ConvergenceCurve,
       compared_curve: ConvergenceCurve,
@@ -1087,7 +1087,7 @@ class PercentageBetterConvergenceCurveComparatorFactory(
 ):
   """Factory class for PercentageBetterConvergenceCurveComparator."""
 
-  def __call__(
+  def __call__(  # pyrefly: ignore[bad-override]
       self,
       baseline_curve: ConvergenceCurve,
       compared_curve: ConvergenceCurve,
