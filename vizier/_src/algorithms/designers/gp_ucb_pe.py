@@ -600,13 +600,13 @@ class SetPEScoreFunction(eqx.Module):
 
 
 def default_ard_optimizer() -> optimizers.Optimizer[types.ParameterDict]:
-  return optimizers.JaxoptScipyLbfgsB(  # pyrefly: ignore[bad-return]
-      options=optimizers.LbfgsBOptions(  # pyrefly: ignore[unexpected-keyword]
+  return optimizers.JaxoptScipyLbfgsB(
+      options=optimizers.LbfgsBOptions(
           num_line_search_steps=20,
           tol=1e-5,
           maxiter=500,
       ),
-      max_duration=datetime.timedelta(minutes=40),  # pyrefly: ignore[unexpected-keyword]
+      max_duration=datetime.timedelta(minutes=40),
   )
 
 
@@ -660,7 +660,7 @@ class VizierGPUCBPEBandit(vza.Designer):
       kw_only=True,
       factory=lambda: VizierGPUCBPEBandit.default_acquisition_optimizer_factory,
   )
-  _gp_model_class: GPModelClass = attr.field(  # pyrefly: ignore[bad-assignment]
+  _gp_model_class: GPModelClass = attr.field(
       kw_only=True,
       factory=lambda: tuned_gp_models.VizierGaussianProcess,
   )
@@ -677,7 +677,7 @@ class VizierGPUCBPEBandit(vza.Designer):
   _ard_random_restarts: int = attr.field(default=4, kw_only=True)
   _use_trust_region: bool = attr.field(default=True, kw_only=True)
   _num_seed_trials: int = attr.field(default=1, kw_only=True)
-  _config: UCBPEConfig = attr.field(  # pyrefly: ignore[bad-assignment]
+  _config: UCBPEConfig = attr.field(
       factory=UCBPEConfig,  # pyrefly: ignore[bad-assignment]
       kw_only=True,
   )

@@ -171,7 +171,7 @@ class GridSearchDesigner(algorithms.PartiallySerializableDesigner):
           parameter_config, scale=True
       )
       grid_scalars = np.linspace(0.0, 1.0, num=self._double_grid_resolution)
-      return converter.to_parameter_values(grid_scalars)  # pytype:disable=bad-return-type
+      return converter.to_parameter_values(grid_scalars)  # pyrefly: ignore[bad-return]
 
     elif parameter_config.type == pyvizier.ParameterType.INTEGER:
       min_value, max_value = parameter_config.bounds

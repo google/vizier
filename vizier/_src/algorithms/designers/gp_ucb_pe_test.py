@@ -182,11 +182,11 @@ class GpUcbPeTest(parameterized.TestCase):
     )
     designer = gp_ucb_pe.VizierGPUCBPEBandit(
         problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        num_seed_trials=num_seed_trials,  # pyrefly: ignore[unexpected-keyword]
-        ard_optimizer=ard_optimizer,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
-        metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        num_seed_trials=num_seed_trials,
+        ard_optimizer=ard_optimizer,  # pyrefly: ignore[bad-argument-type]
+        metadata_ns='gp_ucb_pe_bandit_test',
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             # Sets the penalty coefficient to 0.0 so that the PE aquisition
@@ -208,14 +208,14 @@ class GpUcbPeTest(parameterized.TestCase):
             ),
             multitask_type=multitask_type,
         ),
-        ensemble_size=ensemble_size,  # pyrefly: ignore[unexpected-keyword]
-        padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
-            num_trials=padding.PaddingType.MULTIPLES_OF_10  # pyrefly: ignore[unexpected-keyword]
+        ensemble_size=ensemble_size,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10
             if applies_padding
             else padding.PaddingType.NONE,
         ),
-        rng=jax.random.PRNGKey(1),  # pyrefly: ignore[unexpected-keyword]
-        mixes_linear_kernel=mixes_linear_kernel,  # pyrefly: ignore[unexpected-keyword]
+        rng=jax.random.PRNGKey(1),
+        mixes_linear_kernel=mixes_linear_kernel,
     )
 
     quasi_random_sampler = quasi_random.QuasiRandomDesigner(
@@ -396,10 +396,10 @@ class GpUcbPeTest(parameterized.TestCase):
     )
     designer = gp_ucb_pe.VizierGPUCBPEBandit(
         problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
-        num_seed_trials=1,  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        metadata_ns='gp_ucb_pe_bandit_test',
+        num_seed_trials=1,
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
@@ -407,10 +407,10 @@ class GpUcbPeTest(parameterized.TestCase):
             pe_overwrite_probability=0.0,
             signal_to_noise_threshold=0.0,
         ),
-        padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
-            num_trials=padding.PaddingType.MULTIPLES_OF_10  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10
         ),
-        rng=jax.random.PRNGKey(1),  # pyrefly: ignore[unexpected-keyword]
+        rng=jax.random.PRNGKey(1),
     )
 
     trial_id = 1
@@ -494,10 +494,10 @@ class GpUcbPeTest(parameterized.TestCase):
 
     designer = gp_ucb_pe.VizierGPUCBPEBandit(
         problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
-        num_seed_trials=1,  # pyrefly: ignore[unexpected-keyword]
-        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        metadata_ns='gp_ucb_pe_bandit_test',
+        num_seed_trials=1,
+        config=gp_ucb_pe.UCBPEConfig(  # pyrefly: ignore[bad-argument-type]
             ucb_coefficient=10.0,
             explore_region_ucb_coefficient=0.5,
             cb_violation_penalty_coefficient=10.0,
@@ -508,11 +508,11 @@ class GpUcbPeTest(parameterized.TestCase):
                 optimize_set_acquisition_for_exploration
             ),
         ),
-        padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
-            num_trials=padding.PaddingType.MULTIPLES_OF_10  # pyrefly: ignore[unexpected-keyword]
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10
         ),
-        prior_acquisition=dummy_prior_acquisition,  # pyrefly: ignore[unexpected-keyword]
-        rng=jax.random.PRNGKey(1),  # pyrefly: ignore[unexpected-keyword]
+        prior_acquisition=dummy_prior_acquisition,
+        rng=jax.random.PRNGKey(1),
     )
 
     trial_id = 1
@@ -631,13 +631,13 @@ class GpUcbPeTest(parameterized.TestCase):
     )
     designer = gp_ucb_pe.VizierGPUCBPEBandit(
         problem,
-        acquisition_optimizer_factory=vectorized_optimizer_factory,  # pyrefly: ignore[unexpected-keyword]
-        metadata_ns='gp_ucb_pe_bandit_test',  # pyrefly: ignore[unexpected-keyword]
-        num_seed_trials=1,  # pyrefly: ignore[unexpected-keyword]
-        padding_schedule=padding.PaddingSchedule(  # pyrefly: ignore[unexpected-keyword]
-            num_trials=padding.PaddingType.MULTIPLES_OF_10  # pyrefly: ignore[unexpected-keyword]
+        acquisition_optimizer_factory=vectorized_optimizer_factory,
+        metadata_ns='gp_ucb_pe_bandit_test',
+        num_seed_trials=1,
+        padding_schedule=padding.PaddingSchedule(
+            num_trials=padding.PaddingType.MULTIPLES_OF_10
         ),
-        rng=jax.random.PRNGKey(1),  # pyrefly: ignore[unexpected-keyword]
+        rng=jax.random.PRNGKey(1),
     )
     all_trials = []
     trial_id = 1

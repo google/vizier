@@ -638,4 +638,4 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         if seed is None
         else jax.random.PRNGKey(seed)
     )
-    return cls(problem, rng=rng, **kwargs)  # pyrefly: ignore[unexpected-keyword]
+    return cls(problem, rng=rng, **kwargs)
