@@ -90,11 +90,11 @@ def is_frontier(
   frontier = np.ones(ys.shape[0], dtype=np.bool_)
 
   for begin, end in zip(idx[1:], idx[:-1]):
-    candidates = ys[frontier]  # pyrefly: ignore[bad-index]
+    candidates = ys[frontier]
     # Filter candidates by comparing against the slice.
     if verbose:
       print(f"Compare {len(candidates)} against {begin}:{end}.")
-    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)  # pyrefly: ignore[bad-index]
+    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
     frontier[frontier] = tt
   return frontier
 
@@ -148,7 +148,7 @@ def get_frontier(
     if verbose:
       # Use print. This method won't run in production anyways.
       print(f"Compare {len(candidates)} against {begin}:{end}.")
-    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)  # pyrefly: ignore[bad-index]
+    tt = _is_pareto_optimal_against(candidates, ys[begin:end], strict=True)
     candidates = candidates[tt]
   return candidates
 

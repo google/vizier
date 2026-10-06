@@ -181,7 +181,7 @@ class _SerializableDesignerPolicyBase(
     self._ns_root = ns_root
     self._cache: trial_caches.IdDeduplicatingTrialLoader = (
         trial_caches.IdDeduplicatingTrialLoader(
-            supporter, include_intermediate_measurements=False  # pyrefly: ignore[unexpected-keyword]
+            supporter, include_intermediate_measurements=False
         )
     )
     self._problem_statement = problem_statement

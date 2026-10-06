@@ -53,8 +53,8 @@ class JaxoptWrappersTest(
 
   def test_max_duration(self):
     optimizer = jw.JaxoptScipyLbfgsB(
-        max_duration=datetime.timedelta(seconds=0),  # pyrefly: ignore[unexpected-keyword]
-        speed_test=True,  # pyrefly: ignore[unexpected-keyword]
+        max_duration=datetime.timedelta(seconds=0),
+        speed_test=True,
     )
     random_restarts = 3
     rngs = jax.random.split(jax.random.PRNGKey(1), random_restarts + 1)

@@ -104,8 +104,8 @@ class EfficiencyComparisonTester:
     candidate_curve = analyzers.ConvergenceCurve.align_xs(
         candidate_curves, interpolate_repeats=True
     )[0]
-    comparator = analyzers.LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve, compared_curve=candidate_curve  # pyrefly: ignore[unexpected-keyword]
+    comparator = analyzers.LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=baseline_curve, compared_curve=candidate_curve
     )
 
     if (log_eff_score := comparator.score()) < score_threshold:
@@ -167,14 +167,14 @@ class SimpleRegretComparisonTester:
     candidate_optimizer = candidate_optimizer_factory(converter)
 
     for i in range(self.baseline_num_repeats):
-      res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
+      res = baseline_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pyrefly: ignore[bad-argument-type]
       trial = vb.best_candidates_to_trials(res, converter)
       baseline_obj_values.append(
           trial[0].final_measurement_or_die.metrics['acquisition'].value
       )
 
     for i in range(self.candidate_num_repeats):
-      res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pytype: disable=wrong-arg-types
+      res = candidate_optimizer(score_fn, count=1, seed=random.PRNGKey(i))  # pyrefly: ignore[bad-argument-type]
       trial = vb.best_candidates_to_trials(res, converter)
       candidate_obj_values.append(
           trial[0].final_measurement_or_die.metrics['acquisition'].value

@@ -146,8 +146,8 @@ class EagleStrategyDesigner(vza.PartiallySerializableDesigner):
     self._rng = np.random.default_rng(seed=seed)
     self._config = config or FireflyAlgorithmConfig()
     self._utils = EagleStrategyUtils(self._problem, self._config, self._rng)
-    self._firefly_pool = FireflyPool(  # pyrefly: ignore[missing-argument]
-        utils=self._utils, capacity=self._utils.compute_pool_capacity()  # pyrefly: ignore[unexpected-keyword]
+    self._firefly_pool = FireflyPool(
+        utils=self._utils, capacity=self._utils.compute_pool_capacity()
     )
 
     if initial_designer_factory is None:

@@ -134,7 +134,7 @@ class Offspring(serializable.Serializable):
     if ids is None:
       ids = np.zeros([xs.shape[0]])
 
-    self.__attrs_init__(xs, ids, generations)  # pyrefly: ignore[missing-attribute]
+    self.__attrs_init__(xs, ids, generations)
 
   def __len__(self) -> int:
     return self.generations.shape[0]
@@ -325,7 +325,7 @@ class PopulationConverter(templates.PopulationConverter):
         self._trial_converter.to_features([])
     )
 
-  def to_suggestions(  # pytype: disable=signature-mismatch  # overriding-parameter-type-checks
+  def to_suggestions(  # pyrefly: ignore[bad-override]
       self, offsprings: Offspring
   ) -> Collection[vz.TrialSuggestion]:
     parameters_list = self._trial_converter.to_parameters(

@@ -120,33 +120,34 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
     Returns:
       A `tfd.GaussianProcess` with the given index points.
     """
-    # pytype: disable=not-callable  # jnp-type
     amplitude = yield sp_model.ModelParameter.from_prior(
-        tfd.LogNormal(self.dtype(0.0), 1.0, name='amplitude'),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
+        tfd.LogNormal(self.dtype(0.0), 1.0, name='amplitude'),  # pyrefly: ignore[not-callable]
+        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),  # pyrefly: ignore[not-callable]
     )
     kernel = self._kernel_class(
         amplitude=amplitude,
-        length_scale=self.dtype(1.0),
+        length_scale=self.dtype(1.0),  # pyrefly: ignore[not-callable]
         validate_args=self._use_tfp_runtime_validation,
     )
     inverse_length_scale_continuous = yield sp_model.ModelParameter.from_prior(
         tfd.Sample(
-            tfd.LogNormal(self.dtype(0.0), 1.0),
+            tfd.LogNormal(self.dtype(0.0), 1.0),  # pyrefly: ignore[not-callable]
             sample_shape=(self.dimension.continuous,),
             name='inverse_length_scale_continuous',
         ),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
+        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),  # pyrefly: ignore[not-callable]
     )
     inverse_length_scale_categorical = yield sp_model.ModelParameter.from_prior(
         tfd.Sample(
-            tfd.LogNormal(self.dtype(0.0), 1.0),
+            tfd.LogNormal(self.dtype(0.0), 1.0),  # pyrefly: ignore[not-callable]
             sample_shape=(self.dimension.categorical,),
             name='inverse_length_scale_categorical',
         ),
         constraint=sp_model.Constraint(
-            bounds=(jnp.zeros(self.dimension.categorical, dtype=self.dtype),
-                    None)
+            bounds=(
+                jnp.zeros(self.dimension.categorical, dtype=self.dtype),
+                None,
+            )
         ),
     )
     kernel = tfpke.FeatureScaledWithCategorical(
@@ -157,11 +158,13 @@ class GaussianProcessARD(sp_model.ModelCoroutine):
         validate_args=self._use_tfp_runtime_validation,
     )
     observation_noise_variance = yield sp_model.ModelParameter.from_prior(
-        tfd.LogNormal(self.dtype(0.0), 1.0,
-                      name='observation_noise_variance'),
-        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),
+        tfd.LogNormal(
+            self.dtype(0.0),  # pyrefly: ignore[not-callable]
+            1.0,
+            name='observation_noise_variance',
+        ),
+        constraint=sp_model.Constraint(bounds=(self.dtype(0.0), None)),  # pyrefly: ignore[not-callable]
     )
-    # pytype: enable=not-callable
     if inputs is not None:
       inputs = tfpke.ContinuousAndCategoricalValues(
           inputs.continuous.padded_array, inputs.categorical.padded_array

@@ -361,7 +361,7 @@ class EagleStrategyUtils:
       return np.nan
     if trial.final_measurement is None:
       raise ValueError('Trial is not completed.')
-    return trial.final_measurement.metrics[OBJECTIVE_NAME]  # pytype: disable=bad-return-type
+    return trial.final_measurement.metrics[OBJECTIVE_NAME]
 
   def is_better_than(
       self,

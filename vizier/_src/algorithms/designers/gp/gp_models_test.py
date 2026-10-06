@@ -66,7 +66,7 @@ def _setup_lambda_search(
   problem = vz.ProblemStatement(
       search_space=search_space,
       metric_information=vz.MetricsConfig(
-          metrics=[  # pyrefly: ignore[unexpected-keyword]
+          metrics=[
               vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
           ]
       ),
@@ -378,7 +378,7 @@ class StackedResidualGPTest(parameterized.TestCase):
     problem = vz.ProblemStatement(
         search_space=search_space,
         metric_information=vz.MetricsConfig(
-            metrics=[  # pyrefly: ignore[unexpected-keyword]
+            metrics=[
                 vz.MetricInformation(
                     'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
                 ),

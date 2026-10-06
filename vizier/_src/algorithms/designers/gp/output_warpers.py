@@ -357,10 +357,10 @@ class HalfRankComponent(OutputWarper):
         labels_arr[i] = rank_ppf * estimated_std + median
 
     # Save information needed for unwarping.
-    self._unwarper = _HalfRankUnwarper(  # pyrefly: ignore[missing-argument]
-        original_labels=unique_labels,  # pyrefly: ignore[unexpected-keyword]
-        warped_labels=labels_arr[is_finite][unique_idx],  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
-        original_label_median=unique_labels[len(unique_labels) // 2],  # pyrefly: ignore[unexpected-keyword]
+    self._unwarper = _HalfRankUnwarper(
+        original_labels=unique_labels,
+        warped_labels=labels_arr[is_finite][unique_idx],  # pyrefly: ignore[bad-argument-type]
+        original_label_median=unique_labels[len(unique_labels) // 2],
     )
     return labels_arr[:, np.newaxis]
 

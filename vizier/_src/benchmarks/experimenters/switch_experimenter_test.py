@@ -37,8 +37,8 @@ class SwitchExperimenterTest(absltest.TestCase):
 
     switch_exptr.evaluate([t0, t1])
 
-    self.assertEqual(t0.final_measurement.metrics['switch_metric'].value, 0.0)  # pytype:disable=attribute-error
-    self.assertEqual(t1.final_measurement.metrics['switch_metric'].value, 100.0)  # pytype:disable=attribute-error
+    self.assertEqual(t0.final_measurement.metrics['switch_metric'].value, 0.0)  # pyrefly: ignore[missing-attribute]
+    self.assertEqual(t1.final_measurement.metrics['switch_metric'].value, 100.0)  # pyrefly: ignore[missing-attribute]
 
 
 if __name__ == '__main__':

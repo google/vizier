@@ -92,4 +92,4 @@ class SklearnClassifier:
     if self.eval_metric == 'probability':
       return self.classifier.predict_proba(np.asarray(self.features_test))[:, 1]
     else:
-      return self.classifier.decision_function(np.asarray(self.features_test))  # pytype:disable=attribute-error
+      return self.classifier.decision_function(np.asarray(self.features_test))  # pyrefly: ignore[missing-attribute]

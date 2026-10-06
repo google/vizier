@@ -157,11 +157,11 @@ class MetaLearningDesigner(vza.Designer):
       self.seed = np.random.randint(low=0, high=1e6)  # pyrefly: ignore[no-matching-overload]
 
     # Instantiate an MetaLearningUtils.
-    self._utils = utils.MetaLearningUtils(  # pyrefly: ignore[missing-argument]
-        goal=self.problem.metric_information.item().goal,  # pyrefly: ignore[unexpected-keyword]
-        tuned_metric_name=self.problem.metric_information.item().name,  # pyrefly: ignore[unexpected-keyword]
-        meta_metric_name=self._meta_designer_metric_name,  # pyrefly: ignore[unexpected-keyword]
-        tuning_params=self.tuning_hyperparams,  # pyrefly: ignore[unexpected-keyword]
+    self._utils = utils.MetaLearningUtils(
+        goal=self.problem.metric_information.item().goal,
+        tuned_metric_name=self.problem.metric_information.item().name,
+        meta_metric_name=self._meta_designer_metric_name,
+        tuning_params=self.tuning_hyperparams,
     )
     # Instantiated 'tuned' designer the with default hyper-parameters.
     self._curr_tuned_hyperparams = self._utils.get_default_hyperparameters()

@@ -97,7 +97,6 @@ class EXP3IXEnsembleDesign(EnsembleDesign):
     self._history.append(observation)
 
 
-# pytype: disable=attribute-error
 # https://www.cs.princeton.edu/courses/archive/fall16/cos402/lectures/402-lec22.pdf.
 @attrs.define
 class EXP3UniformEnsembleDesign(EnsembleDesign):
@@ -129,7 +128,7 @@ class EXP3UniformEnsembleDesign(EnsembleDesign):
     probs = (1 - gamma) * softmax(self._log_weights) + gamma * uniform
     return probs
 
-  def update(self, observation: IndexWithReward):
+  def update(self, observation: IndexWithReward):  # pyrefly: ignore[bad-override]
     """Update history and weights."""
     expert_idx, reward = observation
     if not self.use_reward_estimator:
@@ -242,7 +241,7 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
     ) + algo_prob_sum / (2 * np.sum(algo_prob_sum))
     return observation_prob
 
-  def update(self, observation: IndexWithReward):
+  def update(self, observation: IndexWithReward):  # pyrefly: ignore[bad-override]
     expert_idx, reward = observation
     reward = min(reward, self.max_reward)
     reward_estimator = reward * 1.0 / self.ensemble_probs[expert_idx]
@@ -278,6 +277,3 @@ class AdaptiveEnsembleDesign(EnsembleDesign):
       base_algo.update((expert_idx, reward_estimator))
 
     self._history.append(observation)
-
-
-# pytype: enable=attribute-error
