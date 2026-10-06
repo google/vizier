@@ -42,8 +42,10 @@ class Context:
       validator=attr.validators.deep_mapping(
           key_validator=attr.validators.instance_of(str),
           value_validator=attr.validators.instance_of(ParameterValue),
-          mapping_validator=attr.validators.instance_of(dict)),
-      on_setattr=attr.setters.validate)  # pytype: disable=wrong-arg-types
+          mapping_validator=attr.validators.instance_of(dict),
+      ),
+      on_setattr=attr.setters.validate,
+  )
 
   metadata: Metadata = attr.ib(
       init=True,
@@ -59,5 +61,7 @@ class Context:
       validator=attr.validators.deep_mapping(
           key_validator=attr.validators.instance_of(str),
           value_validator=attr.validators.instance_of(str),
-          mapping_validator=attr.validators.instance_of(dict)),
-      on_setattr=attr.setters.validate)  # pytype: disable=wrong-arg-types
+          mapping_validator=attr.validators.instance_of(dict),
+      ),
+      on_setattr=attr.setters.validate,
+  )

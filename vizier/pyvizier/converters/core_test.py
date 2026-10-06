@@ -140,7 +140,7 @@ class TrialToArrayConverterTest(parameterized.TestCase):
     problem = pyvizier.ProblemStatement(
         search_space=search_space,
         metric_information=pyvizier.MetricsConfig(
-            metrics=[  # pyrefly: ignore[unexpected-keyword]
+            metrics=[
                 pyvizier.MetricInformation(
                     'obj1', goal=pyvizier.ObjectiveMetricGoal.MAXIMIZE
                 ),

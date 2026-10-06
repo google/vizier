@@ -389,7 +389,6 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
       # This configuration updates all the fireflies in each iteration.
       suggestion_batch_size = pool_size
     # Use priors to populate Eagle state
-    # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategy(
         n_feature_dimensions=feature_dimensions.n_feature_dimensions,
         n_feature_dimensions_with_padding=(
@@ -402,9 +401,8 @@ class VectorizedEagleStrategyFactory(vb.VectorizedStrategyFactory):
         pool_size=pool_size,
         categorical_sizes=jnp.array(feature_dimensions.categorical_sizes),
         max_categorical_size=feature_dimensions.max_categorical_size,
-        dtype=converter._impl.dtype,
+        dtype=converter._impl.dtype,  # pyrefly: ignore[bad-argument-type]
     )
-    # pytype: enable=wrong-arg-types
 
 
 @struct.dataclass
@@ -555,15 +553,13 @@ class VectorizedEagleStrategy(
           n_parallel=n_parallel,
           seed=seed,
       )
-    # pytype: disable=wrong-arg-types  # jnp-type
     return VectorizedEagleStrategyState(
         iterations=jnp.array(0),
         features=init_features,
         rewards=jnp.ones(self.pool_size) * -jnp.inf,
-        best_reward=-jnp.inf,
+        best_reward=-jnp.inf,  # pyrefly: ignore[bad-argument-type]
         perturbations=jnp.ones(self.pool_size) * self.config.perturbation,
     )
-    # pytype: enable=wrong-arg-types
 
   def _populate_pool_with_prior_trials(
       self,
@@ -847,14 +843,12 @@ class VectorizedEagleStrategy(
     if self.config.mutate_normalization_type == MutateNormalizationType.MEAN:
       # Divide the push / pull forces by the number of participating fireflies.
       # Also multiply by normalization_scale.
-      # pytype: disable=wrong-arg-types  # jnp-type
       norm_scaled_pulls = self.config.normalization_scale * jnp.nan_to_num(
-          scaled_pulls / jnp.sum(scaled_pulls > 0.0, axis=1, keepdims=True), 0
+          scaled_pulls / jnp.sum(scaled_pulls > 0.0, axis=1, keepdims=True), 0  # pyrefly: ignore[bad-argument-type]
       )
       norm_scaled_push = self.config.normalization_scale * jnp.nan_to_num(
-          scaled_push / jnp.sum(scaled_push < 0.0, axis=1, keepdims=True), 0
+          scaled_push / jnp.sum(scaled_push < 0.0, axis=1, keepdims=True), 0  # pyrefly: ignore[bad-argument-type]
       )
-      # pytype: enable=wrong-arg-types
     elif self.config.mutate_normalization_type == (
         MutateNormalizationType.RANDOM
     ):

@@ -314,7 +314,7 @@ class StudyConfig(base_study_config.ProblemStatement):
       if pc.external_type is None:
         external_value = remaining_parameters[pc.name].value
       else:
-        external_value = remaining_parameters[pc.name].cast(pc.external_type)  # pytype: disable=wrong-arg-types
+        external_value = remaining_parameters[pc.name].cast(pc.external_type)
       external_values[pc.name] = external_value
       remaining_parameters.pop(pc.name)
     return external_values

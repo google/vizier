@@ -344,15 +344,15 @@ class ParameterConfig:
     if default_value is not None:
       default_value = _get_default_value(inferred_type, default_value)
 
-    pc = cls(  # pyrefly: ignore[missing-argument]
-        name=name,  # pyrefly: ignore[unexpected-keyword]
-        type=inferred_type,  # pyrefly: ignore[unexpected-keyword]
-        bounds=bounds,  # pyrefly: ignore[unexpected-keyword]
-        feasible_values=feasible_values,  # pyrefly: ignore[bad-argument-type, unexpected-keyword]
-        scale_type=scale_type,  # pyrefly: ignore[unexpected-keyword]
-        default_value=default_value,  # pyrefly: ignore[unexpected-keyword]
+    pc = cls(
+        name=name,
+        type=inferred_type,
+        bounds=bounds,
+        feasible_values=feasible_values,  # pyrefly: ignore[bad-argument-type]
+        scale_type=scale_type,
+        default_value=default_value,
         fidelity_config=fidelity_config,
-        external_type=external_type,  # pyrefly: ignore[unexpected-keyword]
+        external_type=external_type,
     )
     if children:
       pc = pc._add_children(children)

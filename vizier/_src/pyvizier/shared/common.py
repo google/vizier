@@ -366,7 +366,7 @@ class Metadata(abc.MutableMapping):
     if isinstance(value, cls):
       # Starting from 3.10, pytype supports typeguard, which obsoletes
       # the need for the `pytype:disable` clause.
-      return value  # pytype: disable=bad-return-type
+      return value
     if isinstance(value, any_pb2.Any):
       # `value` is an Any proto potentially packing `cls`.
       message = cls()
@@ -416,7 +416,7 @@ class Metadata(abc.MutableMapping):
     if isinstance(value, cls):
       # Starting from 3.10, pytype supports typeguard, which obsoletes
       # the need for the `pytype:disable` clause.
-      return value  # pytype: disable=bad-return-type
+      return value
     elif isinstance(value, any_pb2.Any):
       # `value` is an Any proto potentially packing `cls`.
       message = cls()

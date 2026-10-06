@@ -548,8 +548,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
-            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+            num_trials=padding.PaddingType.POWERS_OF_2,
+            num_features=padding.PaddingType.POWERS_OF_2,
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
@@ -575,8 +575,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
-            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+            num_trials=padding.PaddingType.POWERS_OF_2,
+            num_features=padding.PaddingType.POWERS_OF_2,
         ),
     )
     eagle_factory = eagle_strategy.VectorizedEagleStrategyFactory()
@@ -618,8 +618,8 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     converter = converters.TrialToModelInputConverter.from_problem(
         problem,
         padding_schedule=padding.PaddingSchedule(
-            num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
-            num_features=padding.PaddingType.POWERS_OF_2,  # pyrefly: ignore[unexpected-keyword]
+            num_trials=padding.PaddingType.MULTIPLES_OF_10,
+            num_features=padding.PaddingType.POWERS_OF_2,
         ),
     )
     feature_dimensions = (
@@ -685,7 +685,7 @@ class VectorizedEagleStrategyContinuousTest(parameterized.TestCase):
     )
 
     padding_schedule = padding.PaddingSchedule(
-        num_trials=padding.PaddingType.MULTIPLES_OF_10,  # pyrefly: ignore[unexpected-keyword]
+        num_trials=padding.PaddingType.MULTIPLES_OF_10,
     )
     padding_converter = converters.TrialToModelInputConverter.from_problem(
         problem,

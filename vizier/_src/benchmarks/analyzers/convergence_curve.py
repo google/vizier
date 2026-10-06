@@ -811,16 +811,16 @@ class LogEfficiencyConvergenceCurveComparator(ConvergenceComparator):
     extended_compared = ConvergenceCurve.extrapolate_ys(
         compared_curve, extend_steps
     )
-    baseline_comparator = LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=combined_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=extended_baseline,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=self._baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
+    baseline_comparator = LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=combined_curve,
+        compared_curve=extended_baseline,
+        compared_quantile=self._baseline_quantile,
     )
     efficiency_baseline = baseline_comparator.curve()
-    compared_comparator = LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=combined_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=extended_compared,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=self._compared_quantile,  # pyrefly: ignore[unexpected-keyword]
+    compared_comparator = LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=combined_curve,
+        compared_curve=extended_compared,
+        compared_quantile=self._compared_quantile,
     )
     efficiency_compared = compared_comparator.curve()
 
@@ -878,7 +878,7 @@ class PercentageBetterConvergenceCurveComparator(ConvergenceComparator):
         (len(compared) - i) / len(compared) if i != float('inf') else 0
         for i in convergence_curve
     ]
-    return np.mean(pct_baseline_compared)  # pyrefly: ignore[bad-return]
+    return np.mean(pct_baseline_compared)
 
   def score(self) -> float:
     """Computes the percentage better score.
@@ -1003,13 +1003,13 @@ class OptimalityGapWinRateComparatorFactory(ConvergenceComparatorFactory):
       compared_quantile: float = 0.5,
       steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
-    return OptimalityGapWinRateComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=compared_curve,  # pyrefly: ignore[unexpected-keyword]
-        baseline_quantile=baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=compared_quantile,  # pyrefly: ignore[unexpected-keyword]
-        name='optimality_gap_win_rate',  # pyrefly: ignore[unexpected-keyword]
-        steps_cutoff=steps_cutoff,  # pyrefly: ignore[unexpected-keyword]
+    return OptimalityGapWinRateComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='optimality_gap_win_rate',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1024,13 +1024,13 @@ class OptimalityGapGainComparatorFactory(ConvergenceComparatorFactory):
       compared_quantile: float = 0.5,
       steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
-    return OptimalityGapGainComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=compared_curve,  # pyrefly: ignore[unexpected-keyword]
-        baseline_quantile=baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=compared_quantile,  # pyrefly: ignore[unexpected-keyword]
-        name='optimality_gap_gain',  # pyrefly: ignore[unexpected-keyword]
-        steps_cutoff=steps_cutoff,  # pyrefly: ignore[unexpected-keyword]
+    return OptimalityGapGainComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='optimality_gap_gain',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1048,14 +1048,14 @@ class WinRateConvergenceCurveComparatorFactory(ConvergenceComparatorFactory):
       compared_quantile: float = 0.5,
       steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
-    return WinRateConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=compared_curve,  # pyrefly: ignore[unexpected-keyword]
-        baseline_quantile=baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=compared_quantile,  # pyrefly: ignore[unexpected-keyword]
-        name='convergence_curve_win_rate',  # pyrefly: ignore[unexpected-keyword]
+    return WinRateConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='convergence_curve_win_rate',
         comparison_mode=self.comparison_mode,
-        steps_cutoff=steps_cutoff,  # pyrefly: ignore[unexpected-keyword]
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1072,13 +1072,13 @@ class LogEfficiencyConvergenceCurveComparatorFactory(
       compared_quantile: float = 0.5,
       steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
-    return LogEfficiencyConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=compared_curve,  # pyrefly: ignore[unexpected-keyword]
-        baseline_quantile=baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=compared_quantile,  # pyrefly: ignore[unexpected-keyword]
-        name='log_eff',  # pyrefly: ignore[unexpected-keyword]
-        steps_cutoff=steps_cutoff,  # pyrefly: ignore[unexpected-keyword]
+    return LogEfficiencyConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='log_eff',
+        steps_cutoff=steps_cutoff,
     )
 
 
@@ -1095,13 +1095,13 @@ class PercentageBetterConvergenceCurveComparatorFactory(
       compared_quantile: float = 0.5,
       steps_cutoff: Optional[int] = None,
   ) -> ConvergenceComparator:
-    return PercentageBetterConvergenceCurveComparator(  # pyrefly: ignore[missing-argument]
-        baseline_curve=baseline_curve,  # pyrefly: ignore[unexpected-keyword]
-        compared_curve=compared_curve,  # pyrefly: ignore[unexpected-keyword]
-        baseline_quantile=baseline_quantile,  # pyrefly: ignore[unexpected-keyword]
-        compared_quantile=compared_quantile,  # pyrefly: ignore[unexpected-keyword]
-        name='pct_better',  # pyrefly: ignore[unexpected-keyword]
-        steps_cutoff=steps_cutoff,  # pyrefly: ignore[unexpected-keyword]
+    return PercentageBetterConvergenceCurveComparator(
+        baseline_curve=baseline_curve,
+        compared_curve=compared_curve,
+        baseline_quantile=baseline_quantile,
+        compared_quantile=compared_quantile,
+        name='pct_better',
+        steps_cutoff=steps_cutoff,
     )
 
 

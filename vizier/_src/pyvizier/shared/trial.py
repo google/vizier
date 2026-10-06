@@ -99,7 +99,7 @@ class Metric:
     if (stddev is not None) and (not stddev >= 0):
       raise ValueError(
           'Standard deviation must be a non-negative finite number.'
-      )  # pytype: disable=bad-return-type
+      )
 
   value: float = attr.ib(
       converter=float,
@@ -147,11 +147,11 @@ class ParameterValue:
     internal_type.assert_correct_type(self.value)
 
     if internal_type in (ParameterType.DOUBLE, ParameterType.DISCRETE):
-      return self.as_float  # pytype: disable=bad-return-type
+      return self.as_float  # pyrefly: ignore[bad-return]
     elif internal_type == ParameterType.INTEGER:
-      return self.as_int  # pytype: disable=bad-return-type
+      return self.as_int  # pyrefly: ignore[bad-return]
     elif internal_type == ParameterType.CATEGORICAL:
-      return self.as_str  # pytype: disable=bad-return-type
+      return self.as_str  # pyrefly: ignore[bad-return]
     else:
       raise RuntimeError(f'Unknown type {internal_type}')
 
@@ -176,11 +176,11 @@ class ParameterValue:
     if external_type == ExternalType.INTERNAL:
       return self.value
     elif external_type == ExternalType.BOOLEAN:
-      return self.as_bool  # pytype: disable=bad-return-type
+      return self.as_bool  # pyrefly: ignore[bad-return]
     elif external_type == ExternalType.INTEGER:
-      return self.as_int  # pytype: disable=bad-return-type
+      return self.as_int  # pyrefly: ignore[bad-return]
     elif external_type == ExternalType.FLOAT:
-      return self.as_float  # pytype: disable=bad-return-type
+      return self.as_float  # pyrefly: ignore[bad-return]
     else:
       raise ValueError(
           'Unknown external type enum value: {}.'.format(external_type))
@@ -362,7 +362,7 @@ class ParameterDict(abc.MutableMapping):
 
   def as_dict(self) -> Dict[str, ParameterValueTypes]:
     """Returns the dict of parameter names to raw values."""
-    return {k: self.get_value(k) for k in self._items}  # pytype: disable=bad-return-type
+    return {k: self.get_value(k) for k in self._items}  # pyrefly: ignore[bad-return]
 
   def __init__(self, iterable: Any = tuple(), **kwargs):
     self.__attrs_init__()  # pyrefly: ignore[missing-attribute]
@@ -411,7 +411,8 @@ class TrialSuggestion:
       init=True,
       factory=ParameterDict,
       converter=ParameterDict,
-      validator=attr.validators.instance_of(ParameterDict))  # pytype: disable=wrong-arg-types
+      validator=attr.validators.instance_of(ParameterDict),
+  )
 
   metadata: common.Metadata = attr.field(
       init=True,
@@ -486,8 +487,9 @@ class Trial(TrialSuggestion):
       validator=attr.validators.deep_mapping(
           key_validator=attr.validators.instance_of(str),
           value_validator=attr.validators.instance_of(str),
-          mapping_validator=attr.validators.instance_of(dict)),
-  )  # pytype: disable=wrong-arg-types
+          mapping_validator=attr.validators.instance_of(dict),
+      ),
+  )
 
   final_measurement: Optional[Measurement] = attr.ib(
       init=True,

@@ -41,8 +41,8 @@ class PaddedTrialToArrayConverter:
       experimental_override: str = '',
       *,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
-          num_features=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+          num_trials=padding.PaddingType.NONE,
+          num_features=padding.PaddingType.NONE,
       ),
   ):
     """SHOULD NOT BE USED! Use factory classmethods e.g. from_study_config."""
@@ -89,8 +89,8 @@ class PaddedTrialToArrayConverter:
       *,
       scale: bool = True,
       padding_schedule: padding.PaddingSchedule = padding.PaddingSchedule(
-          num_trials=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
-          num_features=padding.PaddingType.NONE,  # pyrefly: ignore[unexpected-keyword]
+          num_trials=padding.PaddingType.NONE,
+          num_features=padding.PaddingType.NONE,
       ),
       pad_oovs: bool = True,
       max_discrete_indices: int = 0,
@@ -201,10 +201,10 @@ class TrialToModelInputConverter:
         [create_input_converter(p) for p in sc.search_space.parameters],
         [create_output_converter(m) for m in sc.metric_information],
     )
-    return cls(  # pyrefly: ignore[missing-argument]
+    return cls(
         TrialToContinuousAndCategoricalConverter(converter),
-        problem=problem,  # pyrefly: ignore[unexpected-keyword]
-        padding_schedule=padding_schedule,  # pyrefly: ignore[unexpected-keyword]
+        problem=problem,
+        padding_schedule=padding_schedule,
     )
 
   def to_features(self, trials: Sequence[vz.TrialSuggestion]) -> vt.ModelInput:

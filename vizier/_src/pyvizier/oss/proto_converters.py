@@ -649,7 +649,7 @@ class TrialConverter:
         final_measurement=final_measurement,  # pyrefly: ignore[unexpected-keyword]
         measurements=measurements,  # pyrefly: ignore[unexpected-keyword]
         metadata=metadata,  # pyrefly: ignore[unexpected-keyword]
-    )  # pytype: disable=wrong-arg-types
+    )
 
   @classmethod
   def from_protos(cls, protos: Iterable[study_pb2.Trial]) -> List[trial.Trial]:
