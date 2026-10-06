@@ -234,7 +234,7 @@ class _OSSVizierTuner(client.VizierTuner):
     elif isinstance(group_id, int):
       return f'group:{group_id}'
     elif isinstance(group_id, str):
-      return group_id  # pytype: disable=bad-return-type
+      return group_id
 
   def ping_tuner(self, tuner_id: str) -> bool:
     # We treat `tuner_id` as the Pythia endpoint.

@@ -159,7 +159,7 @@ class VizierClient:
     except grpc.RpcError as rpc_error:
       # If ImmutableStudyError occurs, we simply return empty suggestion list.
       # Otherwise, halt the client and raise error.
-      if rpc_error.code() == grpc.StatusCode.FAILED_PRECONDITION:  # pytype:disable=attribute-error
+      if rpc_error.code() == grpc.StatusCode.FAILED_PRECONDITION:  # pyrefly: ignore[missing-attribute]
         return []
       raise rpc_error
 

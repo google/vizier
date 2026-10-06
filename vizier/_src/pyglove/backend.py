@@ -72,7 +72,7 @@ class VizierBackend(pg.tuning.Backend):
   # Class-level variables.
   default_owner: str = getpass.getuser()
   default_study_prefix: Optional[str] = None
-  tuner_cls: Type[client.VizierTuner] = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  tuner_cls: Type[client.VizierTuner] = attrs.field()
 
   # Instance-level variables.
 
@@ -82,40 +82,40 @@ class VizierBackend(pg.tuning.Backend):
 
   # Worker group - workers that belong to the same group will share the same
   # Vizier client ID.
-  _group: Union[None, int, str] = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _group: Union[None, int, str] = attrs.field()
 
   # Max number of examples to sample.
-  _num_examples: Optional[int] = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _num_examples: Optional[int] = attrs.field()
 
   # Prior study IDs for transfer learning.
-  _prior_study_ids: Optional[Sequence[str]] = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _prior_study_ids: Optional[Sequence[str]] = attrs.field()
 
   # If True, add the completed trials from prior studies. Otherwise, simply
   # warm up the algorithm using these trials without adding them to the current
   # study.
-  _add_prior_trials: bool = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _add_prior_trials: bool = attrs.field()
 
   #
   # Internal states.
   #
 
-  _tuner: client.VizierTuner  # pyrefly: ignore[bad-class-definition]
-  _dna_spec: pg.DNASpec  # pyrefly: ignore[bad-class-definition]
-  _algorithm: pg.geno.DNAGenerator = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _early_stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = (  # pyrefly: ignore[bad-class-definition]
+  _tuner: client.VizierTuner
+  _dna_spec: pg.DNASpec
+  _algorithm: pg.geno.DNAGenerator = attrs.field()
+  _early_stopping_policy: Optional[pg.tuning.EarlyStoppingPolicy] = (
       attrs.field()
   )
 
-  _study_owner: str = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _study_name: ExpandedStudyName = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _converter: converters.VizierConverter = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _study_owner: str = attrs.field()
+  _study_name: ExpandedStudyName = attrs.field()
+  _converter: converters.VizierConverter = attrs.field()
 
-  _study: client_abc.StudyInterface = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _suggestion_generator: Any = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _study: client_abc.StudyInterface = attrs.field()
+  _suggestion_generator: Any = attrs.field()
 
-  _run_mode: TunerMode = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _auto_election_thread: Optional[threading.Thread] = attrs.field()  # pyrefly: ignore[bad-class-definition]
-  _is_active: bool = attrs.field()  # pyrefly: ignore[bad-class-definition]
+  _run_mode: TunerMode = attrs.field()
+  _auto_election_thread: Optional[threading.Thread] = attrs.field()
+  _is_active: bool = attrs.field()
 
   def __init__(
       self,
@@ -468,7 +468,7 @@ class VizierBackend(pg.tuning.Backend):
   def next(self) -> pg.tuning.Feedback:
     """Gets the next tuning feedback object."""
     try:
-      trial = next(self._suggestion_generator)  # pytype: disable=wrong-arg-types
+      trial = next(self._suggestion_generator)
       return core.Feedback(self._study.get_trial(trial.id), self._converter)
     except StopIteration as e:
       self._is_active = False
