@@ -505,7 +505,7 @@ class VizierGPBandit(vza.Designer, vza.Predictor):
         eqx.filter_jit(score),  # pyrefly: ignore[bad-argument-type]
         prior_features=seed_features,
         count=count,
-        seed=acq_rng,
+        seed=acq_rng,  # pyrefly: ignore[bad-argument-type]
         score_with_aux_fn=eqx.filter_jit(score_with_aux),
         n_parallel=n_parallel,
     )

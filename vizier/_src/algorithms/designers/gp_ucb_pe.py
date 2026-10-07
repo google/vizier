@@ -1104,7 +1104,7 @@ class VizierGPUCBPEBandit(vza.Designer):
                 self._all_completed_trials, self._converter
             ),
             count=1,
-            seed=acq_rng,
+            seed=acq_rng,  # pyrefly: ignore[bad-argument-type]
             score_with_aux_fn=scoring_fn.score_with_aux,  # pyrefly: ignore[missing-attribute]
         )
         jax.block_until_ready(best_candidates)

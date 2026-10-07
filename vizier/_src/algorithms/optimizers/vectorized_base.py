@@ -379,7 +379,7 @@ class VectorizedOptimizer(Generic[_S]):
     jax.monitoring.record_event('/vizier/jax/vectorized_optimizer/call/traced')
     start_time = datetime.datetime.now()
     seed = jax.random.PRNGKey(0) if seed is None else seed  # pyrefly: ignore[bad-assignment]
-    seed, acq_fn_seed = jax.random.split(seed)  # pyrefly: ignore[bad-argument-type]
+    seed, acq_fn_seed = jax.random.split(seed)  # pyrefly: ignore[bad-argument-type, bad-assignment]
 
     dimension_is_missing = jax.tree_util.tree_map(
         lambda pad_dim, dim: jnp.arange(pad_dim) >= dim,
@@ -453,7 +453,7 @@ class VectorizedOptimizer(Generic[_S]):
       )
       return new_state, new_best_results, new_seed
 
-    init_seed, loop_seed = jax.random.split(seed)
+    init_seed, loop_seed = jax.random.split(seed)  # pyrefly: ignore[bad-argument-type]
     # TODO: Consider initializing with prior features/rewards.
     init_best_results = VectorizedStrategyResults(
         rewards=-jnp.inf * jnp.ones([count]),

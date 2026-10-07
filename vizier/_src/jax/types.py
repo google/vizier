@@ -130,7 +130,7 @@ class PaddedArray(eqx.Module):
   @property
   def is_missing(self) -> tuple[jt.Bool[jax.Array, '...']]:
     """Mask per dimension padded. Arrays have shape [N1], [N2], ..., [Nk]."""
-    return tuple(
+    return tuple(  # pyrefly: ignore[bad-return]
         jnp.arange(s1) >= s2
         for s1, s2 in zip(self.padded_array.shape, self._original_shape)
     )
