@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+"""Tests for gp_bandit, including multi-metric warping and prediction."""
+
 from typing import Callable, Union
 import unittest
 from unittest import mock
@@ -25,6 +27,7 @@ from vizier import pyvizier as vz
 from vizier._src.algorithms.designers import gp_bandit
 from vizier._src.algorithms.designers import quasi_random
 from vizier._src.algorithms.designers.gp import acquisitions
+from vizier._src.algorithms.designers.gp import output_warpers
 from vizier._src.algorithms.optimizers import eagle_strategy as es
 from vizier._src.algorithms.optimizers import lbfgsb_optimizer as lo
 from vizier._src.algorithms.optimizers import vectorized_base as vb
@@ -59,6 +62,19 @@ def _build_mock_continuous_array_specs(n):
   return [continuous_spec] * n
 
 
+def _problem() -> vz.ProblemStatement:
+  search_space = vz.SearchSpace()
+  search_space.root.add_float_param('x0', -5.0, 5.0)
+  return vz.ProblemStatement(
+      search_space=search_space,
+      metric_information=vz.MetricsConfig(
+          metrics=[  # pyrefly: ignore[unexpected-keyword]
+              vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
+          ]
+      ),
+  )
+
+
 def _setup_lambda_search(
     f: Callable[[float], float], num_trials: int = 100
 ) -> tuple[gp_bandit.VizierGPBandit, list[vz.Trial], vz.ProblemStatement]:
@@ -77,16 +93,7 @@ def _setup_lambda_search(
       num_trials > 0
   ), f'Must provide a positive number of trials. Got {num_trials}.'
 
-  search_space = vz.SearchSpace()
-  search_space.root.add_float_param('x0', -5.0, 5.0)
-  problem = vz.ProblemStatement(
-      search_space=search_space,
-      metric_information=vz.MetricsConfig(
-          metrics=[
-              vz.MetricInformation('obj', goal=vz.ObjectiveMetricGoal.MAXIMIZE),
-          ]
-      ),
-  )
+  problem = _problem()
 
   suggestions = quasi_random.QuasiRandomDesigner(
       problem.search_space, seed=1
@@ -506,6 +513,105 @@ class GoogleGpBanditTest(parameterized.TestCase):
         ).run_designer(designer),
         iters,
     )
+
+  def test_multi_metric_warper_isolation(self):
+    """Verifies that each metric gets an isolated OutputWarper instance.
+
+    In multi-metric optimization, OutputWarper instances are stateful (tracking
+    running statistics, normalization bounds, etc.). This test ensures that
+    metrics with vastly different scales (e.g., obj1 in [0, 10] vs. obj2 in
+    [0, 10000]) use independent warper instances so that scale statistics do
+    not corrupt each other, and verifies predictions retain proper scales.
+    """
+    search_space = vz.SearchSpace()
+    search_space.root.add_float_param('x0', -5.0, 5.0)
+    problem = vz.ProblemStatement(
+        search_space=search_space,
+        metric_information=vz.MetricsConfig(
+            metrics=[  # pyrefly: ignore[unexpected-keyword]
+                vz.MetricInformation(
+                    'obj1', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+                vz.MetricInformation(
+                    'obj2', goal=vz.ObjectiveMetricGoal.MAXIMIZE
+                ),
+            ]
+        ),
+    )
+    designer = gp_bandit.VizierGPBandit(problem)
+    trials = []
+    for i in range(10):
+      t = vz.Trial(parameters={'x0': float(i) - 5.0})
+      t.complete(
+          vz.Measurement(metrics={'obj1': float(i), 'obj2': float(i) * 1000.0})
+      )
+      trials.append(t)
+
+    designer.update(
+        completed=vza.CompletedTrials(trials),
+        all_active=vza.ActiveTrials([]),
+    )
+
+    # Ensure predict returns predictions with shape (num_trials, 2) and
+    # proper scales.
+    suggestions = [vz.TrialSuggestion(parameters={'x0': 0.0})]
+    prediction = designer.predict(suggestions, num_samples=100)
+    self.assertEqual(prediction.mean.shape, (1, 2))
+    self.assertEqual(prediction.stddev.shape, (1, 2))
+    # obj2 mean should be roughly 1000x of obj1 mean.
+    self.assertGreater(prediction.mean[0, 1], prediction.mean[0, 0] * 100)
+
+    # Check that _output_warpers contains two distinct instances keyed by
+    # metric.
+    self.assertIsNot(
+        designer._trial_warper._output_warpers['obj1'],
+        designer._trial_warper._output_warpers['obj2'],
+    )
+
+  def test_output_warper_factory_non_callable_raises_type_error(self):
+    problem = _problem()
+    # Passing an instantiated OutputWarper instead of a callable should fail.
+    with self.assertRaises(TypeError):
+      gp_bandit.VizierGPBandit(
+          problem,
+          output_warper_factory=output_warpers.create_default_warper(),  # pyrefly: ignore[unexpected-keyword,bad-argument-type]
+      )
+
+  def test_output_warper_factory_custom_callable(self):
+    problem = _problem()
+    designer = gp_bandit.VizierGPBandit(
+        problem,
+        output_warper_factory=lambda: output_warpers.create_default_warper(  # pyrefly: ignore[unexpected-keyword]
+            half_rank_warp=False
+        ),
+    )
+    t = vz.Trial(parameters={'x0': 1.0})
+    t.complete(vz.Measurement(metrics={'obj': 10.0}))
+    _ = designer._trials_to_data([t])
+    self.assertNotEmpty(designer._trial_warper._output_warpers)
+
+  def test_nan_metrics_label_handling_in_gp(self):
+    """Verifies VizierGPBandit routes trials through TrialOutputWarper.
+
+    See output_warpers_test.py for detailed missing-data and infeasibility
+    semantics.
+    """
+    designer = gp_bandit.VizierGPBandit(_problem())
+
+    t_finite = vz.Trial(parameters={'x0': 1.0}).complete(
+        vz.Measurement({'obj': 10.0})
+    )
+    t_missing = vz.Trial(parameters={'x0': 2.0}).complete(
+        vz.Measurement({'obj': np.nan})
+    )
+    t_infeasible = vz.Trial(parameters={'x0': 3.0}).complete(
+        vz.Measurement({'obj': np.nan}), infeasibility_reason='failed'
+    )
+
+    data = designer._trials_to_data([t_finite, t_missing, t_infeasible])
+
+    # Missing is dropped, infeasible is kept, yielding 2 rows.
+    self.assertEqual(data.labels.unpad().shape[0], 2)
 
 
 class GPBanditSimplekDTest(parameterized.TestCase):
