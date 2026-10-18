@@ -19,3 +19,5 @@ ray[default]
 # For (multiobjective) optproblems.
 optproblems==1.3
 diversipy==0.9
+
+protobuf>=6.31.0
