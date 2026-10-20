@@ -203,7 +203,7 @@ class _BayesianHorseshoeLinearRegression:
           k = k + 1
 
     b0 = muY
-    return beta, b0, s2, t2, l2
+    return beta, b0, s2, t2, l2  # pyrefly: ignore[bad-return]
 
 
 class _GibbsLinearRegressor:

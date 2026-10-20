@@ -28,7 +28,7 @@ def _hartmann(
     x: np.ndarray, alpha: np.ndarray, A: np.ndarray, P: np.ndarray
 ) -> float:
   # pylint:disable=invalid-name
-  return -alpha @ np.exp(-np.sum(A * (x - P) ** 2, axis=1))
+  return -alpha @ np.exp(-np.sum(A * (x - P) ** 2, axis=1))  # pyrefly: ignore[bad-return]
 
 
 class HartmannExperimenter(experimenter.Experimenter):
