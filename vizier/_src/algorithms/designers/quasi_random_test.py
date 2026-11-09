@@ -86,6 +86,32 @@ class QuasiRandomTest(absltest.TestCase):
       self.assertGreater(max(float_points), 0.998)  # pyrefly: ignore[no-matching-overload]
       self.assertLess(min(float_points), 0.002)  # pyrefly: ignore[no-matching-overload]
 
+  def test_suggest_batch_matches_sequential_calls(self):
+    """A batched suggest(count=N) should match N sequential suggest(1)s.
+
+    This guards the optimization in `suggest()` that draws all `count`
+    Halton points with a single `self._halton.random(n=count)` call
+    instead of `count` separate `random(n=1)` calls: both call patterns
+    must advance the underlying quasi-random sequence identically.
+    """
+    problem = vz.ProblemStatement(test_studies.flat_space_with_all_types())
+    batched_designer = quasi_random.QuasiRandomDesigner(
+        problem.search_space, seed=1
+    )
+    batched_suggestions = batched_designer.suggest(10)
+
+    sequential_designer = quasi_random.QuasiRandomDesigner(
+        problem.search_space, seed=1
+    )
+    sequential_suggestions = [
+        sequential_designer.suggest(1)[0] for _ in range(10)
+    ]
+
+    self.assertEqual(batched_suggestions, sequential_suggestions)
+    # Internal bookkeeping (used by dump/load to resume the sequence) must
+    # also stay in sync between the two call patterns.
+    self.assertEqual(batched_designer.dump(), sequential_designer.dump())
+
   def test_equal_seeds(self):
     problem = vz.ProblemStatement()
     problem.search_space.root.add_float_param('float', 0.0, 1.0)

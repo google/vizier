@@ -132,12 +132,17 @@ class QuasiRandomDesigner(vza.PartiallySerializableDesigner):
     """Suggest new suggestions, taking into account `count`."""
     count = count or 1
     sample = collections.defaultdict(list)
-    for _ in range(count):
-      # Generate one random sample in [0.0, 1.0]^d (d was specified in the
-      # constructor).
-      halton_values = self._halton.random(n=1)[0]
-      # Increment 'skip_points' to reflect designer's state.
-      self._skip_points += 1
+    # Generate all `count` samples in [0.0, 1.0]^d (d was specified in the
+    # constructor) with a single vectorized call, rather than calling
+    # `self._halton.random(n=1)` in a loop. QMCEngine.random() draws
+    # points sequentially from the same underlying sequence and advances
+    # its internal counter by `n`, so one call with n=count yields exactly
+    # the same points, in the same order, as count calls with n=1 -- just
+    # without paying the per-call overhead count times over.
+    halton_values_batch = self._halton.random(n=count)
+    # Increment 'skip_points' to reflect designer's state.
+    self._skip_points += count
+    for halton_values in halton_values_batch:
       for dimension_index, spec in enumerate(self._output_specs):
         halton_value = halton_values[dimension_index]
         if spec.type == converters.NumpyArraySpecType.CONTINUOUS:
