@@ -17,8 +17,8 @@ from __future__ import annotations
 """Tests for pythia."""
 
 import functools
+from unittest import mock
 
-import mock
 import pyglove as pg
 from vizier import pythia
 from vizier import pyvizier as vz
